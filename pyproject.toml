@@ -1,0 +1,35 @@
+[tool.poetry]
+name = "dbt-ci"
+version = "0.1.0"
+description = ""
+authors = ["datablock.dev"]
+readme = "README.md"
+packages = [{include = "dbt_ci", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+sqlalchemy = ">=1.4.0"
+click = ">=8.0.0"
+requests = ">=2.25.0"
+psycopg2-binary = {version = "^2.9.0", optional = true}
+
+[tool.poetry.extras]
+postgres = ["psycopg2-binary"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0.0"
+black = "^22.0.0"
+mypy = "^0.950"
+flake8 = "^6.0.0"
+psycopg2-binary = "^2.9.0"
+
+[tool.poetry.scripts]
+dbt-ci = "dbt_ci.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
