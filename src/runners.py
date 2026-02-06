@@ -1,3 +1,4 @@
+import os
 import subprocess
 from subprocess import CompletedProcess
 from typing import List
@@ -7,8 +8,7 @@ def local_runner(
     dry_run: bool = False,
     quiet: bool = False
 ) -> CompletedProcess | None:
-    # Build the dbt command based on the provided arguments
-    # Execute the dbt command
+    """Execute dbt commands locally."""
     if not quiet:
         print(f"Running command: {' '.join(commands)}")
     
@@ -66,7 +66,6 @@ def docker_runner(
         dry_run: If True, only print the command
         quiet: If True, suppress stdout
     """
-    import os
     
     docker_volumes = docker_volumes or []
     docker_env = docker_env or []
@@ -81,12 +80,7 @@ def docker_runner(
     container_state_dir = "/state"
     
     # Build Docker command
-    docker_cmd = [
-        "docker", "run",
-        "--rm",
-        "-v", f"{dbt_project_dir}:{container_project_dir}",
-        "-v", f"{state_dir}:{container_state_dir}",
-    ]
+    docker_cmd = ["docker", "run"]
     
     # Add profiles directory mount if specified
     if profiles_dir:
@@ -94,10 +88,10 @@ def docker_runner(
         docker_cmd.extend(["-e", f"DBT_PROFILES_DIR={container_profiles_dir}"])
     
     # Add network mode
-    docker_cmd.extend(["--network", docker_network])
+    #docker_cmd.extend(["--network", docker_network])
     
     # Add user
-    docker_cmd.extend(["--user", docker_user])
+    #docker_cmd.extend(["--user", docker_user])
     
     # Add additional volumes
     for volume in docker_volumes:
@@ -129,8 +123,6 @@ def docker_runner(
     
     # Add the dbt command
     docker_cmd.extend(translated_commands)
-    
-    print(f"Running Docker command: {' '.join(docker_cmd)}")
     
     if dry_run:
         print("DRY RUN: Command would be executed")

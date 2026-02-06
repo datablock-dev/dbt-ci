@@ -103,8 +103,6 @@ class DbtGraph:
 
         node_names = [nid.split(".")[-1] for nid in modified_nodes]
         return node_names
-    
-        return None
             
 
     def get_node(self, node_id: str) -> Dict[str, DependencyGraphNode] | None:
