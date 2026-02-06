@@ -1,0 +1,20 @@
+#!/bin/bash
+
+SCRIPT_PATH="$(realpath "$0")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+
+echo "Installing dbt-ci tool..."
+
+# Check that python is installed
+if ! command -v python3 &> /dev/null; then
+    echo "Python 3 is not installed. Please install Python 3 and try again."
+    exit 1
+fi
+
+# Install the dbt-ci tool using pip
+cd "$REPO_ROOT" || exit
+pip install -e .
+
+echo "dbt-ci tool installed successfully!"
+echo "You can now run the tool using the command: dbt-ci --help"

@@ -4,6 +4,9 @@ def local_runner(args):
     # Build the dbt command based on the provided arguments
     dbt_command = ["dbt", args.mode]
 
+    if args.selector:
+        dbt_command.extend(["--select", args.selector])
+
     if args.target:
         dbt_command.extend(["--target", args.target])
 
@@ -27,3 +30,7 @@ def local_runner(args):
         print(result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error executing dbt command: {e.stderr}")
+
+def docker_runner(args):
+    # Placeholder for Docker runner implementation
+    print("Docker runner is not yet implemented.")
