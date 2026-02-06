@@ -27,17 +27,23 @@ class DbtGraph:
         self.reference_manifest_file = get_prod_manifest_file(args.prod_manifest_dir)
         self.prod_manifest_file = self.reference_manifest_file
         self.target_manifest_file = get_manifest_file(args.dbt_project_dir)
-        
-        # Set target from args if provided, otherwise get from profile
-        if args.target and args.target != "default":
-            self.target: str = args.target
-        else:
-            self.target: str = self.get_target_profile()["target_name"]
-        
+        self.target = self.set_target()
         self.vars: str = args.vars
         self.dry_run: bool = args.dry_run
         self.log_level: str = args.log_level
         self.dependency_graph = generate_dependency_graph(args.dbt_project_dir)
+
+        self.modified_nodes = self.get_state_modified(
+            node_type=None,
+            node_ids=None
+        )
+
+    def set_target(self):
+        """Set the target from args if provided, otherwise get from profile."""
+        if self.args.target and self.args.target != "default":
+            return self.args.target
+        else:
+            return self.get_target_profile()["target_name"]
 
     def get_state_modified(
         self, 
@@ -45,6 +51,8 @@ class DbtGraph:
         node_ids: Optional[List[str]] = None
     ):
         """Get the state modified for a given node type and/or list of node ids."""
+        project_profile = self.project.get("profile", "")
+
         if self.runner == "local":
             command = [
                 "dbt",
@@ -57,7 +65,23 @@ class DbtGraph:
                 *(["--profiles-dir", self.profiles_dir] if self.profiles_dir else [])
             ]
 
-            local_runner(command, dry_run=self.dry_run)
+            output = local_runner(
+                command, 
+                dry_run=self.dry_run,
+                quiet=True
+            )
+
+            if output is None:
+                print("No modified nodes found.")
+                return set()
+
+            modified_nodes = {
+                line.strip() for line in output.stdout.splitlines()
+                if line.startswith(f"{project_profile}.")
+            }
+
+            node_names = [nid.split(".")[-1] for nid in modified_nodes]
+            
 
     def get_node(self, node_id: str) -> Dict[str, DependencyGraphNode] | None:
         match = None

@@ -2,7 +2,11 @@ import subprocess
 from subprocess import CompletedProcess
 from typing import List
 
-def local_runner(commands: List[str], dry_run: bool = False) -> CompletedProcess | None:
+def local_runner(
+    commands: List[str], 
+    dry_run: bool = False,
+    quiet: bool = False
+) -> CompletedProcess | None:
     # Build the dbt command based on the provided arguments
     # Execute the dbt command
     print(f"Running command: {' '.join(commands)}")
@@ -19,7 +23,8 @@ def local_runner(commands: List[str], dry_run: bool = False) -> CompletedProcess
             text=True
         )
 
-        print(result.stdout)
+        if not quiet:
+            print(result.stdout)
 
         return result
     except subprocess.CalledProcessError as e:
