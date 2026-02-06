@@ -24,7 +24,13 @@ class DbtGraph:
         self.reference_manifest_file = get_prod_manifest_file(args.prod_manifest_dir)
         self.prod_manifest_file = self.reference_manifest_file
         self.target_manifest_file = get_manifest_file(args.dbt_project_dir)
-        self.target: str = self.get_target_profile()["target_name"]
+        
+        # Set target from args if provided, otherwise get from profile
+        if args.target and args.target != "default":
+            self.target: str = args.target
+        else:
+            self.target: str = self.get_target_profile()["target_name"]
+        
         self.vars: str = args.vars
         self.dry_run: bool = args.dry_run
         self.log_level: str = args.log_level
@@ -44,7 +50,8 @@ class DbtGraph:
                 *(["--target", self.target] if self.target else []),
                 *(["--vars", self.vars,] if self.vars else []),
                 "--state", self.args.prod_manifest_dir,
-                "--project-dir", self.args.dbt_project_dir
+                "--project-dir", self.args.dbt_project_dir,
+                #"--quiet"
             ]
 
             local_runner(command)
@@ -78,14 +85,9 @@ class DbtGraph:
     def get_target_profile(self) -> Dict:
         """Get the default profile from the profiles.yml file."""
         profile = self.project.get("profile", "")
-        outputs = self.profile.get(profile).get("outputs", {})
-        target = self.profile.get(profile).get("target", "")
+        outputs = self.profile.get(profile, {}).get("outputs", {})
+        target = self.profile.get(profile, {}).get("target", "")
 
-        if self.target and self.target in outputs:
-            return {
-                "config": outputs[self.target],
-                "target_name": self.target
-            }
         return {
             "config": outputs.get(target, {}),
             "target_name": target
