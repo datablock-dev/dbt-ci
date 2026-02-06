@@ -1,5 +1,6 @@
 import sys
 import argparse
+from src.dependency_graph import DbtGraph
 
 def main():
     """
@@ -131,8 +132,8 @@ def main():
     try:
         # Implement the main functionality here
 
-        print(args)
-
+        dependency_graph = DbtGraph(args)
+        dependency_graph.to_json()
 
     except Exception as e:
         print(f"An error occurred: {e}")

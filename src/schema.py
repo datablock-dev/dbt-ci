@@ -1,5 +1,5 @@
 """TypedDict definitions for dbt manifest.json structure and CLI arguments."""
-from typing import Dict, Any, List, Optional, TypedDict, NotRequired, Literal
+from typing import Dict, Any, List, Optional, TypedDict, NotRequired, Literal, Set
 
 
 class Quoting(TypedDict):
@@ -234,3 +234,53 @@ class CLIArgs(TypedDict):
     mode: Literal["run", "test", "snapshot", "seed", None]
     runner: Literal["local", "docker"]
 
+###########################################
+#   Dependency graph structures for lineage analysis
+###########################################
+type DependencyGraphNodeType = Literal[
+    "model", 
+    "macro", 
+    "source", 
+    "seed", 
+    "snapshot", 
+    "test", 
+    "exposure"
+]
+class DependenciesByType(TypedDict):
+    model: Set[str]
+    macro: Set[str]
+    source: Set[str]
+    seed: Set[str]
+    snapshot: Set[str]
+    test: Set[str]
+    exposure: Set[str]
+class DependencyGraphDownstreamDependency(TypedDict):
+    node_dependencies: Set[str]
+    dependencies_by_type: DependenciesByType
+
+class DependencyGraphNode(TypedDict):
+    """Structured representation of dbt dependencies for lineage analysis."""
+    name: str
+    id: str
+    database: str
+    schema: str
+    resource_type: DependencyGraphNodeType
+    original_file_path: str
+    compiled_path: str
+    compiled_code: str
+    columns: Set[str]
+    downstream_dependencies: DependencyGraphDownstreamDependency
+    upstream_dependencies: DependencyGraphDownstreamDependency
+    indirect_upstream_dependencies: DependencyGraphDownstreamDependency
+    indirect_downstream_dependencies: DependencyGraphDownstreamDependency
+
+class DependencyGraph(TypedDict):
+    """Complete dependency graph for dbt resources."""
+    metadata: Metadata
+    model: Dict[str, DependencyGraphNode]
+    macro: Dict[str, DependencyGraphNode]
+    seed: Dict[str, DependencyGraphNode]
+    snapshot: Dict[str, DependencyGraphNode]
+    source: Dict[str, DependencyGraphNode]
+    test: Dict[str, DependencyGraphNode]
+    exposure: Dict[str, DependencyGraphNode]
