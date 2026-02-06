@@ -207,3 +207,4 @@ marimo/_lsp/
 __marimo__/
 
 dbt
+dependency_graph.json
