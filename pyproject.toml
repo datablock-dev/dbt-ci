@@ -2,7 +2,10 @@
 name = "dbt-ci"
 version = "0.1.0"
 description = ""
-authors = ["datablock.dev"]
+authors = [
+    {name = "Patrick Tannoury", email = "patrick.tannoury@datablock.dev"},
+    {name = "DataBlock", website = "https://datablock.dev"},
+]
 readme = "README.md"
 packages = [{include = "dbt_ci", from = "src"}]
 

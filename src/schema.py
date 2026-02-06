@@ -266,6 +266,7 @@ class CLIArgs(TypedDict):
     mode: Literal["run", "test", "snapshot", "seed", None]
     runner: Literal["local", "docker"]
     docker_image: str
+    docker_platform: Optional[str]
     docker_volumes: List[str]
     docker_env: List[str]
     docker_network: str

@@ -121,8 +121,16 @@ def main():
     parser.add_argument(
         "--docker-image",
         type=str,
-        help="Docker image to use (default: ghcr.io/dbt-labs/dbt-core:latest)",
-        default="ghcr.io/dbt-labs/dbt-core:latest",
+        help="Docker image to use (default: ghcr.io/dbt-labs/dbt-postgres:latest)",
+        default="ghcr.io/dbt-labs/dbt-postgres:latest",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--docker-platform",
+        type=str,
+        help="Platform for Docker image (e.g., linux/amd64, linux/arm64). Use linux/amd64 on Apple Silicon for compatibility",
+        default=None,
         required=False,
     )
 

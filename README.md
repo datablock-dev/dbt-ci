@@ -4,10 +4,16 @@ A CI tool for dbt (data build tool) projects that helps identify and run modifie
 
 ## Installation
 
+### Local Installation
+
 ```bash
 pip install -e .
 ```
 
+### Installation through 
+```bash
+pip install git+https://github.com/datablock-dev/dbt-ci.git@main
+```
 ## Usage
 
 ### Local Runner
@@ -30,10 +36,28 @@ python main.py \
   --prod-manifest-dir dbt/.dbtstate \
   --dbt-project-dir dbt \
   --runner docker \
-  --docker-image ghcr.io/dbt-labs/dbt-core:latest
+  --docker-image ghcr.io/dbt-labs/dbt-postgres:latest
+```
+
+**For Apple Silicon Macs:**
+
+If the Docker image doesn't have ARM64 support, use the `--docker-platform` flag:
+
+```bash
+python main.py \
+  --prod-manifest-dir dbt/.dbtstate \
+  --dbt-project-dir dbt \
+  --runner docker \
+  --docker-image ghcr.io/dbt-labs/dbt-postgres:latest \
+  --docker-platform linux/amd64
 ```
 
 #### Docker Advanced Options
+
+**Platform (for Apple Silicon compatibility):**
+```bash
+--docker-platform linux/amd64  # or linux/arm64
+```
 
 **Custom Volumes:**
 ```bash
@@ -68,6 +92,7 @@ python main.py \
   --profiles-dir ~/.dbt \
   --runner docker \
   --docker-image ghcr.io/dbt-labs/dbt-postgres:1.7.0 \
+  --docker-platform linux/amd64 \
   --docker-env "POSTGRES_HOST=host.docker.internal" \
   --docker-network host \
   --docker-volumes "$HOME/.aws:/root/.aws:ro" \
@@ -83,7 +108,8 @@ python main.py \
 | `--profiles-dir` | Path to profiles.yml directory | Auto-detect |
 | `--target` | dbt target to use | From profiles.yml |
 | `--runner` | Runner type: `local` or `docker` | `local` |
-| `--docker-image` | Docker image for dbt | `ghcr.io/dbt-labs/dbt-core:latest` |
+| `--docker-image` | Docker image for dbt | `ghcr.io/dbt-labs/dbt-postgres:latest` |
+| `--docker-platform` | Platform for Docker image (linux/amd64, linux/arm64) | Auto-detect |
 | `--docker-volumes` | Additional volume mounts | `[]` |
 | `--docker-env` | Environment variables | `[]` |
 | `--docker-network` | Docker network mode | `host` |

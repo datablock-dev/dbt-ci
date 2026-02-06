@@ -30,9 +30,9 @@ def local_runner(
         return result
     except subprocess.CalledProcessError as e:
         if e.stderr:
-            print(f"STDERR: {e.stderr}")
+            print(e.stderr)
         if e.stdout:
-            print(f"STDOUT: {e.stdout}")
+            print(e.stdout)
         raise
 
 def docker_runner(
@@ -41,6 +41,7 @@ def docker_runner(
     profiles_dir: str | None,
     state_dir: str,
     docker_image: str,
+    docker_platform: str | None = None,
     docker_volumes: List[str] | None = None,
     docker_env: List[str] | None = None,
     docker_network: str = "host",
@@ -58,6 +59,7 @@ def docker_runner(
         profiles_dir: Absolute path to profiles directory
         state_dir: Absolute path to state directory
         docker_image: Docker image to use
+        docker_platform: Platform for Docker image (e.g., linux/amd64, linux/arm64). Use linux/amd64 on Apple Silicon for compatibility
         docker_volumes: Additional volume mounts
         docker_env: Environment variables to pass
         docker_network: Docker network mode
@@ -81,6 +83,10 @@ def docker_runner(
     
     # Build Docker command
     docker_cmd = ["docker", "run"]
+    
+    # Add platform if specified (useful for Apple Silicon Macs)
+    if docker_platform:
+        docker_cmd.extend(["--platform", docker_platform])
     
     # Add profiles directory mount if specified
     if profiles_dir:
@@ -142,7 +148,7 @@ def docker_runner(
         return result
     except subprocess.CalledProcessError as e:
         if e.stderr:
-            print(f"STDERR: {e.stderr}")
+            print(e.stderr)
         if e.stdout:
-            print(f"STDOUT: {e.stdout}")
+            print(e.stdout)
         raise

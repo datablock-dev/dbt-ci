@@ -17,6 +17,7 @@ class DbtGraph:
         
         # Docker configuration
         self.docker_image = args.docker_image
+        self.docker_platform = getattr(args, 'docker_platform', None)
         self.docker_volumes = getattr(args, 'docker_volumes', [])
         self.docker_env = getattr(args, 'docker_env', [])
         self.docker_network = getattr(args, 'docker_network', 'host')
@@ -81,6 +82,7 @@ class DbtGraph:
                 profiles_dir=self.profiles_dir,
                 state_dir=self.prod_manifest_dir,
                 docker_image=self.docker_image,
+                docker_platform=self.docker_platform,
                 docker_volumes=self.docker_volumes,
                 docker_env=self.docker_env,
                 docker_network=self.docker_network,
