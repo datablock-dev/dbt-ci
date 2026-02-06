@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Dict, List, Optional
 from argparse import Namespace
 from src.parser import generate_dependency_graph
@@ -14,9 +15,11 @@ class DbtGraph:
         self.selector = args.selector
         self.mode = args.mode
         self.docker_image = args.docker_image
-        self.dbt_project_dir: str = args.dbt_project_dir
+        # Convert paths to absolute paths
+        self.dbt_project_dir: str = os.path.abspath(args.dbt_project_dir)
+        self.prod_manifest_dir: str = os.path.abspath(args.prod_manifest_dir)
         self.project = get_dbt_project_file(args.dbt_project_dir)
-        self.profiles_dir: Optional[str] = args.profiles_dir
+        self.profiles_dir: Optional[str] = os.path.abspath(args.profiles_dir) if args.profiles_dir else None
         self.profile = get_profiles_file(
             dbt_project_dir=args.dbt_project_dir,
             profiles_dir=args.profiles_dir
@@ -48,13 +51,13 @@ class DbtGraph:
                 "ls",
                 "--select", "state:modified+",
                 *(["--target", self.target] if self.target else []),
-                *(["--vars", self.vars,] if self.vars else []),
-                "--state", self.args.prod_manifest_dir,
-                "--project-dir", self.args.dbt_project_dir,
-                #"--quiet"
+                *(["--vars", self.vars] if self.vars else []),
+                "--state", self.prod_manifest_dir,
+                "--project-dir", self.dbt_project_dir,
+                *(["--profiles-dir", self.profiles_dir] if self.profiles_dir else [])
             ]
 
-            local_runner(command)
+            local_runner(command, dry_run=self.dry_run)
 
     def get_node(self, node_id: str) -> Dict[str, DependencyGraphNode] | None:
         match = None

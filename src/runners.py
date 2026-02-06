@@ -19,6 +19,8 @@ def local_runner(commands: List[str], dry_run: bool = False) -> CompletedProcess
             text=True
         )
 
+        print(result.stdout)
+
         return result
     except subprocess.CalledProcessError as e:
         if e.stderr:
