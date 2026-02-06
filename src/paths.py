@@ -9,13 +9,21 @@ def get_manifest_file(dbt_project_dir: str) -> DBTManifest:
     Raises a FileNotFoundError if the file does not exist.
     """
 
-    if os.path.isfile(dbt_project_dir):
-        with open(dbt_project_dir, 'r', encoding='utf-8') as f:
-            return json.load(f)
-
     file = os.path.join(dbt_project_dir, "target/manifest.json")
     if not os.path.isfile(file):
         raise FileNotFoundError(f"manifest.json not found in {dbt_project_dir}")
+    with open(file, 'r', encoding='utf-8') as f:
+        return json.load(f)
+    
+def get_prod_manifest_file(prod_manifest_dir: str) -> DBTManifest:
+    """
+    Get the path to the production/reference manifest.json file in the target directory.
+    Raises a FileNotFoundError if the file does not exist.
+    """
+
+    file = os.path.join(prod_manifest_dir, "manifest.json")
+    if not os.path.isfile(file):
+        raise FileNotFoundError(f"manifest.json not found in {prod_manifest_dir}")
     with open(file, 'r', encoding='utf-8') as f:
         return json.load(f)
 

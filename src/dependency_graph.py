@@ -2,31 +2,52 @@ import json
 from typing import Dict, List, Optional
 from argparse import Namespace
 from src.parser import generate_dependency_graph
-from src.paths import get_manifest_file
+from src.paths import get_dbt_project_file, get_manifest_file, get_prod_manifest_file, get_profiles_file
+from src.runners import local_runner
 from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 class DbtGraph:
     """Structured representation of dbt dependencies for lineage analysis."""
     def __init__(self, args: Namespace):
+        self.args = args
+        self.runner = args.runner
+        self.selector = args.selector
+        self.mode = args.mode
+        self.docker_image = args.docker_image
         self.dbt_project_dir: str = args.dbt_project_dir
+        self.project = get_dbt_project_file(args.dbt_project_dir)
         self.profiles_dir: Optional[str] = args.profiles_dir
-        self.reference_manifest_file = get_manifest_file(args.prod_manifest_path)
+        self.profile = get_profiles_file(
+            dbt_project_dir=args.dbt_project_dir,
+            profiles_dir=args.profiles_dir
+        )
+        self.reference_manifest_file = get_prod_manifest_file(args.prod_manifest_dir)
         self.prod_manifest_file = self.reference_manifest_file
         self.target_manifest_file = get_manifest_file(args.dbt_project_dir)
-        self.target: str = args.target
+        self.target: str = self.get_target_profile()["target_name"]
         self.vars: str = args.vars
         self.dry_run: bool = args.dry_run
         self.log_level: str = args.log_level
+        self.dependency_graph = generate_dependency_graph(args.dbt_project_dir)
 
-        self.dependency_graph = generate_dependency_graph(args.prod_manifest_path)
-
-    def get_state_mofidied(
+    def get_state_modified(
         self, 
         node_type: Optional[DependencyGraphNodeType] = None,
         node_ids: Optional[List[str]] = None
     ):
         """Get the state modified for a given node type and/or list of node ids."""
-        
+        if self.runner == "local":
+            command = [
+                "dbt",
+                "ls",
+                "--select", "state:modified+",
+                *(["--target", self.target] if self.target else []),
+                *(["--vars", self.vars,] if self.vars else []),
+                "--state", self.args.prod_manifest_dir,
+                "--project-dir", self.args.dbt_project_dir
+            ]
+
+            local_runner(command)
 
     def get_node(self, node_id: str) -> Dict[str, DependencyGraphNode] | None:
         match = None
@@ -53,6 +74,23 @@ class DbtGraph:
             return None
         
         return nodes
+    
+    def get_target_profile(self) -> Dict:
+        """Get the default profile from the profiles.yml file."""
+        profile = self.project.get("profile", "")
+        outputs = self.profile.get(profile).get("outputs", {})
+        target = self.profile.get(profile).get("target", "")
+
+        if self.target and self.target in outputs:
+            return {
+                "config": outputs[self.target],
+                "target_name": self.target
+            }
+        return {
+            "config": outputs.get(target, {}),
+            "target_name": target
+        }
+
 
     def to_dict(self) -> DependencyGraph:
         """Convert the DependencyGraph instance to a dictionary."""

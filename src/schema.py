@@ -1,6 +1,38 @@
 """TypedDict definitions for dbt manifest.json structure and CLI arguments."""
 from typing import Dict, Any, List, Optional, TypedDict, NotRequired, Literal, Set
 
+class DBTProfile(TypedDict):
+    """Structure of a dbt profiles.yml profile."""
+    type: str
+    method: Optional[str]
+    project: Optional[str]
+    dataset: Optional[str]
+    threads: Optional[int]
+    timeout_seconds: Optional[int]
+    retries: Optional[int]
+    priority: Optional[str]
+    location: Optional[str]
+    keyfile: Optional[str]
+    keyfile_json: Optional[Dict[str, Any]]
+    schema: Optional[str]
+    database: Optional[str]
+    warehouse: Optional[str]
+    role: Optional[str]
+    account: Optional[str]
+    user: Optional[str]
+    password: Optional[str]
+    port: Optional[int]
+    host: Optional[str]
+    sid: Optional[str]
+    service: Optional[str]
+    encrypt: Optional[bool]
+    trust_cert: Optional[bool]
+    oauth_access_token: Optional[str]
+
+class DBTProfileConfig(TypedDict):
+    """Structure of a dbt profiles.yml profile."""
+    target: str
+    outputs: Dict[str, DBTProfile]
 
 class Quoting(TypedDict):
     """Quoting configuration."""

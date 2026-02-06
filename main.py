@@ -26,10 +26,10 @@ def main():
     )
 
     parser.add_argument(
-        "--prod-manifest-path",
-        "--reference-manifest-path",
+        "--prod-manifest-dir",
+        "--reference-manifest-dir",
         type=str,
-        help="Path to the production/reference manifest.json file",
+        help="Path to the production/reference manifest.json directory (Not the file itself)",
         required=True,
     )
 
@@ -52,8 +52,7 @@ def main():
         "--target",
         "-t",
         type=str,
-        help="The dbt target to use for the test run (default: default)",
-        default="default",
+        help="The dbt target to use for the test run (defaults to what is defined in target in profiles.yml)",
         required=False,
     )
 
@@ -131,9 +130,10 @@ def main():
 
     try:
         # Implement the main functionality here
-
+        #print(args)
         dependency_graph = DbtGraph(args)
         dependency_graph.to_json()
+        dependency_graph.get_state_modified()
 
     except Exception as e:
         print(f"An error occurred: {e}")
