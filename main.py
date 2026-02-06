@@ -133,7 +133,9 @@ def main():
         #print(args)
         dependency_graph = DbtGraph(args)
         dependency_graph.to_json()
-        dependency_graph.get_state_modified()
+        changed_nodes = dependency_graph.get_state_modified()
+
+        print(changed_nodes)
 
     except Exception as e:
         print(f"An error occurred: {e}")

@@ -33,11 +33,6 @@ class DbtGraph:
         self.log_level: str = args.log_level
         self.dependency_graph = generate_dependency_graph(args.dbt_project_dir)
 
-        self.modified_nodes = self.get_state_modified(
-            node_type=None,
-            node_ids=None
-        )
-
     def set_target(self):
         """Set the target from args if provided, otherwise get from profile."""
         if self.args.target and self.args.target != "default":
@@ -49,9 +44,10 @@ class DbtGraph:
         self, 
         node_type: Optional[DependencyGraphNodeType] = None,
         node_ids: Optional[List[str]] = None
-    ):
+    ) -> List[str] | None:
         """Get the state modified for a given node type and/or list of node ids."""
         project_profile = self.project.get("profile", "")
+        node_names: List[str] | None = None
 
         if self.runner == "local":
             command = [
@@ -73,7 +69,7 @@ class DbtGraph:
 
             if output is None:
                 print("No modified nodes found.")
-                return set()
+                return None
 
             modified_nodes = {
                 line.strip() for line in output.stdout.splitlines()
@@ -81,6 +77,9 @@ class DbtGraph:
             }
 
             node_names = [nid.split(".")[-1] for nid in modified_nodes]
+            return node_names
+    
+        return None
             
 
     def get_node(self, node_id: str) -> Dict[str, DependencyGraphNode] | None:
@@ -119,7 +118,6 @@ class DbtGraph:
             "config": outputs.get(target, {}),
             "target_name": target
         }
-
 
     def to_dict(self) -> DependencyGraph:
         """Convert the DependencyGraph instance to a dictionary."""
