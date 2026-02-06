@@ -265,6 +265,12 @@ class CLIArgs(TypedDict):
     log_file: Optional[str]
     mode: Literal["run", "test", "snapshot", "seed", None]
     runner: Literal["local", "docker"]
+    docker_image: str
+    docker_volumes: List[str]
+    docker_env: List[str]
+    docker_network: str
+    docker_user: Optional[str]
+    docker_args: str
 
 ###########################################
 #   Dependency graph structures for lineage analysis

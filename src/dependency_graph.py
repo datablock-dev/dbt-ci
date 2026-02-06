@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 from argparse import Namespace
 from src.parser import generate_dependency_graph
 from src.paths import get_dbt_project_file, get_manifest_file, get_prod_manifest_file, get_profiles_file
-from src.runners import local_runner
+from src.runners import local_runner, docker_runner
 from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 class DbtGraph:
@@ -14,7 +14,15 @@ class DbtGraph:
         self.runner = args.runner
         self.selector = args.selector
         self.mode = args.mode
+        
+        # Docker configuration
         self.docker_image = args.docker_image
+        self.docker_volumes = getattr(args, 'docker_volumes', [])
+        self.docker_env = getattr(args, 'docker_env', [])
+        self.docker_network = getattr(args, 'docker_network', 'host')
+        self.docker_user = getattr(args, 'docker_user', None)
+        self.docker_args = getattr(args, 'docker_args', '')
+        
         # Convert paths to absolute paths
         self.dbt_project_dir: str = os.path.abspath(args.dbt_project_dir)
         self.prod_manifest_dir: str = os.path.abspath(args.prod_manifest_dir)
@@ -49,35 +57,52 @@ class DbtGraph:
         project_profile = self.project.get("profile", "")
         node_names: List[str] | None = None
 
-        if self.runner == "local":
-            command = [
-                "dbt",
-                "ls",
-                "--select", "state:modified+",
-                *(["--target", self.target] if self.target else []),
-                *(["--vars", self.vars] if self.vars else []),
-                "--state", self.prod_manifest_dir,
-                "--project-dir", self.dbt_project_dir,
-                *(["--profiles-dir", self.profiles_dir] if self.profiles_dir else [])
-            ]
+        command = [
+            "dbt",
+            "ls",
+            "--select", "state:modified+",
+            *(["--target", self.target] if self.target else []),
+            *(["--vars", self.vars] if self.vars else []),
+            "--state", self.prod_manifest_dir,
+            "--project-dir", self.dbt_project_dir,
+            *(["--profiles-dir", self.profiles_dir] if self.profiles_dir else [])
+        ]
 
+        if self.runner == "local":
             output = local_runner(
                 command, 
                 dry_run=self.dry_run,
                 quiet=True
             )
+        elif self.runner == "docker":
+            output = docker_runner(
+                commands=command,
+                dbt_project_dir=self.dbt_project_dir,
+                profiles_dir=self.profiles_dir,
+                state_dir=self.prod_manifest_dir,
+                docker_image=self.docker_image,
+                docker_volumes=self.docker_volumes,
+                docker_env=self.docker_env,
+                docker_network=self.docker_network,
+                docker_user=self.docker_user,
+                docker_args=self.docker_args,
+                dry_run=self.dry_run,
+                quiet=True
+            )
+        else:
+            raise ValueError(f"Unknown runner: {self.runner}")
 
-            if output is None:
-                print("No modified nodes found.")
-                return None
+        if output is None:
+            print("No modified nodes found.")
+            return None
 
-            modified_nodes = {
-                line.strip() for line in output.stdout.splitlines()
-                if line.startswith(f"{project_profile}.")
-            }
+        modified_nodes = {
+            line.strip() for line in output.stdout.splitlines()
+            if line.startswith(f"{project_profile}.")
+        }
 
-            node_names = [nid.split(".")[-1] for nid in modified_nodes]
-            return node_names
+        node_names = [nid.split(".")[-1] for nid in modified_nodes]
+        return node_names
     
         return None
             

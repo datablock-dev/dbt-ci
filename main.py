@@ -121,8 +121,50 @@ def main():
     parser.add_argument(
         "--docker-image",
         type=str,
-        help="The Docker image to use when the runner is set to docker (default: dbt:latest)",
-        default="dbt:latest",
+        help="Docker image to use (default: ghcr.io/dbt-labs/dbt-core:latest)",
+        default="ghcr.io/dbt-labs/dbt-core:latest",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--docker-volumes",
+        type=str,
+        nargs="*",
+        help="Additional volume mounts in format 'host:container' or 'host:container:ro'",
+        default=[],
+        required=False,
+    )
+
+    parser.add_argument(
+        "--docker-env",
+        type=str,
+        nargs="*",
+        help="Environment variables to pass to Docker in format 'KEY=VALUE'",
+        default=[],
+        required=False,
+    )
+
+    parser.add_argument(
+        "--docker-network",
+        type=str,
+        help="Docker network mode (default: host)",
+        default="host",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--docker-user",
+        type=str,
+        help="User to run as inside container (default: current UID:GID)",
+        default=None,
+        required=False,
+    )
+
+    parser.add_argument(
+        "--docker-args",
+        type=str,
+        help="Additional docker run arguments as a single string",
+        default="",
         required=False,
     )
     
