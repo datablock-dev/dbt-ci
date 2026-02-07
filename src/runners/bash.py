@@ -1,3 +1,4 @@
+import sys
 from typing import List, Dict
 import subprocess
 from subprocess import CompletedProcess
@@ -19,10 +20,6 @@ def bash_runner(
     
     Note: The first element 'dbt' in commands will be replaced with shell_path
     """
-    # Replace 'dbt' command with custom path
-    if commands[0] == 'dbt':
-        commands = [shell_path] + commands[1:]
-    
     if not quiet:
         print(f"Running command: {' '.join(commands)}")
     
@@ -47,5 +44,4 @@ def bash_runner(
             print(e.stderr)
         if e.stdout:
             print(e.stdout)
-        raise
-    
+        sys.exit(1)

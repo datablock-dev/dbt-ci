@@ -1,6 +1,7 @@
 import sys
 import argparse
 from src.dependency_graph import DbtGraph
+from src.runners.bash import bash_runner
 
 def main():
     """
@@ -188,6 +189,12 @@ def main():
     args = parser.parse_args()
 
     try:
+        bash_runner(
+            commands=["ls", "--select", "state:modified+", "--target", "dev", "--state", ".dbtstate"],
+            shell_path="/bin/dbt",
+            dry_run=False
+        )
+
         # Implement the main functionality here
         #print(args)
         dependency_graph = DbtGraph(args)
