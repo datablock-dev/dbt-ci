@@ -208,3 +208,4 @@ __marimo__/
 
 dbt
 dependency_graph.json
+logs

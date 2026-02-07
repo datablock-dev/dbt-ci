@@ -113,16 +113,25 @@ def main():
         "--runner",
         "-r",
         type=str,
-        choices=["local", "docker"],
+        choices=["local", "docker", "bash"],
         default="local",
         help="The runner to use for running dbt commands (default: local)"
     )
 
     parser.add_argument(
+        "--shell-path",
+        "--bash-path",
+        type=str,
+        help="Path to the shell executable to use when runner is set to 'bash' (default: /bin/bash)",
+        default="/bin/bash",
+        required=False,
+    )
+
+    parser.add_argument(
         "--docker-image",
         type=str,
-        help="Docker image to use (default: ghcr.io/dbt-labs/dbt-postgres:latest)",
-        default="ghcr.io/dbt-labs/dbt-postgres:latest",
+        help="Docker image to use (default: ghcr.io/dbt-labs/dbt-core:latest)",
+        default="ghcr.io/dbt-labs/dbt-core:latest",
         required=False,
     )
 

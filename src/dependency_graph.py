@@ -1,10 +1,13 @@
 import json
 import os
+import sys
 from typing import Dict, List, Optional
 from argparse import Namespace
 from src.parser import generate_dependency_graph
 from src.paths import get_dbt_project_file, get_manifest_file, get_prod_manifest_file, get_profiles_file
-from src.runners import local_runner, docker_runner
+from src.runners.local import local_runner
+from src.runners.docker import docker_runner
+from src.runners.bash import bash_runner
 from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 class DbtGraph:
@@ -75,9 +78,16 @@ class DbtGraph:
                 dry_run=self.dry_run,
                 quiet=True
             )
+        elif self.runner == "bash":
+            output = bash_runner(
+                commands=command, 
+                dry_run=self.dry_run,
+                shell_path=getattr(self.args, 'shell_path', '/bin/bash'),
+                quiet=True
+            )
         elif self.runner == "docker":
             output = docker_runner(
-                commands=command,
+                commands=command[1:-1],
                 dbt_project_dir=self.dbt_project_dir,
                 profiles_dir=self.profiles_dir,
                 state_dir=self.prod_manifest_dir,
@@ -89,10 +99,11 @@ class DbtGraph:
                 docker_user=self.docker_user,
                 docker_args=self.docker_args,
                 dry_run=self.dry_run,
-                quiet=True
+                quiet=False
             )
         else:
-            raise ValueError(f"Unknown runner: {self.runner}")
+            print(f"Unsupported runner: {self.runner}")
+            sys.exit(1)
 
         if output is None:
             print("No modified nodes found.")
