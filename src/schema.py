@@ -323,3 +323,28 @@ class DependencyGraph(TypedDict):
     source: Dict[str, DependencyGraphNode]
     test: Dict[str, DependencyGraphNode]
     exposure: Dict[str, DependencyGraphNode]
+
+
+class RunnerConfig(TypedDict):
+    """Configuration for dbt command execution across different runners."""
+    runner: Literal["local", "docker", "bash", "dbt"]
+    dbt_project_dir: str
+    prod_manifest_dir: str
+    profiles_dir: Optional[str]
+    target: Optional[str]
+    vars: str
+    entrypoint: str
+    dry_run: bool
+    quiet: bool
+    
+    # Docker-specific configuration
+    docker_image: Optional[str]
+    docker_platform: Optional[str]
+    docker_volumes: List[str]
+    docker_env: List[str]
+    docker_network: str
+    docker_user: Optional[str]
+    docker_args: str
+    
+    # Bash-specific configuration
+    shell_path: str

@@ -1,15 +1,11 @@
 import json
 import os
-from subprocess import CompletedProcess
-import sys
+from src.runners import run_dbt_command
 from typing import Dict, List, Optional
 from argparse import Namespace
 from src.parser import generate_dependency_graph
 from src.paths import get_dbt_project_file, get_manifest_file, get_prod_manifest_file, get_profiles_file
-from src.runners.local import local_runner
-from src.runners.docker import docker_runner
-from src.runners.bash import bash_runner
-from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
+from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType, RunnerConfig
 
 class DbtGraph:
     """
@@ -112,93 +108,83 @@ class DbtGraph:
         
         # Otherwise return the path as-is
         return path
+    
+    def _get_runner_config(self) -> RunnerConfig:
+        """Build RunnerConfig from instance properties.
+        
+        Returns:
+            RunnerConfig dict with all runner settings
+        """
+        
+        return RunnerConfig(
+            runner=self.runner,
+            dbt_project_dir=self.dbt_project_dir,
+            prod_manifest_dir=self.prod_manifest_dir,
+            profiles_dir=self.profiles_dir,
+            target=self.target,
+            vars=self.vars,
+            entrypoint=self.args.entrypoint,
+            dry_run=self.dry_run,
+            quiet=False,  # Can be overridden per-call
+            docker_image=self.docker_image,
+            docker_platform=self.docker_platform,
+            docker_volumes=self.docker_volumes,
+            docker_env=self.docker_env,
+            docker_network=self.docker_network,
+            docker_user=self.docker_user,
+            docker_args=self.docker_args,
+            shell_path=self.shell_path
+        )
 
     def get_state_modified(
         self, 
+        selector: str = "state:modified+",
         node_type: Optional[DependencyGraphNodeType] = None,
         node_ids: Optional[List[str]] = None
     ) -> List[str] | None:
-        """Get the state modified for a given node type and/or list of node ids."""
-        project_profile = self.project.get("profile", "")
-        node_names: List[str] | None = None
-        output: CompletedProcess | None = None
-        entrypoint: str | None = "dbt"
-
-        if self.args.entrypoint != "dbt":
-            if self.args.entrypoint == "":
-                entrypoint = None
-            else:
-                entrypoint = self.args.entrypoint
-
-        command = [
-            *([entrypoint] if entrypoint is not None else []),
+        """Get modified nodes based on state comparison.
+        
+        Args:
+            selector: dbt selector syntax (default: "state:modified+")
+            node_type: Optional filter by node type (not yet implemented)
+            node_ids: Optional filter by specific node IDs (not yet implemented)
+        
+        Returns:
+            List of modified node names, or None if no changes
+        """
+        
+        # Build dbt ls command arguments
+        command_args = [
             "ls",
-            "--select", "state:modified+",
+            "--select", selector,
             *(["--target", self.target] if self.target else []),
             *(["--vars", self.vars] if self.vars else []),
             "--state", self.prod_manifest_dir,
             "--project-dir", self.dbt_project_dir,
             *(["--profiles-dir", self.profiles_dir] if self.profiles_dir else [])
         ]
-
-        if self.runner == "local":
-            # For local runner, use absolute paths to avoid ambiguity
-            local_command = [
-                *([entrypoint] if entrypoint is not None else []),
-                "ls",
-                "--select", "state:modified+",
-                *(["--target", self.target] if self.target else []),
-                *(["--vars", self.vars] if self.vars else []),
-                "--state", self._get_absolute_path(self.prod_manifest_dir),
-                "--project-dir", self._get_absolute_path(self.dbt_project_dir),
-                *(["--profiles-dir", self._get_absolute_path(self.profiles_dir)] if self.profiles_dir else [])
-            ]
-            output = local_runner(
-                local_command,
-                dry_run=self.dry_run,
-                quiet=True
-            )
-        elif self.runner == "bash":
-            # For bash runner, pass commands as-is
-            # The bash script itself should handle any path translation if needed
-            output = bash_runner(
-                commands=command, 
-                dry_run=self.dry_run,
-                shell_path=self.shell_path,
-                quiet=True
-            )
-        elif self.runner == "docker":
-            # Docker runner needs absolute paths for volume mounts
-            output = docker_runner(
-                commands=command[1:-1],
-                dbt_project_dir=self._get_absolute_path(self.dbt_project_dir),
-                profiles_dir=self._get_absolute_path(self.profiles_dir) if self.profiles_dir else None,
-                state_dir=self._get_absolute_path(self.prod_manifest_dir),
-                docker_image=self.docker_image,
-                docker_platform=self.docker_platform,
-                docker_volumes=self.docker_volumes,
-                docker_env=self.docker_env,
-                docker_network=self.docker_network,
-                docker_user=self.docker_user,
-                docker_args=self.docker_args,
-                dry_run=self.dry_run,
-                quiet=False
-            )
-        else:
-            print(f"Unsupported runner: {self.runner}")
-            sys.exit(1)
-
+        
+        # Run command through dispatcher
+        output = run_dbt_command(
+            command_args=command_args,
+            runner_config=self._get_runner_config(),
+            quiet=True
+        )
+        
         if output is None:
             print("No modified nodes found.")
             return None
-
+        
+        # Parse output to extract node names
+        project_profile = self.project.get("profile", "")
         modified_nodes = {
             line.strip() for line in output.stdout.splitlines()
             if line.startswith(f"{project_profile}.")
         }
-
+        
         node_names = [nid.split(".")[-1] for nid in modified_nodes]
-        return node_names
+        return node_names if node_names else None
+
             
 
     def get_node(self, node_id: str) -> Dict[str, DependencyGraphNode] | None:
