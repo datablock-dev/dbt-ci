@@ -65,7 +65,10 @@ class DbtGraph:
         self.vars: str = args.vars
         self.dry_run: bool = args.dry_run
         self.log_level: str = args.log_level
-        self.dependency_graph = generate_dependency_graph(args.dbt_project_dir if not self.user_production_state else args.prod_manifest_dir)
+        self.dependency_graph = generate_dependency_graph(
+            args.dbt_project_dir if not self.user_production_state else args.prod_manifest_dir,
+            is_state_manifest=self.user_production_state
+        )
 
     def set_target(self):
         """Set the target from args if provided, otherwise get from profile."""
@@ -139,8 +142,19 @@ class DbtGraph:
         ]
 
         if self.runner == "local":
+            # For local runner, use absolute paths to avoid ambiguity
+            local_command = [
+                *([entrypoint] if entrypoint is not None else []),
+                "ls",
+                "--select", "state:modified+",
+                *(["--target", self.target] if self.target else []),
+                *(["--vars", self.vars] if self.vars else []),
+                "--state", self._get_absolute_path(self.prod_manifest_dir),
+                "--project-dir", self._get_absolute_path(self.dbt_project_dir),
+                *(["--profiles-dir", self._get_absolute_path(self.profiles_dir)] if self.profiles_dir else [])
+            ]
             output = local_runner(
-                command,
+                local_command,
                 dry_run=self.dry_run,
                 quiet=True
             )

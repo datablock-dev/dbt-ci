@@ -2,7 +2,7 @@ import sys
 import json
 import os
 from typing import Dict, List, Set, Any
-from src.paths import get_manifest_file
+from src.paths import get_manifest_file, get_prod_manifest_file
 from src.schema import DBTManifest, DependencyGraph, DependencyGraphNodeType
 
 manifest_key_mapping = {
@@ -29,8 +29,17 @@ def skeleton_dependencies_structure():
         },
     }
 
-def generate_dependency_graph(manifest_file_path: str) -> DependencyGraph:
-    manifest_file = get_manifest_file(manifest_file_path)
+def generate_dependency_graph(manifest_file_path: str, is_state_manifest: bool = False) -> DependencyGraph:
+    """Generate dependency graph from manifest file.
+    
+    Args:
+        manifest_file_path: Path to dbt project dir (looks in target/) or state dir (looks for manifest.json directly)
+        is_state_manifest: If True, load from {path}/manifest.json; if False, load from {path}/target/manifest.json
+    """
+    if is_state_manifest:
+        manifest_file = get_prod_manifest_file(manifest_file_path)
+    else:
+        manifest_file = get_manifest_file(manifest_file_path)
     child_map = manifest_file.get("child_map", {})
 
     dependency_graph: DependencyGraph = {

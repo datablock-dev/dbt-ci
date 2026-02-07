@@ -199,9 +199,8 @@ def main():
         # Implement the main functionality here
         #print(args)
         target_dependency_graph = DbtGraph(args)
-        reference_dependency_graph = DbtGraph(args, user_production_state=True)
+        #reference_dependency_graph = DbtGraph(args, user_production_state=True)
         target_dependency_graph.to_json()
-        reference_dependency_graph.to_json("production_dependency_graph.json")
 
         changed_nodes = target_dependency_graph.get_state_modified()
 
