@@ -1,5 +1,6 @@
 import json
 import os
+from subprocess import CompletedProcess
 import sys
 from typing import Dict, List, Optional
 from argparse import Namespace
@@ -60,7 +61,7 @@ class DbtGraph:
         """Get the state modified for a given node type and/or list of node ids."""
         project_profile = self.project.get("profile", "")
         node_names: List[str] | None = None
-
+        output: CompletedProcess | None = None
         command = [
             "dbt",
             "ls",
@@ -74,7 +75,7 @@ class DbtGraph:
 
         if self.runner == "local":
             output = local_runner(
-                command, 
+                command,
                 dry_run=self.dry_run,
                 quiet=True
             )
