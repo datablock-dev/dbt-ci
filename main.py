@@ -191,7 +191,7 @@ def main():
     try:
         bash_runner(
             commands=["ls", "--select", "state:modified+", "--target", "dev", "--state", ".dbtstate"],
-            shell_path="/bin/dbt",
+            shell_path="bin/dbt",
             dry_run=False
         )
 

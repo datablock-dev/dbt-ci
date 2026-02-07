@@ -28,6 +28,11 @@ class DbtGraph:
         self.docker_user = getattr(args, 'docker_user', None)
         self.docker_args = getattr(args, 'docker_args', '')
         
+        # Bash runner configuration
+        shell_path = getattr(args, 'shell_path', '/bin/bash')
+        # Convert to absolute path if it's a relative path
+        self.shell_path = os.path.abspath(shell_path) if not os.path.isabs(shell_path) else shell_path
+        
         # Convert paths to absolute paths
         self.dbt_project_dir: str = os.path.abspath(args.dbt_project_dir)
         self.prod_manifest_dir: str = os.path.abspath(args.prod_manifest_dir)
@@ -83,7 +88,7 @@ class DbtGraph:
             output = bash_runner(
                 commands=command, 
                 dry_run=self.dry_run,
-                shell_path=getattr(self.args, 'shell_path', '/bin/bash'),
+                shell_path=self.shell_path,
                 quiet=True
             )
         elif self.runner == "docker":

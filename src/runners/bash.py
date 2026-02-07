@@ -20,6 +20,9 @@ def bash_runner(
     
     Note: The first element 'dbt' in commands will be replaced with shell_path
     """
+    # Replace 'dbt' command with custom path
+    commands = [shell_path] + commands
+    
     if not quiet:
         print(f"Running command: {' '.join(commands)}")
     
