@@ -67,8 +67,15 @@ class DbtGraph:
         project_profile = self.project.get("profile", "")
         node_names: List[str] | None = None
         output: CompletedProcess | None = None
+        entrypoint: str | None = "dbt"
+
+        if self.args.entrypoint != "dbt":
+            if self.args.entrypoint == "":
+                entrypoint = None
+            entrypoint = self.args.entrypoint
+
         command = [
-            "dbt",
+            entrypoint if entrypoint is not None else None,
             "ls",
             "--select", "state:modified+",
             *(["--target", self.target] if self.target else []),
