@@ -121,7 +121,7 @@ def main():
 
     parser.add_argument(
         "--entrypoint",
-        description="The command to use as the entrypoint for dbt commands (default: dbt). This can be used to specify a custom path to the dbt executable or an alternative command that wraps dbt.",
+        help="The command to use as the entrypoint for dbt commands (default: dbt). This can be used to specify a custom path to the dbt executable or an alternative command that wraps dbt.",
         type=str,
         default="dbt"
     )

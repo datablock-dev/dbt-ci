@@ -72,10 +72,11 @@ class DbtGraph:
         if self.args.entrypoint != "dbt":
             if self.args.entrypoint == "":
                 entrypoint = None
-            entrypoint = self.args.entrypoint
+            else:
+                entrypoint = self.args.entrypoint
 
         command = [
-            entrypoint if entrypoint is not None else None,
+            *([entrypoint] if entrypoint is not None else []),
             "ls",
             "--select", "state:modified+",
             *(["--target", self.target] if self.target else []),
