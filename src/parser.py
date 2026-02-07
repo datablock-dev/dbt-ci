@@ -33,12 +33,8 @@ def generate_dependency_graph(manifest_file_path: str) -> DependencyGraph:
     manifest_file = get_manifest_file(manifest_file_path)
     child_map = manifest_file.get("child_map", {})
 
-    metadata = manifest_file.get("metadata")
-    if metadata is None:
-        metadata = {}
-
     dependency_graph: DependencyGraph = {
-        "metadata": metadata,
+        "metadata": manifest_file.get("metadata", {}),
         "model": {},
         "seed": {},
         "snapshot": {},
