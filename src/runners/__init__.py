@@ -82,11 +82,23 @@ def run_dbt_command(
         )
     elif runner == "dbt":
         # Direct dbt runner: uses dbt Python API
-        # Remove entrypoint from command (dbt API doesn't want "dbt" as first arg)
-        dbt_command = command_args if not entrypoint else full_command[1:]
+        # Remove entrypoint and use absolute paths (same as local runner)
+        dbt_command_args = command_args if not entrypoint else full_command[1:]
+        
+        # Convert paths to absolute for reliability
+        absolute_command = []
+        path_flags = {'--state', '--project-dir', '--profiles-dir', '--target-path', '--log-path'}
+        prev_arg = None
+        
+        for arg in dbt_command_args:
+            if prev_arg in path_flags and isinstance(arg, str):
+                absolute_command.append(_get_absolute_path(arg))
+            else:
+                absolute_command.append(arg)
+            prev_arg = arg
         
         return dbt_runner(
-            dbt_command,
+            absolute_command,
             dry_run=use_dry_run,
             quiet=use_quiet
         )

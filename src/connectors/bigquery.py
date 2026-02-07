@@ -17,3 +17,8 @@ def bigquery_client(args) -> bigquery.Client:
     )
 
     return client
+
+def bigquery_query(client: bigquery.Client, query: str):
+    query_job = client.query(query)
+    results = query_job.result()
+    return results.to_dataframe()
