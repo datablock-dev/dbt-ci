@@ -198,9 +198,12 @@ def main():
     try:
         # Implement the main functionality here
         #print(args)
-        dependency_graph = DbtGraph(args)
-        dependency_graph.to_json()
-        changed_nodes = dependency_graph.get_state_modified()
+        target_dependency_graph = DbtGraph(args)
+        reference_dependency_graph = DbtGraph(args, user_production_state=True)
+        target_dependency_graph.to_json()
+        reference_dependency_graph.to_json("production_dependency_graph.json")
+
+        changed_nodes = target_dependency_graph.get_state_modified()
 
         print(changed_nodes)
 

@@ -12,12 +12,28 @@ from src.runners.bash import bash_runner
 from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 class DbtGraph:
-    """Structured representation of dbt dependencies for lineage analysis."""
-    def __init__(self, args: Namespace):
+    """
+    Structured representation of dbt dependencies for lineage analysis.
+    This class encapsulates the dependency graph of dbt resources, providing methods to access and analyze the relationships between models, macros, sources, seeds, snapshots, tests, and exposures. It also includes functionality to determine which nodes have been modified based on the state comparison between the production manifest and the target manifest.
+    The DbtGraph class is initialized with the command-line arguments provided by the user, which include paths to the dbt project, production manifest, profiles directory, and other configuration options. It generates the dependency graph using the provided manifest files and allows users to query for modified nodes and their dependencies.
+
+    Args:
+        args (Namespace): Command-line arguments parsed
+        user_production_state (bool, optional): Flag indicating whether to use the production state for comparison. Defaults to False.
+
+    Returns:
+        DbtGraph: An instance of the DbtGraph class containing the dependency graph and related
+    """
+    def __init__(
+        self, 
+        args: Namespace,
+        user_production_state: bool = False
+    ):
         self.args = args
         self.runner = args.runner
         self.selector = args.selector
         self.mode = args.mode
+        self.user_production_state = user_production_state
         
         # Docker configuration
         self.docker_image = args.docker_image
@@ -49,7 +65,7 @@ class DbtGraph:
         self.vars: str = args.vars
         self.dry_run: bool = args.dry_run
         self.log_level: str = args.log_level
-        self.dependency_graph = generate_dependency_graph(args.dbt_project_dir)
+        self.dependency_graph = generate_dependency_graph(args.dbt_project_dir if not self.user_production_state else args.prod_manifest_dir)
 
     def set_target(self):
         """Set the target from args if provided, otherwise get from profile."""
