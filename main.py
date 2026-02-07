@@ -114,9 +114,9 @@ def main():
         "--runner",
         "-r",
         type=str,
-        choices=["local", "docker", "bash"],
-        default="local",
-        help="The runner to use for running dbt commands (default: local)"
+        choices=["local", "docker", "bash", "dbt"],
+        default="dbt",
+        help="The runner to use for running dbt commands (default: dbt)"
     )
 
     parser.add_argument(
