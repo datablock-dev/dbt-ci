@@ -30,14 +30,14 @@ class DbtGraph:
         
         # Bash runner configuration
         shell_path = getattr(args, 'shell_path', '/bin/bash')
-        # Convert to absolute path if it's a relative path
+        # Shell path needs to be absolute for subprocess execution
         self.shell_path = os.path.abspath(shell_path) if not os.path.isabs(shell_path) else shell_path
         
-        # Convert paths to absolute paths
-        self.dbt_project_dir: str = os.path.abspath(args.dbt_project_dir)
-        self.prod_manifest_dir: str = os.path.abspath(args.prod_manifest_dir)
+        # Keep paths as provided by user (relative or absolute)
+        self.dbt_project_dir: str = args.dbt_project_dir
+        self.prod_manifest_dir: str = args.prod_manifest_dir
         self.project = get_dbt_project_file(args.dbt_project_dir)
-        self.profiles_dir: Optional[str] = os.path.abspath(args.profiles_dir) if args.profiles_dir else None
+        self.profiles_dir: Optional[str] = args.profiles_dir
         self.profile = get_profiles_file(
             dbt_project_dir=args.dbt_project_dir,
             profiles_dir=args.profiles_dir
@@ -57,6 +57,42 @@ class DbtGraph:
             return self.args.target
         else:
             return self.get_target_profile()["target_name"]
+    
+    def _get_absolute_path(self, path: str) -> str:
+        """Convert path to absolute if it's relative."""
+        return os.path.abspath(path) if not os.path.isabs(path) else path
+    
+    def _translate_path_for_container(self, path: str, container_workdir: str = None, host_to_container_base: str = None) -> str:
+        """Translate host path to container path for Docker/containerized environments.
+        
+        Args:
+            path: The path to translate
+            container_workdir: Working directory set in container (e.g., "/dbt", "/app")
+            host_to_container_base: If the host project dir is mounted at a specific location in container
+        
+        Returns:
+            Translated path for use in container
+        """
+        if not container_workdir and not host_to_container_base:
+            # No translation configured, return as-is
+            return path
+        
+        # Get absolute paths for comparison
+        abs_path = self._get_absolute_path(path)
+        abs_project_dir = self._get_absolute_path(self.dbt_project_dir)
+        
+        if container_workdir:
+            # If path equals the project directory exactly, return current directory
+            if abs_path == abs_project_dir:
+                return "."
+            
+            # If path is within the project directory, make it relative to container working dir
+            if abs_path.startswith(abs_project_dir + os.sep):
+                rel_path = os.path.relpath(abs_path, abs_project_dir)
+                return "./" + rel_path.replace(os.sep, '/')
+        
+        # Otherwise return the path as-is
+        return path
 
     def get_state_modified(
         self, 
@@ -93,6 +129,8 @@ class DbtGraph:
                 quiet=True
             )
         elif self.runner == "bash":
+            # For bash runner, pass commands as-is
+            # The bash script itself should handle any path translation if needed
             output = bash_runner(
                 commands=command, 
                 dry_run=self.dry_run,
@@ -100,11 +138,12 @@ class DbtGraph:
                 quiet=True
             )
         elif self.runner == "docker":
+            # Docker runner needs absolute paths for volume mounts
             output = docker_runner(
                 commands=command[1:-1],
-                dbt_project_dir=self.dbt_project_dir,
-                profiles_dir=self.profiles_dir,
-                state_dir=self.prod_manifest_dir,
+                dbt_project_dir=self._get_absolute_path(self.dbt_project_dir),
+                profiles_dir=self._get_absolute_path(self.profiles_dir) if self.profiles_dir else None,
+                state_dir=self._get_absolute_path(self.prod_manifest_dir),
                 docker_image=self.docker_image,
                 docker_platform=self.docker_platform,
                 docker_volumes=self.docker_volumes,
