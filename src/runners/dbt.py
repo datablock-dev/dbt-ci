@@ -12,6 +12,7 @@ def dbt_runner(
     Returns a CompletedProcess-compatible object for consistency with other runners.
     """
     runner = dbtRunner()
+    print(commands)
 
     if not quiet:
         print(f"Running command: {' '.join(commands)}")

@@ -82,8 +82,11 @@ def run_dbt_command(
         )
     elif runner == "dbt":
         # Direct dbt runner: uses dbt Python API
+        # Remove entrypoint from command (dbt API doesn't want "dbt" as first arg)
+        dbt_command = command_args if not entrypoint else full_command[1:]
+        
         return dbt_runner(
-            full_command,
+            dbt_command,
             dry_run=use_dry_run,
             quiet=use_quiet
         )

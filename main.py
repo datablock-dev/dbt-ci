@@ -1,7 +1,6 @@
 import sys
 import argparse
 from src.dependency_graph import DbtGraph
-from src.runners.bash import bash_runner
 
 def main():
     """
@@ -29,6 +28,7 @@ def main():
     parser.add_argument(
         "--prod-manifest-dir",
         "--reference-manifest-dir",
+        "--state",
         type=str,
         help="Path to the production/reference manifest.json directory (Not the file itself)",
         required=True,
