@@ -1,6 +1,7 @@
 """Central dispatcher for running dbt commands across different runners."""
 import os
 import sys
+from argparse import Namespace
 from subprocess import CompletedProcess
 from typing import List, Optional
 from src.schema import RunnerConfig
@@ -135,3 +136,25 @@ def run_dbt_command(
     else:
         print(f"Unsupported runner: {runner}")
         sys.exit(1)
+
+
+def append_dbt_variables_to_command(
+    command_args: List[str],
+    variables: Namespace
+) -> List[str]:
+    """Append dbt variables to command arguments."""
+    commands = command_args.copy()
+    dbt_variables = {
+        "target",
+        "vars",
+        "project_dir",
+        "profiles_dir",
+    }
+
+    for var in dbt_variables:
+        value = getattr(variables, var, None)
+        if value is not None and value != "":
+            flag = f"--{var.replace('_', '-')}"
+            commands.append(str(flag))
+
+    return commands

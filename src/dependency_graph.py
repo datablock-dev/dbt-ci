@@ -1,10 +1,14 @@
+"""
+DbtGraph class for representing dbt dependencies and lineage.
+This module defines the DbtGraph class, which encapsulates the dependency graph of dbt resources
+"""
+
 import json
 import os
-from src.runners import run_dbt_command
 from typing import Dict, List, Optional
 from argparse import Namespace
+from src.runners import run_dbt_command
 from src.parser import generate_dependency_graph
-from src.paths import get_dbt_project_file, get_manifest_file, get_prod_manifest_file, get_profiles_file
 from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType, RunnerConfig
 from src.variables import Variables
 

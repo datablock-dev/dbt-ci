@@ -6,7 +6,7 @@ import sys
 from argparse import Namespace
 import click
 from src.dependency_graph import DbtGraph
-from src.runners import run_dbt_command
+from src.runners import run_dbt_command, append_dbt_variables_to_command
 from src.variables import Variables
 from src.cache import CacheManager
 
@@ -44,10 +44,25 @@ def run(**kwargs):
         resolved_args.mode = 'run' # why?
         resolved_args.log_file = None # why?
         
+        # Look for cache
+        prev_cache = cache.get_cache()
+        if prev_cache is None:
+            click.echo("No cache found, compiling DBT")
+            result = run_dbt_command(
+                command_args=append_dbt_variables_to_command(["compile"], resolved_args),
+                runner_config=DbtGraph(resolved_args)._get_runner_config(),
+                quiet=False
+            )
+
+            if result is None or result.returncode != 0:
+                raise Exception("DBT compile failed, cannot proceed with run")
+
+
         # Detect modified models using the dependency graph and run them
         click.echo("🔍 Detecting modified models...")
         graph = DbtGraph(resolved_args)
         modified_nodes = graph.get_state_modified()
+        #cache.write_cache(graph.to_dict())
         
         if not modified_nodes:
             click.echo("✅ No modified models detected")
