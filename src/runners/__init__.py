@@ -143,20 +143,18 @@ def append_dbt_variables_to_command(
     variables: Namespace
 ) -> List[str]:
     """Append dbt variables to command arguments."""
-    print(getattr(variables, "profiles_dir", None))
     commands = command_args.copy()
     dbt_variables = {
-        "target",
-        "vars",
-        "dbt_project_dir",
-        "profiles_dir",
+        "target": "--target",
+        "vars": "--vars",
+        "dbt_project_dir": "--project-dir",
+        "profiles_dir": "--profiles-dir",
     }
 
-    for var in dbt_variables:
+    for var, dbt_flag in dbt_variables.items():
         value = getattr(variables, var, None)
         if value is not None and value != "":
-            flag = f"--{var.replace('_', '-')}"
-            commands.extend([str(flag), str(value)])
+            commands.extend([str(dbt_flag), str(value)])
 
     print(f"Final dbt command: {' '.join(commands)}")
     return commands

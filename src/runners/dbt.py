@@ -35,6 +35,9 @@ def dbt_runner(
         if not quiet:
             print(stdout)
         
+        if result.exception is not None:
+            raise result.exception
+
         # Return CompletedProcess for compatibility with other runners
         return CompletedProcess(
             args=commands,
