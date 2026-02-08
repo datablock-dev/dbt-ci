@@ -1,5 +1,5 @@
 """TypedDict definitions for dbt manifest.json structure and CLI arguments."""
-from typing import Dict, Any, List, Optional, TypedDict, NotRequired, Literal, Set
+from typing import Callable, Dict, Any, List, Optional, TypedDict, NotRequired, Literal, Set
 
 class DBTProfile(TypedDict):
     """Structure of a dbt profiles.yml profile."""
@@ -348,3 +348,13 @@ class RunnerConfig(TypedDict):
     
     # Bash-specific configuration
     shell_path: str
+
+class OptionsConfig(TypedDict):
+    """Configuration mapping for CLI options."""
+    env_vars: List[str]
+    cli_flags: List[str]
+    required: bool
+    default: Optional[Any]
+    help: str
+    choices: Optional[List[Any]]
+    resolve_value: Optional[Callable[..., Any]] # Explore this option for complex value resolution

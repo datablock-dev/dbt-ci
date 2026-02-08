@@ -6,6 +6,7 @@ from argparse import Namespace
 from src.parser import generate_dependency_graph
 from src.paths import get_dbt_project_file, get_manifest_file, get_prod_manifest_file, get_profiles_file
 from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType, RunnerConfig
+from src.variables import Variables
 
 class DbtGraph:
     """
@@ -25,20 +26,10 @@ class DbtGraph:
         args: Namespace,
         user_production_state: bool = False
     ):
-        self.args = args
-        self.runner = args.runner
-        self.selector = args.selector
-        self.mode = args.mode
+        self.args = Variables(args).to_namespace()
+        for key, value in self.args.__dict__.items():
+            setattr(self, key, value)
         self.user_production_state = user_production_state
-        
-        # Docker configuration
-        self.docker_image = args.docker_image
-        self.docker_platform = getattr(args, 'docker_platform', None)
-        self.docker_volumes = getattr(args, 'docker_volumes', [])
-        self.docker_env = getattr(args, 'docker_env', [])
-        self.docker_network = getattr(args, 'docker_network', 'host')
-        self.docker_user = getattr(args, 'docker_user', None)
-        self.docker_args = getattr(args, 'docker_args', '')
         
         # Bash runner configuration
         shell_path = getattr(args, 'shell_path', '/bin/bash')
@@ -46,21 +37,18 @@ class DbtGraph:
         self.shell_path = os.path.abspath(shell_path) if not os.path.isabs(shell_path) else shell_path
         
         # Keep paths as provided by user (relative or absolute)
-        self.dbt_project_dir: str = args.dbt_project_dir
-        self.prod_manifest_dir: str = args.prod_manifest_dir
-        self.project = get_dbt_project_file(args.dbt_project_dir)
-        self.profiles_dir: Optional[str] = args.profiles_dir
+        self.dbt_project_dir: str = self.args.dbt_project_dir
+        self.prod_manifest_dir: str = self.args.prod_manifest_dir
+        self.project = get_dbt_project_file(self.args.dbt_project_dir)
+        self.profiles_dir: Optional[str] = self.args.profiles_dir
         self.profile = get_profiles_file(
-            dbt_project_dir=args.dbt_project_dir,
+            dbt_project_dir=self.args.dbt_project_dir,
             profiles_dir=args.profiles_dir
         )
         self.reference_manifest_file = get_prod_manifest_file(args.prod_manifest_dir)
         self.prod_manifest_file = self.reference_manifest_file
         self.target_manifest_file = get_manifest_file(args.dbt_project_dir)
         self.target = self.set_target()
-        self.vars: str = args.vars
-        self.dry_run: bool = args.dry_run
-        self.log_level: str = args.log_level
         self.dependency_graph = generate_dependency_graph(
             args.dbt_project_dir if not self.user_production_state else args.prod_manifest_dir,
             is_state_manifest=self.user_production_state
@@ -122,22 +110,22 @@ class DbtGraph:
         """
         
         return RunnerConfig(
-            runner=self.runner,
-            dbt_project_dir=self.dbt_project_dir,
-            prod_manifest_dir=self.prod_manifest_dir,
-            profiles_dir=self.profiles_dir,
-            target=self.target,
-            vars=self.vars,
+            runner=self.args.runner,
+            dbt_project_dir=self.args.dbt_project_dir,
+            prod_manifest_dir=self.args.prod_manifest_dir,
+            profiles_dir=self.args.profiles_dir,
+            target=self.args.target,
+            vars=self.args.vars,
             entrypoint=self.args.entrypoint,
-            dry_run=self.dry_run,
+            dry_run=self.args.dry_run,
             quiet=False,  # Can be overridden per-call
-            docker_image=self.docker_image,
-            docker_platform=self.docker_platform,
-            docker_volumes=self.docker_volumes,
-            docker_env=self.docker_env,
-            docker_network=self.docker_network,
-            docker_user=self.docker_user,
-            docker_args=self.docker_args,
+            docker_image=self.args.docker_image,
+            docker_platform=self.args.docker_platform,
+            docker_volumes=self.args.docker_volumes,
+            docker_env=self.args.docker_env,
+            docker_network=self.args.docker_network,
+            docker_user=self.args.docker_user,
+            docker_args=self.args.docker_args,
             shell_path=self.shell_path
         )
 
@@ -162,11 +150,11 @@ class DbtGraph:
         command_args = [
             "ls",
             "--select", selector,
-            *(["--target", self.target] if self.target else []),
-            *(["--vars", self.vars] if self.vars else []),
-            "--state", self.prod_manifest_dir,
-            "--project-dir", self.dbt_project_dir,
-            *(["--profiles-dir", self.profiles_dir] if self.profiles_dir else [])
+            *(["--target", self.args.target] if self.args.target else []),
+            *(["--vars", self.args.vars] if self.args.vars else []),
+            "--state", self.args.prod_manifest_dir,
+            "--project-dir", self.args.dbt_project_dir,
+            *(["--profiles-dir", self.args.profiles_dir] if self.args.profiles_dir else [])
         ]
         
         # Run command through dispatcher
