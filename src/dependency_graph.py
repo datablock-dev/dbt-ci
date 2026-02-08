@@ -29,6 +29,7 @@ class DbtGraph:
         self.args = Variables(args).to_namespace()
         for key, value in self.args.__dict__.items():
             setattr(self, key, value)
+        
         self.user_production_state = user_production_state
         
         # Bash runner configuration
@@ -37,10 +38,7 @@ class DbtGraph:
         self.shell_path = os.path.abspath(shell_path) if not os.path.isabs(shell_path) else shell_path
         
         # Keep paths as provided by user (relative or absolute)
-        self.dbt_project_dir: str = self.args.dbt_project_dir
-        self.prod_manifest_dir: str = self.args.prod_manifest_dir
         self.project = get_dbt_project_file(self.args.dbt_project_dir)
-        self.profiles_dir: Optional[str] = self.args.profiles_dir
         self.profile = get_profiles_file(
             dbt_project_dir=self.args.dbt_project_dir,
             profiles_dir=args.profiles_dir
@@ -87,7 +85,7 @@ class DbtGraph:
         
         # Get absolute paths for comparison
         abs_path = self._get_absolute_path(path)
-        abs_project_dir = self._get_absolute_path(self.dbt_project_dir)
+        abs_project_dir = self._get_absolute_path(self.args.dbt_project_dir)
         
         if container_workdir:
             # If path equals the project directory exactly, return current directory
@@ -126,7 +124,7 @@ class DbtGraph:
             docker_network=self.args.docker_network,
             docker_user=self.args.docker_user,
             docker_args=self.args.docker_args,
-            shell_path=self.shell_path
+            shell_path=self.args.shell_path
         )
 
     def get_state_modified(

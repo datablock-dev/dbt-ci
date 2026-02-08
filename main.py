@@ -164,4 +164,3 @@ def ephemeral_cmd(**kwargs):
 
 if __name__ == "__main__":
     cli()
-

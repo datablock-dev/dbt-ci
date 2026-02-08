@@ -336,7 +336,6 @@ class RunnerConfig(TypedDict):
     entrypoint: str
     dry_run: bool
     quiet: bool
-    
     # Docker-specific configuration
     docker_image: Optional[str]
     docker_platform: Optional[str]
@@ -345,7 +344,6 @@ class RunnerConfig(TypedDict):
     docker_network: str
     docker_user: Optional[str]
     docker_args: str
-    
     # Bash-specific configuration
     shell_path: str
 

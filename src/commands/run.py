@@ -8,7 +8,7 @@ import click
 from src.dependency_graph import DbtGraph
 from src.runners import run_dbt_command
 from src.variables import Variables
-
+from src.cache import CacheManager
 
 def run(**kwargs):
     """Run modified dbt models
@@ -27,6 +27,7 @@ def run(**kwargs):
     try:
         # Convert kwargs to Namespace for Variables resolution
         args = Namespace(**kwargs)
+        cache = CacheManager()
         
         # Handle docker_volumes and docker_env which come as tuples from Click
         if 'docker_volumes' in kwargs:
@@ -40,16 +41,15 @@ def run(**kwargs):
         
         # Create namespace with resolved values for DbtGraph
         resolved_args = config.to_namespace()
-        resolved_args.mode = 'run'
-        resolved_args.log_file = None
+        resolved_args.mode = 'run' # why?
+        resolved_args.log_file = None # why?
 
         print(resolved_args)
         
         # Detect modified models using the dependency graph and run them
         click.echo("🔍 Detecting modified models...")
         graph = DbtGraph(resolved_args)
-        selector = "state:modified"
-        modified_nodes = graph.get_state_modified(selector=selector)
+        modified_nodes = graph.get_state_modified()
         
         if not modified_nodes:
             click.echo("✅ No modified models detected")
@@ -60,15 +60,17 @@ def run(**kwargs):
             click.echo(f"  • {node}")
         
         click.echo("\n🚀 Running modified models...")
+
+        print(graph._get_runner_config())
         
         # Build dbt run command with selector
-        run_args = ["run", "--select", selector]
-        
         result = run_dbt_command(
-            command_args=run_args,
+            command_args=["run", "--select", " ".join(modified_nodes)],
             runner_config=graph._get_runner_config(),
             quiet=False
         )
+
+        print(f"Test result: {result.stdout}")
         
         if result and result.returncode == 0:
             click.echo(f"\n✅ Successfully ran {len(modified_nodes)} model(s)")
