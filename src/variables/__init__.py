@@ -45,8 +45,8 @@ class Variables:
         # Resolve all configuration options
         for option_name, config in OPTIONS_CONFIG.items():
             resolved_value = self._resolve_option(option_name, config)
-            self._resolved[option_name] = resolved_value
-            setattr(self, option_name, resolved_value)
+            self._resolved[option_name] = resolved_value if resolved_value != "" else None
+            setattr(self, option_name, self._resolved[option_name])
             # Track missing required fields
             if config.get('required') and resolved_value is None:
                 self._missing_required.append(option_name)
