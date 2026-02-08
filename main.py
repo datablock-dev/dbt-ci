@@ -2,6 +2,7 @@ import sys
 import click
 from src.dependency_graph import DbtGraph
 from src.runners import run_dbt_command
+from src.variables import Variables
 from argparse import Namespace
 
 
@@ -12,7 +13,6 @@ def common_options(f):
         '--prod-manifest-dir', 
         '--reference-manifest-dir', 
         '--state',
-        required=True,
         help='Path to the production/reference manifest.json directory'
     )(f)
     f = click.option(
@@ -24,6 +24,11 @@ def common_options(f):
         '--profiles-dir', 
         default=None,
         help='Path to the directory containing the dbt profiles.yml file'
+    )(f)
+    f = click.option(
+        '--production-target',
+        default=None,
+        help='The dbt target to use for production/reference manifest (defaults to default)'
     )(f)
     f = click.option(
         '--target', 
@@ -76,13 +81,11 @@ def common_options(f):
     f = click.option(
         '--docker-volumes', 
         multiple=True, 
-        default=[],
         help='Additional volume mounts (format: host:container)'
     )(f)
     f = click.option(
         '--docker-env', 
         multiple=True, 
-        default=[],
         help='Environment variables (format: KEY=VALUE)'
     )(f)
     f = click.option(
@@ -130,6 +133,7 @@ def run(
     prod_manifest_dir,
     dbt_project_dir,
     profiles_dir,
+    production_target,
     target,
     vars,
     runner,
@@ -151,15 +155,20 @@ def run(
     
     Examples:
         dbt-ci run --state prod-manifest/ --dbt-project-dir ./dbt
-        dbt-ci run --state prod-manifest/ --select "state:modified+" --runner docker
-        dbt-ci run --state prod-manifest/ --full-refresh
+        dbt-ci run --state prod-manifest/ --runner docker
+        
+        # With environment variables
+        export DBT_STATE=./dbt/.dbtstate/
+        export DBT_PROJECT_DIR=./dbt
+        dbt-ci run
     """
     try:
-        # Create args namespace for DbtGraph compatibility
+        # Create args namespace for Variables resolution
         args = Namespace(
             prod_manifest_dir=prod_manifest_dir,
             dbt_project_dir=dbt_project_dir,
             profiles_dir=profiles_dir,
+            production_target=production_target,
             target=target,
             vars=vars,
             runner=runner,
@@ -168,36 +177,40 @@ def run(
             log_level=log_level,
             docker_image=docker_image,
             docker_platform=docker_platform,
-            docker_volumes=list(docker_volumes),
-            docker_env=list(docker_env),
+            docker_volumes=list(docker_volumes) if docker_volumes else [],
+            docker_env=list(docker_env) if docker_env else [],
             docker_network=docker_network,
             docker_user=docker_user,
             docker_args=docker_args,
-            shell_path=shell_path,
-            mode='run',
-            log_file=None
+            shell_path=shell_path
         )
         
+        # Resolve configuration from flags, env vars, and defaults
+        # This will validate required fields and apply precedence
+        config = Variables(args)
+        
+        # Create namespace with resolved values for DbtGraph
+        resolved_args = config.to_namespace()
+        resolved_args.mode = 'run'
+        resolved_args.log_file = None
+        
         click.echo(f"🔍 Detecting modified models...")
-        graph = DbtGraph(args)
-        modified_nodes = graph.get_state_modified()
+        graph = DbtGraph(resolved_args)
+        selector = "state:modified+"
+        modified_nodes = graph.get_state_modified(selector=selector)
         
         if not modified_nodes:
             click.echo("✅ No modified models detected")
             return
         
-        click.echo("📊 Found {len(modified_nodes)} modified model(s):")
+        click.echo(f"📊 Found {len(modified_nodes)} modified model(s):")
         for node in modified_nodes:
             click.echo(f"  • {node}")
         
         click.echo("\n🚀 Running modified models...")
         
-        # Build dbt run command
-        run_args = [
-            "run",
-            "--select", select,
-            *(["--full-refresh"] if full_refresh else [])
-        ]
+        # Build dbt run command with selector
+        run_args = ["run", "--select", selector]
         
         result = run_dbt_command(
             command_args=run_args,
@@ -206,7 +219,7 @@ def run(
         )
         
         if result and result.returncode == 0:
-            click.echo("\n✅ Successfully ran {len(modified_nodes)} model(s)")
+            click.echo(f"\n✅ Successfully ran {len(modified_nodes)} model(s)")
         else:
             click.echo("\n❌ Run failed", err=True)
             sys.exit(1)
@@ -222,6 +235,7 @@ def ephemeral(
     prod_manifest_dir, 
     dbt_project_dir,
     profiles_dir,
+    production_target,
     target,
     vars,
     runner,
@@ -245,13 +259,19 @@ def ephemeral(
     Examples:
         dbt-ci ephemeral --state prod-manifest/ --dbt-project-dir ./dbt
         dbt-ci ephemeral --state prod-manifest/ --runner docker
+        
+        # With environment variables
+        export DBT_STATE=./dbt/.dbtstate/
+        export DBT_PROJECT_DIR=./dbt
+        dbt-ci ephemeral
     """
     try:
-        from argparse import Namespace
+        # Create args namespace for Variables resolution
         args = Namespace(
             prod_manifest_dir=prod_manifest_dir,
             dbt_project_dir=dbt_project_dir,
             profiles_dir=profiles_dir,
+            production_target=production_target,
             target=target,
             vars=vars,
             runner=runner,
@@ -260,20 +280,27 @@ def ephemeral(
             log_level=log_level,
             docker_image=docker_image,
             docker_platform=docker_platform,
-            docker_volumes=list(docker_volumes),
-            docker_env=list(docker_env),
+            docker_volumes=list(docker_volumes) if docker_volumes else [],
+            docker_env=list(docker_env) if docker_env else [],
             docker_network=docker_network,
             docker_user=docker_user,
             docker_args=docker_args,
-            shell_path=shell_path,
-            mode='run',
-            selector=select,
-            log_file=None
+            shell_path=shell_path
         )
         
+        # Resolve configuration from flags, env vars, and defaults
+        # This will validate required fields and apply precedence
+        config = Variables(args)
+        
+        # Create namespace with resolved values for DbtGraph
+        resolved_args = config.to_namespace()
+        resolved_args.mode = 'run'
+        resolved_args.log_file = None
+        
         click.echo(f"🔍 Detecting modified models...")
-        graph = DbtGraph(args)
-        modified_nodes = graph.get_state_modified(selector=select)
+        graph = DbtGraph(resolved_args)
+        selector = "state:modified+"
+        modified_nodes = graph.get_state_modified(selector=selector)
         
         if not modified_nodes:
             click.echo("✅ No modified models detected - no work to do!")
@@ -284,7 +311,7 @@ def ephemeral(
         for node in modified_nodes:
             click.echo(f"  • {node}")
         
-        click.echo(f"\n💡 To run these models, use: dbt-ci run --state {prod_manifest_dir}")
+        click.echo(f"\n💡 To run these models, use: dbt-ci run --state {config.prod_manifest_dir}")
         
     except Exception as e:
         click.echo(f"❌ Error: {e}", err=True)

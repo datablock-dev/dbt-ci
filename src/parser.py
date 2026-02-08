@@ -1,9 +1,9 @@
 import sys
 import json
 import os
-from typing import Dict, List, Set, Any
+from typing import Dict, List, Optional, Set, Any
 from src.paths import get_manifest_file, get_prod_manifest_file
-from src.schema import DBTManifest, DependencyGraph, DependencyGraphNodeType
+from src.schema import DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 manifest_key_mapping = {
     "model": "nodes",
@@ -148,6 +148,7 @@ def append_depends_on_nodes(
     dependencies: Dict[DependencyGraphNodeType, List[str]], 
     manifest_file: DBTManifest
 ) -> None:
+    """Append dependencies from the "depends_on" section of the manifest file to the dependency graph."""
     for dep_type, dep_ids in dependencies.items():
         if dep_ids is None or not isinstance(dep_ids, list):
             continue
@@ -182,7 +183,8 @@ def append_depends_on_nodes(
                 dependency_graph[node_type][name]["upstream_dependencies"]["dependencies_by_type"][dep_category].add(node_name)
 
 def output_dependency_graph(dependency_graph: DependencyGraph, output_path: str) -> None:
-    with open(output_path, "w") as file:
+    """Output the dependency graph to a JSON file."""
+    with open(output_path, "w", encoding="utf-8") as file:
         json.dump(
             obj=dependency_graph, 
             fp=file, 
@@ -190,7 +192,7 @@ def output_dependency_graph(dependency_graph: DependencyGraph, output_path: str)
             default=lambda o: list(o) if isinstance(o, set) else o
         )
 
-def find_node_by_id(dependency_graph, node_id):
+def find_node_by_id(dependency_graph: DependencyGraph, node_id: str) -> Optional[DependencyGraphNode]:
     """Find a node in dependency_graph by its ID"""
     node_type = node_id.split(".")[0]
     if node_type in dependency_graph:
@@ -200,7 +202,7 @@ def find_node_by_id(dependency_graph, node_id):
     return None
 
 
-def collect_dependencies_recursively(dependency_graph, node_data, visited, direction="upstream"):
+def collect_dependencies_recursively(dependency_graph, node_data, visited: Set[str], direction="upstream"):
     """Recursively collect upstream or downstream dependencies"""
     dep_key = "upstream_dependencies" if direction == "upstream" else "downstream_dependencies"
     
@@ -294,9 +296,8 @@ def parse_seed_file(manifest_file_path: str, seed_file_path: str) -> str:
         content = file.read()
         return content
 """
-        
+       
 if __name__ == "__main__":
     # Example usage - update path to your manifest file
-    manifest_path = "dbt/target/manifest.json"
-    generate_dependency_graph(manifest_path)
-        
+    MANIFEST_PATH = "dbt/target/manifest.json"
+    generate_dependency_graph(MANIFEST_PATH)

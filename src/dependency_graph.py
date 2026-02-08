@@ -77,7 +77,12 @@ class DbtGraph:
         """Convert path to absolute if it's relative."""
         return os.path.abspath(path) if not os.path.isabs(path) else path
     
-    def _translate_path_for_container(self, path: str, container_workdir: str = None, host_to_container_base: str = None) -> str:
+    def _translate_path_for_container(
+        self,
+        path: str,
+        container_workdir: str = None,
+        host_to_container_base: str = None
+    ) -> str:
         """Translate host path to container path for Docker/containerized environments.
         
         Args:
@@ -137,15 +142,15 @@ class DbtGraph:
         )
 
     def get_state_modified(
-        self, 
-        selector: str = "state:modified+",
+        self,
+        selector: str = "state:modified",
         node_type: Optional[DependencyGraphNodeType] = None,
         node_ids: Optional[List[str]] = None
     ) -> List[str] | None:
         """Get modified nodes based on state comparison.
         
         Args:
-            selector: dbt selector syntax (default: "state:modified+")
+            selector: dbt selector syntax (default: "state:modified")
             node_type: Optional filter by node type (not yet implemented)
             node_ids: Optional filter by specific node IDs (not yet implemented)
         
@@ -188,6 +193,7 @@ class DbtGraph:
             
 
     def get_node(self, node_id: str) -> Dict[str, DependencyGraphNode] | None:
+        """Get a single node by ID, searching across all node types."""
         match = None
         for node_type in self.dependency_graph.keys():
             if node_type == "metadata":
@@ -200,6 +206,7 @@ class DbtGraph:
         return match
             
     def get_nodes(self, node_ids: List[str]) -> Dict[str, Dict[str, DependencyGraphNode]] | None:
+        """Get multiple nodes by ID, optionally filtered by type."""
         nodes = {}
         for node_type in self.dependency_graph.keys():
             if node_type == "metadata":
