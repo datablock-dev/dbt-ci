@@ -12,7 +12,14 @@ import os
 import sys
 from argparse import Namespace
 from typing import Any, Dict, Optional
+from src.schema import CLIArgs
 from src.variables.config import OPTIONS_CONFIG
+from src.paths import (
+    get_dbt_project_file,
+    get_manifest_file,
+    get_prod_manifest_file,
+    get_profiles_file
+)
 
 
 class Variables:
@@ -29,25 +36,35 @@ class Variables:
         state_dir = vars.prod_manifest_dir
         runner = vars.runner  # Will use env var or default if flag not set
     """
-    
+
     def __init__(self, args: Namespace):
         self.args = args
         self._resolved = {}
         self._missing_required = []
-        
+
         # Resolve all configuration options
         for option_name, config in OPTIONS_CONFIG.items():
             resolved_value = self._resolve_option(option_name, config)
             self._resolved[option_name] = resolved_value
-            
+            setattr(self, option_name, resolved_value)
             # Track missing required fields
             if config.get('required') and resolved_value is None:
                 self._missing_required.append(option_name)
-        
+
         # Validate required fields
         if self._missing_required:
             self._raise_missing_required()
-    
+
+        # Variables requiring helper functions to resolve value
+        self._resolved["project"] = get_dbt_project_file(self.dbt_project_dir)
+        self._resolved["target_manifest_file"] = get_manifest_file(self.dbt_project_dir)
+        self._resolved["reference_manifest_file"] = get_prod_manifest_file(self.prod_manifest_dir)
+        self._resolved["profile"] = get_profiles_file(self.dbt_project_dir, self.profiles_dir)
+        self._resolved["target"] = self._set_target()
+
+        for variable_name, value in self._resolved.items():
+            setattr(self, variable_name, value)
+
     def _resolve_option(self, option_name: str, config: Dict) -> Any:
         """
         Resolve a single option value from flags, env vars, or defaults.
@@ -60,7 +77,7 @@ class Variables:
                 value = getattr(self.args, flag_name)
                 if value is not None:
                     return self._convert_type(value, config.get('type'))
-        
+
         # Try environment variables
         for env_var in config.get('env_vars', []):
             if env_var in os.environ:
@@ -103,6 +120,23 @@ class Variables:
         )
         print(error_msg, file=sys.stderr)
         sys.exit(1)
+
+    def _set_target(self):
+        """Set the target from args if provided, otherwise get from profile."""
+        if self._resolved["target"] and self._resolved["target"] != "default":
+            return self._resolved["target"]
+        return self._get_target_profile()["target_name"]
+        
+    def _get_target_profile(self) -> Dict:
+        """Get the default profile from the profiles.yml file."""
+        profile = self._resolved["profile"].get("profile", "")
+        outputs = self._resolved["profile"].get(profile, {}).get("outputs", {})
+        target = self._resolved["profile"].get(profile, {}).get("target", "")
+
+        return {
+            "config": outputs.get(target, {}),
+            "target_name": target
+        }
     
     def __getattr__(self, name: str) -> Any:
         """Allow attribute access to resolved values."""

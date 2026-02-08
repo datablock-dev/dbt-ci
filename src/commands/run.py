@@ -43,8 +43,6 @@ def run(**kwargs):
         resolved_args = config.to_namespace()
         resolved_args.mode = 'run' # why?
         resolved_args.log_file = None # why?
-
-        print(resolved_args)
         
         # Detect modified models using the dependency graph and run them
         click.echo("🔍 Detecting modified models...")

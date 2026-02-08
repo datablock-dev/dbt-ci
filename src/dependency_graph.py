@@ -26,38 +26,27 @@ class DbtGraph:
         args: Namespace,
         user_production_state: bool = False
     ):
-        self.args = Variables(args).to_namespace()
-        for key, value in self.args.__dict__.items():
+        self.args = args
+        self.variables = Variables(args).to_namespace()
+        for key, value in self.variables.__dict__.items():
             setattr(self, key, value)
         
         self.user_production_state = user_production_state
         
         # Bash runner configuration
-        shell_path = getattr(args, 'shell_path', '/bin/bash')
+        shell_path = getattr(self.variables, 'shell_path', '/bin/bash')
         # Shell path needs to be absolute for subprocess execution
-        self.shell_path = os.path.abspath(shell_path) if not os.path.isabs(shell_path) else shell_path
+        if not os.path.isabs(shell_path):
+            shell_path = os.path.abspath(shell_path)
+        
+        self.shell_path = shell_path
         
         # Keep paths as provided by user (relative or absolute)
-        self.project = get_dbt_project_file(self.args.dbt_project_dir)
-        self.profile = get_profiles_file(
-            dbt_project_dir=self.args.dbt_project_dir,
-            profiles_dir=args.profiles_dir
-        )
-        self.reference_manifest_file = get_prod_manifest_file(args.prod_manifest_dir)
-        self.prod_manifest_file = self.reference_manifest_file
-        self.target_manifest_file = get_manifest_file(args.dbt_project_dir)
-        self.target = self.set_target()
+        #self.prod_manifest_file = self.reference_manifest_file
         self.dependency_graph = generate_dependency_graph(
-            args.dbt_project_dir if not self.user_production_state else args.prod_manifest_dir,
+            self.variables.dbt_project_dir if not self.user_production_state else self.variables.prod_manifest_dir,
             is_state_manifest=self.user_production_state
         )
-
-    def set_target(self):
-        """Set the target from args if provided, otherwise get from profile."""
-        if self.args.target and self.args.target != "default":
-            return self.args.target
-        else:
-            return self.get_target_profile()["target_name"]
     
     def _get_absolute_path(self, path: str) -> str:
         """Convert path to absolute if it's relative."""
@@ -85,7 +74,7 @@ class DbtGraph:
         
         # Get absolute paths for comparison
         abs_path = self._get_absolute_path(path)
-        abs_project_dir = self._get_absolute_path(self.args.dbt_project_dir)
+        abs_project_dir = self._get_absolute_path(self.variables.dbt_project_dir)
         
         if container_workdir:
             # If path equals the project directory exactly, return current directory
@@ -108,23 +97,23 @@ class DbtGraph:
         """
         
         return RunnerConfig(
-            runner=self.args.runner,
-            dbt_project_dir=self.args.dbt_project_dir,
-            prod_manifest_dir=self.args.prod_manifest_dir,
-            profiles_dir=self.args.profiles_dir,
-            target=self.args.target,
-            vars=self.args.vars,
-            entrypoint=self.args.entrypoint,
-            dry_run=self.args.dry_run,
+            runner=self.variables.runner,
+            dbt_project_dir=self.variables.dbt_project_dir,
+            prod_manifest_dir=self.variables.prod_manifest_dir,
+            profiles_dir=self.variables.profiles_dir,
+            target=self.variables.target,
+            vars=self.variables.vars,
+            entrypoint=self.variables.entrypoint,
+            dry_run=self.variables.dry_run,
             quiet=False,  # Can be overridden per-call
-            docker_image=self.args.docker_image,
-            docker_platform=self.args.docker_platform,
-            docker_volumes=self.args.docker_volumes,
-            docker_env=self.args.docker_env,
-            docker_network=self.args.docker_network,
-            docker_user=self.args.docker_user,
-            docker_args=self.args.docker_args,
-            shell_path=self.args.shell_path
+            docker_image=self.variables.docker_image,
+            docker_platform=self.variables.docker_platform,
+            docker_volumes=self.variables.docker_volumes,
+            docker_env=self.variables.docker_env,
+            docker_network=self.variables.docker_network,
+            docker_user=self.variables.docker_user,
+            docker_args=self.variables.docker_args,
+            shell_path=self.variables.shell_path
         )
 
     def get_state_modified(
@@ -148,11 +137,11 @@ class DbtGraph:
         command_args = [
             "ls",
             "--select", selector,
-            *(["--target", self.args.target] if self.args.target else []),
-            *(["--vars", self.args.vars] if self.args.vars else []),
-            "--state", self.args.prod_manifest_dir,
-            "--project-dir", self.args.dbt_project_dir,
-            *(["--profiles-dir", self.args.profiles_dir] if self.args.profiles_dir else [])
+            *(["--target", self.variables.target] if self.variables.target else []),
+            *(["--vars", self.variables.vars] if self.variables.vars else []),
+            "--state", self.variables.prod_manifest_dir,
+            "--project-dir", self.variables.dbt_project_dir,
+            *(["--profiles-dir", self.variables.profiles_dir] if self.variables.profiles_dir else [])
         ]
         
         # Run command through dispatcher
@@ -167,7 +156,7 @@ class DbtGraph:
             return None
         
         # Parse output to extract node names
-        project_profile = self.project.get("profile", "")
+        project_profile = self.variables.project.get("profile", "")
         modified_nodes = {
             line.strip() for line in output.stdout.splitlines()
             if line.startswith(f"{project_profile}.")
@@ -205,17 +194,6 @@ class DbtGraph:
             return None
         
         return nodes
-    
-    def get_target_profile(self) -> Dict:
-        """Get the default profile from the profiles.yml file."""
-        profile = self.project.get("profile", "")
-        outputs = self.profile.get(profile, {}).get("outputs", {})
-        target = self.profile.get(profile, {}).get("target", "")
-
-        return {
-            "config": outputs.get(target, {}),
-            "target_name": target
-        }
 
     def to_dict(self) -> DependencyGraph:
         """Convert the DependencyGraph instance to a dictionary."""
@@ -226,7 +204,7 @@ class DbtGraph:
         with open(destination_path, 'w', encoding='utf-8') as file:
             json.dump(
                 obj=self.dependency_graph, 
-                fp=file, 
-                indent=4, 
+                fp=file,
+                indent=4,
                 default=lambda o: list(o) if isinstance(o, set) else o
             )
