@@ -21,7 +21,7 @@ class DbtGraph:
         DbtGraph: An instance of the DbtGraph class containing the dependency graph and related
     """
     def __init__(
-        self, 
+        self,
         args: Namespace,
         user_production_state: bool = False
     ):

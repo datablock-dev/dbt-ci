@@ -2,6 +2,7 @@ from google.cloud import bigquery
 from src.paths import get_profiles_file
 
 def bigquery_client(args) -> bigquery.Client:
+    """Create a BigQuery client using credentials from the dbt profiles.yml file."""
     dbt_profile = get_profiles_file(
         dbt_project_dir=args.dbt_project_dir,
         profiles_dir=args.profiles_dir
@@ -19,6 +20,11 @@ def bigquery_client(args) -> bigquery.Client:
     return client
 
 def bigquery_query(client: bigquery.Client, query: str):
+    """Execute a BigQuery query and return the results <add value>."""
     query_job = client.query(query)
     results = query_job.result()
-    return results.to_dataframe()
+
+    if query_job.errors:
+        raise RuntimeError(f"BigQuery query failed with errors: {query_job.errors}")
+    else:
+        return results.job_id

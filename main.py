@@ -1,216 +1,296 @@
 import sys
-import argparse
+import click
 from src.dependency_graph import DbtGraph
+from src.runners import run_dbt_command
+from argparse import Namespace
 
-def main():
-    """
-    Command-line interface for the DBT CI Tool.
-    This function sets up the argument parser for the DBT CI Tool, allowing users to specify various options and parameters when running the tool from the command line.
-    The available arguments include:
-    --version: Displays the version of the tool.
-    --prod-manifest-path / --reference-manifest-path: Specifies the path to the production or reference manifest.json file, which is required for the tool to function.
-    --profiles-dir: Specifies the path to the directory containing the dbt profiles.yml file. If not provided, the tool will look for the profiles.yml file in the current directory and then in the user's home directory under ~/.dbt/.
-    --dbt-project-dir: Specifies the path to the dbt project directory. If not provided, it defaults to the current directory.
-    --target / -t: Specifies the dbt target to use for the test run. If not provided, it defaults to "default".
-    """
-    parser = argparse.ArgumentParser(
-        prog="DBT CI Tool",
-        description="DBT CI Tool",
-        epilog="For more information, visit https://datablock.dev",
-    )
 
-    parser.add_argument(
-        "--version",
-        action="version",
-        version="%(prog)s 0.1.0",
-    )
-
-    parser.add_argument(
-        "--prod-manifest-dir",
-        "--reference-manifest-dir",
-        "--state",
-        type=str,
-        help="Path to the production/reference manifest.json directory (Not the file itself)",
+# Shared options for all commands
+def common_options(f):
+    """Decorator to add common options to all commands"""
+    f = click.option(
+        '--prod-manifest-dir', 
+        '--reference-manifest-dir', 
+        '--state',
         required=True,
-    )
-
-    parser.add_argument(
-        "--profiles-dir",
-        type=str,
-        help="Path to the directory containing the dbt profiles.yml file (defaults: <dbt-directory>/profiles.yml then ~/.dbt/)",
-        required=False,
-    )
-
-    parser.add_argument(
-        '--dbt-project-dir',
-        type=str,
-        help='Path to the dbt project directory (default: current directory)',
+        help='Path to the production/reference manifest.json directory'
+    )(f)
+    f = click.option(
+        '--dbt-project-dir', 
         default='.',
-        required=True,
-    )
-
-    parser.add_argument(
-        "--target",
-        "-t",
-        type=str,
-        help="The dbt target to use for the test run (defaults to what is defined in target in profiles.yml)",
-        required=False,
-    )
-
-    parser.add_argument(
-        "--vars",
-        "-v",
-        type=str,
-        help="A YAML string or a path to a YAML file containing variables to pass to dbt (default: empty)",
-        default="",
-        required=False,
-    )
-
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="If set, the tool will only print the dbt commands that would be executed without actually running them (default: false)",
+        help='Path to the dbt project directory (default: current directory)'
+    )(f)
+    f = click.option(
+        '--profiles-dir', 
+        default=None,
+        help='Path to the directory containing the dbt profiles.yml file'
+    )(f)
+    f = click.option(
+        '--target', 
+        '-t', 
+        default=None,
+        help='The dbt target to use (defaults to what is defined in profiles.yml)'
+    )(f)
+    f = click.option(
+        '--vars', 
+        '-v', 
+        default='',
+        help='A YAML string or path to YAML file containing variables to pass to dbt'
+    )(f)
+    f = click.option(
+        '--runner', 
+        '-r', 
+        type=click.Choice(['local', 'docker', 'bash', 'dbt']),
+        default='dbt', 
+        help='Runner to use for executing dbt commands'
+    )(f)
+    f = click.option(
+        '--entrypoint', 
+        default='dbt',
+        help='Command entrypoint for dbt (default: dbt)'
+    )(f)
+    f = click.option(
+        '--dry-run', 
+        is_flag=True, 
         default=False,
-        required=False,
-    )
-
-    parser.add_argument(
-        "--log-level",
-        type=str,
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Set the logging level (default: INFO)",
-        default="INFO",
-        required=False,
-    )
-
-    parser.add_argument(
-        "--log-file",
-        type=str,
-        help="Path to a file where logs should be written (default: None, logs will be printed to stdout)",
-        default=None,
-        required=False,
-    )
-
-    parser.add_argument(
-        "--mode",
-        type=str,
-        choices=["run", "test", "snapshot", "seed", None],
-        help="The mode to run the tool in (default: run)",
-        default="run",
-        required=False,
-    )
-
-    parser.add_argument(
-        "--selector",
-        "-s",
-        type=str,
-        help="Space-separated list of selectors to run (default: empty)",
-        default="",
-        required=False,
-        nargs="*"
-    )
-
-    parser.add_argument(
-        "--runner",
-        "-r",
-        type=str,
-        choices=["local", "docker", "bash", "dbt"],
-        default="dbt",
-        help="The runner to use for running dbt commands (default: dbt)"
-    )
-
-    parser.add_argument(
-        "--entrypoint",
-        help="The command to use as the entrypoint for dbt commands (default: dbt). This can be used to specify a custom path to the dbt executable or an alternative command that wraps dbt.",
-        type=str,
-        default="dbt"
-    )
-
-    parser.add_argument(
-        "--shell-path",
-        "--bash-path",
-        type=str,
-        help="Path to the shell executable to use when runner is set to 'bash' (default: /bin/bash)",
-        default="/bin/bash",
-        required=False,
-    )
-
-    parser.add_argument(
-        "--docker-image",
-        type=str,
-        help="Docker image to use (default: ghcr.io/dbt-labs/dbt-core:latest)",
-        default="ghcr.io/dbt-labs/dbt-core:latest",
-        required=False,
-    )
-
-    parser.add_argument(
-        "--docker-platform",
-        type=str,
-        help="Platform for Docker image (e.g., linux/amd64, linux/arm64). Use linux/amd64 on Apple Silicon for compatibility",
-        default=None,
-        required=False,
-    )
-
-    parser.add_argument(
-        "--docker-volumes",
-        type=str,
-        nargs="*",
-        help="Additional volume mounts in format 'host:container' or 'host:container:ro'",
-        default=[],
-        required=False,
-    )
-
-    parser.add_argument(
-        "--docker-env",
-        type=str,
-        nargs="*",
-        help="Environment variables to pass to Docker in format 'KEY=VALUE'",
-        default=[],
-        required=False,
-    )
-
-    parser.add_argument(
-        "--docker-network",
-        type=str,
-        help="Docker network mode (default: host)",
-        default="host",
-        required=False,
-    )
-
-    parser.add_argument(
-        "--docker-user",
-        type=str,
-        help="User to run as inside container (default: current UID:GID)",
-        default=None,
-        required=False,
-    )
-
-    parser.add_argument(
-        "--docker-args",
-        type=str,
-        help="Additional docker run arguments as a single string",
-        default="",
-        required=False,
-    )
+        help='Print commands without executing them'
+    )(f)
+    f = click.option(
+        '--log-level', 
+        type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']),
+        default='INFO', 
+        help='Logging level'
+    )(f)
     
-    args = parser.parse_args()
+    # Docker options
+    f = click.option(
+        '--docker-image', 
+        default='ghcr.io/dbt-labs/dbt-core:latest',
+        help='Docker image to use'
+    )(f)
+    f = click.option(
+        '--docker-platform', 
+        default=None,
+        help='Platform for Docker (e.g., linux/amd64)'
+    )(f)
+    f = click.option(
+        '--docker-volumes', 
+        multiple=True, 
+        default=[],
+        help='Additional volume mounts (format: host:container)'
+    )(f)
+    f = click.option(
+        '--docker-env', 
+        multiple=True, 
+        default=[],
+        help='Environment variables (format: KEY=VALUE)'
+    )(f)
+    f = click.option(
+        '--docker-network', 
+        default='host',
+        help='Docker network mode'
+    )(f)
+    f = click.option(
+        '--docker-user', 
+        default=None,
+        help='User to run as inside container'
+    )(f)
+    f = click.option(
+        '--docker-args', 
+        default='',
+        help='Additional docker run arguments'
+    )(f)
+    
+    # Bash options
+    f = click.option(
+        '--shell-path', 
+        '--bash-path', 
+        default='/bin/bash',
+        help='Path to shell executable for bash runner'
+    )(f)
+    
+    return f
 
+
+@click.group()
+@click.version_option(version='0.1.0', prog_name='dbt-ci')
+def cli():
+    """dbt CI Tool - Intelligent CI for dbt projects
+    
+    Detect, run, and test only what changed based on state comparison.
+    
+    Visit https://datablock.dev for more information.
+    """
+    pass
+
+
+@cli.command()
+@common_options
+def run(
+    prod_manifest_dir,
+    dbt_project_dir,
+    profiles_dir,
+    target,
+    vars,
+    runner,
+    entrypoint,
+    dry_run,
+    log_level,
+    docker_image,
+    docker_platform,
+    docker_volumes,
+    docker_env,
+    docker_network,
+    docker_user,
+    docker_args,
+    shell_path
+):
+    """Run modified dbt models
+    
+    Detects models that have changed based on state comparison and runs them.
+    
+    Examples:
+        dbt-ci run --state prod-manifest/ --dbt-project-dir ./dbt
+        dbt-ci run --state prod-manifest/ --select "state:modified+" --runner docker
+        dbt-ci run --state prod-manifest/ --full-refresh
+    """
     try:
-        # Implement the main functionality here
-        #print(args)
-        target_dependency_graph = DbtGraph(args)
-        #reference_dependency_graph = DbtGraph(args, user_production_state=True)
-        target_dependency_graph.to_json()
-
-        changed_nodes = target_dependency_graph.get_state_modified()
-
-        print(changed_nodes)
-
+        # Create args namespace for DbtGraph compatibility
+        args = Namespace(
+            prod_manifest_dir=prod_manifest_dir,
+            dbt_project_dir=dbt_project_dir,
+            profiles_dir=profiles_dir,
+            target=target,
+            vars=vars,
+            runner=runner,
+            entrypoint=entrypoint,
+            dry_run=dry_run,
+            log_level=log_level,
+            docker_image=docker_image,
+            docker_platform=docker_platform,
+            docker_volumes=list(docker_volumes),
+            docker_env=list(docker_env),
+            docker_network=docker_network,
+            docker_user=docker_user,
+            docker_args=docker_args,
+            shell_path=shell_path,
+            mode='run',
+            log_file=None
+        )
+        
+        click.echo(f"🔍 Detecting modified models...")
+        graph = DbtGraph(args)
+        modified_nodes = graph.get_state_modified()
+        
+        if not modified_nodes:
+            click.echo("✅ No modified models detected")
+            return
+        
+        click.echo("📊 Found {len(modified_nodes)} modified model(s):")
+        for node in modified_nodes:
+            click.echo(f"  • {node}")
+        
+        click.echo("\n🚀 Running modified models...")
+        
+        # Build dbt run command
+        run_args = [
+            "run",
+            "--select", select,
+            *(["--full-refresh"] if full_refresh else [])
+        ]
+        
+        result = run_dbt_command(
+            command_args=run_args,
+            runner_config=graph._get_runner_config(),
+            quiet=False
+        )
+        
+        if result and result.returncode == 0:
+            click.echo("\n✅ Successfully ran {len(modified_nodes)} model(s)")
+        else:
+            click.echo("\n❌ Run failed", err=True)
+            sys.exit(1)
+            
     except Exception as e:
-        print(f"An error occurred: {e}")
+        click.echo(f"❌ Error: {e}", err=True)
         sys.exit(1)
 
 
+@cli.command()
+@common_options
+def ephemeral(
+    prod_manifest_dir, 
+    dbt_project_dir,
+    profiles_dir,
+    target,
+    vars,
+    runner,
+    entrypoint,
+    dry_run,
+    log_level,
+    docker_image,
+    docker_platform,
+    docker_volumes,
+    docker_env,
+    docker_network,
+    docker_user,
+    docker_args,
+    shell_path
+):
+    """Run ephemeral CI check workflow
+    
+    Detects changes, lists modified models, but doesn't execute them.
+    Useful for quick CI checks and PR previews.
+    
+    Examples:
+        dbt-ci ephemeral --state prod-manifest/ --dbt-project-dir ./dbt
+        dbt-ci ephemeral --state prod-manifest/ --runner docker
+    """
+    try:
+        from argparse import Namespace
+        args = Namespace(
+            prod_manifest_dir=prod_manifest_dir,
+            dbt_project_dir=dbt_project_dir,
+            profiles_dir=profiles_dir,
+            target=target,
+            vars=vars,
+            runner=runner,
+            entrypoint=entrypoint,
+            dry_run=dry_run,
+            log_level=log_level,
+            docker_image=docker_image,
+            docker_platform=docker_platform,
+            docker_volumes=list(docker_volumes),
+            docker_env=list(docker_env),
+            docker_network=docker_network,
+            docker_user=docker_user,
+            docker_args=docker_args,
+            shell_path=shell_path,
+            mode='run',
+            selector=select,
+            log_file=None
+        )
+        
+        click.echo(f"🔍 Detecting modified models...")
+        graph = DbtGraph(args)
+        modified_nodes = graph.get_state_modified(selector=select)
+        
+        if not modified_nodes:
+            click.echo("✅ No modified models detected - no work to do!")
+            return
+        
+        click.echo(f"\n📊 Changes detected: {len(modified_nodes)} modified model(s)")
+        click.echo("\nModified models:")
+        for node in modified_nodes:
+            click.echo(f"  • {node}")
+        
+        click.echo(f"\n💡 To run these models, use: dbt-ci run --state {prod_manifest_dir}")
+        
+    except Exception as e:
+        click.echo(f"❌ Error: {e}", err=True)
+        sys.exit(1)
+
 
 if __name__ == "__main__":
-    main()
+    cli()
+
