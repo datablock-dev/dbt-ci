@@ -61,10 +61,6 @@ def ephemeral(**kwargs):
             dependency_graph=target_graph.to_dict(),
             node_ids=modified_nodes
         )
-
-        if downstream_dependencies is None:
-            click.echo("No downstream dependencies found for modified nodes, skipping...")
-            return
                 
     except Exception as e:
         click.echo(f"❌ Error: {e}", err=True)

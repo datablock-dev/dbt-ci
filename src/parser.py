@@ -1,6 +1,5 @@
 import sys
 import json
-import os
 from typing import Dict, List, Optional, Set, Any
 from src.paths import get_manifest_file, get_prod_manifest_file
 from src.schema import DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
