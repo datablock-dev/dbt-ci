@@ -140,7 +140,6 @@ def ephemeral(**kwargs):
         click.echo(f"❌ Error: {e}", err=True)
         sys.exit(1)
 
-
 def full_config_or_none(
     database: Optional[str],
     schema: Optional[str],

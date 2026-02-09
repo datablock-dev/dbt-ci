@@ -1,7 +1,7 @@
 """BigQuery connector for dbt CI."""
 from argparse import Namespace
 import sys
-from typing import Dict, Set
+from typing import Dict, Set, Tuple
 import click
 from google.cloud import bigquery
 from src.paths import get_profiles_file
@@ -47,7 +47,7 @@ def bigquery_ephemeral_strategy(
     variables: Namespace
 ) -> None:
     """Strategy for handling ephemeral run towards BigQuery."""
-    def get_full_config(config: dict):
+    def get_full_config(config: EphemeralMapNode | None) -> Tuple[str | None, str | None, str | None]:
         """Extract (database, schema, name) from a config dict."""
         if config is None:
             return None, None, None
@@ -65,7 +65,7 @@ def bigquery_ephemeral_strategy(
             if node_metadata["ephemeral_config"] is None or node_metadata["reference_config"] is None:
                 click.echo(f"Skipping node '{node_metadata['name']}' since it does not have both ephemeral and reference configurations.")
                 continue
-            ephemeral_database, ephemeral_schema, ephemeral_table = get_full_config(node_metadata["ephemeral_config"])            
+            ephemeral_database, ephemeral_schema, ephemeral_table = get_full_config(node_metadata["ephemeral_config"])
             reference_database, reference_schema, reference_table = get_full_config(node_metadata["reference_config"])
             dataset_id = f"{ephemeral_database}.{ephemeral_schema}"
             datasets_to_create.add(dataset_id)

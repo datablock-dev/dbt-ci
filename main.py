@@ -1,6 +1,10 @@
 import click
-from src.commands import run, ephemeral, init
-
+from src.commands import (
+    delete,
+    run,
+    ephemeral,
+    init
+)
 
 # Shared options for all commands
 def common_options(f):
@@ -197,6 +201,23 @@ def ephemeral_cmd(**kwargs):
     """
     return ephemeral(**kwargs)
 
+@cli.command(name='delete')
+@common_options
+def delete_cmd(**kwargs):
+    """Delete modified dbt models
+    
+    Detects models that have been deleted based on state comparison and deletes them from the target environment.
+    
+    Examples:
+        dbt-ci delete --state prod-manifest/ --dbt-project-dir ./dbt
+        dbt-ci delete --state prod-manifest/ --runner docker
+        
+        # With environment variables
+        export DBT_STATE=./dbt/.dbtstate/
+        export DBT_PROJECT_DIR=./dbt
+        dbt-ci delete
+    """
+    return delete(**kwargs)
 
 if __name__ == "__main__":
     cli()
