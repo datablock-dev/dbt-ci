@@ -104,6 +104,7 @@ def run_with_mode(
         )
 
         if downstream_dependencies is None:
+            downstream_dependencies = []
             click.echo("No downstream dependencies found for modified nodes")
 
         click.echo("\nThe following models will be run due to changes, including downstream dependencies:")
@@ -114,7 +115,7 @@ def run_with_mode(
         for node in downstream_dependencies:
             click.echo(f"  • [Downstream dependency] {node}")
 
-        click.echo(f"\n🚀 Running modified {REVERSE_MODE_MAPPING[command]}...")
+        click.echo(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running modified nodes...")
         final_nodes_to_run = filter_node_ids_by_type(
             dependency_graph=target_graph.to_dict(),
             node_ids=list(set(modified_nodes_dict["modified_nodes"]).union(set(downstream_dependencies))),
