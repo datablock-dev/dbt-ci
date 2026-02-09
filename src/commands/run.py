@@ -63,9 +63,6 @@ def run(**kwargs):
             get_node_ids_from_structured_nodes(cache.get_cache().get("deleted_nodes", None)) or []
         ))
 
-        print(modified_nodes)
-        print(get_downstream_dependencies_from_cache(cache.get_cache().get("deleted_nodes", None)))
-
         if len(modified_nodes) == 0:
             click.echo("No modified or deleted nodes found in cache, skipping...")
             return
@@ -73,7 +70,10 @@ def run(**kwargs):
         click.echo(f"Found {len(modified_nodes)} modified model(s):")
         downstream_dependencies = get_downstream_dependencies(target_graph.to_dict(), modified_nodes)
 
-        print(downstream_dependencies)
+        if downstream_dependencies is None:
+            click.echo("No downstream dependencies found for modified nodes, skipping...")
+            return
+
         for node in downstream_dependencies:
             click.echo(f"  • {node}")
         
@@ -85,14 +85,12 @@ def run(**kwargs):
             runner_config=RunnerConfig(variables.__dict__),
             quiet=False
         )
-
-        print(f"Test result: {result.stdout}")
         
         if result and result.returncode == 0:
             click.echo(f"\n✅ Successfully ran {len(downstream_dependencies)} model(s)")
         else:
             click.echo("\n❌ Run failed", err=True)
-            sys.exit(1)     
+            sys.exit(1)
     except Exception as e:
         click.echo(f"❌ Error: {e}", err=True)
         sys.exit(1)

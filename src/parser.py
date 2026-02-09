@@ -402,14 +402,21 @@ def get_downstream_dependencies(
         node = get_node(dependency_graph, node_id)
         if node is None:
             continue
-
-        downstream_dependencies.update(node["indirect_downstream_dependencies"]["node_dependencies"])
+        
+        dependency_by_type = node["indirect_downstream_dependencies"]["dependencies_by_type"]
+        for dep_type, dep_names in dependency_by_type.items():
+            if dep_names is not None and len(dep_names) > 0:
+                downstream_dependencies.update(dep_names)
 
     if len(downstream_dependencies) == 0:
         return None
     return downstream_dependencies
 
-def get_downstream_dependencies_from_cache(cache: Dict[str, DependencyGraph] | None) -> List[str] | None:
+def get_downstream_dependencies_from_cache(
+    cache: Dict[str, DependencyGraph] | None,
+    node_type: Optional[DependencyGraphNodeType] = None,
+    levels: int | None = None # To be implemented in the future
+) -> List[str] | None:
     """Get downstream dependencies for modified nodes from cache."""
     if cache is None:
         return None
@@ -417,9 +424,14 @@ def get_downstream_dependencies_from_cache(cache: Dict[str, DependencyGraph] | N
     downstream_dependencies: Set[str] = set()
     for node_values in cache.values():
         for item_values in node_values.values():
-            dependencies = item_values.get("indirect_downstream_dependencies").get("node_dependencies", None)
-            if dependencies:
-                downstream_dependencies.update(dependencies)
+            dependencies_by_type = item_values.get("indirect_downstream_dependencies").get("dependencies_by_type", None)
+            if dependencies_by_type:
+                for dep_type, dep_names in dependencies_by_type.items():
+                    if node_type and dep_type != node_type:
+                        continue
+
+                    downstream_dependencies.update(dep_names)
+                    
 
     return list(downstream_dependencies) if len(downstream_dependencies) > 0 else None
 
