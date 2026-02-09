@@ -391,6 +391,7 @@ def get_node_ids_from_structured_nodes(structured_nodes: Dict[str, DependencyGra
 def get_downstream_dependencies(
     dependency_graph: DependencyGraph,
     node_ids: List[str] | None,
+    node_type: Optional[DependencyGraphNodeType] = None,
     levels: int | None = None # To be implemented in the future
 ):
     """Get downstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
@@ -403,8 +404,10 @@ def get_downstream_dependencies(
         if node is None:
             continue
         
-        dependency_by_type = node["indirect_downstream_dependencies"]["dependencies_by_type"]
+        dependency_by_type: Dict[DependencyGraphNodeType, List[str]] = node["indirect_downstream_dependencies"]["dependencies_by_type"]
         for dep_type, dep_names in dependency_by_type.items():
+            if node_type and dep_type != node_type:
+                continue
             if dep_names is not None and len(dep_names) > 0:
                 downstream_dependencies.update(dep_names)
 

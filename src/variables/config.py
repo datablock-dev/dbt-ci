@@ -1,6 +1,10 @@
 """Shared configuration for CLI options and environment variables."""
 
 # Configuration mapping: defines all options with their metadata
+from typing import Dict, Optional
+from src.schema import RunModes
+
+
 OPTIONS_CONFIG = {
     'nodes': {
         'env_vars': ['DBT_NODES'],
@@ -141,4 +145,30 @@ OPTIONS_CONFIG = {
         'default': '/bin/bash',
         'help': 'Path to shell executable for bash runner'
     }
+}
+
+MODE_MAPPING: Dict[RunModes, Optional[str]] = {
+    "all": None,
+    "seeds": "seed",
+    "models": "run",
+    "tests": "test",
+    "snapshots": "snapshot"
+}
+
+NODE_TYPE_COMMAND_MAPPING = {
+    "models": "model",
+    "macros": "macro",
+    "seeds": "seed",
+    "snapshots": "snapshot",
+    "tests": "test"
+}
+
+MANIFEST_KEY_MAPPING = {
+    "model": "nodes",
+    "seed": "nodes",
+    "snapshot": "nodes",
+    "test": "nodes",
+    "macro": "macros",
+    "exposure": "exposures",
+    "source": "sources"
 }
