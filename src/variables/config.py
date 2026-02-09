@@ -155,6 +155,8 @@ MODE_MAPPING: Dict[RunModes, Optional[str]] = {
     "snapshots": "snapshot"
 }
 
+REVERSE_MODE_MAPPING: Dict[Optional[str], RunModes] = {v: k for k, v in MODE_MAPPING.items()}
+
 NODE_TYPE_COMMAND_MAPPING: Dict[str, DependencyGraphNodeType] = {
     "models": "model",
     "macros": "macro",

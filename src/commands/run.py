@@ -6,10 +6,10 @@ from itertools import chain
 from typing import Dict, List
 import click
 from src.dependency_graph import DbtGraph
-from src.parser import get_downstream_dependencies, get_node_ids_from_structured_nodes
+from src.parser import filter_node_ids_by_type, get_downstream_dependencies, get_node_ids_from_structured_nodes
 from src.schema import RunModes, RunnerConfig
 from src.variables import Variables
-from src.variables.config import MODE_MAPPING, NODE_TYPE_COMMAND_MAPPING
+from src.variables.config import MODE_MAPPING, NODE_TYPE_COMMAND_MAPPING, REVERSE_MODE_MAPPING
 from src.cache import CacheManager
 from src.runners import run_dbt_command, append_dbt_variables_to_command
 
@@ -96,11 +96,11 @@ def run_with_mode(
         run_order = [MODE_MAPPING[mode]]
 
     for command in run_order:
-        click.echo(f"\nIdentifying modified nodes of type: {mode}")
+        click.echo(f"\nIdentifying modified nodes of type: {REVERSE_MODE_MAPPING[command]}")
         downstream_dependencies = get_downstream_dependencies(
             dependency_graph=target_graph.to_dict(),
             node_ids=modified_nodes,
-            node_type=NODE_TYPE_COMMAND_MAPPING[mode] if mode != "all" else None
+            node_type=REVERSE_MODE_MAPPING[command]
         )
 
         if downstream_dependencies is None:
@@ -114,8 +114,15 @@ def run_with_mode(
         for node in downstream_dependencies:
             click.echo(f"  • [Downstream dependency] {node}")
 
-        click.echo(f"\n🚀 Running modified {mode}...")
-        final_nodes_to_run = set(modified_nodes_dict["modified_nodes"]).union(set(downstream_dependencies))
+        click.echo(f"\n🚀 Running modified {REVERSE_MODE_MAPPING[command]}...")
+        final_nodes_to_run = filter_node_ids_by_type(
+            dependency_graph=target_graph.to_dict(),
+            node_ids=list(set(modified_nodes_dict["modified_nodes"]).union(set(downstream_dependencies))),
+            node_type=REVERSE_MODE_MAPPING[command]
+        )
+
+        if len(final_nodes_to_run) == 0:
+            continue
 
         result = run_dbt_command(
             command_args=append_dbt_variables_to_command([command, "--select", " ".join(final_nodes_to_run)], variables),
@@ -124,7 +131,7 @@ def run_with_mode(
         )
 
         if result and result.returncode == 0:
-            click.echo(f"\n✅ Successfully ran {len(final_nodes_to_run)} {mode}(s)")
+            click.echo(f"\n✅ Successfully ran {len(final_nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
         else:
             click.echo("\n❌ Run failed", err=True)
             sys.exit(1)

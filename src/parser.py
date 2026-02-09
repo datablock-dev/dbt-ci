@@ -422,7 +422,7 @@ def get_downstream_dependencies_from_cache(
     """Get downstream dependencies for modified nodes from cache."""
     if cache is None:
         return None
-    
+
     downstream_dependencies: Set[str] = set()
     for node_values in cache.values():
         for item_values in node_values.values():
@@ -432,10 +432,21 @@ def get_downstream_dependencies_from_cache(
                     if node_type and dep_type != node_type:
                         continue
 
-                    downstream_dependencies.update(dep_names)
-                    
-
+                    downstream_dependencies.update(dep_names)         
     return list(downstream_dependencies) if len(downstream_dependencies) > 0 else None
+
+def filter_node_ids_by_type(
+    dependency_graph: DependencyGraph,
+    node_ids: List[str],
+    node_type: DependencyGraphNodeType
+) -> List[str]:
+    """Filter a list of node IDs by type."""
+    filtered_node_ids = []
+    for node_id in node_ids:
+        node = get_node(dependency_graph, node_id)
+        if node and node.get("resource_type") == node_type:
+            filtered_node_ids.append(node_id)
+    return filtered_node_ids
 
 if __name__ == "__main__":
     # Example usage - update path to your manifest file
