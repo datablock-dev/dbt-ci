@@ -36,7 +36,6 @@ def run(**kwargs):
         cache = CacheManager()
         config = Variables(args)
         variables = config.to_namespace()
-        MODE = MODE_MAPPING[variables.nodes]
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, user_production_state=True)
         
@@ -82,8 +81,8 @@ def run(**kwargs):
             click.echo(string)
 
         run_with_mode(
-            mode=variables.nodes, 
-            runner_config=RunnerConfig(variables.__dict__),
+            mode=variables.nodes,
+            variables=variables,
             target_graph=target_graph,
             modified_nodes_dict=modified_nodes_dict,
             modified_nodes=modified_nodes
@@ -108,12 +107,13 @@ def run(**kwargs):
 
 def run_with_mode(
     mode: RunModes,
-    runner_config: RunnerConfig,
+    variables: Namespace,
     target_graph: DbtGraph,
     modified_nodes_dict: Dict[str, List[str]],
     modified_nodes: List[str]
 ):
     """Run modified nodes with specific dbt command based on mode"""
+    runner_config = RunnerConfig(variables.__dict__)
     run_order = ["seed", "run", "test", "snapshot"]
     if mode != "all":
         run_order = [MODE_MAPPING[mode]]
@@ -145,3 +145,17 @@ def run_with_mode(
             click.echo(f"  • [Downstream dependency] {node}")
 
         click.echo(f"\n🚀 Running modified {mode}...")
+
+        result = run_dbt_command(
+            command_args=append_dbt_variables_to_command([command, "--select", " ".join(downstream_dependencies)], variables),
+            runner_config=runner_config,
+            quiet=False
+        )
+
+        if result and result.returncode == 0:
+            click.echo(f"\n✅ Successfully ran {len(downstream_dependencies)} model(s)")
+        else:
+            click.echo("\n❌ Run failed", err=True)
+            sys.exit(1)
+
+    return

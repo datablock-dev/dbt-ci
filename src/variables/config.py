@@ -2,7 +2,7 @@
 
 # Configuration mapping: defines all options with their metadata
 from typing import Dict, Optional
-from src.schema import RunModes
+from src.schema import DependencyGraphNodeType, RunModes
 
 
 OPTIONS_CONFIG = {
@@ -155,7 +155,7 @@ MODE_MAPPING: Dict[RunModes, Optional[str]] = {
     "snapshots": "snapshot"
 }
 
-NODE_TYPE_COMMAND_MAPPING = {
+NODE_TYPE_COMMAND_MAPPING: Dict[RunModes, DependencyGraphNodeType] = {
     "models": "model",
     "macros": "macro",
     "seeds": "seed",
