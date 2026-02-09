@@ -1,6 +1,4 @@
-"""
-Run command for dbt-ci
-"""
+"""Run command for dbt-ci"""
 
 import sys
 from argparse import Namespace
@@ -44,15 +42,7 @@ def run(**kwargs):
         if prev_cache is None: # Should we exit here instead of compiling?
             click.echo("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
             return
-
-            click.echo("No cache found, compiling DBT")
-            run_dbt_command(
-                command_args=append_dbt_variables_to_command(["compile"], variables),
-                runner_config=RunnerConfig(variables.__dict__),
-                quiet=False
-            )
-        else:
-            click.echo("Cache successfully found - using cached state for comparison")
+        click.echo("Cache successfully found - using cached state for comparison")
 
         modified_nodes_dict = {
             "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
@@ -113,12 +103,6 @@ def run_with_mode(
             node_type=NODE_TYPE_COMMAND_MAPPING[mode]
         )
 
-        downstream_dependencies = get_downstream_dependencies(
-            dependency_graph=target_graph.to_dict(),
-            node_ids=modified_nodes,
-            node_type=NODE_TYPE_COMMAND_MAPPING[mode]
-        )
-
         if downstream_dependencies is None:
             click.echo("No downstream dependencies found for modified nodes, skipping...")
             return
@@ -132,15 +116,16 @@ def run_with_mode(
             click.echo(f"  • [Downstream dependency] {node}")
 
         click.echo(f"\n🚀 Running modified {mode}...")
+        final_nodes_to_run = set(modified_nodes_dict["modified_nodes"]).union(set(downstream_dependencies))
 
         result = run_dbt_command(
-            command_args=append_dbt_variables_to_command([command, "--select", " ".join(downstream_dependencies)], variables),
+            command_args=append_dbt_variables_to_command([command, "--select", " ".join(final_nodes_to_run)], variables),
             runner_config=runner_config,
             quiet=False
         )
 
         if result and result.returncode == 0:
-            click.echo(f"\n✅ Successfully ran {len(downstream_dependencies)} model(s)")
+            click.echo(f"\n✅ Successfully ran {len(final_nodes_to_run)} {mode}(s)")
         else:
             click.echo("\n❌ Run failed", err=True)
             sys.exit(1)
