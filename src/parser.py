@@ -2,10 +2,11 @@ import sys
 import json
 import os
 from typing import Dict, List, Optional, Set, Any
+from src.dependency_graph import DbtGraph
 from src.paths import get_manifest_file, get_prod_manifest_file
 from src.schema import DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
-manifest_key_mapping = {
+MANIFEST_KEY_MAPPING = {
     "model": "nodes",
     "seed": "nodes",
     "snapshot": "nodes",
@@ -16,6 +17,7 @@ manifest_key_mapping = {
 }
 
 def skeleton_dependencies_structure():
+    """Helper function to create an empty dependencies structure."""
     return {
         "node_dependencies": set(),
         "dependencies_by_type": {
@@ -55,7 +57,7 @@ def generate_dependency_graph(manifest_file_path: str, is_state_manifest: bool =
 
     for key, downstream_dependencies in child_map.items():
         node_type: DependencyGraphNodeType = key.split(".")[0]
-        manifest_key = manifest_key_mapping.get(node_type)
+        manifest_key = MANIFEST_KEY_MAPPING.get(node_type)
         full_item = manifest_file.get(manifest_key, {}).get(key, None) if manifest_key else None
 
         # Skip if the node type is not recognized (e.g., "analysis", "docs", etc.)
@@ -90,7 +92,7 @@ def generate_dependency_graph(manifest_file_path: str, is_state_manifest: bool =
             
         for dep_id in downstream_dependencies:
             dep_type = dep_id.split(".")[0]
-            dep_manifest_key = manifest_key_mapping.get(dep_type)
+            dep_manifest_key = MANIFEST_KEY_MAPPING.get(dep_type)
             
             if dep_manifest_key and dep_type in node_type_map:
                 dep_item = manifest_file.get(dep_manifest_key, {}).get(dep_id, None)
@@ -224,7 +226,7 @@ def append_upstream_dependencies(dependency_graph, manifest_file):
             continue
 
         child_node_type = child_id.split(".")[0]
-        manifest_key = manifest_key_mapping.get(child_node_type)
+        manifest_key = MANIFEST_KEY_MAPPING.get(child_node_type)
         node = manifest_file.get(manifest_key, {}).get(child_id, None).get("name", None)
 
         if node is None:
@@ -236,7 +238,7 @@ def append_upstream_dependencies(dependency_graph, manifest_file):
         # Sort by dependency type
         for parent_id in parent_ids:
             parent_node_type = parent_id.split(".")[0]
-            manifest_key = manifest_key_mapping.get(parent_node_type)
+            manifest_key = MANIFEST_KEY_MAPPING.get(parent_node_type)
             parent_node = manifest_file.get(manifest_key, {}).get(parent_id, None)
             name = parent_node.get("name", None) if parent_node else None
 
@@ -296,6 +298,40 @@ def parse_seed_file(manifest_file_path: str, seed_file_path: str) -> str:
         content = file.read()
         return content
 """
+
+def get_deleted_nodes(
+    target_dependency_graph: DependencyGraph,
+    reference_dependency_graph: DependencyGraph
+) -> List[str] | None:
+    """Get deleted nodes by comparing target and reference dependency graphs."""
+    deleted_nodes = []
+    for node_type, node_values in target_dependency_graph.items():
+        if node_type == "metadata":
+            continue
+
+        for node_name in node_values.keys():
+            reference_node = reference_dependency_graph.get(node_type, {}).get(node_name, {}).get("name", None)
+            if reference_node is None:
+                print(node_name)
+                deleted_nodes.append(node_name)
+
+    if len(deleted_nodes) == 0:
+        return None
+
+    return deleted_nodes
+
+def get_structured_modified_nodes(
+    target_dependency_graph: DbtGraph,
+    modified_nodes: List[str]
+):
+    """Get modified nodes, structured by type"""
+    #structured_modified_nodes = {}
+    nodes = target_dependency_graph.get_nodes(modified_nodes)
+    
+    print(nodes)
+
+    return None
+
        
 if __name__ == "__main__":
     # Example usage - update path to your manifest file

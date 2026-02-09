@@ -119,15 +119,7 @@ class DbtGraph:
             docker_args=self.variables.docker_args,
             shell_path=self.variables.shell_path
         )
-
-    def get_deleted_nodes(self) -> List[str] | None:
-        """Get deleted nodes based on state comparison.
-        
-        Returns:
-            List of deleted node names, or None if no deletions
-        """
-        #return self.get_state_modified(selector="state:modified", node_type=None, node_ids=None)
-
+            
     def get_state_modified(
         self,
         selector: str = "state:modified",
@@ -179,31 +171,43 @@ class DbtGraph:
 
     def get_node(self, node_id: str) -> Dict[str, DependencyGraphNode] | None:
         """Get a single node by ID, searching across all node types."""
-        match = None
-        for node_type in self.dependency_graph.keys():
-            if node_type == "metadata":
-                continue
+        try:
+            match = None
+            for node_type in self.dependency_graph.keys():
+                if node_type == "metadata":
+                    continue
 
-            if node_id in self.dependency_graph[node_type]:
-                match = self.dependency_graph[node_type][node_id]
-                break
-        
-        return match
-            
+                if node_id in self.dependency_graph[node_type]:
+                    match = self.dependency_graph[node_type][node_id]
+                    break
+
+            return match
+        except TypeError:
+            return None
+        except Exception as e:
+            print(f"Error retrieving node: {e}")
+            return None
+
     def get_nodes(self, node_ids: List[str]) -> Dict[str, Dict[str, DependencyGraphNode]] | None:
         """Get multiple nodes by ID, optionally filtered by type."""
-        nodes = {}
-        for node_type in self.dependency_graph.keys():
-            if node_type == "metadata":
-                continue
+        try:
+            nodes = {}
+            for node_type in self.dependency_graph.keys():
+                if node_type == "metadata":
+                    continue
 
-            for node_id in node_ids:
-                if node_id in self.dependency_graph[node_type]:
-                    nodes[node_id] = self.dependency_graph[node_type][node_id]
-        if len(nodes.keys()) == 0:
+                for node_id in node_ids:
+                    if node_id in self.dependency_graph[node_type]:
+                        nodes[node_id] = self.dependency_graph[node_type][node_id]
+            if len(nodes.keys()) == 0:
+                return None
+            
+            return nodes
+        except TypeError:
             return None
-        
-        return nodes
+        except Exception as e:
+            print(f"Error retrieving nodes: {e}")
+            return None
 
     def to_dict(self) -> DependencyGraph:
         """Convert the DependencyGraph instance to a dictionary."""

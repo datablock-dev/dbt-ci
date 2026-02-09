@@ -6,6 +6,7 @@ import sys
 from argparse import Namespace
 import click
 from src.dependency_graph import DbtGraph
+from src.parser import get_deleted_nodes
 from src.paths import get_manifest_file
 from src.schema import RunnerConfig
 from src.variables import Variables
@@ -45,10 +46,16 @@ def init(**kwargs):
         )
 
         click.echo("DBT project compiled successfully. manifest.json generated.")
-        graph = DbtGraph(variables)
-        modified_nodes = graph.get_state_modified()
-        cache.write_cache({"modified_nodes": modified_nodes})
-        print(graph.get_nodes(modified_nodes))
+        target_graph = DbtGraph(variables)
+        reference_graph = DbtGraph(variables, user_production_state=True)
+        modified_nodes = target_graph.get_state_modified()
+        deleted_nodes = get_deleted_nodes(reference_graph.to_dict(), target_graph.to_dict())
+
+        cache.write_cache({
+            "modified_nodes": modified_nodes,
+            "deleted_nodes": deleted_nodes
+        })
+        print(target_graph.get_nodes(modified_nodes))
         
         # Get manifest file
         target_manifest_file = get_manifest_file(variables.dbt_project_dir)
