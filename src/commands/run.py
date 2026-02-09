@@ -6,12 +6,16 @@ from itertools import chain
 from typing import Dict, List
 import click
 from src.dependency_graph import DbtGraph
-from src.parser import filter_node_ids_by_type, get_downstream_dependencies, get_node_ids_from_structured_nodes
 from src.schema import RunModes, RunnerConfig
 from src.variables import Variables
 from src.variables.config import MODE_MAPPING, NODE_TYPE_COMMAND_MAPPING, REVERSE_MODE_MAPPING
 from src.cache import CacheManager
 from src.runners import run_dbt_command, append_dbt_variables_to_command
+from src.utilities.getters import (
+    filter_node_ids_by_type,
+    get_downstream_dependencies,
+    get_node_ids_from_structured_nodes
+)
 
 def run(**kwargs):
     """Run modified dbt models

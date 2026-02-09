@@ -6,12 +6,16 @@ import sys
 from argparse import Namespace
 import click
 from src.dependency_graph import DbtGraph
-from src.parser import get_deleted_nodes, get_new_nodes, get_nodes, get_structured_modified_nodes
 from src.paths import get_manifest_file
 from src.schema import RunnerConfig
 from src.variables import Variables
 from src.cache import CacheManager
 from src.runners import run_dbt_command, append_dbt_variables_to_command
+from src.utilities.getters import (
+    get_deleted_nodes,
+    get_new_nodes,
+    get_nodes,get_structured_modified_nodes
+)
 
 def init(**kwargs):
     """

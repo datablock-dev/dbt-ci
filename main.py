@@ -174,6 +174,12 @@ def run_cmd(**kwargs):
 
 @cli.command(name='ephemeral')
 @common_options
+@click.option(
+    "--keep-env",
+    is_flag=True,
+    default=False,
+    help="Don't destroy ephemeral environment after run (if supported by runner)"
+)
 def ephemeral_cmd(**kwargs):
     """Run ephemeral CI check workflow
     

@@ -144,6 +144,15 @@ OPTIONS_CONFIG = {
         'required': False,
         'default': '/bin/bash',
         'help': 'Path to shell executable for bash runner'
+    },
+    # Ephemeral Flags
+    'keep_env': {
+        'env_vars': ['DBT_KEEP_ENV'],
+        'cli_flags': ['keep_env'],
+        'required': False,
+        'default': False,
+        'type': 'bool',
+        'help': "Don't destroy ephemeral environment after run (if supported by runner)"
     }
 }
 
