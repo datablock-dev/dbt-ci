@@ -129,9 +129,20 @@ class Variables:
         
     def _get_target_profile(self) -> Dict:
         """Get the default profile from the profiles.yml file."""
-        profile = self._resolved["profile"].get("profile", "")
-        outputs = self._resolved["profile"].get(profile, {}).get("outputs", {})
-        target = self._resolved["profile"].get(profile, {}).get("target", "")
+        # Get profile name from dbt_project.yml
+        profile_name = self._resolved["project"].get("profile", "")
+        
+        if not profile_name:
+            raise ValueError("No 'profile' key found in dbt_project.yml")
+        
+        # Get the profile configuration from profiles.yml
+        profile_config = self._resolved["profile"].get(profile_name, {})
+        
+        if not profile_config:
+            raise ValueError(f"Profile '{profile_name}' not found in profiles.yml")
+        
+        target = profile_config.get("target", "")
+        outputs = profile_config.get("outputs", {})
 
         return {
             "config": outputs.get(target, {}),
