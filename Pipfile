@@ -4,12 +4,17 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-pyyaml = "*"
+click = ">=8.0.0"
+pyyaml = ">=6.0"
+dbt-core = ">=1.5.0"
+google-cloud-bigquery = ">=3.0.0"
 
 [dev-packages]
-pytest = "*"
-duckdb = "*"
-dbt-core = "*"
+pytest = ">=7.0.0"
+black = ">=22.0.0"
+mypy = ">=0.950"
+flake8 = ">=6.0.0"
+duckdb = ">=0.8.0"
 
 [requires]
 python_version = "3.12"

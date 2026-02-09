@@ -1,38 +1,54 @@
-[tool.poetry]
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
 name = "dbt-ci"
 version = "0.1.0"
-description = ""
+description = "CI/CD tool for dbt projects with intelligent change detection and selective execution"
 authors = [
     {name = "Patrick Tannoury", email = "patrick.tannoury@datablock.dev"},
-    {name = "DataBlock", website = "https://datablock.dev"},
 ]
 readme = "README.md"
-packages = [{include = "dbt_ci", from = "src"}]
+requires-python = ">=3.9"
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 
-[tool.poetry.dependencies]
-python = "^3.9"
-sqlalchemy = ">=1.4.0"
-click = ">=8.0.0"
-requests = ">=2.25.0"
-psycopg2-binary = {version = "^2.9.0", optional = true}
+# Read dependencies from requirements.txt
+dependencies = [
+    "click>=8.0.0",
+    "PyYAML>=6.0",
+    "dbt-core>=1.5.0",
+    "google-cloud-bigquery>=3.0.0",
+]
 
-[tool.poetry.extras]
-postgres = ["psycopg2-binary"]
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "mypy>=0.950",
+    "flake8>=6.0.0",
+    "duckdb>=0.8.0",
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.0.0"
-black = "^22.0.0"
-mypy = "^0.950"
-flake8 = "^6.0.0"
-psycopg2-binary = "^2.9.0"
+[project.scripts]
+dbt-ci = "main:cli"
 
-[tool.poetry.scripts]
-dbt-ci = "dbt_ci.cli:main"
+[tool.setuptools]
+packages = ["src"]
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.setuptools.package-data]
+src = ["py.typed"]
 
 [tool.black]
 line-length = 100
-target-version = ['py38']
+target-version = ['py39']
