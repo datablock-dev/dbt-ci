@@ -87,20 +87,7 @@ def run(**kwargs):
             modified_nodes_dict=modified_nodes_dict,
             modified_nodes=modified_nodes
         )
-        return
-        
-        # Build dbt run command with selector
-        result = run_dbt_command(
-            command_args=append_dbt_variables_to_command(["run", "--select", " ".join(downstream_dependencies)], variables),
-            runner_config=RunnerConfig(variables.__dict__),
-            quiet=False
-        )
-        
-        if result and result.returncode == 0:
-            click.echo(f"\n✅ Successfully ran {len(downstream_dependencies)} model(s)")
-        else:
-            click.echo("\n❌ Run failed", err=True)
-            sys.exit(1)
+        click.echo("\nAll done!")
     except Exception as e:
         click.echo(f"❌ Error: {e}", err=True)
         sys.exit(1)

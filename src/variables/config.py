@@ -155,7 +155,7 @@ MODE_MAPPING: Dict[RunModes, Optional[str]] = {
     "snapshots": "snapshot"
 }
 
-NODE_TYPE_COMMAND_MAPPING: Dict[RunModes, DependencyGraphNodeType] = {
+NODE_TYPE_COMMAND_MAPPING: Dict[str, DependencyGraphNodeType] = {
     "models": "model",
     "macros": "macro",
     "seeds": "seed",
