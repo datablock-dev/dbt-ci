@@ -44,6 +44,7 @@ dev = [
 dbt-ci = "main:cli"
 
 [tool.setuptools]
+py-modules = ["main"]
 packages = ["src"]
 
 [tool.setuptools.package-data]
