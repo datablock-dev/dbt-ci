@@ -276,6 +276,14 @@ class CLIArgs(TypedDict):
 ###########################################
 #   Dependency graph structures for lineage analysis
 ###########################################
+type RunModes = Literal[
+    "all",
+    "seeds",
+    "models",
+    "tests",
+    "snapshots"
+]
+
 type DependencyGraphNodeType = Literal[
     "model", 
     "macro", 

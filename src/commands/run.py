@@ -8,7 +8,7 @@ from itertools import chain
 import click
 from src.dependency_graph import DbtGraph
 from src.parser import get_downstream_dependencies, get_downstream_dependencies_from_cache, get_node_ids_from_structured_nodes
-from src.schema import RunnerConfig
+from src.schema import RunModes, RunnerConfig
 from src.variables import Variables
 from src.cache import CacheManager
 from src.runners import run_dbt_command, append_dbt_variables_to_command
@@ -42,13 +42,16 @@ def run(**kwargs):
         cache = CacheManager()
         config = Variables(args)
         variables = config.to_namespace()
-        #MODE = MODE_MAPPING[variables.nodes]
+        MODE = MODE_MAPPING[variables.nodes]
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, user_production_state=True)
         
         # Look for cache
         prev_cache = cache.get_cache()
         if prev_cache is None: # Should we exit here instead of compiling?
+            click.echo("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
+            return
+
             click.echo("No cache found, compiling DBT")
             run_dbt_command(
                 command_args=append_dbt_variables_to_command(["compile"], variables),
@@ -67,13 +70,16 @@ def run(**kwargs):
             click.echo("No modified or deleted nodes found in cache, skipping...")
             return
         
-        click.echo(f"Found {len(modified_nodes)} modified model(s):")
-        downstream_dependencies = get_downstream_dependencies(target_graph.to_dict(), modified_nodes)
+        click.echo(f"\nFound {len(modified_nodes)} modified model(s):")
+        for node in modified_nodes:
+            click.echo(f"  • {node.split('.')[-1]}")
 
+        downstream_dependencies = get_downstream_dependencies(target_graph.to_dict(), modified_nodes)
         if downstream_dependencies is None:
             click.echo("No downstream dependencies found for modified nodes, skipping...")
             return
 
+        click.echo("\nThe following models will be run due to changes with downstream dependencies:")
         for node in downstream_dependencies:
             click.echo(f"  • {node}")
         
@@ -94,3 +100,9 @@ def run(**kwargs):
     except Exception as e:
         click.echo(f"❌ Error: {e}", err=True)
         sys.exit(1)
+
+def run_with_mode(
+    mode: RunModes,
+    runner_config: RunnerConfig
+):
+    """Run modified nodes with specific dbt command based on mode"""
