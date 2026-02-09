@@ -391,7 +391,7 @@ def get_node_ids_from_structured_nodes(structured_nodes: Dict[str, DependencyGra
 def get_downstream_dependencies(
     dependency_graph: DependencyGraph,
     node_ids: List[str] | None,
-    levels: int | None = None
+    levels: int | None = None # To be implemented in the future
 ):
     """Get downstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
     if node_ids is None or len(node_ids) == 0:
@@ -408,6 +408,18 @@ def get_downstream_dependencies(
     if len(downstream_dependencies) == 0:
         return None
     return downstream_dependencies
+
+def get_downstream_dependencies_from_cache(cache: Dict[str, DependencyGraph] | None) -> List[str] | None:
+    """Get downstream dependencies for modified nodes from cache."""
+    if cache is None:
+        return None
+    
+    downstream_dependencies: Set[str] = set()
+    for node_values in cache.values():
+        for item_values in node_values.values():
+            print(item_values.get("indirect_downstream_dependencies").get("node_dependencies"))
+            downstream_dependencies.add(item_values.get("indirect_downstream_dependencies", {}).get("node_dependencies", set()))
+    return list(downstream_dependencies) if len(downstream_dependencies) > 0 else None
 
 if __name__ == "__main__":
     # Example usage - update path to your manifest file

@@ -7,7 +7,7 @@ from argparse import Namespace
 from itertools import chain
 import click
 from src.dependency_graph import DbtGraph
-from src.parser import get_downstream_dependencies, get_node_ids_from_structured_nodes
+from src.parser import get_downstream_dependencies, get_downstream_dependencies_from_cache, get_node_ids_from_structured_nodes
 from src.schema import RunnerConfig
 from src.variables import Variables
 from src.cache import CacheManager
@@ -15,10 +15,10 @@ from src.runners import run_dbt_command, append_dbt_variables_to_command
 
 MODE_MAPPING = {
     "all": None,
-    "models": "run",
     "seeds": "seed",
-    "snapshots": "snapshot",
-    "tests": "test"
+    "models": "run",
+    "tests": "test",
+    "snapshots": "snapshot"
 }
 
 def run(**kwargs):
@@ -64,6 +64,7 @@ def run(**kwargs):
         ))
 
         print(nodes_to_run)
+        print(get_downstream_dependencies_from_cache(cache.get_cache().get("deleted_nodes", None)))
 
         if len(nodes_to_run) == 0:
             click.echo("No modified or deleted nodes found in cache, skipping...")
