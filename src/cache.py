@@ -13,14 +13,14 @@ class CacheManager:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.dir_path = Path(self.cache_dir).resolve()
 
-    def write_cache(self, data: dict, file_name: str):
+    def write_cache(self, data: dict, file_name: str = "cache.json"):
         """Write data to the cache file."""
         file_path = self.dir_path / file_name
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4)
             print(f"Cache written to {file_path.absolute()}")
 
-    def get_cache(self, file_name: str) -> dict | None:
+    def get_cache(self, file_name: str = "cache.json") -> dict | None:
         """Load cache data from the cache file. Returns None if the file doesn't exist."""
         file_path = self.dir_path / file_name
         if file_path.is_file():

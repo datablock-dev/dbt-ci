@@ -51,14 +51,9 @@ def init(**kwargs):
         click.echo("DBT project compiled successfully. manifest.json generated.")
         graph = DbtGraph(variables)
         modified_nodes = graph.get_state_modified()
-        #cache.write_cache(graph.to_dict(), "")
-
-        cache.write_cache(
-            data={
-                "modified_nodes": modified_nodes,
-            },
-            file_name="dbt_ci_state.json"
-        )
+        cache.write_cache({
+            "modified_nodes": modified_nodes,
+        })
 
     except Exception as e:
         click.echo(f"Error during initialization: {str(e)}")

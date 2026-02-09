@@ -1,6 +1,6 @@
-from dbt.cli.main import dbtRunner, CatalogArtifact, Manifest, RunExecutionResult
 from subprocess import CompletedProcess
 from typing import List
+from dbt.cli.main import dbtRunner
 
 def dbt_runner(
     commands: List[str], 
