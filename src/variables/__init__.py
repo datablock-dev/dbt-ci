@@ -60,7 +60,11 @@ class Variables:
         self._resolved["target_manifest_file"] = get_manifest_file(self.dbt_project_dir)
         self._resolved["reference_manifest_file"] = get_prod_manifest_file(self.prod_manifest_dir)
         self._resolved["profile"] = get_profiles_file(self.dbt_project_dir, self.profiles_dir)
-        self._resolved["target"] = self._set_target()
+        
+        # Get target info (call once to avoid recomputing)
+        target_info = self._set_target()
+        self._resolved["target"] = target_info["target_name"]
+        self._resolved["target_config"] = target_info["config"]
 
         for variable_name, value in self._resolved.items():
             setattr(self, variable_name, value)
@@ -123,9 +127,20 @@ class Variables:
 
     def _set_target(self):
         """Set the target from args if provided, otherwise get from profile."""
+        # If target is explicitly provided, we still need to get the config from profile
         if self._resolved["target"] and self._resolved["target"] != "default":
-            return self._resolved["target"]
-        return self._get_target_profile()["target_name"]
+            target_name = self._resolved["target"]
+            # Get profile info to retrieve the config for the specified target
+            profile_name = self._resolved["project"].get("profile", "")
+            profile_config = self._resolved["profile"].get(profile_name, {})
+            outputs = profile_config.get("outputs", {})
+            
+            return {
+                "target_name": target_name,
+                "config": outputs.get(target_name, {})
+            }
+        
+        return self._get_target_profile()
         
     def _get_target_profile(self) -> Dict:
         """Get the default profile from the profiles.yml file."""

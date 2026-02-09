@@ -9,6 +9,9 @@ from src.dependency_graph import DbtGraph
 from src.parser import get_downstream_dependencies, get_node_ids_from_structured_nodes
 from src.variables import Variables
 
+CONNECTORS = {
+    "bigquery": None
+}
 
 def ephemeral(**kwargs):
     """Run ephemeral CI check workflow
@@ -34,8 +37,13 @@ def ephemeral(**kwargs):
         variables = config.to_namespace()
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, user_production_state=True)
+        connector_type = variables.target_config.get("type")
         
-        print(variables.target)
+        if connector_type is None:
+            click.echo(f"Missing connector type for ephemeral mode: {connector_type}. Supported connectors: {list(CONNECTORS.keys())}")
+        elif CONNECTORS.get(connector_type) is None:
+            click.echo(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(CONNECTORS.keys())}")
+            return
 
         # Look for cache
         prev_cache = cache.get_cache()
