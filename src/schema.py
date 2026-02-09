@@ -1,4 +1,5 @@
 """TypedDict definitions for dbt manifest.json structure and CLI arguments."""
+from argparse import Namespace
 from typing import Callable, Dict, Any, List, Optional, TypedDict, NotRequired, Literal, Set
 
 class DBTProfile(TypedDict):
@@ -375,3 +376,26 @@ class OptionsConfig(TypedDict):
     help: str
     choices: Optional[List[Any]]
     resolve_value: Optional[Callable[..., Any]] # Explore this option for complex value resolution
+
+class NodeConfig(TypedDict):
+    """Configuration for a dbt node's database location."""
+    database: Optional[str]
+    schema: Optional[str]
+    name: Optional[str]
+    alias: Optional[str]
+
+class EphemeralMapNode(TypedDict):
+    """Structure for nodes in the ephemeral environment map."""
+    name: str
+    resource_type: str
+    ephemeral_config: NodeConfig | None
+    reference_config: NodeConfig | None
+
+type SupportedConnectorsEphemeralStrategy = Literal[
+    "bigquery"
+]
+
+type EphemeralConnectors = Dict[
+    SupportedConnectorsEphemeralStrategy,
+    Callable[[Dict[str, EphemeralMapNode], Namespace], None]
+]

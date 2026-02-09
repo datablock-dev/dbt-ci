@@ -1,16 +1,24 @@
 """Ephemeral command for dbt-ci"""
 
-from itertools import chain
 import sys
+from itertools import chain
 from argparse import Namespace
+from typing import Dict, Optional
 import click
 from src.cache import CacheManager
+from src.connectors.bigquery import bigquery_ephemeral_strategy
 from src.dependency_graph import DbtGraph
-from src.utilities.getters import get_downstream_dependencies, get_node_ids_from_structured_nodes, get_nodes, get_upstream_dependencies
+from src.schema import EphemeralConnectors, EphemeralMapNode
 from src.variables import Variables
+from src.utilities.getters import (
+    get_downstream_dependencies,
+    get_node_ids_from_structured_nodes,
+    get_nodes,
+    get_upstream_dependencies
+)
 
-CONNECTORS = {
-    "bigquery": None
+CONNECTORS: EphemeralConnectors = {
+    "bigquery": bigquery_ephemeral_strategy
 }
 
 def ephemeral(**kwargs):
@@ -38,6 +46,7 @@ def ephemeral(**kwargs):
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, user_production_state=True)
         connector_type = variables.target_config.get("type")
+        ephemeral_connector = CONNECTORS.get(connector_type, None)
 
         """
         if connector_type is None:
@@ -87,29 +96,62 @@ def ephemeral(**kwargs):
 
         # Now we build a dict of target & reference nodes for the engine
         # to decide how to execute and create the ephemeral environment
-        ephemeral_map = {}
+        ephemeral_map: Dict[str, EphemeralMapNode] = {}
 
         # We use reference since it will also include deleted nodes
         # In target, they wont exist and return None
         for node_id, node_metadata in reference_nodes.items():
             # Skip ephemeral models since they are not materialized and should not be executed
-            if node_metadata["materialized"] == "ephemeral":
+            if node_metadata["materialized"] in ("ephemeral", "view", "table"):
+                continue
+            
+            target_node = target_nodes.get(node_id, None)
+            if target_node is None:
                 continue
 
             ephemeral_map[node_id] = {
                 "name": node_metadata["name"],
                 "resource_type": node_metadata["resource_type"],
-                "ephemerel_config": {
-                    "database": node_metadata.get("database", None),
-                    "schema": node_metadata.get("schema", None),
-                    "name": node_metadata.get("name", None),
-                    "alias": node_metadata.get("alias", None),
-                }
+                "ephemeral_config": full_config_or_none(
+                    database=target_node.get("database", None),
+                    schema=target_node.get("schema", None),
+                    name=target_node.get("name", None),
+                    alias=target_node.get("alias", None),
+                ),
+                "reference_config": full_config_or_none(
+                    database=node_metadata.get("database", None),
+                    schema=node_metadata.get("schema", None),
+                    name=node_metadata.get("name", None),
+                    alias=node_metadata.get("alias", None),
+                )
             }
-                
+
+        # Pass the ephemeral map and variables to the connector strategy which
+        # will handle the ephemeral execution logic based on the connector type
+        ephemeral_connector(ephemeral_map, variables)
+        click.echo("Ephemeral strategy completed successfully.")
+        click.echo("Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies.")
+        sys.exit(0)
     except Exception as e:
         click.echo(f"❌ Error: {e}", err=True)
         sys.exit(1)
+
+
+def full_config_or_none(
+    database: Optional[str],
+    schema: Optional[str],
+    name: Optional[str],
+    alias: Optional[str] = None
+) -> Dict[str, Optional[str]] | None:
+    """Helper function to return full config dict if all values are present, otherwise None."""
+    if any(v is None for v in (database, schema, name)):
+        return None
+    return {
+        "database": database,
+        "schema": schema,
+        "name": name,
+        "alias": alias,
+    }
 
 """
     Models: By default, select all downstream dependencies (full graph)
