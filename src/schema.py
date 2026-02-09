@@ -305,6 +305,15 @@ class DependencyGraphDownstreamDependency(TypedDict):
     node_dependencies: Set[str]
     dependencies_by_type: DependenciesByType
 
+type DBTMaterialized = Literal[
+    "view",
+    "table",
+    "incremental",
+    "ephemeral",
+    "snapshot",
+    "test",
+    "seed"
+]
 class DependencyGraphNode(TypedDict):
     """Structured representation of dbt dependencies for lineage analysis."""
     name: str
@@ -316,6 +325,8 @@ class DependencyGraphNode(TypedDict):
     compiled_path: str
     compiled_code: str
     columns: Set[str]
+    materialized: DBTMaterialized
+    incremental_strategy: Optional[str]
     downstream_dependencies: DependencyGraphDownstreamDependency
     upstream_dependencies: DependencyGraphDownstreamDependency
     indirect_upstream_dependencies: DependencyGraphDownstreamDependency

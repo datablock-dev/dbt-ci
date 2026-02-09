@@ -92,7 +92,9 @@ def ephemeral(**kwargs):
         # We use reference since it will also include deleted nodes
         # In target, they wont exist and return None
         for node_id, node_metadata in reference_nodes.items():
-            if node_metadata[""]
+            # Skip ephemeral models since they are not materialized and should not be executed
+            if node_metadata["materialized"] == "ephemeral":
+                continue
 
             ephemeral_map[node_id] = {
                 "name": node_metadata["name"],
