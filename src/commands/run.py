@@ -97,33 +97,45 @@ def run_with_mode(
 
     for command in run_order:
         click.echo(f"\nIdentifying modified nodes of type: {REVERSE_MODE_MAPPING[command]}")
+        node_type = NODE_TYPE_COMMAND_MAPPING[REVERSE_MODE_MAPPING[command]]
         downstream_dependencies = get_downstream_dependencies(
             dependency_graph=target_graph.to_dict(),
             node_ids=modified_nodes,
-            node_type=REVERSE_MODE_MAPPING[command]
+            node_type=node_type
         )
 
         if downstream_dependencies is None:
             downstream_dependencies = []
             click.echo("No downstream dependencies found for modified nodes")
 
-        click.echo("\nThe following models will be run due to changes, including downstream dependencies:")
-        if len(modified_nodes_dict["modified_nodes"]) > 0:
-            for node in modified_nodes_dict["modified_nodes"]:
-                click.echo(f"  • [Modified] {node}")
+        # Filter modified nodes by current node type
+        modified_nodes_of_type = filter_node_ids_by_type(
+            dependency_graph=target_graph.to_dict(),
+            node_ids=modified_nodes_dict["modified_nodes"],
+            node_type=node_type
+        )
         
-        for node in downstream_dependencies:
-            click.echo(f"  • [Downstream dependency] {node}")
-
-        click.echo(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running modified nodes...")
         final_nodes_to_run = filter_node_ids_by_type(
             dependency_graph=target_graph.to_dict(),
             node_ids=list(set(modified_nodes_dict["modified_nodes"]).union(set(downstream_dependencies))),
-            node_type=REVERSE_MODE_MAPPING[command]
+            node_type=node_type
         )
 
         if len(final_nodes_to_run) == 0:
+            click.echo(f"No {REVERSE_MODE_MAPPING[command]} to run")
             continue
+
+        click.echo(f"\nThe following {REVERSE_MODE_MAPPING[command]} will be run due to changes, including downstream dependencies:")
+        if len(modified_nodes_of_type) > 0:
+            for node in modified_nodes_of_type:
+                click.echo(f"  • [Modified] {node}")
+        
+        # Only show downstream dependencies that are actually in final_nodes_to_run
+        downstream_nodes_of_type = [node for node in downstream_dependencies if node in final_nodes_to_run]
+        for node in downstream_nodes_of_type:
+            click.echo(f"  • [Downstream dependency] {node}")
+
+        click.echo(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running modified nodes...")
 
         result = run_dbt_command(
             command_args=append_dbt_variables_to_command([command, "--select", " ".join(final_nodes_to_run)], variables),
