@@ -6,6 +6,7 @@ import sys
 from argparse import Namespace
 import click
 from src.dependency_graph import DbtGraph
+from src.paths import get_manifest_file
 from src.schema import RunnerConfig
 from src.variables import Variables
 from src.cache import CacheManager
@@ -24,18 +25,14 @@ def init(**kwargs):
     """
 
     try:
-        # Convert kwargs to Namespace for Variables resolution
+        # Convert kwargs to Namespace and resolve configuration
+        # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         args = Namespace(**kwargs)
         cache = CacheManager()
         config = Variables(args)
         variables = config.to_namespace()
         production_target = getattr(variables, "production_target", None)
         command = ["compile"]
-        # Handle docker_volumes and docker_env which come as tuples from Click
-        if 'docker_volumes' in kwargs:
-            args.docker_volumes = list(kwargs['docker_volumes']) if kwargs['docker_volumes'] else []
-        if 'docker_env' in kwargs:
-            args.docker_env = list(kwargs['docker_env']) if kwargs['docker_env'] else []
 
         if production_target is None:
             click.echo("WARNING! No production target specified, using current target as production state for comparison.")
@@ -44,16 +41,29 @@ def init(**kwargs):
 
         run_dbt_command(
             command_args=append_dbt_variables_to_command(command, variables),
-            runner_config=RunnerConfig(variables.__dict__),
-            quiet=False
+            runner_config=RunnerConfig(variables.__dict__)
         )
 
         click.echo("DBT project compiled successfully. manifest.json generated.")
         graph = DbtGraph(variables)
         modified_nodes = graph.get_state_modified()
-        cache.write_cache({
-            "modified_nodes": modified_nodes,
-        })
+        cache.write_cache({"modified_nodes": modified_nodes})
+        
+        # Get manifest file
+        target_manifest_file = get_manifest_file(getattr(variables, "dbt_project_dir"))
+        cache.write_cache(target_manifest_file, "target_prod_manifest.json" if production_target else "target_manifest.json")
+
+        if production_target is not None:
+            run_dbt_command(
+                command_args=append_dbt_variables_to_command(command, variables),
+                runner_config=RunnerConfig(variables.__dict__)
+            )
+
+            target_manifest_file = get_manifest_file(getattr(variables, "dbt_project_dir"))
+            cache.write_cache(target_manifest_file, "target_manifest.json")
+
+        click.echo("Initialization complete. Cache updated with current state(s).")
+        click.echo("You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state.")
 
     except Exception as e:
         click.echo(f"Error during initialization: {str(e)}")

@@ -22,7 +22,7 @@ def run_dbt_command(
     command_args: List[str],
     runner_config: RunnerConfig,
     dry_run: Optional[bool] = None,
-    quiet: Optional[bool] = None
+    quiet: bool = True
 ) -> CompletedProcess | None:
     """
     Central dispatcher for running dbt commands across any runner.

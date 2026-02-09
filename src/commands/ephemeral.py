@@ -25,17 +25,9 @@ def ephemeral(**kwargs):
         dbt-ci ephemeral
     """
     try:
-        # Convert kwargs to Namespace for Variables resolution
+        # Convert kwargs to Namespace and resolve configuration
+        # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         args = Namespace(**kwargs)
-        
-        # Handle docker_volumes and docker_env which come as tuples from Click
-        if 'docker_volumes' in kwargs:
-            args.docker_volumes = list(kwargs['docker_volumes']) if kwargs['docker_volumes'] else []
-        if 'docker_env' in kwargs:
-            args.docker_env = list(kwargs['docker_env']) if kwargs['docker_env'] else []
-        
-        # Resolve configuration from flags, env vars, and defaults
-        # This will validate required fields and apply precedence
         config = Variables(args)
         
         # Create namespace with resolved values for DbtGraph

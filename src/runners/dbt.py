@@ -32,9 +32,6 @@ def dbt_runner(
         else:
             stdout = str(result.result) if result.result is not None else ""
         
-        if not quiet:
-            print(stdout)
-        
         if result.exception is not None:
             raise result.exception
 

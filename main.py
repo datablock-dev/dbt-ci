@@ -59,7 +59,7 @@ def common_options(f):
     f = click.option(
         '--log-level', 
         type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']),
-        default='INFO', 
+        default='INFO',
         help='Logging level'
     )(f)
     
@@ -136,6 +136,19 @@ def init_cmd(**kwargs):
 
 @cli.command(name='run')
 @common_options
+@click.option(
+    '--nodes', '-n',
+    type=click.Choice([
+        "all",
+        "models",
+        "seeds",
+        "snapshots",
+        "tests",
+        #"analyses" --> Not yet supported
+    ], case_sensitive=False),
+    default='all',
+    help='Run mode for dbt-ci (default: auto)'
+)
 def run_cmd(**kwargs):
     """Run modified dbt models
     
