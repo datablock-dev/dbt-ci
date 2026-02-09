@@ -6,7 +6,7 @@ import sys
 from argparse import Namespace
 import click
 from src.dependency_graph import DbtGraph
-from src.parser import get_deleted_nodes, get_structured_modified_nodes
+from src.parser import get_deleted_nodes, get_nodes, get_structured_modified_nodes
 from src.paths import get_manifest_file
 from src.schema import RunnerConfig
 from src.variables import Variables
@@ -52,16 +52,11 @@ def init(**kwargs):
         target_graph_dict = target_graph.to_dict()
         reference_graph_dict = reference_graph.to_dict()
         deleted_nodes = get_deleted_nodes(reference_graph_dict, target_graph_dict)
-        x = get_structured_modified_nodes(
-            dependency_graph=target_graph_dict,
-            modified_nodes=modified_nodes
-        )
 
         cache.write_cache({
-            "modified_nodes": modified_nodes,
-            "deleted_nodes": deleted_nodes
+            "modified_nodes": get_structured_modified_nodes(get_nodes(reference_graph_dict, modified_nodes)),
+            "deleted_nodes": get_structured_modified_nodes(get_nodes(reference_graph_dict, deleted_nodes))
         })
-        print(target_graph.get_nodes(modified_nodes))
         
         # Get manifest file
         target_manifest_file = get_manifest_file(variables.dbt_project_dir)

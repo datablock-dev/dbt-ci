@@ -52,7 +52,7 @@ def common_options(f):
     )(f)
     f = click.option(
         '--dry-run', 
-        is_flag=True, 
+        is_flag=True,
         default=False,
         help='Print commands without executing them'
     )(f)
@@ -99,7 +99,6 @@ def common_options(f):
         default='',
         help='Additional docker run arguments'
     )(f)
-    
     # Bash options
     f = click.option(
         '--shell-path', 
@@ -107,7 +106,7 @@ def common_options(f):
         default='/bin/bash',
         help='Path to shell executable for bash runner'
     )(f)
-    
+
     return f
 
 
@@ -134,6 +133,7 @@ def init_cmd(**kwargs):
     """
     return init(**kwargs)
 
+# Add support for --levels option to specify how many levels of dependencies to include
 @cli.command(name='run')
 @common_options
 @click.option(
@@ -148,6 +148,12 @@ def init_cmd(**kwargs):
     ], case_sensitive=False),
     default='all',
     help='Run mode for dbt-ci (default: auto)'
+)
+@click.option(
+    "--levels",
+    type=int,
+    default=None,
+    help="Number of dependency levels to include (default: all)"
 )
 def run_cmd(**kwargs):
     """Run modified dbt models

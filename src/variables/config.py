@@ -2,6 +2,14 @@
 
 # Configuration mapping: defines all options with their metadata
 OPTIONS_CONFIG = {
+    'nodes': {
+        'env_vars': ['DBT_NODES'],
+        'cli_flags': ['nodes'],
+        'required': False,
+        'default': 'all',
+        'choices': ['all', 'models', 'seeds', 'snapshots', 'tests'],
+        'help': 'Run mode for dbt-ci (default: all)'
+    },
     'prod_manifest_dir': {
         'env_vars': ['DBT_STATE', 'DBT_STATE_DIR', 'STATE_DIR'],
         'cli_flags': ['prod_manifest_dir', 'reference_manifest_dir', 'state'],

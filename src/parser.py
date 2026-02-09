@@ -2,7 +2,6 @@ import sys
 import json
 import os
 from typing import Dict, List, Optional, Set, Any
-from src.dependency_graph import DbtGraph
 from src.paths import get_manifest_file, get_prod_manifest_file
 from src.schema import DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
@@ -320,17 +319,22 @@ def get_deleted_nodes(
 
     return deleted_nodes
 
-def get_structured_modified_nodes(
-    dependency_graph: DependencyGraph,
-    modified_nodes: List[str]
-):
+def get_structured_modified_nodes(nodes: Dict[str, Dict[str, DependencyGraphNode]] | None) -> Dict[str, List[DependencyGraphNode]] | None:
     """Get modified nodes, structured by type"""
-    #structured_modified_nodes = {}
-    nodes = get_nodes(dependency_graph, modified_nodes)
-    
-    print(nodes)
+    if nodes is None or len(nodes) == 0:
+        return None
 
-    return nodes
+    structured_nodes: Dict[str, List[DependencyGraphNode]] = {}
+    for node_name, node_value in nodes.items():
+        node_type = node_value.get("resource_type", None)
+
+        if node_type not in structured_nodes:
+            structured_nodes[node_type] = {}
+
+        structured_nodes[node_type][node_name] = node_value
+
+    return structured_nodes
+
 
 def get_node(dependency_graph: DependencyGraph, node_id: str) -> Dict[str, DependencyGraphNode] | None:
     """Get a single node by ID, searching across all node types."""
@@ -349,8 +353,11 @@ def get_node(dependency_graph: DependencyGraph, node_id: str) -> Dict[str, Depen
         print(f"Error retrieving node: {e}")
         return None
 
-def get_nodes(dependency_graph: DependencyGraph, node_ids: List[str]) -> Dict[str, Dict[str, DependencyGraphNode]] | None:
+def get_nodes(dependency_graph: DependencyGraph, node_ids: List[str] | None) -> Dict[str, Dict[str, DependencyGraphNode]] | None:
     """Get multiple nodes by ID, optionally filtered by type."""
+    if node_ids is None or len(node_ids) == 0:
+        return None
+
     try:
         nodes = {}
         for node_type in dependency_graph.keys():
@@ -368,7 +375,40 @@ def get_nodes(dependency_graph: DependencyGraph, node_ids: List[str]) -> Dict[st
     except Exception as e:
         print(f"Error retrieving nodes: {e}")
         return None
-       
+
+def get_node_ids_from_structured_nodes(structured_nodes: Dict[str, DependencyGraph] | None) -> List[str] | None:
+    """Extract node IDs from structured nodes dictionary."""
+    if structured_nodes is None or len(structured_nodes.keys()) == 0:
+        return None
+
+    node_ids: Set[str] = set()
+    for nodes in structured_nodes.values():
+        for node_name in nodes.keys():
+            node_ids.add(node_name)
+
+    return list(node_ids) if len(node_ids) > 0 else None
+
+def get_downstream_dependencies(
+    dependency_graph: DependencyGraph,
+    node_ids: List[str] | None,
+    levels: int | None = None
+):
+    """Get downstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
+    if node_ids is None or len(node_ids) == 0:
+        return None
+
+    downstream_dependencies: Set[str] = set()
+    for node_id in node_ids:
+        node = get_node(dependency_graph, node_id)
+        if node is None:
+            continue
+
+        downstream_dependencies.update(node["indirect_downstream_dependencies"]["node_dependencies"])
+
+    if len(downstream_dependencies) == 0:
+        return None
+    return downstream_dependencies
+
 if __name__ == "__main__":
     # Example usage - update path to your manifest file
     MANIFEST_PATH = "dbt/target/manifest.json"

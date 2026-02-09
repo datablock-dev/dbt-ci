@@ -4,12 +4,22 @@ Run command for dbt-ci
 
 import sys
 from argparse import Namespace
+from itertools import chain
 import click
 from src.dependency_graph import DbtGraph
+from src.parser import get_downstream_dependencies, get_node_ids_from_structured_nodes
 from src.schema import RunnerConfig
 from src.variables import Variables
 from src.cache import CacheManager
 from src.runners import run_dbt_command, append_dbt_variables_to_command
+
+MODE_MAPPING = {
+    "all": None,
+    "models": "run",
+    "seeds": "seed",
+    "snapshots": "snapshot",
+    "tests": "test"
+}
 
 def run(**kwargs):
     """Run modified dbt models
@@ -31,53 +41,54 @@ def run(**kwargs):
         args = Namespace(**kwargs)
         cache = CacheManager()
         config = Variables(args)
-        
-        # Create namespace with resolved values for DbtGraph
-        resolved_args = config.to_namespace()
-        resolved_args.mode = 'run' # why?
-        resolved_args.log_file = None # why?
+        variables = config.to_namespace()
+        #MODE = MODE_MAPPING[variables.nodes]
+        target_graph = DbtGraph(variables)
+        reference_graph = DbtGraph(variables, user_production_state=True)
         
         # Look for cache
-        prev_cache = cache.get_cache("dbt_ci_state.json")
-        if prev_cache is None:
+        prev_cache = cache.get_cache()
+        if prev_cache is None: # Should we exit here instead of compiling?
             click.echo("No cache found, compiling DBT")
             run_dbt_command(
-                command_args=append_dbt_variables_to_command(["compile"], resolved_args),
-                runner_config=RunnerConfig(resolved_args.__dict__),
+                command_args=append_dbt_variables_to_command(["compile"], variables),
+                runner_config=RunnerConfig(variables.__dict__),
                 quiet=False
             )
         else:
-            click.echo("Cache found, skipping compile")
-            print(prev_cache)
+            click.echo("Cache successfully found - using cached state for comparison")
 
+        nodes_to_run = list(chain(
+            get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
+            get_node_ids_from_structured_nodes(cache.get_cache().get("deleted_nodes", None)) or []
+        ))
 
-        # Detect modified models using the dependency graph and run them
-        click.echo("🔍 Detecting modified models...")
-        graph = DbtGraph(resolved_args)
-        modified_nodes = graph.get_state_modified()
-        #cache.write_cache(graph.to_dict())
-        
-        if not modified_nodes:
-            click.echo("✅ No modified models detected")
+        print(nodes_to_run)
+
+        if len(nodes_to_run) == 0:
+            click.echo("No modified or deleted nodes found in cache, skipping...")
             return
         
-        click.echo(f"📊 Found {len(modified_nodes)} modified model(s):")
-        for node in modified_nodes:
+        click.echo(f"📊 Found {len(nodes_to_run)} modified/deleted model(s):")
+        downstream_dependencies = get_downstream_dependencies(target_graph.to_dict(), nodes_to_run)
+
+        print(downstream_dependencies)
+        for node in downstream_dependencies:
             click.echo(f"  • {node}")
         
         click.echo("\n🚀 Running modified models...")
         
         # Build dbt run command with selector
         result = run_dbt_command(
-            command_args=append_dbt_variables_to_command(["run", "--select", " ".join(modified_nodes)], resolved_args),
-            runner_config=RunnerConfig(resolved_args.__dict__),
+            command_args=append_dbt_variables_to_command(["run", "--select", " ".join(downstream_dependencies)], variables),
+            runner_config=RunnerConfig(variables.__dict__),
             quiet=False
         )
 
         print(f"Test result: {result.stdout}")
         
         if result and result.returncode == 0:
-            click.echo(f"\n✅ Successfully ran {len(modified_nodes)} model(s)")
+            click.echo(f"\n✅ Successfully ran {len(downstream_dependencies)} model(s)")
         else:
             click.echo("\n❌ Run failed", err=True)
             sys.exit(1)

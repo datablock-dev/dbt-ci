@@ -5,11 +5,11 @@ This module defines the DbtGraph class, which encapsulates the dependency graph 
 
 import json
 import os
-from typing import Dict, List, Optional
+from typing import List, Optional
 from argparse import Namespace
 from src.runners import run_dbt_command
 from src.parser import generate_dependency_graph
-from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType, RunnerConfig
+from src.schema import DependencyGraph, DependencyGraphNodeType, RunnerConfig
 from src.variables import Variables
 
 class DbtGraph:
@@ -168,46 +168,6 @@ class DbtGraph:
         
         node_names = [nid.split(".")[-1] for nid in modified_nodes]
         return node_names if node_names else None
-
-    def get_node(self, node_id: str) -> Dict[str, DependencyGraphNode] | None:
-        """Get a single node by ID, searching across all node types."""
-        try:
-            match = None
-            for node_type in self.dependency_graph.keys():
-                if node_type == "metadata":
-                    continue
-
-                if node_id in self.dependency_graph[node_type]:
-                    match = self.dependency_graph[node_type][node_id]
-                    break
-
-            return match
-        except TypeError:
-            return None
-        except Exception as e:
-            print(f"Error retrieving node: {e}")
-            return None
-
-    def get_nodes(self, node_ids: List[str]) -> Dict[str, Dict[str, DependencyGraphNode]] | None:
-        """Get multiple nodes by ID, optionally filtered by type."""
-        try:
-            nodes = {}
-            for node_type in self.dependency_graph.keys():
-                if node_type == "metadata":
-                    continue
-
-                for node_id in node_ids:
-                    if node_id in self.dependency_graph[node_type]:
-                        nodes[node_id] = self.dependency_graph[node_type][node_id]
-            if len(nodes.keys()) == 0:
-                return None
-            
-            return nodes
-        except TypeError:
-            return None
-        except Exception as e:
-            print(f"Error retrieving nodes: {e}")
-            return None
 
     def to_dict(self) -> DependencyGraph:
         """Convert the DependencyGraph instance to a dictionary."""
