@@ -318,6 +318,51 @@ def get_deleted_nodes(
 
     return deleted_nodes
 
+def get_new_nodes(
+    target_dependency_graph: DependencyGraph,
+    reference_dependency_graph: DependencyGraph
+) -> List[str] | None:
+    """Get new nodes by comparing target and reference dependency graphs."""
+    new_nodes = []
+    for node_type, node_values in reference_dependency_graph.items():
+        if node_type == "metadata":
+            continue
+
+        for node_name in node_values.keys():
+            reference_node = target_dependency_graph.get(node_type, {}).get(node_name, {}).get("name", None)
+            if reference_node is None:
+                print(node_name)
+                new_nodes.append(node_name)
+
+    if len(new_nodes) == 0:
+        return None
+
+    return new_nodes
+
+def get_diff_nodes(
+    source_graph: DependencyGraph,
+    compare_graph: DependencyGraph,
+) -> List[str]:
+    """
+    Return node names that exist in source_graph but not in compare_graph.
+    """
+    diff_nodes: List[str] = []
+
+    for node_type, node_values in source_graph.items():
+        if node_type == "metadata":
+            continue
+
+        for node_name in node_values.keys():
+            exists = (
+                compare_graph
+                .get(node_type, {})
+                .get(node_name)
+            )
+            if not exists:
+                diff_nodes.append(node_name)
+
+    return diff_nodes
+
 def get_structured_modified_nodes(nodes: Dict[str, Dict[str, DependencyGraphNode]] | None) -> Dict[str, List[DependencyGraphNode]] | None:
     """Get modified nodes, structured by type"""
     if nodes is None or len(nodes) == 0:
