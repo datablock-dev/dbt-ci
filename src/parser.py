@@ -321,17 +321,53 @@ def get_deleted_nodes(
     return deleted_nodes
 
 def get_structured_modified_nodes(
-    target_dependency_graph: DbtGraph,
+    dependency_graph: DependencyGraph,
     modified_nodes: List[str]
 ):
     """Get modified nodes, structured by type"""
     #structured_modified_nodes = {}
-    nodes = target_dependency_graph.get_nodes(modified_nodes)
+    nodes = get_nodes(dependency_graph, modified_nodes)
     
     print(nodes)
 
-    return None
+    return nodes
 
+def get_node(dependency_graph: DependencyGraph, node_id: str) -> Dict[str, DependencyGraphNode] | None:
+    """Get a single node by ID, searching across all node types."""
+    try:
+        match = None
+        for node_type in dependency_graph.keys():
+            if node_type == "metadata":
+                continue
+            if node_id in dependency_graph[node_type]:
+                match = dependency_graph[node_type][node_id]
+                break
+        return match
+    except TypeError:
+        return None
+    except Exception as e:
+        print(f"Error retrieving node: {e}")
+        return None
+
+def get_nodes(dependency_graph: DependencyGraph, node_ids: List[str]) -> Dict[str, Dict[str, DependencyGraphNode]] | None:
+    """Get multiple nodes by ID, optionally filtered by type."""
+    try:
+        nodes = {}
+        for node_type in dependency_graph.keys():
+            if node_type == "metadata":
+                continue
+            for node_id in node_ids:
+                if node_id in dependency_graph[node_type]:
+                    nodes[node_id] = dependency_graph[node_type][node_id]
+        if len(nodes.keys()) == 0:
+            return None
+        
+        return nodes
+    except TypeError:
+        return None
+    except Exception as e:
+        print(f"Error retrieving nodes: {e}")
+        return None
        
 if __name__ == "__main__":
     # Example usage - update path to your manifest file

@@ -6,7 +6,7 @@ import sys
 from argparse import Namespace
 import click
 from src.dependency_graph import DbtGraph
-from src.parser import get_deleted_nodes
+from src.parser import get_deleted_nodes, get_structured_modified_nodes
 from src.paths import get_manifest_file
 from src.schema import RunnerConfig
 from src.variables import Variables
@@ -49,7 +49,13 @@ def init(**kwargs):
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, user_production_state=True)
         modified_nodes = target_graph.get_state_modified()
-        deleted_nodes = get_deleted_nodes(reference_graph.to_dict(), target_graph.to_dict())
+        target_graph_dict = target_graph.to_dict()
+        reference_graph_dict = reference_graph.to_dict()
+        deleted_nodes = get_deleted_nodes(reference_graph_dict, target_graph_dict)
+        x = get_structured_modified_nodes(
+            dependency_graph=target_graph_dict,
+            modified_nodes=modified_nodes
+        )
 
         cache.write_cache({
             "modified_nodes": modified_nodes,
