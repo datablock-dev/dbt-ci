@@ -417,8 +417,10 @@ def get_downstream_dependencies_from_cache(cache: Dict[str, DependencyGraph] | N
     downstream_dependencies: Set[str] = set()
     for node_values in cache.values():
         for item_values in node_values.values():
-            print(item_values.get("indirect_downstream_dependencies").get("node_dependencies"))
-            downstream_dependencies.add(item_values.get("indirect_downstream_dependencies", {}).get("node_dependencies", set()))
+            dependencies = item_values.get("indirect_downstream_dependencies").get("node_dependencies", None)
+            if dependencies:
+                downstream_dependencies.update(dependencies)
+
     return list(downstream_dependencies) if len(downstream_dependencies) > 0 else None
 
 if __name__ == "__main__":
