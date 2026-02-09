@@ -1,5 +1,5 @@
 import click
-from src.commands import run, ephemeral
+from src.commands import run, ephemeral, init
 
 
 # Shared options for all commands
@@ -122,6 +122,17 @@ def cli():
     """
     pass
 
+@cli.command(name="init")
+@common_options
+def init_cmd(**kwargs):
+    """Initialize dbt CI state
+    
+    Creates initial state from production manifest. Run this before using other commands.
+    
+    Examples:
+        dbt-ci init --prod-manifest-dir prod-manifest/ --dbt-project-dir ./dbt --production-target production
+    """
+    return init(**kwargs)
 
 @cli.command(name='run')
 @common_options

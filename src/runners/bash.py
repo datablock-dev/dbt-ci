@@ -41,6 +41,9 @@ def bash_runner(
         if not quiet:
             print(result.stdout)
 
+        if result.stderr:
+            raise Exception(result.stderr)
+
         return result
     except subprocess.CalledProcessError as e:
         if e.stderr:

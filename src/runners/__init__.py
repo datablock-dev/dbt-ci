@@ -152,9 +152,11 @@ def append_dbt_variables_to_command(
     }
 
     for var, dbt_flag in dbt_variables.items():
+        if dbt_flag in commands:
+            continue  # Skip if already in command args
+
         value = getattr(variables, var, None)
         if value is not None and value != "":
             commands.extend([str(dbt_flag), str(value)])
 
-    print(f"Final dbt command: {' '.join(commands)}")
     return commands
