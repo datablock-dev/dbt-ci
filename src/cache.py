@@ -11,18 +11,25 @@ class CacheManager:
     def __init__(self, cache_dir: Optional[Path] = None):
         self.cache_dir = cache_dir or Path(tempfile.gettempdir()) / "dbt_ci_cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.file_name = "dbt_ci_cache.json"
-        self.file_path = Path(self.cache_dir / self.file_name).resolve()
+        self.dir_path = Path(self.cache_dir).resolve()
 
-    def write_cache(self, data: dict):
+    def write_cache(self, data: dict, file_name: str = "cache.json"):
         """Write data to the cache file."""
-        with open(self.file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4)
+        file_path = self.dir_path / file_name
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(
+                obj=data,
+                fp=f,
+                indent=4,
+                default=lambda o: list(o) if isinstance(o, set) else o
+            )
+            print(f"Cache written to {file_path.absolute()}")
 
-    def get_cache(self) -> dict | None:
+    def get_cache(self, file_name: str = "cache.json") -> dict | None:
         """Load cache data from the cache file. Returns None if the file doesn't exist."""
-        if self.file_path.is_file():
-            with open(self.file_path, 'r', encoding='utf-8') as f:
+        file_path = self.dir_path / file_name
+        if file_path.is_file():
+            with open(file_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         else:
             return None

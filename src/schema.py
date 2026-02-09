@@ -1,5 +1,5 @@
 """TypedDict definitions for dbt manifest.json structure and CLI arguments."""
-from typing import Dict, Any, List, Optional, TypedDict, NotRequired, Literal, Set
+from typing import Callable, Dict, Any, List, Optional, TypedDict, NotRequired, Literal, Set
 
 class DBTProfile(TypedDict):
     """Structure of a dbt profiles.yml profile."""
@@ -276,6 +276,14 @@ class CLIArgs(TypedDict):
 ###########################################
 #   Dependency graph structures for lineage analysis
 ###########################################
+type RunModes = Literal[
+    "all",
+    "seeds",
+    "models",
+    "tests",
+    "snapshots"
+]
+
 type DependencyGraphNodeType = Literal[
     "model", 
     "macro", 
@@ -336,7 +344,6 @@ class RunnerConfig(TypedDict):
     entrypoint: str
     dry_run: bool
     quiet: bool
-    
     # Docker-specific configuration
     docker_image: Optional[str]
     docker_platform: Optional[str]
@@ -345,6 +352,15 @@ class RunnerConfig(TypedDict):
     docker_network: str
     docker_user: Optional[str]
     docker_args: str
-    
     # Bash-specific configuration
     shell_path: str
+
+class OptionsConfig(TypedDict):
+    """Configuration mapping for CLI options."""
+    env_vars: List[str]
+    cli_flags: List[str]
+    required: bool
+    default: Optional[Any]
+    help: str
+    choices: Optional[List[Any]]
+    resolve_value: Optional[Callable[..., Any]] # Explore this option for complex value resolution

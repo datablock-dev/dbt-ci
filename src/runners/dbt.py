@@ -1,6 +1,6 @@
-from dbt.cli.main import dbtRunner, CatalogArtifact, Manifest, RunExecutionResult
 from subprocess import CompletedProcess
 from typing import List
+from dbt.cli.main import dbtRunner
 
 def dbt_runner(
     commands: List[str], 
@@ -32,9 +32,9 @@ def dbt_runner(
         else:
             stdout = str(result.result) if result.result is not None else ""
         
-        if not quiet:
-            print(stdout)
-        
+        if result.exception is not None:
+            raise result.exception
+
         # Return CompletedProcess for compatibility with other runners
         return CompletedProcess(
             args=commands,

@@ -1,11 +1,11 @@
 import sys
 import json
 import os
-from typing import Dict, List, Set, Any
+from typing import Dict, List, Optional, Set, Any
 from src.paths import get_manifest_file, get_prod_manifest_file
-from src.schema import DBTManifest, DependencyGraph, DependencyGraphNodeType
+from src.schema import DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
-manifest_key_mapping = {
+MANIFEST_KEY_MAPPING = {
     "model": "nodes",
     "seed": "nodes",
     "snapshot": "nodes",
@@ -16,6 +16,7 @@ manifest_key_mapping = {
 }
 
 def skeleton_dependencies_structure():
+    """Helper function to create an empty dependencies structure."""
     return {
         "node_dependencies": set(),
         "dependencies_by_type": {
@@ -55,7 +56,7 @@ def generate_dependency_graph(manifest_file_path: str, is_state_manifest: bool =
 
     for key, downstream_dependencies in child_map.items():
         node_type: DependencyGraphNodeType = key.split(".")[0]
-        manifest_key = manifest_key_mapping.get(node_type)
+        manifest_key = MANIFEST_KEY_MAPPING.get(node_type)
         full_item = manifest_file.get(manifest_key, {}).get(key, None) if manifest_key else None
 
         # Skip if the node type is not recognized (e.g., "analysis", "docs", etc.)
@@ -90,7 +91,7 @@ def generate_dependency_graph(manifest_file_path: str, is_state_manifest: bool =
             
         for dep_id in downstream_dependencies:
             dep_type = dep_id.split(".")[0]
-            dep_manifest_key = manifest_key_mapping.get(dep_type)
+            dep_manifest_key = MANIFEST_KEY_MAPPING.get(dep_type)
             
             if dep_manifest_key and dep_type in node_type_map:
                 dep_item = manifest_file.get(dep_manifest_key, {}).get(dep_id, None)
@@ -148,6 +149,7 @@ def append_depends_on_nodes(
     dependencies: Dict[DependencyGraphNodeType, List[str]], 
     manifest_file: DBTManifest
 ) -> None:
+    """Append dependencies from the "depends_on" section of the manifest file to the dependency graph."""
     for dep_type, dep_ids in dependencies.items():
         if dep_ids is None or not isinstance(dep_ids, list):
             continue
@@ -182,7 +184,8 @@ def append_depends_on_nodes(
                 dependency_graph[node_type][name]["upstream_dependencies"]["dependencies_by_type"][dep_category].add(node_name)
 
 def output_dependency_graph(dependency_graph: DependencyGraph, output_path: str) -> None:
-    with open(output_path, "w") as file:
+    """Output the dependency graph to a JSON file."""
+    with open(output_path, "w", encoding="utf-8") as file:
         json.dump(
             obj=dependency_graph, 
             fp=file, 
@@ -190,7 +193,7 @@ def output_dependency_graph(dependency_graph: DependencyGraph, output_path: str)
             default=lambda o: list(o) if isinstance(o, set) else o
         )
 
-def find_node_by_id(dependency_graph, node_id):
+def find_node_by_id(dependency_graph: DependencyGraph, node_id: str) -> Optional[DependencyGraphNode]:
     """Find a node in dependency_graph by its ID"""
     node_type = node_id.split(".")[0]
     if node_type in dependency_graph:
@@ -200,7 +203,7 @@ def find_node_by_id(dependency_graph, node_id):
     return None
 
 
-def collect_dependencies_recursively(dependency_graph, node_data, visited, direction="upstream"):
+def collect_dependencies_recursively(dependency_graph, node_data, visited: Set[str], direction="upstream"):
     """Recursively collect upstream or downstream dependencies"""
     dep_key = "upstream_dependencies" if direction == "upstream" else "downstream_dependencies"
     
@@ -222,7 +225,7 @@ def append_upstream_dependencies(dependency_graph, manifest_file):
             continue
 
         child_node_type = child_id.split(".")[0]
-        manifest_key = manifest_key_mapping.get(child_node_type)
+        manifest_key = MANIFEST_KEY_MAPPING.get(child_node_type)
         node = manifest_file.get(manifest_key, {}).get(child_id, None).get("name", None)
 
         if node is None:
@@ -234,7 +237,7 @@ def append_upstream_dependencies(dependency_graph, manifest_file):
         # Sort by dependency type
         for parent_id in parent_ids:
             parent_node_type = parent_id.split(".")[0]
-            manifest_key = manifest_key_mapping.get(parent_node_type)
+            manifest_key = MANIFEST_KEY_MAPPING.get(parent_node_type)
             parent_node = manifest_file.get(manifest_key, {}).get(parent_id, None)
             name = parent_node.get("name", None) if parent_node else None
 
@@ -294,9 +297,148 @@ def parse_seed_file(manifest_file_path: str, seed_file_path: str) -> str:
         content = file.read()
         return content
 """
+
+def get_deleted_nodes(
+    target_dependency_graph: DependencyGraph,
+    reference_dependency_graph: DependencyGraph
+) -> List[str] | None:
+    """Get deleted nodes by comparing target and reference dependency graphs."""
+    deleted_nodes = []
+    for node_type, node_values in target_dependency_graph.items():
+        if node_type == "metadata":
+            continue
+
+        for node_name in node_values.keys():
+            reference_node = reference_dependency_graph.get(node_type, {}).get(node_name, {}).get("name", None)
+            if reference_node is None:
+                print(node_name)
+                deleted_nodes.append(node_name)
+
+    if len(deleted_nodes) == 0:
+        return None
+
+    return deleted_nodes
+
+def get_structured_modified_nodes(nodes: Dict[str, Dict[str, DependencyGraphNode]] | None) -> Dict[str, List[DependencyGraphNode]] | None:
+    """Get modified nodes, structured by type"""
+    if nodes is None or len(nodes) == 0:
+        return None
+
+    structured_nodes: Dict[str, List[DependencyGraphNode]] = {}
+    for node_name, node_value in nodes.items():
+        node_type = node_value.get("resource_type", None)
+
+        if node_type not in structured_nodes:
+            structured_nodes[node_type] = {}
+
+        structured_nodes[node_type][node_name] = node_value
+
+    return structured_nodes
+
+
+def get_node(dependency_graph: DependencyGraph, node_id: str) -> Dict[str, DependencyGraphNode] | None:
+    """Get a single node by ID, searching across all node types."""
+    try:
+        match = None
+        for node_type in dependency_graph.keys():
+            if node_type == "metadata":
+                continue
+            if node_id in dependency_graph[node_type]:
+                match = dependency_graph[node_type][node_id]
+                break
+        return match
+    except TypeError:
+        return None
+    except Exception as e:
+        print(f"Error retrieving node: {e}")
+        return None
+
+def get_nodes(dependency_graph: DependencyGraph, node_ids: List[str] | None) -> Dict[str, Dict[str, DependencyGraphNode]] | None:
+    """Get multiple nodes by ID, optionally filtered by type."""
+    if node_ids is None or len(node_ids) == 0:
+        return None
+
+    try:
+        nodes = {}
+        for node_type in dependency_graph.keys():
+            if node_type == "metadata":
+                continue
+            for node_id in node_ids:
+                if node_id in dependency_graph[node_type]:
+                    nodes[node_id] = dependency_graph[node_type][node_id]
+        if len(nodes.keys()) == 0:
+            return None
         
+        return nodes
+    except TypeError:
+        return None
+    except Exception as e:
+        print(f"Error retrieving nodes: {e}")
+        return None
+
+def get_node_ids_from_structured_nodes(structured_nodes: Dict[str, DependencyGraph] | None) -> List[str] | None:
+    """Extract node IDs from structured nodes dictionary."""
+    if structured_nodes is None or len(structured_nodes.keys()) == 0:
+        return None
+
+    node_ids: Set[str] = set()
+    for nodes in structured_nodes.values():
+        for node_name in nodes.keys():
+            node_ids.add(node_name)
+
+    return list(node_ids) if len(node_ids) > 0 else None
+
+def get_downstream_dependencies(
+    dependency_graph: DependencyGraph,
+    node_ids: List[str] | None,
+    node_type: Optional[DependencyGraphNodeType] = None,
+    levels: int | None = None # To be implemented in the future
+):
+    """Get downstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
+    if node_ids is None or len(node_ids) == 0:
+        return None
+
+    downstream_dependencies: Set[str] = set()
+    for node_id in node_ids:
+        node = get_node(dependency_graph, node_id)
+        if node is None:
+            continue
+        
+        dependency_by_type: Dict[DependencyGraphNodeType, List[str]] = node["indirect_downstream_dependencies"]["dependencies_by_type"]
+        for dep_type, dep_names in dependency_by_type.items():
+            if node_type and dep_type != node_type:
+                continue
+            if dep_names is not None and len(dep_names) > 0:
+                downstream_dependencies.update(dep_names)
+
+    if len(downstream_dependencies) == 0:
+        return None
+    return downstream_dependencies
+
+def get_downstream_dependencies_from_cache(
+    cache: Dict[str, DependencyGraph] | None,
+    node_type: Optional[DependencyGraphNodeType] = None,
+    levels: int | None = None # To be implemented in the future
+) -> List[str] | None:
+    """Get downstream dependencies for modified nodes from cache."""
+    if cache is None:
+        return None
+    
+    downstream_dependencies: Set[str] = set()
+    for node_values in cache.values():
+        for item_values in node_values.values():
+            dependencies_by_type = item_values.get("indirect_downstream_dependencies").get("dependencies_by_type", None)
+            if dependencies_by_type:
+                for dep_type, dep_names in dependencies_by_type.items():
+                    if node_type and dep_type != node_type:
+                        continue
+
+                    downstream_dependencies.update(dep_names)
+                    
+
+    return list(downstream_dependencies) if len(downstream_dependencies) > 0 else None
+
 if __name__ == "__main__":
     # Example usage - update path to your manifest file
-    manifest_path = "dbt/target/manifest.json"
-    generate_dependency_graph(manifest_path)
-        
+    MANIFEST_PATH = "dbt/target/manifest.json"
+    generate_dependency_graph(MANIFEST_PATH)

@@ -1,8 +1,5 @@
-import sys
 import click
-from src.dependency_graph import DbtGraph
-from src.runners import run_dbt_command
-from argparse import Namespace
+from src.commands import run, ephemeral, init
 
 
 # Shared options for all commands
@@ -12,7 +9,6 @@ def common_options(f):
         '--prod-manifest-dir', 
         '--reference-manifest-dir', 
         '--state',
-        required=True,
         help='Path to the production/reference manifest.json directory'
     )(f)
     f = click.option(
@@ -24,6 +20,11 @@ def common_options(f):
         '--profiles-dir', 
         default=None,
         help='Path to the directory containing the dbt profiles.yml file'
+    )(f)
+    f = click.option(
+        '--production-target',
+        default=None,
+        help='The dbt target to use for production/reference manifest (defaults to default)'
     )(f)
     f = click.option(
         '--target', 
@@ -51,14 +52,14 @@ def common_options(f):
     )(f)
     f = click.option(
         '--dry-run', 
-        is_flag=True, 
+        is_flag=True,
         default=False,
         help='Print commands without executing them'
     )(f)
     f = click.option(
         '--log-level', 
         type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']),
-        default='INFO', 
+        default='INFO',
         help='Logging level'
     )(f)
     
@@ -76,13 +77,11 @@ def common_options(f):
     f = click.option(
         '--docker-volumes', 
         multiple=True, 
-        default=[],
         help='Additional volume mounts (format: host:container)'
     )(f)
     f = click.option(
         '--docker-env', 
         multiple=True, 
-        default=[],
         help='Environment variables (format: KEY=VALUE)'
     )(f)
     f = click.option(
@@ -100,7 +99,6 @@ def common_options(f):
         default='',
         help='Additional docker run arguments'
     )(f)
-    
     # Bash options
     f = click.option(
         '--shell-path', 
@@ -108,7 +106,7 @@ def common_options(f):
         default='/bin/bash',
         help='Path to shell executable for bash runner'
     )(f)
-    
+
     return f
 
 
@@ -123,120 +121,60 @@ def cli():
     """
     pass
 
-
-@cli.command()
+@cli.command(name="init")
 @common_options
-def run(
-    prod_manifest_dir,
-    dbt_project_dir,
-    profiles_dir,
-    target,
-    vars,
-    runner,
-    entrypoint,
-    dry_run,
-    log_level,
-    docker_image,
-    docker_platform,
-    docker_volumes,
-    docker_env,
-    docker_network,
-    docker_user,
-    docker_args,
-    shell_path
-):
+def init_cmd(**kwargs):
+    """Initialize dbt CI state
+    
+    Creates initial state from production manifest. Run this before using other commands.
+    
+    Examples:
+        dbt-ci init --prod-manifest-dir prod-manifest/ --dbt-project-dir ./dbt --production-target production
+    """
+    return init(**kwargs)
+
+# Add support for --levels option to specify how many levels of dependencies to include
+@cli.command(name='run')
+@common_options
+@click.option(
+    '--nodes', '-n',
+    type=click.Choice([
+        "all",
+        "models",
+        "seeds",
+        "snapshots",
+        "tests",
+        #"analyses" --> Not yet supported
+    ], case_sensitive=False),
+    default='all',
+    help='Run mode for dbt-ci (default: auto)'
+)
+@click.option(
+    "--levels",
+    type=int,
+    default=None,
+    help="Number of dependency levels to include (default: all)"
+)
+def run_cmd(**kwargs):
     """Run modified dbt models
     
     Detects models that have changed based on state comparison and runs them.
     
     Examples:
         dbt-ci run --state prod-manifest/ --dbt-project-dir ./dbt
-        dbt-ci run --state prod-manifest/ --select "state:modified+" --runner docker
-        dbt-ci run --state prod-manifest/ --full-refresh
+        dbt-ci run --state prod-manifest/ --runner docker
+        
+        # With environment variables
+        export DBT_STATE=./dbt/.dbtstate/
+        export DBT_PROJECT_DIR=./dbt
+        dbt-ci run
     """
-    try:
-        # Create args namespace for DbtGraph compatibility
-        args = Namespace(
-            prod_manifest_dir=prod_manifest_dir,
-            dbt_project_dir=dbt_project_dir,
-            profiles_dir=profiles_dir,
-            target=target,
-            vars=vars,
-            runner=runner,
-            entrypoint=entrypoint,
-            dry_run=dry_run,
-            log_level=log_level,
-            docker_image=docker_image,
-            docker_platform=docker_platform,
-            docker_volumes=list(docker_volumes),
-            docker_env=list(docker_env),
-            docker_network=docker_network,
-            docker_user=docker_user,
-            docker_args=docker_args,
-            shell_path=shell_path,
-            mode='run',
-            log_file=None
-        )
-        
-        click.echo(f"🔍 Detecting modified models...")
-        graph = DbtGraph(args)
-        modified_nodes = graph.get_state_modified()
-        
-        if not modified_nodes:
-            click.echo("✅ No modified models detected")
-            return
-        
-        click.echo("📊 Found {len(modified_nodes)} modified model(s):")
-        for node in modified_nodes:
-            click.echo(f"  • {node}")
-        
-        click.echo("\n🚀 Running modified models...")
-        
-        # Build dbt run command
-        run_args = [
-            "run",
-            "--select", select,
-            *(["--full-refresh"] if full_refresh else [])
-        ]
-        
-        result = run_dbt_command(
-            command_args=run_args,
-            runner_config=graph._get_runner_config(),
-            quiet=False
-        )
-        
-        if result and result.returncode == 0:
-            click.echo("\n✅ Successfully ran {len(modified_nodes)} model(s)")
-        else:
-            click.echo("\n❌ Run failed", err=True)
-            sys.exit(1)
-            
-    except Exception as e:
-        click.echo(f"❌ Error: {e}", err=True)
-        sys.exit(1)
+    return run(**kwargs)
 
 
-@cli.command()
+@cli.command(name='ephemeral')
 @common_options
-def ephemeral(
-    prod_manifest_dir, 
-    dbt_project_dir,
-    profiles_dir,
-    target,
-    vars,
-    runner,
-    entrypoint,
-    dry_run,
-    log_level,
-    docker_image,
-    docker_platform,
-    docker_volumes,
-    docker_env,
-    docker_network,
-    docker_user,
-    docker_args,
-    shell_path
-):
+def ephemeral_cmd(**kwargs):
     """Run ephemeral CI check workflow
     
     Detects changes, lists modified models, but doesn't execute them.
@@ -245,52 +183,14 @@ def ephemeral(
     Examples:
         dbt-ci ephemeral --state prod-manifest/ --dbt-project-dir ./dbt
         dbt-ci ephemeral --state prod-manifest/ --runner docker
+        
+        # With environment variables
+        export DBT_STATE=./dbt/.dbtstate/
+        export DBT_PROJECT_DIR=./dbt
+        dbt-ci ephemeral
     """
-    try:
-        from argparse import Namespace
-        args = Namespace(
-            prod_manifest_dir=prod_manifest_dir,
-            dbt_project_dir=dbt_project_dir,
-            profiles_dir=profiles_dir,
-            target=target,
-            vars=vars,
-            runner=runner,
-            entrypoint=entrypoint,
-            dry_run=dry_run,
-            log_level=log_level,
-            docker_image=docker_image,
-            docker_platform=docker_platform,
-            docker_volumes=list(docker_volumes),
-            docker_env=list(docker_env),
-            docker_network=docker_network,
-            docker_user=docker_user,
-            docker_args=docker_args,
-            shell_path=shell_path,
-            mode='run',
-            selector=select,
-            log_file=None
-        )
-        
-        click.echo(f"🔍 Detecting modified models...")
-        graph = DbtGraph(args)
-        modified_nodes = graph.get_state_modified(selector=select)
-        
-        if not modified_nodes:
-            click.echo("✅ No modified models detected - no work to do!")
-            return
-        
-        click.echo(f"\n📊 Changes detected: {len(modified_nodes)} modified model(s)")
-        click.echo("\nModified models:")
-        for node in modified_nodes:
-            click.echo(f"  • {node}")
-        
-        click.echo(f"\n💡 To run these models, use: dbt-ci run --state {prod_manifest_dir}")
-        
-    except Exception as e:
-        click.echo(f"❌ Error: {e}", err=True)
-        sys.exit(1)
+    return ephemeral(**kwargs)
 
 
 if __name__ == "__main__":
     cli()
-

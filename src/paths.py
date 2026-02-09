@@ -39,7 +39,6 @@ def get_dbt_project_file(dbt_project_dir: str) -> dict:
     with open(file, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
-
 def get_profiles_file(
     dbt_project_dir: str,
     profiles_dir: str | None = None
@@ -68,6 +67,5 @@ def get_profiles_file(
         if os.path.isfile(file):
             with open(file, 'r', encoding='utf-8') as f:
                 return yaml.safe_load(f)
-        
-        raise FileNotFoundError("profiles.yml not found in the specified profiles directory, dbt project directory, or ~/.dbt/")
 
+        raise FileNotFoundError("profiles.yml not found in the specified profiles directory, dbt project directory, or ~/.dbt/")
