@@ -42,7 +42,7 @@ def common_options(f):
         '--runner', 
         '-r', 
         type=click.Choice(['local', 'docker', 'bash', 'dbt']),
-        default='dbt', 
+        default='dbt',
         help='Runner to use for executing dbt commands'
     )(f)
     f = click.option(
