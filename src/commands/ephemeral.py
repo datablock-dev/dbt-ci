@@ -1,4 +1,10 @@
-"""Ephemeral command for dbt-ci"""
+"""
+    Ephemeral command for dbt-ci
+
+    Models: By default, select all downstream dependencies (full graph)
+    Tests: By default, select upstream depedendenceis (1 level)
+    Snapshots: By default, only select upstream dependencies (1 level)
+"""
 
 import sys
 from itertools import chain
@@ -48,13 +54,11 @@ def ephemeral(**kwargs):
         connector_type = variables.target_config.get("type")
         ephemeral_connector = CONNECTORS.get(connector_type, None)
 
-        """
         if connector_type is None:
             click.echo(f"Missing connector type for ephemeral mode: {connector_type}. Supported connectors: {list(CONNECTORS.keys())}")
         elif CONNECTORS.get(connector_type) is None:
             click.echo(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(CONNECTORS.keys())}")
             return
-        """
 
         # Look for cache
         prev_cache = cache.get_cache()
@@ -152,9 +156,3 @@ def full_config_or_none(
         "name": name,
         "alias": alias,
     }
-
-"""
-    Models: By default, select all downstream dependencies (full graph)
-    Tests: By default, select upstream depedendenceis (1 level)
-    Snapshots: By default, only select upstream dependencies (1 level)
-"""
