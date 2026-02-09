@@ -48,9 +48,10 @@ def init(**kwargs):
         graph = DbtGraph(variables)
         modified_nodes = graph.get_state_modified()
         cache.write_cache({"modified_nodes": modified_nodes})
+        print(graph.get_nodes(modified_nodes))
         
         # Get manifest file
-        target_manifest_file = get_manifest_file(getattr(variables, "dbt_project_dir"))
+        target_manifest_file = get_manifest_file(variables.dbt_project_dir)
         cache.write_cache(target_manifest_file, "target_prod_manifest.json" if production_target else "target_manifest.json")
 
         if production_target is not None:
@@ -59,7 +60,7 @@ def init(**kwargs):
                 runner_config=RunnerConfig(variables.__dict__)
             )
 
-            target_manifest_file = get_manifest_file(getattr(variables, "dbt_project_dir"))
+            target_manifest_file = get_manifest_file(variables.dbt_project_dir)
             cache.write_cache(target_manifest_file, "target_manifest.json")
 
         click.echo("Initialization complete. Cache updated with current state(s).")

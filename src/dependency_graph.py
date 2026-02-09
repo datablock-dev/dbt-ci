@@ -120,6 +120,14 @@ class DbtGraph:
             shell_path=self.variables.shell_path
         )
 
+    def get_deleted_nodes(self) -> List[str] | None:
+        """Get deleted nodes based on state comparison.
+        
+        Returns:
+            List of deleted node names, or None if no deletions
+        """
+        #return self.get_state_modified(selector="state:modified", node_type=None, node_ids=None)
+
     def get_state_modified(
         self,
         selector: str = "state:modified",

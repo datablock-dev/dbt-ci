@@ -17,7 +17,12 @@ class CacheManager:
         """Write data to the cache file."""
         file_path = self.dir_path / file_name
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4)
+            json.dump(
+                obj=data,
+                fp=f,
+                indent=4,
+                default=lambda o: list(o) if isinstance(o, set) else o
+            )
             print(f"Cache written to {file_path.absolute()}")
 
     def get_cache(self, file_name: str = "cache.json") -> dict | None:
