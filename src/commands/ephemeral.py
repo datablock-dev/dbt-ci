@@ -5,6 +5,7 @@ Ephemeral command for dbt-ci
 import sys
 from argparse import Namespace
 import click
+from src.cache import CacheManager
 from src.dependency_graph import DbtGraph
 from src.variables import Variables
 
@@ -28,29 +29,23 @@ def ephemeral(**kwargs):
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         args = Namespace(**kwargs)
+        cache = CacheManager()
         config = Variables(args)
-        
-        # Create namespace with resolved values for DbtGraph
-        resolved_args = config.to_namespace()
-        resolved_args.mode = 'run'
-        resolved_args.log_file = None
-        
-        click.echo("🔍 Detecting modified models...")
-        graph = DbtGraph(resolved_args)
-        selector = "state:modified+"
-        modified_nodes = graph.get_state_modified(selector=selector)
-        
-        if not modified_nodes:
-            click.echo("✅ No modified models detected - no work to do!")
+        variables = config.to_namespace()
+        target_graph = DbtGraph(variables)
+
+        # Look for cache
+        prev_cache = cache.get_cache()
+        if prev_cache is None: # Should we exit here instead of compiling?
+            click.echo("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
             return
-        
-        click.echo(f"\n📊 Changes detected: {len(modified_nodes)} modified model(s)")
-        click.echo("\nModified models:")
-        for node in modified_nodes:
-            click.echo(f"  • {node}")
-        
-        click.echo(f"\n💡 To run these models, use: dbt-ci run --state {config.prod_manifest_dir}")
         
     except Exception as e:
         click.echo(f"❌ Error: {e}", err=True)
         sys.exit(1)
+
+"""
+    Models: By default, select all downstream dependencies (full graph)
+    Tests: By default, select upstream depedendenceis (1 level)
+    Snapshots: By default, only select upstream dependencies (1 level)
+"""
