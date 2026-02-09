@@ -302,42 +302,20 @@ def get_deleted_nodes(
     reference_dependency_graph: DependencyGraph
 ) -> List[str] | None:
     """Get deleted nodes by comparing target and reference dependency graphs."""
-    deleted_nodes = []
-    for node_type, node_values in target_dependency_graph.items():
-        if node_type == "metadata":
-            continue
-
-        for node_name in node_values.keys():
-            reference_node = reference_dependency_graph.get(node_type, {}).get(node_name, {}).get("name", None)
-            if reference_node is None:
-                print(node_name)
-                deleted_nodes.append(node_name)
-
-    if len(deleted_nodes) == 0:
-        return None
-
-    return deleted_nodes
+    return get_diff_nodes(
+        source_graph=target_dependency_graph,
+        compare_graph=reference_dependency_graph
+    )
 
 def get_new_nodes(
     target_dependency_graph: DependencyGraph,
     reference_dependency_graph: DependencyGraph
 ) -> List[str] | None:
     """Get new nodes by comparing target and reference dependency graphs."""
-    new_nodes = []
-    for node_type, node_values in reference_dependency_graph.items():
-        if node_type == "metadata":
-            continue
-
-        for node_name in node_values.keys():
-            reference_node = target_dependency_graph.get(node_type, {}).get(node_name, {}).get("name", None)
-            if reference_node is None:
-                print(node_name)
-                new_nodes.append(node_name)
-
-    if len(new_nodes) == 0:
-        return None
-
-    return new_nodes
+    return get_diff_nodes(
+        source_graph=reference_dependency_graph,
+        compare_graph=target_dependency_graph
+    )
 
 def get_diff_nodes(
     source_graph: DependencyGraph,
