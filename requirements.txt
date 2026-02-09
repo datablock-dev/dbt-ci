@@ -1,5 +1,5 @@
 # Core dependencies
 click>=8.0.0
 PyYAML>=6.0
-dbt-core>=1.5.0
+dbt-core>=1.10.13
 google-cloud-bigquery>=3.0.0
