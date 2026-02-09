@@ -6,9 +6,8 @@ from argparse import Namespace
 import click
 from src.cache import CacheManager
 from src.dependency_graph import DbtGraph
-from src.utilities.getters import get_node_ids_from_structured_nodes, get_nodes
+from src.utilities.getters import get_node_ids_from_structured_nodes
 from src.variables import Variables
-
 
 def delete(**kwargs):
     """Delete deleted dbt models"""
