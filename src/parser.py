@@ -331,11 +331,7 @@ def get_diff_nodes(
             continue
 
         for node_name in node_values.keys():
-            exists = (
-                compare_graph
-                .get(node_type, {})
-                .get(node_name)
-            )
+            exists = compare_graph.get(node_type, {}).get(node_name)
             if not exists:
                 diff_nodes.append(node_name)
 

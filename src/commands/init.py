@@ -51,19 +51,29 @@ def init(**kwargs):
         modified_nodes = target_graph.get_state_modified()
         target_graph_dict = target_graph.to_dict()
         reference_graph_dict = reference_graph.to_dict()
-        deleted_nodes = get_deleted_nodes(reference_graph_dict, target_graph_dict)
-        new_nodes = get_new_nodes(reference_graph_dict, target_graph_dict)
-        print(f"New nodes: {new_nodes}")
-        print(f"Deleted nodes: {deleted_nodes}")
 
-        cache.write_cache({
+        state_change_summary = {
             "modified_nodes": get_structured_modified_nodes(get_nodes(reference_graph_dict, modified_nodes)),
-            "deleted_nodes": get_structured_modified_nodes(get_nodes(reference_graph_dict, deleted_nodes))
-        })
+            "deleted_nodes": get_structured_modified_nodes(get_nodes(reference_graph_dict, get_deleted_nodes(reference_graph_dict, target_graph_dict))),
+            "new_nodes": get_structured_modified_nodes(get_nodes(target_graph_dict, get_new_nodes(reference_graph_dict, target_graph_dict)))
+        }
+
+        cache.write_cache(state_change_summary)
         
         # Get manifest file
         target_manifest_file = get_manifest_file(variables.dbt_project_dir)
         cache.write_cache(target_manifest_file, "target_prod_manifest.json" if production_target else "target_manifest.json")
+
+        for change_type, values in state_change_summary.items():
+            if values is None or len(values) == 0:
+                click.echo(f"\n{change_type.replace('_', ' ').title()}: 0")
+                continue
+            
+            total_count = sum(len(node_dict) for node_dict in values.values())
+            click.echo(f"\n{change_type.replace('_', ' ').title()}: {total_count}")
+            for node_dict in values.values():
+                for node in node_dict.values():
+                    click.echo(f"  • {node['name']} ({node['resource_type']})")
 
         if production_target is not None:
             run_dbt_command(
