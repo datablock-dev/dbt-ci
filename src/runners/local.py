@@ -1,17 +1,17 @@
 import subprocess
 from subprocess import CompletedProcess
 from typing import List
+from src.schema import RunnerConfig
 
 def local_runner(
-    commands: List[str], 
-    dry_run: bool = False,
-    quiet: bool = False
+    commands: List[str],
+    runner_config: RunnerConfig
 ) -> CompletedProcess | None:
     """Execute dbt commands locally."""
-    if not quiet:
+    if not runner_config.get('quiet', False):
         print(f"Running command: {' '.join(commands)}")
     
-    if dry_run:
+    if runner_config.get('dry_run', False):
         print("DRY RUN: Command would be executed")
         return None
     
@@ -23,7 +23,7 @@ def local_runner(
             text=True
         )
 
-        if not quiet:
+        if not runner_config.get('quiet', False):
             print(result.stdout)
         
         if result.stderr:

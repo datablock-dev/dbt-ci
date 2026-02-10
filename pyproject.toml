@@ -25,6 +25,7 @@ classifiers = [
 
 # Read dependencies from requirements.txt
 dependencies = [
+    "docker",
     "click>=8.0.0",
     "PyYAML>=6.0",
     "dbt-core>=1.10.13",

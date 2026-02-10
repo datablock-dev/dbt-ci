@@ -344,10 +344,11 @@ class DependencyGraph(TypedDict):
     test: Dict[str, DependencyGraphNode]
     exposure: Dict[str, DependencyGraphNode]
 
+type Runners = Literal["local", "docker", "bash", "dbt"]
 
 class RunnerConfig(TypedDict):
     """Configuration for dbt command execution across different runners."""
-    runner: Literal["local", "docker", "bash", "dbt"]
+    runner: Runners
     dbt_project_dir: str
     prod_manifest_dir: str
     profiles_dir: Optional[str]

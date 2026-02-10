@@ -3,20 +3,19 @@ import os
 import sys
 from argparse import Namespace
 from subprocess import CompletedProcess
-from typing import List, Optional
-from src.schema import RunnerConfig
+from typing import Callable, Dict, List, Optional
+from src.schema import RunnerConfig, Runners
 from src.runners.dbt import dbt_runner
 from src.runners.local import local_runner
 from src.runners.docker import docker_runner
 from src.runners.bash import bash_runner
 
-
-def _get_absolute_path(path: str) -> str:
-    """Convert path to absolute if it's relative."""
-    if not path:
-        return path
-    return os.path.abspath(path) if not os.path.isabs(path) else path
-
+RUNNERS: Dict[Runners, Callable[[List[str], RunnerConfig], CompletedProcess | None]] = {
+    "local": local_runner,
+    "dbt": dbt_runner,
+    "docker": docker_runner,
+    "bash": bash_runner
+}
 
 def run_dbt_command(
     command_args: List[str],
@@ -51,8 +50,6 @@ def run_dbt_command(
         output = run_dbt_command(['ls', '--select', 'state:modified+'], config)
     """
     runner = runner_config['runner']
-    use_dry_run = dry_run if dry_run is not None else runner_config.get('dry_run', False)
-    use_quiet = quiet if quiet is not None else runner_config.get('quiet', False)
     entrypoint = runner_config.get('entrypoint', 'dbt')
     
     # Handle empty entrypoint (means no command prefix)
@@ -78,8 +75,7 @@ def run_dbt_command(
         
         return local_runner(
             absolute_command,
-            dry_run=use_dry_run,
-            quiet=use_quiet
+            runner_config=runner_config
         )
     elif runner == "dbt":
         # Direct dbt runner: uses dbt Python API
@@ -100,18 +96,14 @@ def run_dbt_command(
         
         return dbt_runner(
             absolute_command,
-            dry_run=use_dry_run,
-            quiet=use_quiet
+            runner_config=runner_config
         )
     elif runner == "bash":
         # Bash runner: pass paths as-is, let the script handle translation
         return bash_runner(
             commands=full_command,
-            dry_run=use_dry_run,
-            shell_path=runner_config['shell_path'],
-            quiet=use_quiet
+            runner_config=runner_config
         )
-    
     elif runner == "docker":
         # Docker runner: needs absolute paths for volume mounts
         # Remove entrypoint from command (docker runner adds it back)
@@ -119,24 +111,11 @@ def run_dbt_command(
         
         return docker_runner(
             commands=docker_command,
-            dbt_project_dir=_get_absolute_path(runner_config['dbt_project_dir']),
-            profiles_dir=_get_absolute_path(runner_config['profiles_dir']) if runner_config.get('profiles_dir') else None,
-            state_dir=_get_absolute_path(runner_config['prod_manifest_dir']),
-            docker_image=runner_config.get('docker_image', 'ghcr.io/dbt-labs/dbt-core:latest'),
-            docker_platform=runner_config.get('docker_platform'),
-            docker_volumes=runner_config.get('docker_volumes', []),
-            docker_env=runner_config.get('docker_env', []),
-            docker_network=runner_config.get('docker_network', 'host'),
-            docker_user=runner_config.get('docker_user'),
-            docker_args=runner_config.get('docker_args', ''),
-            dry_run=use_dry_run,
-            quiet=use_quiet
+            runner_config=runner_config
         )
-    
     else:
         print(f"Unsupported runner: {runner}")
         sys.exit(1)
-
 
 def append_dbt_variables_to_command(
     command_args: List[str],
@@ -160,3 +139,9 @@ def append_dbt_variables_to_command(
             commands.extend([str(dbt_flag), str(value)])
 
     return commands
+
+def _get_absolute_path(path: str) -> str:
+    """Convert path to absolute if it's relative."""
+    if not path:
+        return path
+    return os.path.abspath(path) if not os.path.isabs(path) else path

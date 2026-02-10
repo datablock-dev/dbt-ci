@@ -1,13 +1,12 @@
 import sys
-from typing import List, Dict
+from typing import List
 import subprocess
 from subprocess import CompletedProcess
+from src.schema import RunnerConfig
 
 def bash_runner(
     commands: List[str],
-    shell_path: str,
-    dry_run: bool = False,
-    quiet: bool = False
+    runner_config: RunnerConfig
 ) -> CompletedProcess | None:
     """
     Execute dbt commands using a custom dbt binary/script.
@@ -21,12 +20,12 @@ def bash_runner(
     Note: The first element 'dbt' in commands will be replaced with shell_path
     """
     # Replace 'dbt' command with custom path
-    commands = [shell_path] + commands
+    commands = [runner_config['shell_path']] + commands
     
-    if not quiet:
+    if not runner_config.get('quiet', False):
         print(f"Running command: {' '.join(commands)}")
     
-    if dry_run:
+    if runner_config.get('dry_run', False):
         print("DRY RUN: Command would be executed")
         return None
     
@@ -38,7 +37,7 @@ def bash_runner(
             text=True
         )
 
-        if not quiet:
+        if not runner_config.get('quiet', False):
             print(result.stdout)
 
         if result.stderr:
@@ -50,4 +49,7 @@ def bash_runner(
             print(e.stderr)
         if e.stdout:
             print(e.stdout)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error: {e}", file=sys.stderr)
         sys.exit(1)

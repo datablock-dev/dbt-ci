@@ -3,10 +3,11 @@ import sys
 from typing import List
 from dbt.cli.main import dbtRunner
 
+from src.schema import RunnerConfig
+
 def dbt_runner(
     commands: List[str],
-    dry_run: bool = False,
-    quiet: bool = False
+    runner_config: RunnerConfig
 ) -> CompletedProcess | None:
     """Execute dbt commands through dbtRunner (Python API).
     
@@ -14,10 +15,10 @@ def dbt_runner(
     """
     runner = dbtRunner()
 
-    if not quiet:
+    if not runner_config.get('quiet', False):
         print(f"Running command: {' '.join(commands)}")
     
-    if dry_run:
+    if runner_config.get('dry_run', False):
         print("DRY RUN: Command would be executed")
         return None
     

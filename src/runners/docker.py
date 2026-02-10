@@ -30,19 +30,21 @@ def docker_runner(
         dry_run: If True, only print the command
         quiet: If True, suppress stdout
     """
-    cwd = Path.cwd()
-    docker_volumes = runner_config.docker_volumes or []
-    docker_env = runner_config.docker_env or []
-    
-    # Auto-detect user if not specified
-    if runner_config.docker_user is None:
-        docker_user = f"{os.getuid()}:{os.getgid()}"
-    
-    if dry_run:
-        print("DRY RUN: Command would be executed")
-        return None
-    
     try:
+        cwd = Path.cwd()
+        print(runner_config)
+        return
+        dbt_project_dir = runner_config.dbt_project_dir or "."
+        docker_volumes = runner_config.docker_volumes or []
+        docker_env = runner_config.docker_env or []
+
+        # Auto-detect user if not specified
+        if runner_config.docker_user is None:
+            docker_user = f"{os.getuid()}:{os.getgid()}"
+
+        if dry_run:
+            print("DRY RUN: Command would be executed")
+            return None
         if os.getenv("DBT_IMAGE", None) is not None:
             image = os.getenv("DBT_IMAGE")
 

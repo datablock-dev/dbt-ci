@@ -80,13 +80,13 @@ def common_options(f):
     )(f)
     f = click.option(
         '--docker-volumes', 
-        multiple=True, 
-        help='Additional volume mounts (format: host:container)'
+        multiple=True,
+        help='Additional volume mounts (format: host:container). Repeat flag for multiple volumes: --docker-volumes /path1:/path1 --docker-volumes /path2:/path2'
     )(f)
     f = click.option(
         '--docker-env', 
         multiple=True, 
-        help='Environment variables (format: KEY=VALUE)'
+        help='Environment variables (format: KEY=VALUE). Repeat flag for multiple vars: --docker-env VAR1=val1 --docker-env VAR2=val2'
     )(f)
     f = click.option(
         '--docker-network', 
