@@ -144,8 +144,7 @@ def run_with_mode(
 
         result = run_dbt_command(
             command_args=append_dbt_variables_to_command([command, "--select", " ".join(final_nodes_to_run)], variables),
-            runner_config=runner_config,
-            quiet=False
+            runner_config=runner_config
         )
 
         if result and result.returncode == 0:

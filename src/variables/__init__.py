@@ -12,7 +12,6 @@ import os
 import sys
 from argparse import Namespace
 from typing import Any, Dict, Optional
-from src.schema import CLIArgs
 from src.variables.config import OPTIONS_CONFIG
 from src.paths import (
     get_dbt_project_file,
