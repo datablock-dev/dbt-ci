@@ -51,6 +51,7 @@ def run(**kwargs):
 
         modified_nodes_dict = {
             "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
+            "new_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("new_nodes", None)) or [],
             "deleted_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("deleted_nodes", None)) or []
         }
 
@@ -58,11 +59,12 @@ def run(**kwargs):
             chain(
                 modified_nodes_dict["modified_nodes"],
                 modified_nodes_dict["deleted_nodes"],
+                modified_nodes_dict["new_nodes"]
             )
         )
 
         if len(modified_nodes) == 0:
-            click.echo("No modified or deleted nodes found in cache, skipping...")
+            click.echo("No modified, new, or deleted nodes found in cache, skipping...")
             return
         
         click.echo(f"\nFound {len(modified_nodes)} modified model(s):")
@@ -72,6 +74,8 @@ def run(**kwargs):
                 string += " [Deleted]"
             elif node in modified_nodes_dict["modified_nodes"]:
                 string += " [Modified]"
+            elif node in modified_nodes_dict["new_nodes"]:
+                string += " [New]"
             
             click.echo(string)
 
@@ -109,6 +113,8 @@ def run_with_mode(
             node_type=node_type
         )
 
+        print(modified_nodes, node_type)
+
         if downstream_dependencies is None:
             downstream_dependencies = []
             click.echo("No downstream dependencies found for modified nodes")
@@ -119,10 +125,21 @@ def run_with_mode(
             node_ids=modified_nodes_dict["modified_nodes"],
             node_type=node_type
         )
+        new_nodes_of_type = filter_node_ids_by_type(
+            dependency_graph=target_graph.to_dict(),
+            node_ids=modified_nodes_dict["new_nodes"],
+            node_type=node_type
+        )
         
+        node_ids_for_processing = list({
+            *modified_nodes_dict.get("modified_nodes", []),
+            *modified_nodes_dict.get("new_nodes", []),
+            *downstream_dependencies,
+        })
+
         final_nodes_to_run = filter_node_ids_by_type(
             dependency_graph=target_graph.to_dict(),
-            node_ids=list(set(modified_nodes_dict["modified_nodes"]).union(set(downstream_dependencies))),
+            node_ids=node_ids_for_processing,
             node_type=node_type
         )
 
