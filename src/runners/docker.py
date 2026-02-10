@@ -96,8 +96,14 @@ def get_docker_volumes(runner_config: RunnerConfig) -> dict | None:
     cwd = Path.cwd()
     volume_dict = {}
     for volume in runner_config.get("docker_volumes", []):
-        host_path, container_path = volume.split(":")
+        parts = volume.split(":", 2)
+        host_path = parts[0]
+        container_path = parts[1]
+        mode = parts[2] if len(parts) == 3 else "rw"
         if not os.path.isabs(host_path):
             host_path = str((cwd / host_path).resolve())
-        volume_dict[host_path] = {"bind": container_path, "mode": "rw"}
+        volume_dict[host_path] = {
+            "bind": container_path, 
+            "mode": mode
+        }
     return volume_dict
