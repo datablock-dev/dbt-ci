@@ -152,7 +152,6 @@ class DbtGraph:
         output = run_dbt_command(
             command_args=command_args,
             runner_config=self._get_runner_config(),
-            quiet=True
         )
         
         if output is None:
