@@ -85,7 +85,7 @@ def common_options(f):
     )(f)
     f = click.option(
         '--docker-env', 
-        multiple=True, 
+        multiple=True,
         help='Environment variables (format: KEY=VALUE). Repeat flag for multiple vars: --docker-env VAR1=val1 --docker-env VAR2=val2'
     )(f)
     f = click.option(

@@ -31,57 +31,20 @@ def docker_runner(
         quiet: If True, suppress stdout
     """
     try:
-        cwd = Path.cwd()
-        print(runner_config)
-        return
-        dbt_project_dir = runner_config.dbt_project_dir or "."
-        docker_volumes = runner_config.docker_volumes or []
-        docker_env = runner_config.docker_env or []
-
-        # Auto-detect user if not specified
-        if runner_config.docker_user is None:
-            docker_user = f"{os.getuid()}:{os.getgid()}"
-
-        if dry_run:
+        if runner_config.get("dry_run", False):
             print("DRY RUN: Command would be executed")
             return None
-        if os.getenv("DBT_IMAGE", None) is not None:
-            image = os.getenv("DBT_IMAGE")
 
         client = docker.client.from_env()
-        
-        # Build environment variables, excluding None values
-        env_vars = {
-            "DBT_PROFILES_DIR": "/dbt",
-        }
-        if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-            env_vars["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        if os.getenv("USER"):
-            env_vars["USER"] = os.getenv("USER")
-        if os.getenv("GITHUB_SHA"):
-            env_vars["GITHUB_SHA"] = os.getenv("GITHUB_SHA")
-        if os.getenv("DBT_STATE"):
-            env_vars["DBT_STATE"] = os.getenv("DBT_STATE")
-        
-        # Build volumes, excluding None paths
-        volumes = {
-            os.getenv("DBT_DIR", str((cwd / dbt_project_dir).resolve())): {"bind": "/dbt", "mode": "rw"}
-        }
-        if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-            volumes[os.getenv("GOOGLE_APPLICATION_CREDENTIALS")] = {
-                "bind": os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
-                "mode": "ro",  # Keep credentials read-only for security
-            }
-        
         container = client.containers.run(
-            image=docker_image,
+            image=runner_config.get("docker_image", "ghcr.io/dbt-labs/dbt-core:latest"),
             command=commands,
             detach=True,
             stdout=True,
             stderr=True,
-            user=f"{os.getuid()}:{os.getgid()}",
-            environment=env_vars,
-            volumes=volumes
+            user=runner_config.get("docker_user", f"{os.getuid()}:{os.getgid()}"),
+            environment=get_docker_env(runner_config),
+            volumes=get_docker_volumes(runner_config)
         )
         
         # Capture all logs as string
@@ -95,9 +58,9 @@ def docker_runner(
         returncode = exit_status.get("StatusCode", 0)
         
         return CompletedProcess(
-            args=commands, 
-            returncode=returncode, 
-            stdout="".join(output_logs), 
+            args=commands,
+            returncode=returncode,
+            stdout="".join(output_logs),
             stderr=""
         )
     except errors.ContainerError as e:
@@ -112,3 +75,29 @@ def docker_runner(
     except Exception as e:
         print(f"Unexpected error: {e}")
         sys.exit(1)
+
+def get_docker_env(runner_config: RunnerConfig) -> dict | None:
+    """Build Docker environment variables based on runner configuration."""
+    if runner_config.get("docker_env", None) is None or len(runner_config["docker_env"]) == 0:
+        return None
+    
+    env_dict = {}
+    for env in runner_config.get("docker_env", []):
+        key, value = env.split("=", 1)
+        env_dict[key] = value
+    return env_dict
+
+
+def get_docker_volumes(runner_config: RunnerConfig) -> dict | None:
+    """Build Docker volume bindings based on runner configuration."""
+    if runner_config.get("docker_volumes", None) is None or len(runner_config["docker_volumes"]) == 0:
+        return None
+
+    cwd = Path.cwd()
+    volume_dict = {}
+    for volume in runner_config.get("docker_volumes", []):
+        host_path, container_path = volume.split(":")
+        if not os.path.isabs(host_path):
+            host_path = str((cwd / host_path).resolve())
+        volume_dict[host_path] = {"bind": container_path, "mode": "rw"}
+    return volume_dict

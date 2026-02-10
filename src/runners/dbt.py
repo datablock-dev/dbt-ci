@@ -1,5 +1,6 @@
-from subprocess import CompletedProcess
+import os
 import sys
+from subprocess import CompletedProcess
 from typing import List
 from dbt.cli.main import dbtRunner
 
@@ -14,16 +15,29 @@ def dbt_runner(
     Returns a CompletedProcess-compatible object for consistency with other runners.
     """
     runner = dbtRunner()
+    dbt_command_args = commands if not runner_config.get('entrypoint') else commands[1:]
+        
+    # Convert paths to absolute for reliability
+    absolute_command = []
+    path_flags = {'--state', '--project-dir', '--profiles-dir', '--target-path', '--log-path'}
+    prev_arg = None
+    
+    for arg in dbt_command_args:
+        if prev_arg in path_flags and isinstance(arg, str):
+            absolute_command.append(os.path.abspath(arg) if not os.path.isabs(arg) else arg)
+        else:
+            absolute_command.append(arg)
+        prev_arg = arg
 
     if not runner_config.get('quiet', False):
-        print(f"Running command: {' '.join(commands)}")
+        print(f"Running command: {' '.join(absolute_command)}")
     
     if runner_config.get('dry_run', False):
         print("DRY RUN: Command would be executed")
         return None
     
     try:
-        result = runner.invoke(args=commands)
+        result = runner.invoke(args=absolute_command)
 
         # Convert dbt result to stdout string format
         # For 'ls' command, result.result is a list of node names

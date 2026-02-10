@@ -19,9 +19,7 @@ RUNNERS: Dict[Runners, Callable[[List[str], RunnerConfig], CompletedProcess | No
 
 def run_dbt_command(
     command_args: List[str],
-    runner_config: RunnerConfig,
-    dry_run: Optional[bool] = None,
-    quiet: bool = True
+    runner_config: RunnerConfig
 ) -> CompletedProcess | None:
     """
     Central dispatcher for running dbt commands across any runner.
@@ -50,72 +48,11 @@ def run_dbt_command(
         output = run_dbt_command(['ls', '--select', 'state:modified+'], config)
     """
     runner = runner_config['runner']
-    entrypoint = runner_config.get('entrypoint', 'dbt')
-    
-    # Handle empty entrypoint (means no command prefix)
-    if entrypoint == '':
-        entrypoint = None
-    
-    # Build full command with entrypoint
-    full_command = [*([entrypoint] if entrypoint else []), *command_args]
-    
-    if runner == "local":
-        # Local runner: use absolute paths for reliability
-        # Replace paths in command with absolute versions
-        absolute_command = []
-        path_flags = {'--state', '--project-dir', '--profiles-dir', '--target-path', '--log-path'}
-        prev_arg = None
-        
-        for arg in full_command:
-            if prev_arg in path_flags and isinstance(arg, str):
-                absolute_command.append(_get_absolute_path(arg))
-            else:
-                absolute_command.append(arg)
-            prev_arg = arg
-        
-        return local_runner(
-            absolute_command,
-            runner_config=runner_config
-        )
-    elif runner == "dbt":
-        # Direct dbt runner: uses dbt Python API
-        # Remove entrypoint and use absolute paths (same as local runner)
-        dbt_command_args = command_args if not entrypoint else full_command[1:]
-        
-        # Convert paths to absolute for reliability
-        absolute_command = []
-        path_flags = {'--state', '--project-dir', '--profiles-dir', '--target-path', '--log-path'}
-        prev_arg = None
-        
-        for arg in dbt_command_args:
-            if prev_arg in path_flags and isinstance(arg, str):
-                absolute_command.append(_get_absolute_path(arg))
-            else:
-                absolute_command.append(arg)
-            prev_arg = arg
-        
-        return dbt_runner(
-            absolute_command,
-            runner_config=runner_config
-        )
-    elif runner == "bash":
-        # Bash runner: pass paths as-is, let the script handle translation
-        return bash_runner(
-            commands=full_command,
-            runner_config=runner_config
-        )
-    elif runner == "docker":
-        # Docker runner: needs absolute paths for volume mounts
-        # Remove entrypoint from command (docker runner adds it back)
-        docker_command = command_args if not entrypoint else full_command[1:]
-        
-        return docker_runner(
-            commands=docker_command,
-            runner_config=runner_config
-        )
-    else:
-        print(f"Unsupported runner: {runner}")
-        sys.exit(1)
+    if runner in RUNNERS:
+        return RUNNERS[runner](command_args, runner_config)
+
+    print(f"Unsupported runner: {runner}")
+    sys.exit(1)
 
 def append_dbt_variables_to_command(
     command_args: List[str],

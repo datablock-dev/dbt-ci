@@ -75,7 +75,7 @@ def init(**kwargs):
             if values is None or len(values) == 0:
                 click.echo(f"\n{change_type.replace('_', ' ').title()}: 0")
                 continue
-            
+
             total_count = sum(len(node_dict) for node_dict in values.values())
             click.echo(f"\n{change_type.replace('_', ' ').title()}: {total_count}")
             for node_dict in values.values():
