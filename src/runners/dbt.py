@@ -1,9 +1,10 @@
 from subprocess import CompletedProcess
+import sys
 from typing import List
 from dbt.cli.main import dbtRunner
 
 def dbt_runner(
-    commands: List[str], 
+    commands: List[str],
     dry_run: bool = False,
     quiet: bool = False
 ) -> CompletedProcess | None:
@@ -45,3 +46,7 @@ def dbt_runner(
     except BaseException as e:
         print(e)
         raise
+    except Exception as e:
+        print(f"Unexpected error: {e}", file=sys.stderr)
+        sys.exit(1)
+

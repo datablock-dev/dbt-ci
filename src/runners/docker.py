@@ -1,22 +1,16 @@
+"""Docker runner for dbt-ci"""
 import os
-import subprocess
+from pathlib import Path
 from subprocess import CompletedProcess
+import sys
+import docker
+from docker import errors
 from typing import List
+from src.schema import RunnerConfig
 
 def docker_runner(
     commands: List[str],
-    dbt_project_dir: str,
-    profiles_dir: str | None,
-    state_dir: str,
-    docker_image: str,
-    docker_platform: str | None = None,
-    docker_volumes: List[str] | None = None,
-    docker_env: List[str] | None = None,
-    docker_network: str = "host",
-    docker_user: str | None = None,
-    docker_args: str = "",
-    dry_run: bool = False,
-    quiet: bool = False
+    runner_config: RunnerConfig
 ) -> CompletedProcess | None:
     """
     Execute dbt commands inside a Docker container.
@@ -36,87 +30,83 @@ def docker_runner(
         dry_run: If True, only print the command
         quiet: If True, suppress stdout
     """
-    
-    docker_volumes = docker_volumes or []
-    docker_env = docker_env or []
+    cwd = Path.cwd()
+    docker_volumes = runner_config.docker_volumes or []
+    docker_env = runner_config.docker_env or []
     
     # Auto-detect user if not specified
-    if docker_user is None:
+    if runner_config.docker_user is None:
         docker_user = f"{os.getuid()}:{os.getgid()}"
-    
-    # Container paths
-    container_project_dir = "/usr/app"
-    container_profiles_dir = "/root/.dbt"
-    container_state_dir = "/state"
-    
-    # Build Docker command
-    docker_cmd = ["docker", "run"]
-    
-    # Add platform if specified (useful for Apple Silicon Macs)
-    if docker_platform:
-        docker_cmd.extend(["--platform", docker_platform])
-    
-    # Add profiles directory mount if specified
-    if profiles_dir:
-        docker_cmd.extend(["-v", f"{profiles_dir}:{container_profiles_dir}"])
-        docker_cmd.extend(["-e", f"DBT_PROFILES_DIR={container_profiles_dir}"])
-    
-    # Add network mode
-    #docker_cmd.extend(["--network", docker_network])
-    
-    # Add user
-    #docker_cmd.extend(["--user", docker_user])
-    
-    # Add additional volumes
-    for volume in docker_volumes:
-        docker_cmd.extend(["-v", volume])
-    
-    # Add environment variables
-    for env in docker_env:
-        docker_cmd.extend(["-e", env])
-    
-    # Add additional docker args
-    if docker_args:
-        docker_cmd.extend(docker_args.split())
-    
-    # Add the Docker image
-    docker_cmd.append(docker_image)
-    
-    # Translate dbt command paths to container paths
-    translated_commands = []
-    for cmd_part in commands:
-        # Replace host paths with container paths in dbt command
-        if cmd_part == dbt_project_dir:
-            translated_commands.append(container_project_dir)
-        elif cmd_part == state_dir:
-            translated_commands.append(container_state_dir)
-        elif profiles_dir and cmd_part == profiles_dir:
-            translated_commands.append(container_profiles_dir)
-        else:
-            translated_commands.append(cmd_part)
-    
-    # Add the dbt command
-    docker_cmd.extend(translated_commands)
     
     if dry_run:
         print("DRY RUN: Command would be executed")
         return None
     
     try:
-        result = subprocess.run(
-            docker_cmd,
-            check=True,
-            capture_output=True,
-            text=True
+        if os.getenv("DBT_IMAGE", None) is not None:
+            image = os.getenv("DBT_IMAGE")
+
+        client = docker.client.from_env()
+        
+        # Build environment variables, excluding None values
+        env_vars = {
+            "DBT_PROFILES_DIR": "/dbt",
+        }
+        if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+            env_vars["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        if os.getenv("USER"):
+            env_vars["USER"] = os.getenv("USER")
+        if os.getenv("GITHUB_SHA"):
+            env_vars["GITHUB_SHA"] = os.getenv("GITHUB_SHA")
+        if os.getenv("DBT_STATE"):
+            env_vars["DBT_STATE"] = os.getenv("DBT_STATE")
+        
+        # Build volumes, excluding None paths
+        volumes = {
+            os.getenv("DBT_DIR", str((cwd / dbt_project_dir).resolve())): {"bind": "/dbt", "mode": "rw"}
+        }
+        if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+            volumes[os.getenv("GOOGLE_APPLICATION_CREDENTIALS")] = {
+                "bind": os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
+                "mode": "ro",  # Keep credentials read-only for security
+            }
+        
+        container = client.containers.run(
+            image=docker_image,
+            command=commands,
+            detach=True,
+            stdout=True,
+            stderr=True,
+            user=f"{os.getuid()}:{os.getgid()}",
+            environment=env_vars,
+            volumes=volumes
         )
         
-        if not quiet:
-            print(result.stdout)
+        # Capture all logs as string
+        output_logs = []
+        for log in container.logs(stream=True):
+            decoded = log.decode("utf-8")
+            print(decoded, end="")
+            output_logs.append(decoded)
         
-        return result
-    except subprocess.CalledProcessError as e:
-        if e.stderr:
-            print(e.stderr)
-        if e.stdout:
-            print(e.stdout)
-        raise
+        exit_status = container.wait()
+        returncode = exit_status.get("StatusCode", 0)
+        
+        return CompletedProcess(
+            args=commands, 
+            returncode=returncode, 
+            stdout="".join(output_logs), 
+            stderr=""
+        )
+    except errors.ContainerError as e:
+        print(f"Container error: {e}")
+        sys.exit(1)
+    except errors.ImageNotFound as e:
+        print(f"Image not found: {e}")
+        sys.exit(1)
+    except errors.APIError as e:
+        print(f"Docker API error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        sys.exit(1)

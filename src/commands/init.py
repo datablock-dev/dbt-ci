@@ -32,6 +32,7 @@ def init(**kwargs):
     try:
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
+        click.secho("DBT CI Initialization", fg="green", bold=True)
         args = Namespace(**kwargs)
         cache = CacheManager()
         config = Variables(args)
@@ -62,12 +63,14 @@ def init(**kwargs):
             "new_nodes": get_structured_modified_nodes(get_nodes(target_graph_dict, get_new_nodes(reference_graph_dict, target_graph_dict)))
         }
 
-        cache.write_cache(state_change_summary)
-        
-        # Get manifest file
         target_manifest_file = get_manifest_file(variables.dbt_project_dir)
+
+        # Write cache
+        cache.write_cache(state_change_summary)
         cache.write_cache(target_manifest_file, "target_prod_manifest.json" if production_target else "target_manifest.json")
 
+        click.echo("\n------------------------------------------------------")
+        click.secho("State Change Summary:", fg="green", bold=True)
         for change_type, values in state_change_summary.items():
             if values is None or len(values) == 0:
                 click.echo(f"\n{change_type.replace('_', ' ').title()}: 0")
@@ -78,6 +81,7 @@ def init(**kwargs):
             for node_dict in values.values():
                 for node in node_dict.values():
                     click.echo(f"  • {node['name']} ({node['resource_type']})")
+        click.echo("------------------------------------------------------\n")
 
         if production_target is not None:
             run_dbt_command(

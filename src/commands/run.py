@@ -34,6 +34,7 @@ def run(**kwargs):
     try:
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
+        click.secho("DBT CI Run", fg="green", bold=True)
         args = Namespace(**kwargs)
         cache = CacheManager()
         config = Variables(args)

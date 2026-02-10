@@ -11,6 +11,7 @@ from src.variables import Variables
 
 def delete(**kwargs):
     """Delete deleted dbt models"""
+    click.secho("DBT CI Delete", fg="green", bold=True)
     args = Namespace(**kwargs)
     cache = CacheManager()
     config = Variables(args)

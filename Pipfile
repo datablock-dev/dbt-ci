@@ -8,6 +8,7 @@ click = ">=8.0.0"
 pyyaml = ">=6.0"
 dbt-core = ">=1.10.13"
 google-cloud-bigquery = ">=3.0.0"
+docker = "*"
 
 [dev-packages]
 pytest = ">=7.0.0"
