@@ -31,10 +31,6 @@ def docker_runner(
         quiet: If True, suppress stdout
     """
     try:
-        if runner_config.get("dry_run", False):
-            print("DRY RUN: Command would be executed")
-            return None
-
         client = docker.client.from_env()
         container = client.containers.run(
             image=runner_config.get("docker_image", "ghcr.io/dbt-labs/dbt-core:latest"),
