@@ -5,7 +5,7 @@ from typing import Dict, Set, Tuple
 import click
 from google.cloud import bigquery
 from src.paths import get_profiles_file
-from src.schema import EphemeralMapNode
+from src.schema import DeleteMapNode, EphemeralMapNode
 from src.utilities.multi_threading import run_multithreaded
 
 def bigquery_client(args) -> bigquery.Client:
@@ -143,3 +143,27 @@ def clone_tables(
         threads=threads,
         exit_on_exception=True
     )
+
+def bigquery_delete_table(
+    delete_map: Dict[str, DeleteMapNode],
+    variables: Namespace
+):
+    """Strategy for handling deletions towards BigQuery."""
+    try:
+        client = bigquery_client(variables)
+        threads = variables.variables.target_config.get("threads", 5)
+        query = f""
+        # Delete through multi-threading
+        func_list = [
+            lambda table_id=node_data["table_id"]: bigquery_query(client, f"DROP TABLE IF EXISTS `{table_id}`")
+            for node_data in delete_map.values()
+        ]
+        run_multithreaded(
+            func_list=func_list,
+            threads=threads,
+            exit_on_exception=True
+        )
+
+        return
+    except Exception as e:
+        raise RuntimeError(f"Error in BigQuery delete strategy: {e}")

@@ -402,6 +402,14 @@ class EphemeralMapNode(TypedDict):
     ephemeral_config: NodeConfig | None
     reference_config: NodeConfig | None
 
+class DeleteMapNode(TypedDict):
+    type: DBTManifest["nodes"][str]["resource_type"]
+    name: str
+    table_id: str
+
+type SupportedConnectors = Literal[
+    "bigquery"
+]
 type SupportedConnectorsEphemeralStrategy = Literal[
     "bigquery"
 ]
@@ -410,3 +418,10 @@ type EphemeralConnectors = Dict[
     SupportedConnectorsEphemeralStrategy,
     Callable[[Dict[str, EphemeralMapNode], Namespace], None]
 ]
+
+class ConnectorConfig(TypedDict):
+    """Configuration for supported connectors."""
+    client: Callable[..., Any]
+    ephemeral: Callable[[Dict[str, EphemeralMapNode], Namespace], None]
+    delete: Callable[[Dict[str, DeleteMapNode], Namespace], None]
+    migration: Callable[..., Any] # Fix
