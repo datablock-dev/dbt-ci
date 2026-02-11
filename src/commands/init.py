@@ -45,8 +45,9 @@ def init(**kwargs):
 
         if production_target is None:
             logger.warning("No production target specified, using current target as production state for comparison.")
+        else:
+            command.extend(["--target", production_target])
         
-        command.extend(["--target", production_target])
         run_dbt_command(
             command_args=append_dbt_variables_to_command(command, variables, True),
             runner_config=RunnerConfig(variables.__dict__),
@@ -55,6 +56,14 @@ def init(**kwargs):
         logger.info("DBT project compiled successfully. manifest.json generated.")
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, user_production_state=True)
+
+        result = run_dbt_command(
+            command_args=append_dbt_variables_to_command(["ls", "--select", "state:modified"], variables),
+            runner_config=RunnerConfig(variables.__dict__)
+        )
+
+        print(result)
+
         modified_nodes = target_graph.get_state_modified()
         target_graph_dict = target_graph.to_dict()
         reference_graph_dict = reference_graph.to_dict()
