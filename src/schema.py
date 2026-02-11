@@ -425,3 +425,17 @@ class ConnectorConfig(TypedDict):
     ephemeral: Callable[[Dict[str, EphemeralMapNode], Namespace], None]
     delete: Callable[[Dict[str, DeleteMapNode], Namespace], None]
     migration: Callable[..., Any] # Fix
+
+# Add better type definitions
+class MigrationMapNodeEntry(TypedDict):
+    """Entry for a node in the migration map."""
+    table_id: str
+    compiled_code: str | None
+    old_partitioning: Any | None
+    new_partitioning: Any | None
+
+
+class MigrationMap(TypedDict):
+    """Structure for tracking table partitioning migrations."""
+    connector: str
+    nodes: Dict[str, MigrationMapNodeEntry]
