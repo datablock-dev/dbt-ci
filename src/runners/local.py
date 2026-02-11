@@ -6,10 +6,7 @@ from subprocess import CompletedProcess
 from typing import List
 from src.schema import RunnerConfig
 
-def local_runner(
-    commands: List[str],
-    runner_config: RunnerConfig
-) -> CompletedProcess | None:
+def local_runner(commands: List[str], runner_config: RunnerConfig) -> CompletedProcess | None:
     """Execute dbt commands locally."""
     full_command = [*([runner_config.get('entrypoint')] if runner_config.get('entrypoint') else []), *commands]
     absolute_command = []

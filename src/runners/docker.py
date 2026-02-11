@@ -52,11 +52,40 @@ def docker_runner(commands: List[str], runner_config: RunnerConfig) -> Completed
         if returncode != 0:
             print("".join(output_logs))
             sys.exit(1)
+
+        # Optionally filter dbt log lines from output
+        stdout = "".join(output_logs)
+
+        """
+        if filter_output:
+            # Filter out dbt log lines - only keep actual command output
+            # Node names/output don't contain ANSI escape codes or log keywords
+            all_lines = stdout.strip().split("\n")
+            filtered_lines = [
+                line.strip()
+                for line in all_lines
+                if line.strip() and
+                   not line.startswith('\x1b') and  # ANSI escape codes
+                   not any(keyword in line for keyword in [
+                       '[', ']', 
+                       ':',
+                       'Running',
+                       'WARNING',
+                       'Found',
+                       'INFO', 
+                       'Completed',
+                       'Done',
+                       'with',
+                       'ERROR'
+                   ])
+            ]
+            stdout = "\n".join(filtered_lines)
+        """
         
         return CompletedProcess(
             args=commands,
             returncode=returncode,
-            stdout="".join(output_logs),
+            stdout=stdout,
             stderr=""
         )
     except errors.ContainerError as e:
@@ -76,7 +105,6 @@ def get_docker_env(runner_config: RunnerConfig) -> dict | None:
     """Build Docker environment variables based on runner configuration."""
     if runner_config.get("docker_env", None) is None or len(runner_config["docker_env"]) == 0:
         return None
-    
     env_dict = {}
     for env in runner_config.get("docker_env", []):
         key, value = env.split("=", 1)

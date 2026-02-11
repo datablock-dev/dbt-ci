@@ -6,6 +6,13 @@ from src.schema import DependencyGraphNodeType, RunModes
 
 
 OPTIONS_CONFIG = {
+    'dbt_version': {
+        'env_vars': ['DBT_VERSION'],
+        'cli_flags': ['dbt_version'],
+        'required': False,
+        'default': None,
+        'help': 'Specify a dbt version to use for this command'
+    },
     'nodes': {
         'env_vars': ['DBT_NODES'],
         'cli_flags': ['nodes'],

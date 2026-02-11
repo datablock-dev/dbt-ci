@@ -26,11 +26,11 @@ dependencies = [
     "click>=8.0.0",
     "PyYAML>=6.0",
     "dbt-core>=1.10.13",
-    "google-cloud-bigquery>=3.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "google-cloud-bigquery>=3.0.0",
     "pytest>=7.0.0",
     "black>=22.0.0",
     "mypy>=0.950",

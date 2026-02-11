@@ -11,6 +11,12 @@ from src.logging import setup_logging
 # Shared options for all commands
 def common_options(f):
     """Decorator to add common options to all commands"""
+    # Dynamic package options
+    f = click.option(
+        "--dbt-version",
+        default=None,
+        help="Specify a dbt version to use for this command"
+    )(f)
     f = click.option(
         '--prod-manifest-dir', 
         '--reference-manifest-dir', 
@@ -75,7 +81,6 @@ def common_options(f):
         type=str,
         help="Slack webhook URL for notifications (optional)"
     )(f)
-    
     # Docker options
     f = click.option(
         '--docker-image', 
@@ -152,6 +157,7 @@ def init_cmd(**kwargs):
 @common_options
 @click.option(
     '--nodes', '-n',
+    '--mode', '-m',
     type=click.Choice([
         "all",
         "models",
