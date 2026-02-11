@@ -1,3 +1,4 @@
+"""DBT CI Tool - Intelligent CI for DBT projects"""
 from argparse import Namespace
 import click
 from src.commands import (
