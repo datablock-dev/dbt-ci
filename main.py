@@ -68,6 +68,13 @@ def common_options(f):
         default='INFO',
         help='Logging level'
     )(f)
+    f = click.option(
+        "--slack-webhook",
+        "--slack-webhook-url",
+        default=None,
+        type=str,
+        help="Slack webhook URL for notifications (optional)"
+    )(f)
     
     # Docker options
     f = click.option(
