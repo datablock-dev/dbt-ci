@@ -1,8 +1,6 @@
 """Logging configuration for the application."""
 import logging
-from typing import Literal
-
-type LoggingLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+from src.schema import LoggingLevel
 
 def setup_logging(level: LoggingLevel = "INFO") -> None:
     """Set up logging configuration."""

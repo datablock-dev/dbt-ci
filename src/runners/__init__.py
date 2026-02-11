@@ -128,6 +128,7 @@ def append_dbt_variables_to_command(
     skip_target: bool = False,
 ) -> List[str]:
     """Append dbt variables to command arguments."""
+    runner = getattr(variables, "runner", None)
     commands = command_args.copy()
     dbt_variables = {
         "target": "--target",
@@ -145,6 +146,50 @@ def append_dbt_variables_to_command(
         value = getattr(variables, var, None)
         if value is not None and value != "":
             commands.extend([str(dbt_flag), str(value)])
+
+    return commands
+
+# To replace append_dbt_variables_to_command
+def resolve_dbt_commands(
+    command_args: List[str],
+    variables: Namespace,
+    skip_target: bool = False
+) -> List[str]:
+    """Resolve dbt command arguments"""
+    commands = command_args.copy()
+    runner = getattr(variables, "runner", None)
+    dbt_variables = {
+        "target": "--target",
+        "vars": "--vars",
+        "defer": "--defer",
+    }
+
+    # Local and dbt runners need absolute paths for certain flags
+    path_flags = {
+        "dbt_project_dir": "--project-dir",
+        "profiles_dir": "--profiles-dir",
+        "prod_manifest_dir": "--state",
+    }
+    if runner in ["local", "dbt"]:
+        for var, flag in path_flags.items():
+            value = getattr(variables, var, None)
+            if value is not None and value != "":
+                absolute_path = _get_absolute_path(value)
+                commands.extend([flag, absolute_path])
+
+    for var, dbt_flag in dbt_variables.items():
+        if skip_target and var == "target":
+            continue  # Skip adding target if skip_target is True
+        if dbt_flag in commands:
+            continue  # Skip if already in command args
+
+        value = getattr(variables, var, None)
+        if value is not None and value != "":
+            commands.extend([str(dbt_flag), str(value)])
+
+    if runner is None:
+        print("Runner not found! Exiting...")
+        sys.exit(1)
 
     return commands
 

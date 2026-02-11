@@ -2,6 +2,7 @@
 from argparse import Namespace
 from typing import Callable, Dict, Any, List, Optional, TypedDict, NotRequired, Literal, Set
 
+type LoggingLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 class DBTProfile(TypedDict):
     """Structure of a dbt profiles.yml profile."""
     type: str
@@ -367,6 +368,7 @@ class RunnerConfig(TypedDict):
     entrypoint: str
     dry_run: bool
     quiet: bool
+    log_level: LoggingLevel
     # Docker-specific configuration
     docker_image: Optional[str]
     docker_platform: Optional[str]

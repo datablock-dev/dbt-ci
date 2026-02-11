@@ -59,6 +59,12 @@ def common_options(f):
         help='A YAML string or path to YAML file containing variables to pass to dbt'
     )(f)
     f = click.option(
+        "--defer",
+        is_flag=True,
+        default=False,
+        help="Use dbt's --defer flag to defer to the state of the production manifest (only applicable to run and test commands)"
+    )(f)
+    f = click.option(
         '--runner', 
         '-r', 
         type=click.Choice(['local', 'docker', 'bash', 'dbt']),
@@ -78,8 +84,9 @@ def common_options(f):
     )(f)
     f = click.option(
         '--log-level', 
-        type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']),
+        type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], case_sensitive=False),
         default='INFO',
+        callback=lambda ctx, param, value: value.upper() if value else value,
         help='Logging level'
     )(f)
     f = click.option(

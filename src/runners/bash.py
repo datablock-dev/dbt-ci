@@ -1,8 +1,15 @@
+"""
+This module implements the bash runner for executing dbt commands using a custom dbt binary or script. It provides functionality to resolve dbt command arguments based on the provided variables and runner configuration.
+"""
 import sys
+import logging
 from typing import List
 import subprocess
 from subprocess import CompletedProcess
+from src.logging import setup_logging
 from src.schema import RunnerConfig
+
+logger = logging.getLogger(__name__)
 
 def bash_runner(
     commands: List[str],
@@ -19,14 +26,14 @@ def bash_runner(
     
     Note: The first element 'dbt' in commands will be replaced with shell_path
     """
-    # Replace 'dbt' command with custom path
+    setup_logging(runner_config.get('log_level', 'INFO'))
     commands = [runner_config['shell_path']] + commands
     
     if not runner_config.get('quiet', False):
-        print(f"Running command: {' '.join(commands)}")
+        logger.debug(f"Running command: {' '.join(commands)}")
     
     if runner_config.get('dry_run', False):
-        print("DRY RUN: Command would be executed")
+        logger.info("DRY RUN: Command would be executed")
         return None
     
     try:
@@ -46,10 +53,10 @@ def bash_runner(
         return result
     except subprocess.CalledProcessError as e:
         if e.stderr:
-            print(e.stderr)
+            logger.error(e.stderr)
         if e.stdout:
-            print(e.stdout)
+            logger.error(e.stdout)
         sys.exit(1)
     except Exception as e:
-        print(f"Unexpected error: {e}", file=sys.stderr)
+        logger.error(f"Unexpected error: {e}")
         sys.exit(1)

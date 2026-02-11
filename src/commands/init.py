@@ -11,7 +11,7 @@ from src.utilities.paths import get_manifest_file
 from src.schema import RunnerConfig
 from src.variables import Variables
 from src.cache import CacheManager
-from src.runners import run_dbt_command, append_dbt_variables_to_command
+from src.runners import resolve_dbt_commands, run_dbt_command, append_dbt_variables_to_command
 from src.utilities.getters import (
     get_deleted_nodes,
     get_new_nodes,
@@ -49,7 +49,7 @@ def init(**kwargs):
             command.extend(["--target", production_target])
         
         run_dbt_command(
-            command_args=append_dbt_variables_to_command(command, variables, True),
+            command_args=resolve_dbt_commands(command, variables, True),
             runner_config=RunnerConfig(variables.__dict__),
         )
 
@@ -57,14 +57,23 @@ def init(**kwargs):
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, user_production_state=True)
 
-        result = run_dbt_command(
-            command_args=append_dbt_variables_to_command(["ls", "--select", "state:modified"], variables),
+        ls_output = run_dbt_command(
+            command_args=resolve_dbt_commands(["ls", "--select", "state:modified"], variables),
             runner_config=RunnerConfig(variables.__dict__)
         )
 
-        print(result)
+        # Parse output to extract node names
+        project_profile = variables.project.get("profile", None)
+        if project_profile is None:
+            logger.error("Project profile not found in dbt_project.yml. Please ensure it is defined under the 'profile' key.")
+            sys.exit(1)
 
-        modified_nodes = target_graph.get_state_modified()
+        modified_nodes = {
+            line.strip() for line in ls_output.stdout.splitlines()
+            if line.startswith(f"{project_profile}.")
+        }
+        
+        modified_nodes = [nid.split(".")[-1] for nid in modified_nodes]
         target_graph_dict = target_graph.to_dict()
         reference_graph_dict = reference_graph.to_dict()
 
