@@ -6,6 +6,13 @@ from src.schema import DependencyGraphNodeType, RunModes
 
 
 OPTIONS_CONFIG = {
+    'state_uri': {
+        'env_vars': ['DBT_STATE_URI', 'STATE_URI'],
+        'cli_flags': ['state_uri'],
+        'required': False,
+        'default': None,
+        'help': 'S3 URI for the state manifest.json files (e.g., s3://my-bucket/dbt-state/)'
+    },
     'dbt_version': {
         'env_vars': ['DBT_VERSION'],
         'cli_flags': ['dbt_version'],

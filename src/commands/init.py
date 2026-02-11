@@ -62,18 +62,16 @@ def init(**kwargs):
             runner_config=RunnerConfig(variables.__dict__)
         )
 
-        # Parse output to extract node names
-        project_profile = variables.project.get("profile", None)
-        if project_profile is None:
-            logger.error("Project profile not found in dbt_project.yml. Please ensure it is defined under the 'profile' key.")
-            sys.exit(1)
+        if ls_output is None:
+            logger.info("No modified nodes found during initialization. Exiting...")
+            cache.write_cache({
+                "modified_nodes": None,
+                "deleted_nodes": None,
+                "new_nodes": None
+            })
+            sys.exit(0)
 
-        modified_nodes = {
-            line.strip() for line in ls_output.stdout.splitlines()
-            if line.startswith(f"{project_profile}.")
-        }
-
-        modified_nodes = [nid.split(".")[-1] for nid in modified_nodes]
+        modified_nodes = ls_output.stdout.splitlines()
         target_graph_dict = target_graph.to_dict()
         reference_graph_dict = reference_graph.to_dict()
 
@@ -114,7 +112,6 @@ def init(**kwargs):
 
         logger.info("Initialization complete. Cache updated with current state(s).")
         logger.info("You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state.")
-
     except Exception as e:
         logger.error(f"Error during initialization: {str(e)}")
         sys.exit(1)

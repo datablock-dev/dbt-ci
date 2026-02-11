@@ -12,6 +12,12 @@ from src.logging import setup_logging
 # Shared options for all commands
 def common_options(f):
     """Decorator to add common options to all commands"""
+    # S3 options
+    f = click.option(
+        "--state-uri",
+        default=None,
+        help="S3 URI for the state manifest.json files (e.g., s3://my-bucket/dbt-state/)"
+    )(f)
     # Dynamic package options
     f = click.option(
         "--dbt-version",
