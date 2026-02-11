@@ -56,7 +56,8 @@ def run_dbt_command(
 
 def append_dbt_variables_to_command(
     command_args: List[str],
-    variables: Namespace
+    variables: Namespace,
+    skip_target: bool = False,
 ) -> List[str]:
     """Append dbt variables to command arguments."""
     commands = command_args.copy()
@@ -68,6 +69,8 @@ def append_dbt_variables_to_command(
     }
 
     for var, dbt_flag in dbt_variables.items():
+        if skip_target and var == "target":
+            continue  # Skip adding target if skip_target is True
         if dbt_flag in commands:
             continue  # Skip if already in command args
 

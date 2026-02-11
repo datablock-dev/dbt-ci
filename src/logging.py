@@ -8,5 +8,6 @@ def setup_logging(level: LoggingLevel = "INFO") -> None:
     """Set up logging configuration."""
     logging.basicConfig(
         level=getattr(logging, level),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        format='%(message)s',
+        force=True
     )

@@ -52,6 +52,9 @@ def docker_runner(
         
         exit_status = container.wait()
         returncode = exit_status.get("StatusCode", 0)
+        if returncode != 0:
+            print("".join(output_logs))
+            sys.exit(1)
         
         return CompletedProcess(
             args=commands,
