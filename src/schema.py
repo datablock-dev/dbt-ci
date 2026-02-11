@@ -81,6 +81,9 @@ class Contract(TypedDict):
 
 class Config(TypedDict, total=False):
     """Configuration for a dbt resource."""
+    """
+        Add more adaptor-specific config options as needed.
+    """
     enabled: bool
     alias: Optional[str]
     schema: Optional[str]
@@ -110,6 +113,12 @@ class Config(TypedDict, total=False):
     concurrent_batches: Optional[int]
     access: str
     freshness: Optional[Any]
+    # BigQuery-specific config options
+    partition_by: Optional[Dict[str, Any]]
+    cluster_by: Optional[List[str]]
+    # Snowflake-specific config options
+    snowflake_warehouse: Optional[str]
+    snowflake_role: Optional[str]
 
 
 class Ref(TypedDict):
@@ -325,6 +334,7 @@ class DependencyGraphNode(TypedDict):
     original_file_path: str
     compiled_path: str
     compiled_code: str
+    config: Config
     columns: Set[str]
     materialized: DBTMaterialized
     incremental_strategy: Optional[str]

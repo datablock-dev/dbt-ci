@@ -7,6 +7,7 @@
 """
 
 import sys
+import logging
 from itertools import chain
 from argparse import Namespace
 from typing import Dict, Optional
@@ -22,6 +23,8 @@ from src.utilities.getters import (
     get_nodes,
     get_upstream_dependencies
 )
+
+logger = logging.getLogger(__name__)
 
 CONNECTORS: EphemeralConnectors = {
     "bigquery": bigquery_ephemeral_strategy
@@ -56,17 +59,18 @@ def ephemeral(**kwargs):
         ephemeral_connector = CONNECTORS.get(connector_type, None)
 
         if connector_type is None:
-            click.echo(f"Missing connector type for ephemeral mode: {connector_type}. Supported connectors: {list(CONNECTORS.keys())}")
+            logger.error(f"Missing connector type for ephemeral mode: {connector_type}. Supported connectors: {list(CONNECTORS.keys())}")
+            sys.exit(1)
         elif CONNECTORS.get(connector_type) is None:
-            click.echo(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(CONNECTORS.keys())}")
-            return
+            logger.error(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(CONNECTORS.keys())}")
+            sys.exit(1)
 
         # Look for cache
         prev_cache = cache.get_cache()
         if prev_cache is None: # Should we exit here instead of compiling?
-            click.echo("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
-            return
-        click.echo("Cache successfully found - using cached state for comparison")
+            logger.error("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
+            sys.exit(1)
+        logger.info("Cache successfully found - using cached state for comparison")
 
         modified_nodes_dict = {
             "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
@@ -79,8 +83,8 @@ def ephemeral(**kwargs):
         ))
 
         if len(modified_nodes) == 0:
-            click.echo("No modified or deleted nodes found in cache, skipping...")
-            return
+            logger.info("No modified or deleted nodes found in cache, skipping...")
+            sys.exit(0)
 
         # Deleted nodes dont need to be tested.
         # However, we need to include the modified nodes & their downstream
@@ -134,11 +138,11 @@ def ephemeral(**kwargs):
         # Pass the ephemeral map and variables to the connector strategy which
         # will handle the ephemeral execution logic based on the connector type
         ephemeral_connector(ephemeral_map, variables)
-        click.echo("Ephemeral strategy completed successfully.")
-        click.echo("Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies.")
+        logger.info("Ephemeral strategy completed successfully.")
+        logger.info("Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies.")
         sys.exit(0)
     except Exception as e:
-        click.echo(f"❌ Error: {e}", err=True)
+        logger.error(f"❌ Error: {e}", err=True)
         sys.exit(1)
 
 def full_config_or_none(

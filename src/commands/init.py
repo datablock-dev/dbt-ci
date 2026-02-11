@@ -3,6 +3,7 @@ This module contains the implementation of the `init` command for the dbt CI too
 """
 
 import sys
+import logging
 from argparse import Namespace
 import click
 from src.dependency_graph import DbtGraph
@@ -16,6 +17,8 @@ from src.utilities.getters import (
     get_new_nodes,
     get_nodes,get_structured_modified_nodes
 )
+
+logger = logging.getLogger(__name__)
 
 def init(**kwargs):
     """
@@ -41,7 +44,7 @@ def init(**kwargs):
         command = ["compile"]
 
         if production_target is None:
-            click.echo("WARNING! No production target specified, using current target as production state for comparison.")
+            logger.warning("No production target specified, using current target as production state for comparison.")
         else:
             command.extend(["--target", production_target])
 
@@ -50,7 +53,7 @@ def init(**kwargs):
             runner_config=RunnerConfig(variables.__dict__)
         )
 
-        click.echo("DBT project compiled successfully. manifest.json generated.")
+        logger.info("DBT project compiled successfully. manifest.json generated.")
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, user_production_state=True)
         modified_nodes = target_graph.get_state_modified()
@@ -69,19 +72,19 @@ def init(**kwargs):
         cache.write_cache(state_change_summary)
         cache.write_cache(target_manifest_file, "target_prod_manifest.json" if production_target else "target_manifest.json")
 
-        click.echo("\n------------------------------------------------------")
-        click.secho("State Change Summary:", fg="green", bold=True)
+        logger.info("\n------------------------------------------------------")
+        logger.info("State Change Summary:")
         for change_type, values in state_change_summary.items():
             if values is None or len(values) == 0:
-                click.echo(f"\n{change_type.replace('_', ' ').title()}: 0")
+                logger.info(f"\n{change_type.replace('_', ' ').title()}: 0")
                 continue
 
             total_count = sum(len(node_dict) for node_dict in values.values())
-            click.echo(f"\n{change_type.replace('_', ' ').title()}: {total_count}")
+            logger.info(f"\n{change_type.replace('_', ' ').title()}: {total_count}")
             for node_dict in values.values():
                 for node in node_dict.values():
-                    click.echo(f"  • {node['name']} ({node['resource_type']})")
-        click.echo("------------------------------------------------------\n")
+                    logger.info(f"  • {node['name']} ({node['resource_type']})")
+        logger.info("------------------------------------------------------\n")
 
         if production_target is not None:
             run_dbt_command(
@@ -92,9 +95,9 @@ def init(**kwargs):
             target_manifest_file = get_manifest_file(variables.dbt_project_dir)
             cache.write_cache(target_manifest_file, "target_manifest.json")
 
-        click.echo("Initialization complete. Cache updated with current state(s).")
-        click.echo("You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state.")
+        logger.info("Initialization complete. Cache updated with current state(s).")
+        logger.info("You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state.")
 
     except Exception as e:
-        click.echo(f"Error during initialization: {str(e)}")
+        logger.error(f"Error during initialization: {str(e)}")
         sys.exit(1)

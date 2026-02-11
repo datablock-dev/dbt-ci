@@ -108,6 +108,7 @@ def generate_dependency_graph(manifest_file_path: str, is_state_manifest: bool =
             "original_file_path": original_file_path,
             "compiled_path": full_item.get("compiled_path", None),
             "compiled_code": compiled_code,
+            "config": full_item.get("config", {}),
             "columns": set(full_item.get("columns", {}).keys()),
             "materialized": full_item.get("materialized", None),
             "incremental_strategy": full_item.get("incremental_strategy", None),
