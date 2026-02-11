@@ -15,7 +15,9 @@ def dbt_runner(
     Returns a CompletedProcess-compatible object for consistency with other runners.
     """
     runner = dbtRunner()
-    dbt_command_args = commands if not runner_config.get('entrypoint') else commands[1:]
+    # dbtRunner Python API expects commands without 'dbt' prefix (e.g., ['compile', '--target', 'prod'])
+    # If first element is 'dbt', strip it; otherwise use commands as-is
+    dbt_command_args = commands[1:] if commands and commands[0] == 'dbt' else commands
         
     # Convert paths to absolute for reliability
     absolute_command = []

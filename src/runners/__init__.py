@@ -50,7 +50,7 @@ def run_dbt_command(
     """
     runner = runner_config['runner']
     if runner in RUNNERS:
-        if runner == "dbt" and dbt_version_exists is False:
+        if runner == "dbt" and not dbt_version_exists(runner_config.get('dbt_version')):
             print(f"dbt version {runner_config.get('dbt_version')} not found. Installing...")
             run_with_dbt_version(runner_config.get('dbt_version'))
         return RUNNERS[runner](command_args, runner_config)
@@ -74,7 +74,6 @@ def dbt_version_exists(version: str) -> bool:
     """Check if a virtual environment for the specified dbt version already exists."""
     venv_path = Path.home() / ".cache" / "dbt-ci" / "venvs" / f"dbt-{version}"
     return venv_path.exists()
-
 
 def append_dbt_variables_to_command(
     command_args: List[str],
