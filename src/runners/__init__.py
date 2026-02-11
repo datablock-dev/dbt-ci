@@ -19,7 +19,8 @@ RUNNERS: Dict[Runners, Callable[[List[str], RunnerConfig], CompletedProcess | No
 
 def run_dbt_command(
     command_args: List[str],
-    runner_config: RunnerConfig
+    runner_config: RunnerConfig,
+    skip_target: bool = False,
 ) -> CompletedProcess | None:
     """
     Central dispatcher for running dbt commands across any runner.
@@ -32,9 +33,7 @@ def run_dbt_command(
     Args:
         command_args: dbt command arguments (e.g., ['ls', '--select', 'state:modified+'])
         runner_config: Configuration containing runner type, paths, and runner-specific settings
-        dry_run: Override config dry_run setting
-        quiet: Override config quiet setting
-    
+        skip_target: Whether to skip adding the target flag to the command    
     Returns:
         CompletedProcess from subprocess, or None if dry_run
     
@@ -49,7 +48,7 @@ def run_dbt_command(
     """
     runner = runner_config['runner']
     if runner in RUNNERS:
-        return RUNNERS[runner](command_args, runner_config)
+        return RUNNERS[runner](command_args, runner_config, skip_target)
 
     print(f"Unsupported runner: {runner}")
     sys.exit(1)

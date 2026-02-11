@@ -45,12 +45,11 @@ def init(**kwargs):
 
         if production_target is None:
             logger.warning("No production target specified, using current target as production state for comparison.")
-        else:
-            command.extend(["--target", production_target])
-
+        
+        command.extend(["--target", production_target])
         run_dbt_command(
-            command_args=append_dbt_variables_to_command(command, variables),
-            runner_config=RunnerConfig(variables.__dict__)
+            command_args=append_dbt_variables_to_command(command, variables, True),
+            runner_config=RunnerConfig(variables.__dict__),
         )
 
         logger.info("DBT project compiled successfully. manifest.json generated.")

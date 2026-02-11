@@ -8,10 +8,7 @@ from docker import errors
 from typing import List
 from src.schema import RunnerConfig
 
-def docker_runner(
-    commands: List[str],
-    runner_config: RunnerConfig
-) -> CompletedProcess | None:
+def docker_runner(commands: List[str], runner_config: RunnerConfig) -> CompletedProcess | None:
     """
     Execute dbt commands inside a Docker container.
     
