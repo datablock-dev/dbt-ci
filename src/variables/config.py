@@ -13,6 +13,13 @@ OPTIONS_CONFIG = {
         'default': None,
         'help': 'Specify a dbt version to use for this command'
     },
+    'adapter': {
+        'env_vars': ['DBT_ADAPTER'],
+        'cli_flags': ['adapter', '-a'],
+        'required': False,
+        'default': None,
+        'help': "Specify the dbt adapter to use (e.g., 'postgres', 'snowflake')"
+    },
     'nodes': {
         'env_vars': ['DBT_NODES'],
         'cli_flags': ['nodes'],

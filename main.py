@@ -19,6 +19,13 @@ def common_options(f):
         help="Specify a dbt version to use for this command"
     )(f)
     f = click.option(
+        "--adapter", "-a",
+        type=str,
+        default=None,
+        help="Specify the dbt adapter to use (e.g., 'postgres', 'snowflake')"
+    )(f)
+    # Main commands
+    f = click.option(
         '--prod-manifest-dir', 
         '--reference-manifest-dir', 
         '--state',
