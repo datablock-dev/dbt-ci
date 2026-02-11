@@ -152,7 +152,6 @@ def bigquery_delete_table(
     try:
         client = bigquery_client(variables)
         threads = variables.variables.target_config.get("threads", 5)
-        query = f""
         # Delete through multi-threading
         func_list = [
             lambda table_id=node_data["table_id"]: bigquery_query(client, f"DROP TABLE IF EXISTS `{table_id}`")
