@@ -4,7 +4,7 @@ import sys
 from typing import Dict, Set, Tuple
 import click
 from google.cloud import bigquery
-from src.paths import get_profiles_file
+from src.utilities.paths import get_profiles_file
 from src.schema import DeleteMapNode, EphemeralMapNode
 from src.utilities.multi_threading import run_multithreaded
 

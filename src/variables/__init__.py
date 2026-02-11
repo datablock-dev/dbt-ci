@@ -13,7 +13,7 @@ import sys
 from argparse import Namespace
 from typing import Any, Dict, Optional
 from src.variables.config import OPTIONS_CONFIG
-from src.paths import (
+from src.utilities.paths import (
     get_dbt_project_file,
     get_manifest_file,
     get_prod_manifest_file,

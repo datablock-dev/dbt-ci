@@ -10,16 +10,13 @@ authors = [
     {name = "Patrick Tannoury", email = "patrick.tannoury@datablock.dev"},
 ]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 license = {file = "LICENSE"}
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Build Tools",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
 
@@ -53,4 +50,4 @@ src = ["py.typed"]
 
 [tool.black]
 line-length = 100
-target-version = ['py39']
+target-version = ['py312']

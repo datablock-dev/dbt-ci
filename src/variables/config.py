@@ -145,7 +145,7 @@ OPTIONS_CONFIG = {
         'default': '/bin/bash',
         'help': 'Path to shell executable for bash runner'
     },
-    # Ephemeral Flags
+    # Ephemeral Flags (deprecate?)
     'keep_env': {
         'env_vars': ['DBT_KEEP_ENV'],
         'cli_flags': ['keep_env'],
@@ -153,6 +153,14 @@ OPTIONS_CONFIG = {
         'default': False,
         'type': 'bool',
         'help': "Don't destroy ephemeral environment after run (if supported by runner)"
+    },
+    # Adapter specific configs
+    "slack_webhook": {
+        "env_vars": ['SLACK_WEBHOOK', 'SLACK_WEBHOOK_URL'],
+        "cli_flags": ['slack_webhook'],
+        "required": False,
+        "default": None,
+        "help": 'Slack webhook URL for notifications (https://hooks.slack.com/services/...)'
     }
 }
 

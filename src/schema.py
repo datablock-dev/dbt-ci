@@ -403,7 +403,7 @@ class EphemeralMapNode(TypedDict):
     reference_config: NodeConfig | None
 
 class DeleteMapNode(TypedDict):
-    type: DBTManifest["nodes"][str]["resource_type"]
+    type: Node["resource_type"]
     name: str
     table_id: str
 

@@ -7,7 +7,7 @@ import logging
 from argparse import Namespace
 import click
 from src.dependency_graph import DbtGraph
-from src.paths import get_manifest_file
+from src.utilities.paths import get_manifest_file
 from src.schema import RunnerConfig
 from src.variables import Variables
 from src.cache import CacheManager

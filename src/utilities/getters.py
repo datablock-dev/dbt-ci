@@ -1,12 +1,13 @@
 """Getters for dependency graph nodes"""
 
+from argparse import Namespace
 import sys
 import os
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 import yaml
-from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
+from src.schema import DBTProfile, DBTProfile, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 logger = logging.getLogger(__name__)
 
@@ -268,7 +269,7 @@ def get_dbt_profiles_config(dbt_root_path: str):
 
     return profiles
 
-def get_profile(args: Namespace) -> DBTProfileOutput:
+def get_profile(args: Namespace) -> DBTProfile:
     """Get the DBT profile output configuration based on the provided arguments."""
     dbt_root_path = getattr(args, "dbt_project_path", None)
     dbt_project_file = get_dbt_project_config(dbt_root_path)
@@ -300,6 +301,6 @@ def get_profile(args: Namespace) -> DBTProfileOutput:
         print(f"Target '{target}' not found in profile '{profile_name}'")
         sys.exit(1)
     
-    output_config: DBTProfileOutput = profile["outputs"][target]
+    output_config: DBTProfile = profile["outputs"][target]
 
     return output_config
