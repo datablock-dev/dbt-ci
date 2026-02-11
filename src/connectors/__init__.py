@@ -8,9 +8,7 @@ from src.connectors.bigquery import (
     bigquery_delete_table
 )
 
-# Create a type
-
-def get_connector(connector: SupportedConnectors):
+def get_connector(connector: SupportedConnectors, get_list: bool = False) -> ConnectorConfig | Dict[SupportedConnectors, ConnectorConfig]:
     """Factory function to get the appropriate connector based on configuration."""
     
     connectors: Dict[SupportedConnectors, ConnectorConfig] = {
@@ -22,9 +20,12 @@ def get_connector(connector: SupportedConnectors):
         }
     }
 
+    if get_list:
+        return connectors
     if connector not in connectors:
         print(f"Connector '{connector}' is not supported.")
         sys.exit(1)
+
 
     return connectors[connector]
 

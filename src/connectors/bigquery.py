@@ -1,6 +1,7 @@
 """BigQuery connector for dbt CI."""
-from argparse import Namespace
 import sys
+import logging
+from argparse import Namespace
 from typing import Dict, Set, Tuple
 import click
 from google.cloud import bigquery
@@ -8,22 +9,24 @@ from src.utilities.paths import get_profiles_file
 from src.schema import DeleteMapNode, DependencyGraphNode, EphemeralMapNode, MigrationMap
 from src.utilities.multi_threading import run_multithreaded
 
-def bigquery_client(args) -> bigquery.Client:
+logger = logging.getLogger(__name__)
+
+def bigquery_client(variables: Namespace) -> bigquery.Client:
     """Create a BigQuery client using credentials from the dbt profiles.yml file."""
     dbt_profile = get_profiles_file(
-        dbt_project_dir=args.dbt_project_dir,
-        profiles_dir=args.profiles_dir
+        dbt_project_dir=variables.dbt_project_dir,
+        profiles_dir=variables.profiles_dir
     )
 
-    output = dbt_profile.get("outputs", {}).get(args.target, {})
+    output = dbt_profile.get("outputs", {}).get(variables.target, {})
     if not output:
-        raise ValueError(f"No output configuration found for target '{args.target}' in profiles.yml")
+        raise ValueError(f"No output configuration found for target '{variables.target}' in profiles.yml")
     elif output.get("type") != "bigquery":
-        raise ValueError(f"Output type for target '{args.target}' is not 'bigquery' in profiles.yml")
+        raise ValueError(f"Output type for target '{variables.target}' is not 'bigquery' in profiles.yml")
     elif output.get("project") is None:
-        raise ValueError(f"No 'project' specified for target '{args.target}' in profiles.yml")
+        raise ValueError(f"No 'project' specified for target '{variables.target}' in profiles.yml")
     elif output.get("location") is None:
-        raise ValueError(f"No 'location' specified for target '{args.target}' in profiles.yml")
+        raise ValueError(f"No 'location' specified for target '{variables.target}' in profiles.yml")
 
     client = bigquery.Client(
         project=output.get("project", ""),
@@ -57,7 +60,7 @@ def bigquery_ephemeral_strategy(
     # For this implementation, we will materialize them as CTEs to avoid unnecessary storage costs.
     try:
         client = bigquery_client(variables)
-        threads = variables.variables.target_config.get("threads", 5)
+        threads = variables.target_config.get("threads", 5)
 
         datasets_to_create: Set[str] = set()
         clone_map: Dict[str, Dict[str, str]] = {} # Stored as {node_name: {"ephemeral_table_id": str, "reference_table_id": str }}
@@ -166,7 +169,7 @@ def bigquery_delete_table(
         return
     except Exception as e:
         raise RuntimeError(f"Error in BigQuery delete strategy: {e}")
-    
+ 
 def change_partitioning(
     migration_map: MigrationMap,
     args: Namespace
@@ -216,7 +219,7 @@ def change_partitioning(
     """
 
     # Initialize BigQuery client with specified GCP project
-    client = get_bigquery_client(args)
+    client = bigquery_client(args)
     nodes = migration_map["nodes"]
     results: Dict[str, bool] = {}
 
