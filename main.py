@@ -1,3 +1,4 @@
+from argparse import Namespace
 import click
 from src.commands import (
     delete,
@@ -5,6 +6,7 @@ from src.commands import (
     ephemeral,
     init
 )
+from src.logging import setup_logging
 
 # Shared options for all commands
 def common_options(f):
@@ -135,6 +137,7 @@ def init_cmd(**kwargs):
     Examples:
         dbt-ci init --prod-manifest-dir prod-manifest/ --dbt-project-dir ./dbt --production-target production
     """
+    setup_logging(to_namespace(kwargs).log_level)
     return init(**kwargs)
 
 # Add support for --levels option to specify how many levels of dependencies to include
@@ -173,6 +176,7 @@ def run_cmd(**kwargs):
         export DBT_PROJECT_DIR=./dbt
         dbt-ci run
     """
+    setup_logging(to_namespace(kwargs).log_level)
     return run(**kwargs)
 
 
@@ -199,6 +203,7 @@ def ephemeral_cmd(**kwargs):
         export DBT_PROJECT_DIR=./dbt
         dbt-ci ephemeral
     """
+    setup_logging(to_namespace(kwargs).log_level)
     return ephemeral(**kwargs)
 
 @cli.command(name='delete')
@@ -217,7 +222,12 @@ def delete_cmd(**kwargs):
         export DBT_PROJECT_DIR=./dbt
         dbt-ci delete
     """
+    setup_logging(to_namespace(kwargs).log_level)
     return delete(**kwargs)
+
+def to_namespace(kwargs):
+    """Convert kwargs dict to argparse.Namespace for easier access and compatibility with existing code"""
+    return Namespace(**kwargs)
 
 if __name__ == "__main__":
     cli()
