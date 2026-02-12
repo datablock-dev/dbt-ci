@@ -117,8 +117,9 @@ def get_docker_env(runner_config: RunnerConfig) -> dict | None:
         if runner_config.get(config_key, None) is not None:
             env_dict[env_key] = runner_config[config_key]
 
-    if runner_config.get("docker_env", None) is not None or len(runner_config["docker_env"]) > 0:
-        for env in runner_config.get("docker_env", []):
+    docker_env = runner_config.get("docker_env", [])
+    if docker_env:
+        for env in docker_env:
             key, value = env.split("=", 1)
             env_dict[key] = value
     

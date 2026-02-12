@@ -73,3 +73,17 @@ def mock_state_dir(temp_dir, mock_manifest):
     manifest_file.write_text(json.dumps(mock_manifest, indent=2))
     
     return state_dir
+
+
+@pytest.fixture
+def mock_runner_config():
+    """Create a mock RunnerConfig dictionary for testing."""
+    return {
+        'dbt_project_dir': '/dbt',
+        'profiles_dir': '/dbt',
+        'reference_state': '/dbt/.dbtstate',
+        'docker_env': [],
+        'docker_volumes': [],
+        'runner': 'docker',
+        'docker_image': 'ghcr.io/dbt-labs/dbt-core:latest'
+    }
