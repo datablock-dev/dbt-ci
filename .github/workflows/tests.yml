@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: [self-hosted, "ubuntu private"]
+    runs-on: [ ubuntu-latest ]
     strategy:
       matrix:
         python-version: ["3.12"]
