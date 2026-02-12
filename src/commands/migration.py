@@ -79,8 +79,6 @@ def migration(**kwargs):
         if args.dry_run:
             logger.info("Dry run mode enabled - no changes will be applied.")
             sys.exit(0)
-
-        return
         
         # Apply partitioning changes
         results = change_partitioning(migration_map, args)

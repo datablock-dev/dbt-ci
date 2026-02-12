@@ -150,7 +150,7 @@ def clone_tables(
 def bigquery_delete_strategy(delete_map: Dict[str, DeleteMapNode], variables: Namespace) -> None:
     """Strategy for handling deletes towards BigQuery."""
     client = bigquery_client(variables)
-    def bigquery_delete_table(table_id: str, variables: Namespace) -> None:
+    def _delete(table_id: str) -> None:
         """
         Delete a single BigQuery table and its dbt temporary table.
 
@@ -165,7 +165,6 @@ def bigquery_delete_strategy(delete_map: Dict[str, DeleteMapNode], variables: Na
             This function is designed to be called in parallel via multithreading.
             Each invocation deletes one table independently.
         """
-        client = bigquery_client(variables)
         tmp_table_id = f"{table_id}__dbt_tmp"
 
         try:
@@ -181,7 +180,7 @@ def bigquery_delete_strategy(delete_map: Dict[str, DeleteMapNode], variables: Na
     try:
         threads = variables.target_config.get("threads", 5)
         funct_list = [
-            lambda node_id=node_id, node_info=node_info: bigquery_delete_table(node_info["table_id"], variables)
+            lambda node_id=node_id, node_info=node_info: _delete(node_info["table_id"])
             for node_id, node_info in delete_map.items()
         ]
 
@@ -219,9 +218,14 @@ def delete_table(table_id: str, variables: Namespace) -> None:
         raise
  
 def bigquery_migration_strategy(migration_map: MigrationMap, variables: Namespace) -> None:
+    """Strategy for handling partitioning migrations towards BigQuery."""
     try:
         client = bigquery_client(variables)
         profile = get_profile(variables)
+        if profile is None:
+            print("No profile found for the specified target. Please check your profiles.yml configuration.")
+            sys.exit(1)
+
         threads = profile.get("threads", 5)
         nodes = migration_map["nodes"]
         queries = []
@@ -241,7 +245,7 @@ def bigquery_migration_strategy(migration_map: MigrationMap, variables: Namespac
                 """
             )
 
-        if args.dry_run:
+        if variables.dry_run:
             click.echo("Dry run mode enabled - no changes will be applied.")
             sys.exit(0)
 

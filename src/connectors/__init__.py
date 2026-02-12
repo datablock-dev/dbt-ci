@@ -11,15 +11,16 @@ from src.connectors.google.storage import (
 from src.connectors.google.bigquery import (
     bigquery_client,
     bigquery_ephemeral_strategy,
-    bigquery_delete_table
+    bigquery_delete_strategy,
+    bigquery_migration_strategy
 )
 
 DB_CONNECTORS: Final[Dict[SupportedConnectors, ConnectorConfig]] = {
     "bigquery": {
         "client": bigquery_client,
         "ephemeral": bigquery_ephemeral_strategy,
-        "delete": bigquery_delete_table,
-        "migration": None
+        "delete": bigquery_delete_strategy,
+        "migration": bigquery_migration_strategy
     }
 }
 
