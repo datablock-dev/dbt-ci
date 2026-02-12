@@ -36,10 +36,10 @@ def migration(**kwargs):
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, is_production=True)
         connector_type = variables.target_config.get("type")
-        ephemeral_connector = get_connector(connector_type)["ephemeral"]
+        migration_connector = get_connector(connector_type)["migration"]
 
-        if ephemeral_connector is None:
-            logger.error(f"Connector '{connector_type}' does not support ephemeral strategy, which is required for migration command.")
+        if migration_connector is None:
+            logger.error(f"Connector '{connector_type}' does not support migration strategy, which is required for migration command.")
             sys.exit(1)
         
         # Look for cache
@@ -81,7 +81,7 @@ def migration(**kwargs):
             sys.exit(0)
         
         # Apply partitioning changes
-        results = change_partitioning(migration_map, args)
+        migration_connector(migration_map, args)
 
     except Exception as e:
         sys.exit(1)

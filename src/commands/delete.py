@@ -25,9 +25,7 @@ def delete(**kwargs):
         cache = CacheManager()
         config = Variables(args)
         variables = config.to_namespace()
-        target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, is_production=True)
-        threads = variables.target_config.get("threads", 5)
         connector_type = variables.target_config.get("type")
         delete_connector = get_connector(connector_type)["delete"]
 

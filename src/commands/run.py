@@ -40,8 +40,7 @@ def run(**kwargs):
         config = Variables(args)
         variables = config.to_namespace()
         target_graph = DbtGraph(variables)
-        reference_graph = DbtGraph(variables, is_production=True)
-        
+                
         # Look for cache
         prev_cache = cache.get_cache()
         if prev_cache is None: # Should we exit here instead of compiling?
