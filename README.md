@@ -31,6 +31,14 @@ dbt-ci init \
   --production-target production
 ```
 
+**With Cloud Storage (S3):**
+```bash
+dbt-ci init \
+  --dbt-project-dir dbt \
+  --state-uri s3://my-bucket/dbt-state/ \
+  --production-target production
+```
+
 ### 2. Run Modified Models
 
 After making changes to your dbt project, run only the modified models:
@@ -40,6 +48,13 @@ dbt-ci run \
   --dbt-project-dir dbt \
   --profiles-dir dbt \
   --state dbt/.dbtstate
+```
+
+**Or from S3:**
+```bash
+dbt-ci run \
+  --dbt-project-dir dbt \
+  --state-uri s3://my-bucket/dbt-state/
 ```
 
 ## Commands
@@ -71,6 +86,14 @@ dbt-ci run \
   --mode models
 ```
 
+**With Cloud Storage:**
+```bash
+dbt-ci run \
+  --dbt-project-dir dbt \
+  --state-uri s3://my-bucket/dbt-state/ \
+  --mode models
+```
+
 **Options:**
 - `--mode`, `-m`: What to run: `all`, `models`, `seeds`, `snapshots`, `tests` (default: `all`)
 - `--levels`: Number of dependency levels to include
@@ -86,6 +109,9 @@ dbt-ci run --mode models --levels 2
 
 # Run all modified resources (models, tests, seeds, etc.)
 dbt-ci run --mode all
+
+# Run with cloud storage
+dbt-ci run --state-uri s3://my-bucket/state/ --mode models
 ```
 
 ### `ephemeral` - Ephemeral Environment
@@ -216,7 +242,8 @@ These options apply to all commands:
 |--------|-------------|---------|
 | `--dbt-project-dir` | Path to dbt project directory | `.` |
 | `--profiles-dir` | Path to profiles.yml directory | Auto-detect |
-| `--state`, `--reference-manifest-dir` | Directory containing reference manifest.json | Required for run/delete |
+| `--state`, `--reference-state` | Path to the reference manifest.json directory | Required for run/delete |
+| `--state-uri` | Cloud storage URI for state files (e.g., `s3://bucket/path/`) | None |
 | `--production-target` | dbt target for production/reference manifest | None |
 | `--target`, `-t` | dbt target to use | From profiles.yml |
 | `--vars`, `-v` | YAML string or file path with dbt variables | `""` |
@@ -247,6 +274,52 @@ These options apply to all commands:
 |--------|-------------|---------|
 | `--shell-path`, `--bash-path` | Path to shell executable | `/bin/bash` |
 
+## Cloud Storage Support
+
+dbt-ci supports storing and retrieving state files from cloud storage, making it ideal for distributed CI/CD workflows.
+
+### S3 State Storage
+
+Store your dbt state in S3 for shared access across CI runs:
+
+```bash
+# Initialize and upload state to S3
+dbt-ci init \
+  --dbt-project-dir dbt \
+  --state-uri s3://my-bucket/dbt-state/ \
+  --production-target production
+
+# Run using state from S3
+dbt-ci run \
+  --dbt-project-dir dbt \
+  --state-uri s3://my-bucket/dbt-state/ \
+  --mode models
+```
+
+**Benefits:**
+- 🔄 **Shared State**: Access the same state across different CI jobs and environments
+- 📦 **No Local Storage**: State files don't need to be committed to git
+- 🚀 **Scalable**: Works seamlessly in containerized and distributed environments
+- 🔐 **Secure**: Leverage AWS IAM and S3 bucket policies for access control
+
+**Configuration:**
+
+The tool uses AWS credentials from your environment (AWS CLI, IAM roles, environment variables). Ensure your S3 bucket is accessible:
+
+```bash
+# AWS credentials via environment
+export AWS_ACCESS_KEY_ID=your_key
+export AWS_SECRET_ACCESS_KEY=your_secret
+export AWS_DEFAULT_REGION=us-east-1
+
+# Or use IAM roles (recommended in CI/CD)
+dbt-ci run --state-uri s3://my-bucket/dbt-state/
+```
+
+**Supported URI Formats:**
+- `s3://bucket-name/path/to/state/`
+- `s3://bucket-name/dbt-state/`
+
 ## Environment Variables
 
 All CLI options can also be set via environment variables:
@@ -255,11 +328,20 @@ All CLI options can also be set via environment variables:
 export DBT_PROJECT_DIR=./dbt
 export DBT_PROFILES_DIR=./dbt
 export DBT_STATE=./dbt/.dbtstate
+export DBT_STATE_URI=s3://my-bucket/dbt-state/
 export DBT_TARGET=production
 export DBT_RUNNER=local
 
 dbt-ci run
 ```
+
+**Common Environment Variables:**
+- `DBT_STATE` or `STATE_DIR` - Local path to state directory
+- `DBT_STATE_URI` or `STATE_URI` - Cloud storage URI for state files
+- `DBT_PROJECT_DIR` - Path to dbt project
+- `DBT_PROFILES_DIR` - Path to profiles.yml location
+- `DBT_TARGET` - Target environment to use
+- `DBT_RUNNER` - Runner type (local, docker, bash, dbt)
 
 ## CI/CD Integration
 
@@ -281,20 +363,27 @@ jobs:
         with:
           python-version: '3.11'
       
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsRole
+          aws-region: us-east-1
+      
       - name: Install dbt-ci
         run: pip install git+https://github.com/datablock-dev/dbt-ci.git@main
       
-      - name: Initialize dbt-ci
+      - name: Initialize dbt-ci with S3 state
         run: |
           dbt-ci init \
             --dbt-project-dir dbt \
+            --state-uri s3://my-dbt-state/prod/ \
             --production-target production
       
       - name: Run modified models
         run: |
           dbt-ci run \
             --mode models \
-            --state dbt/.dbtstate
+            --state-uri s3://my-dbt-state/prod/
 ```
 
 ### GitLab CI Example
@@ -304,8 +393,8 @@ dbt-ci:
   image: python:3.11
   script:
     - pip install git+https://github.com/datablock-dev/dbt-ci.git@main
-    - dbt-ci init --dbt-project-dir dbt --production-target production
-    - dbt-ci run --mode models --state dbt/.dbtstate
+    - dbt-ci init --dbt-project-dir dbt --state-uri s3://my-dbt-state/prod/ --production-target production
+    - dbt-ci run --mode models --state-uri s3://my-dbt-state/prod/
   only:
     - merge_requests
 ```
@@ -315,6 +404,7 @@ dbt-ci:
 - **🎯 Smart Detection**: Automatically identifies modified, new, and deleted models
 - **📊 Dependency Tracking**: Generates and traverses dependency graphs for lineage analysis
 - **🔄 State Comparison**: Compares current state against production for precise CI
+- **☁️ Cloud Storage**: S3 integration for shared state across distributed CI/CD workflows
 - **🚀 Multiple Runners**: Supports local, Docker, bash, and dbt Python API execution
 - **🐳 Docker-First**: Extensive Docker configuration for containerized workflows
 - **⚡ Selective Execution**: Run only what changed, saving time and resources
@@ -330,6 +420,19 @@ Only build and test models affected by PR changes:
 ```bash
 dbt-ci init --production-target production
 dbt-ci run --mode models --defer
+```
+
+### Distributed CI with Cloud Storage
+Share state across multiple CI jobs using S3:
+```bash
+# Job 1: Initialize state
+dbt-ci init --state-uri s3://my-bucket/dbt-state/ --production-target production
+
+# Job 2: Run models
+dbt-ci run --state-uri s3://my-bucket/dbt-state/ --mode models
+
+# Job 3: Run tests
+dbt-ci run --state-uri s3://my-bucket/dbt-state/ --mode tests
 ```
 
 ### Selective Testing
