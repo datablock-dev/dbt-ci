@@ -6,6 +6,7 @@ import sys
 import logging
 from argparse import Namespace
 import click
+from src.connectors import init_storage_connector
 from src.dependency_graph import DbtGraph
 from src.utilities.paths import get_manifest_file
 from src.schema import RunnerConfig
@@ -42,6 +43,7 @@ def init(**kwargs):
         variables = config.to_namespace()
         production_target = getattr(variables, "production_target", None)
         command = ["compile"]
+        resolved_storage = init_storage_connector(variables)
 
         if production_target is None:
             logger.warning("No production target specified, using current target as production state for comparison.")
@@ -115,3 +117,4 @@ def init(**kwargs):
     except Exception as e:
         logger.error(f"Error during initialization: {str(e)}")
         sys.exit(1)
+

@@ -3,6 +3,11 @@ from argparse import Namespace
 import sys
 from typing import Dict, Final, Tuple
 from src.schema import ConnectorConfig, SupportedConnectors, StorageConnector, StorageConnectorConfig
+from src.connectors.aws.storage import (
+    aws_download_json,
+    aws_storage_client,
+    aws_upload_json
+)
 from src.connectors.google.storage import (
     google_storage_client,
     google_download_json,
@@ -25,10 +30,16 @@ DB_CONNECTORS: Final[Dict[SupportedConnectors, ConnectorConfig]] = {
 }
 
 STORAGE_URI_PREFIXES: Final[Dict[str, str]] = {
-    "gs": "google"
+    "gs": "google",
+    "s3": "aws"
 }
 
 STORAGE_CONNECTORS: Final[StorageConnector] = {
+    "aws": {
+        "client": aws_storage_client,
+        "upload": aws_upload_json,
+        "download": aws_download_json,
+    },
     "google": {
         "client": google_storage_client,
         "upload": google_upload_json,
