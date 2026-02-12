@@ -4,16 +4,24 @@ A CI tool for dbt (data build tool) projects that intelligently runs only modifi
 
 ## Installation
 
-### Local Development
+### From PyPI (Recommended)
 
 ```bash
-pip install -e .
+pip install dbt-ci
 ```
 
 ### From GitHub
 
 ```bash
 pip install git+https://github.com/datablock-dev/dbt-ci.git@main
+```
+
+### Local Development
+
+```bash
+git clone https://github.com/datablock-dev/dbt-ci.git
+cd dbt-ci
+pip install -e ".[dev]"
 ```
 
 After installation, the tool is available as `dbt-ci`.
@@ -457,12 +465,40 @@ dbt-ci ephemeral --keep-env
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+### Development Setup
+
+1. Clone the repository
+2. Install dependencies: `pip install -e ".[dev]"`
+3. Run tests: `pytest tests/`
+4. Run linting: `black src/ tests/`
+
+### Commit Message Format
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) for automated releases:
+
+- `feat:` New feature (minor version bump)
+- `fix:` Bug fix (patch version bump)
+- `docs:` Documentation changes
+- `refactor:` Code refactoring
+- `test:` Adding tests
+- `chore:` Maintenance tasks
+
+Example:
+```bash
+git commit -m "feat: add Docker runner support"
+git commit -m "fix: resolve path resolution on Windows"
+```
+
+See [RELEASING.md](RELEASING.md) for details on the automated release process.
+
 ## License
 
 See [LICENSE](LICENSE) file for details.
 
 ## Links
 
+- **PyPI**: [https://pypi.org/project/dbt-ci/](https://pypi.org/project/dbt-ci/)
 - **Documentation**: [https://datablock.dev](https://datablock.dev)
 - **Issues**: [GitHub Issues](https://github.com/datablock-dev/dbt-ci/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/datablock-dev/dbt-ci/discussions)
+- **Changelog**: [CHANGELOG.md](CHANGELOG.md)

@@ -103,6 +103,11 @@ def docker_runner(commands: List[str], runner_config: RunnerConfig) -> Completed
 
 def get_docker_env(runner_config: RunnerConfig) -> dict | None:
     """Build Docker environment variables based on runner configuration."""
+    # Automatically translate certain flags/configs to 
+    # environment variables for better Docker compatibility
+    
+    
+    
     if runner_config.get("docker_env", None) is None or len(runner_config["docker_env"]) == 0:
         return None
     env_dict = {}
