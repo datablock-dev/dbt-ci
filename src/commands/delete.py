@@ -12,6 +12,7 @@ from src.connectors import get_connector
 from src.dependency_graph import DbtGraph
 from src.schema import DeleteMapNode
 from src.utilities.graph_utils import get_node_ids_from_structured_nodes, get_nodes
+from src.utilities.multi_threading import run_multithreaded
 from src.variables import Variables
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ def delete(**kwargs):
         variables = config.to_namespace()
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, is_production=True)
+        threads = variables.target_config.get("threads", 5)
         connector_type = variables.target_config.get("type")
         delete_connector = get_connector(connector_type)["delete"]
 
@@ -85,6 +87,15 @@ def delete(**kwargs):
         if variables.dry_run:
             click.echo("\nDry run complete - no nodes were actually deleted.")
 
+        func_list = [
+            lambda 
+        ]
+
+        run_multithreaded(
+
+            threads=threads,
+            exit_on_exception=True
+        )
         delete_connector(delete_map, variables)
 
         click.echo("Delete process completed successfully.")

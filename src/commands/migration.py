@@ -2,13 +2,18 @@
 import sys
 import logging
 from argparse import Namespace
+from typing import Dict
 import click
 from src.cache import CacheManager
 from src.dependency_graph import DbtGraph
-from src.utilities.graph_utils import filter_node_ids_by_type, get_node_ids_from_structured_nodes, get_nodes
+from src.schema import DependencyGraphNode, MigrationMap
 from src.variables import Variables
 from src.connectors import get_connector
-
+from src.utilities.graph_utils import (
+    filter_node_ids_by_type,
+    get_node_ids_from_structured_nodes,
+    get_nodes
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +62,7 @@ def migration(**kwargs):
         reference_nodes = get_nodes(reference_graph.to_dict(), selected_nodes)
 
         # Determine if there has been a change in clustering or partitioning configuration
-        migration_map = get_changed_partitioning(target_nodes, reference_nodes, connector)
+        migration_map = get_changed_partitioning(target_nodes, reference_nodes, connector_type)
         if len(migration_map["nodes"]) == 0:
             logger.info("No partitioning changes detected between target and reference graphs.")
             sys.exit(0)
@@ -82,3 +87,34 @@ def migration(**kwargs):
 
     except Exception as e:
         sys.exit(1)
+
+def get_changed_partitioning(
+    target_nodes: Dict[str, Dict[str, DependencyGraphNode]],
+    reference_nodes: Dict[str, Dict[str, DependencyGraphNode]],
+    connector: str = "bigquery"
+) -> MigrationMap:
+    """Compare partitioning configurations between target and reference nodes and return a migration map."""
+    migration_map: MigrationMap = {
+        "connector": connector,
+        "nodes": {}
+    }
+
+    for node_id, node_metadata in target_nodes.items():
+        node_config = node_metadata.get("config", {})
+        target_partitioning_config = node_config.get("partition_by", None)
+        reference_partitioning_config = reference_nodes.get(node_id, {}).get("config", {}).get("partition_by", None)
+        # Skip non-incremental models since partitioning changes only apply to incremental models in BigQuery
+        if node_config.get("materialized", None) != "incremental":
+            continue
+        
+        # Check if partitioning has been changed
+        # Dict comparison is order-insensitive since Python 3.7+
+        if target_partitioning_config != reference_partitioning_config:
+            migration_map["nodes"][node_id] = {
+                "table_id": f"{node_metadata.get('database', '')}.{node_metadata.get('schema', '')}.{node_metadata.get('name', '')}",
+                "compiled_code": node_metadata.get("compiled_code", None),
+                "old_partitioning": reference_partitioning_config,
+                "new_partitioning": target_partitioning_config
+            }
+
+    return migration_map
