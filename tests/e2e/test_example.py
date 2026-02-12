@@ -20,18 +20,19 @@ class TestInitWorkflow:
             'log_level': 'INFO'
         }
     
-    @patch('src.commands.init.run_dbt_command')
-    @patch('src.commands.init.DbtGraph')
-    @patch('src.commands.init.CacheManager')
-    def test_init_command_success(self, mock_cache, mock_graph, mock_run_cmd, mock_args):
+    def test_init_command_success(self, mock_args):
         """Test successful init command execution."""
         # TODO: Implement once init command structure is finalized
-        pass
+        # When implementing, use patches like:
+        # @patch('src.commands.init.run_dbt_command')
+        # @patch('src.commands.init.DbtGraph')
+        # @patch('src.commands.init.CacheManager')
+        pytest.skip("Placeholder test - to be implemented")
     
     def test_init_missing_required_args(self):
         """Test init command fails with missing required arguments."""
         # TODO: Test validation of required arguments
-        pass
+        pytest.skip("Placeholder test - to be implemented")
 
 
 class TestRunWorkflow:
@@ -40,12 +41,12 @@ class TestRunWorkflow:
     def test_run_modified_models(self):
         """Test running only modified models."""
         # TODO: Set up test dbt project, modify models, run command
-        pass
+        pytest.skip("Placeholder test - to be implemented")
     
     def test_run_with_defer(self):
         """Test run command with --defer flag."""
         # TODO: Test defer functionality
-        pass
+        pytest.skip("Placeholder test - to be implemented")
 
 
 # Add more e2e test classes:

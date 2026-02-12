@@ -105,15 +105,19 @@ def get_docker_env(runner_config: RunnerConfig) -> dict | None:
     """Build Docker environment variables based on runner configuration."""
     # Automatically translate certain flags/configs to 
     # environment variables for better Docker compatibility
-    
-    
-    
-    if runner_config.get("docker_env", None) is None or len(runner_config["docker_env"]) == 0:
-        return None
     env_dict = {}
-    for env in runner_config.get("docker_env", []):
-        key, value = env.split("=", 1)
-        env_dict[key] = value
+    config_to_env = {
+        "dbt_project_dir": "DBT_PROJECT_DIR",
+        "profiles_dir": "DBT_PROFILES_DIR",
+        "reference_state": "DBT_REFERENCE_STATE",
+    }
+
+
+    if runner_config.get("docker_env", None) is not None or len(runner_config["docker_env"]) > 0:
+        for env in runner_config.get("docker_env", []):
+            key, value = env.split("=", 1)
+            env_dict[key] = value
+    
     return env_dict
 
 
