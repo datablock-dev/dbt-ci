@@ -2,7 +2,7 @@
 from argparse import Namespace
 import sys
 from typing import Dict, Final, Tuple
-from src.schema import ConnectorConfig, SupportedConnectors, StorageConnector, StorageConnectorConfig
+from src.schema import ConnectorConfig, SupportedConnectors, StorageConnector, StorageConnectorConfig, SupportedStorageConnectors
 from src.connectors.aws.storage import (
     aws_download_json,
     aws_storage_client,
@@ -34,7 +34,7 @@ STORAGE_URI_PREFIXES: Final[Dict[str, str]] = {
     "s3": "aws"
 }
 
-STORAGE_CONNECTORS: Final[Dict[SupportedConnectors, StorageConnectorConfig]] = {
+STORAGE_CONNECTORS: Final[Dict[SupportedStorageConnectors, StorageConnectorConfig]] = {
     "aws": {
         "client": aws_storage_client,
         "upload": aws_upload_json,

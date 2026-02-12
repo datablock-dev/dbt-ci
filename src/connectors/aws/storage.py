@@ -2,6 +2,8 @@
 import json
 import boto3
 
+from src.schema import DBTManifest
+
 def aws_storage_client():
     """Initialize AWS S3 client."""
     return boto3.client("s3")
@@ -23,7 +25,7 @@ def aws_upload_json(uri: str, data: dict) -> None:
     except Exception as e:
         raise RuntimeError(f"Failed to upload JSON to {uri}: {e}")
     
-def aws_download_json(uri: str) -> dict:
+def aws_download_json(uri: str) -> DBTManifest:
     """Download and parse a JSON object from the specified S3 URI."""
     if not uri.startswith("s3://"):
         raise ValueError(f"Invalid S3 URI: {uri}. Must start with 's3://'.")

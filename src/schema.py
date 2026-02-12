@@ -448,5 +448,5 @@ class StorageConnectorConfig(TypedDict):
     upload: Callable[[str, dict], None]
     download: Callable[[str], DBTManifest]
 
-type SupportedConnectors = Literal["google", "aws"]
-type StorageConnector = Dict[SupportedConnectors, StorageConnectorConfig]
+type SupportedStorageConnectors = Literal["google", "aws"]
+type StorageConnector = Dict[SupportedStorageConnectors, StorageConnectorConfig]
