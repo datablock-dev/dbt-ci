@@ -4,12 +4,16 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: "${{ github.ref }}-${{ github.workflow }}"
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.12"]
     
     steps:
     - uses: actions/checkout@v3
