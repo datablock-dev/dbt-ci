@@ -34,7 +34,7 @@ STORAGE_URI_PREFIXES: Final[Dict[str, str]] = {
     "s3": "aws"
 }
 
-STORAGE_CONNECTORS: Final[StorageConnector] = {
+STORAGE_CONNECTORS: Final[Dict[SupportedConnectors, StorageConnectorConfig]] = {
     "aws": {
         "client": aws_storage_client,
         "upload": aws_upload_json,

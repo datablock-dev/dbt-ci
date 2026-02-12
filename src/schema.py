@@ -443,9 +443,10 @@ class MigrationMap(TypedDict):
     nodes: Dict[str, MigrationMapNodeEntry]
 
 class StorageConnectorConfig(TypedDict):
+    """Configuration for storage connectors."""
     client: Callable[..., Any]
     upload: Callable[[str, dict], None]
     download: Callable[[str], DBTManifest]
 
-type SupportedConnectors = Literal["google"]
+type SupportedConnectors = Literal["google", "aws"]
 type StorageConnector = Dict[SupportedConnectors, StorageConnectorConfig]
