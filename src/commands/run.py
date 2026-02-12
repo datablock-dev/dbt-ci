@@ -11,7 +11,7 @@ from src.variables import Variables
 from src.variables.config import MODE_MAPPING, NODE_TYPE_COMMAND_MAPPING, REVERSE_MODE_MAPPING
 from src.cache import CacheManager
 from src.runners import run_dbt_command, append_dbt_variables_to_command
-from src.utilities.getters import (
+from src.utilities.graph_utils import (
     filter_node_ids_by_type,
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes
@@ -40,8 +40,7 @@ def run(**kwargs):
         config = Variables(args)
         variables = config.to_namespace()
         target_graph = DbtGraph(variables)
-        reference_graph = DbtGraph(variables, user_production_state=True)
-        
+                
         # Look for cache
         prev_cache = cache.get_cache()
         if prev_cache is None: # Should we exit here instead of compiling?
@@ -157,7 +156,7 @@ def run_with_mode(
 
         if runner_config.get("dry_run", False):
             click.echo("DRY RUN: Command would be executed")
-            return None
+            continue
 
         result = run_dbt_command(
             command_args=append_dbt_variables_to_command([command, "--select", " ".join(final_nodes_to_run)], variables),

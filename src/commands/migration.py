@@ -1,17 +1,21 @@
-from argparse import Namespace
+"""Migration command for dbt CI."""
 import sys
 import logging
-
+from argparse import Namespace
+from typing import Dict
 import click
-
 from src.cache import CacheManager
 from src.dependency_graph import DbtGraph
-from src.schema import EphemeralConnectors
+from src.schema import DependencyGraphNode, MigrationMap
 from src.variables import Variables
+from src.connectors import get_connector
+from src.utilities.graph_utils import (
+    filter_node_ids_by_type,
+    get_node_ids_from_structured_nodes,
+    get_nodes
+)
 
-CONNECTORS: EphemeralConnectors = {
-    "bigquery": bigquery_ephemeral_strategy
-}
+logger = logging.getLogger(__name__)
 
 def migration(**kwargs):
     """
@@ -30,9 +34,85 @@ def migration(**kwargs):
         config = Variables(args)
         variables = config.to_namespace()
         target_graph = DbtGraph(variables)
-        reference_graph = DbtGraph(variables, user_production_state=True)
+        reference_graph = DbtGraph(variables, is_production=True)
         connector_type = variables.target_config.get("type")
-        ephemeral_connector = CONNECTORS.get(connector_type, None)
+        migration_connector = get_connector(connector_type)["migration"]
+
+        if migration_connector is None:
+            logger.error(f"Connector '{connector_type}' does not support migration strategy, which is required for migration command.")
+            sys.exit(1)
         
+        # Look for cache
+        prev_cache = cache.get_cache()
+        if prev_cache is None: # Should we exit here instead of compiling?
+            logger.error("No cache found, please run 'model-lineage init' first to generate the necessary manifest files and cache for comparison.")
+            sys.exit(1)
+        logger.info("Cache successfully found - using cached state for comparison")
+
+        modified_nodes_dict = {
+            "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
+        }
+
+        selected_nodes = filter_node_ids_by_type(target_graph.to_dict(), modified_nodes_dict["modified_nodes"], ["model"])
+        if len(selected_nodes) == 0:
+            logger.info("No modified models found in cache, skipping...")
+            sys.exit(0)
+
+        target_nodes = get_nodes(target_graph.to_dict(), selected_nodes)
+        reference_nodes = get_nodes(reference_graph.to_dict(), selected_nodes)
+
+        # Determine if there has been a change in clustering or partitioning configuration
+        migration_map = get_changed_partitioning(target_nodes, reference_nodes, connector_type)
+        if len(migration_map["nodes"]) == 0:
+            logger.info("No partitioning changes detected between target and reference graphs.")
+            sys.exit(0)
+        else:
+            logger.info(f"Detected {len(migration_map['nodes'])} models with partitioning changes.")
+            logger.info("\n------------------------------------------------------")
+            for node_id, node_info in migration_map["nodes"].items():
+                logger.info(f"Model: {node_id}")
+                logger.info(f"  - Table ID: {node_info['table_id']}")
+                logger.info(f"  - Old Partitioning: {node_info['old_partitioning']}")
+                logger.info(f"  - New Partitioning: {node_info['new_partitioning']}")
+            logger.info("------------------------------------------------------\n")
+
+        if args.dry_run:
+            logger.info("Dry run mode enabled - no changes will be applied.")
+            sys.exit(0)
+        
+        # Apply partitioning changes
+        migration_connector(migration_map, args)
+
     except Exception as e:
         sys.exit(1)
+
+def get_changed_partitioning(
+    target_nodes: Dict[str, Dict[str, DependencyGraphNode]],
+    reference_nodes: Dict[str, Dict[str, DependencyGraphNode]],
+    connector: str = "bigquery"
+) -> MigrationMap:
+    """Compare partitioning configurations between target and reference nodes and return a migration map."""
+    migration_map: MigrationMap = {
+        "connector": connector,
+        "nodes": {}
+    }
+
+    for node_id, node_metadata in target_nodes.items():
+        node_config = node_metadata.get("config", {})
+        target_partitioning_config = node_config.get("partition_by", None)
+        reference_partitioning_config = reference_nodes.get(node_id, {}).get("config", {}).get("partition_by", None)
+        # Skip non-incremental models since partitioning changes only apply to incremental models in BigQuery
+        if node_config.get("materialized", None) != "incremental":
+            continue
+        
+        # Check if partitioning has been changed
+        # Dict comparison is order-insensitive since Python 3.7+
+        if target_partitioning_config != reference_partitioning_config:
+            migration_map["nodes"][node_id] = {
+                "table_id": f"{node_metadata.get('database', '')}.{node_metadata.get('schema', '')}.{node_metadata.get('name', '')}",
+                "compiled_code": node_metadata.get("compiled_code", None),
+                "old_partitioning": reference_partitioning_config,
+                "new_partitioning": target_partitioning_config
+            }
+
+    return migration_map

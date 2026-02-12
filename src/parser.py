@@ -1,7 +1,7 @@
 import sys
 import json
-from typing import Dict, List, Optional, Set, Any
-from src.paths import get_manifest_file, get_prod_manifest_file
+from typing import Dict, List, Optional, Set
+from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 from src.schema import DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 MANIFEST_KEY_MAPPING = {
@@ -37,7 +37,7 @@ def generate_dependency_graph(manifest_file_path: str, is_state_manifest: bool =
         is_state_manifest: If True, load from {path}/manifest.json; if False, load from {path}/target/manifest.json
     """
     if is_state_manifest:
-        manifest_file = get_prod_manifest_file(manifest_file_path)
+        manifest_file = get_reference_manifest_file(manifest_file_path)
     else:
         manifest_file = get_manifest_file(manifest_file_path)
     child_map = manifest_file.get("child_map", {})

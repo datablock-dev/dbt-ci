@@ -13,10 +13,10 @@ import sys
 from argparse import Namespace
 from typing import Any, Dict, Optional
 from src.variables.config import OPTIONS_CONFIG
-from src.paths import (
+from src.utilities.paths import (
     get_dbt_project_file,
     get_manifest_file,
-    get_prod_manifest_file,
+    get_reference_manifest_file,
     get_profiles_file
 )
 
@@ -28,11 +28,11 @@ class Variables:
     Precedence order: CLI flags > Environment variables > Defaults
     
     Example:
-        args = Namespace(prod_manifest_dir='./state', runner=None, ...)
+        args = Namespace(reference_state='./state', runner=None, ...)
         vars = Variables(args)
         
         # Access resolved values
-        state_dir = vars.prod_manifest_dir
+        state_dir = vars.reference_state
         runner = vars.runner  # Will use env var or default if flag not set
     """
 
@@ -57,7 +57,7 @@ class Variables:
         # Variables requiring helper functions to resolve value
         self._resolved["project"] = get_dbt_project_file(self.dbt_project_dir)
         self._resolved["target_manifest_file"] = get_manifest_file(self.dbt_project_dir)
-        self._resolved["reference_manifest_file"] = get_prod_manifest_file(self.prod_manifest_dir)
+        self._resolved["reference_manifest_file"] = get_reference_manifest_file(self.reference_state)
         self._resolved["profile"] = get_profiles_file(self.dbt_project_dir, self.profiles_dir)
         
         # Get target info (call once to avoid recomputing)

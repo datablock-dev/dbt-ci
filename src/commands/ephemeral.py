@@ -13,11 +13,11 @@ from argparse import Namespace
 from typing import Dict, Optional
 import click
 from src.cache import CacheManager
-from src.connectors.bigquery import bigquery_ephemeral_strategy
+from src.connectors import DB_CONNECTORS, get_connector
 from src.dependency_graph import DbtGraph
-from src.schema import EphemeralConnectors, EphemeralMapNode
+from src.schema import EphemeralMapNode
 from src.variables import Variables
-from src.utilities.getters import (
+from src.utilities.graph_utils import (
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes,
     get_nodes,
@@ -25,10 +25,6 @@ from src.utilities.getters import (
 )
 
 logger = logging.getLogger(__name__)
-
-CONNECTORS: EphemeralConnectors = {
-    "bigquery": bigquery_ephemeral_strategy
-}
 
 def ephemeral(**kwargs):
     """Run ephemeral CI check workflow
@@ -54,15 +50,15 @@ def ephemeral(**kwargs):
         config = Variables(args)
         variables = config.to_namespace()
         target_graph = DbtGraph(variables)
-        reference_graph = DbtGraph(variables, user_production_state=True)
+        reference_graph = DbtGraph(variables, is_production=True)
         connector_type = variables.target_config.get("type")
-        ephemeral_connector = CONNECTORS.get(connector_type, None)
+        ephemeral_connector = get_connector(connector_type)["ephemeral"]
 
         if connector_type is None:
-            logger.error(f"Missing connector type for ephemeral mode: {connector_type}. Supported connectors: {list(CONNECTORS.keys())}")
+            logger.error(f"Missing connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
             sys.exit(1)
-        elif CONNECTORS.get(connector_type) is None:
-            logger.error(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(CONNECTORS.keys())}")
+        elif connector_type not in DB_CONNECTORS:
+            logger.error(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
             sys.exit(1)
 
         # Look for cache

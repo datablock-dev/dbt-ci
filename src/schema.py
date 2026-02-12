@@ -2,6 +2,7 @@
 from argparse import Namespace
 from typing import Callable, Dict, Any, List, Optional, TypedDict, NotRequired, Literal, Set
 
+type LoggingLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 class DBTProfile(TypedDict):
     """Structure of a dbt profiles.yml profile."""
     type: str
@@ -265,7 +266,7 @@ class DBTManifest(TypedDict):
 
 class CLIArgs(TypedDict):
     """Command-line arguments for the DBT CI Tool."""
-    prod_manifest_path: str
+    reference_manifest_path: str
     profiles_dir: Optional[str]
     dbt_project_dir: str
     target: str
@@ -360,13 +361,14 @@ class RunnerConfig(TypedDict):
     """Configuration for dbt command execution across different runners."""
     runner: Runners
     dbt_project_dir: str
-    prod_manifest_dir: str
+    reference_state: str
     profiles_dir: Optional[str]
     target: Optional[str]
     vars: str
     entrypoint: str
     dry_run: bool
     quiet: bool
+    log_level: LoggingLevel
     # Docker-specific configuration
     docker_image: Optional[str]
     docker_platform: Optional[str]
@@ -402,6 +404,14 @@ class EphemeralMapNode(TypedDict):
     ephemeral_config: NodeConfig | None
     reference_config: NodeConfig | None
 
+class DeleteMapNode(TypedDict):
+    type: Node["resource_type"]
+    name: str
+    table_id: str
+
+type SupportedConnectors = Literal[
+    "bigquery"
+]
 type SupportedConnectorsEphemeralStrategy = Literal[
     "bigquery"
 ]
@@ -410,3 +420,33 @@ type EphemeralConnectors = Dict[
     SupportedConnectorsEphemeralStrategy,
     Callable[[Dict[str, EphemeralMapNode], Namespace], None]
 ]
+
+class ConnectorConfig(TypedDict):
+    """Configuration for supported connectors."""
+    client: Callable[..., Any]
+    ephemeral: Callable[[Dict[str, EphemeralMapNode], Namespace], None]
+    delete: Callable[[Dict[str, DeleteMapNode], Namespace], None]
+    migration: Callable[..., Any] # Fix
+
+# Add better type definitions
+class MigrationMapNodeEntry(TypedDict):
+    """Entry for a node in the migration map."""
+    table_id: str
+    compiled_code: str | None
+    old_partitioning: Any | None
+    new_partitioning: Any | None
+
+
+class MigrationMap(TypedDict):
+    """Structure for tracking table partitioning migrations."""
+    connector: str
+    nodes: Dict[str, MigrationMapNodeEntry]
+
+class StorageConnectorConfig(TypedDict):
+    """Configuration for storage connectors."""
+    client: Callable[..., Any]
+    upload: Callable[[str, dict], None]
+    download: Callable[[str], DBTManifest]
+
+type SupportedStorageConnectors = Literal["google", "aws"]
+type StorageConnector = Dict[SupportedStorageConnectors, StorageConnectorConfig]

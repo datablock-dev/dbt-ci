@@ -10,16 +10,13 @@ authors = [
     {name = "Patrick Tannoury", email = "patrick.tannoury@datablock.dev"},
 ]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 license = {file = "LICENSE"}
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Build Tools",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
 
@@ -29,12 +26,14 @@ dependencies = [
     "click>=8.0.0",
     "PyYAML>=6.0",
     "dbt-core>=1.10.13",
-    "google-cloud-bigquery>=3.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "google-cloud-bigquery>=3.0.0",
     "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
     "black>=22.0.0",
     "mypy>=0.950",
     "flake8>=6.0.0",
@@ -51,6 +50,23 @@ packages = ["src"]
 [tool.setuptools.package-data]
 src = ["py.typed"]
 
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "main"
+upload_to_pypi = false
+upload_to_release = true
+build_command = "pip install build && python -m build"
+commit_message = "chore(release): {version} [skip ci]"
+
+[tool.semantic_release.changelog]
+template_dir = "templates"
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]
+
 [tool.black]
 line-length = 100
-target-version = ['py39']
+target-version = ['py312']

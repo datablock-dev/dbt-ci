@@ -1,10 +1,13 @@
 import os
 import sys
+import logging
 from subprocess import CompletedProcess
 from typing import List
 from dbt.cli.main import dbtRunner
-
+from src.logging import setup_logging
 from src.schema import RunnerConfig
+
+logger = logging.getLogger(__name__)
 
 def dbt_runner(
     commands: List[str],
@@ -14,8 +17,11 @@ def dbt_runner(
     
     Returns a CompletedProcess-compatible object for consistency with other runners.
     """
+    setup_logging(runner_config.get('log_level', 'INFO'))
     runner = dbtRunner()
-    dbt_command_args = commands if not runner_config.get('entrypoint') else commands[1:]
+    # dbtRunner Python API expects commands without 'dbt' prefix (e.g., ['compile', '--target', 'prod'])
+    # If first element is 'dbt', strip it; otherwise use commands as-is
+    dbt_command_args = commands[1:] if commands and commands[0] == 'dbt' else commands
         
     # Convert paths to absolute for reliability
     absolute_command = []
@@ -30,10 +36,10 @@ def dbt_runner(
         prev_arg = arg
 
     if not runner_config.get('quiet', False):
-        print(f"Running command: {' '.join(absolute_command)}")
+        logger.debug(f"Running command: {' '.join(absolute_command)}")
     
     if runner_config.get('dry_run', False):
-        print("DRY RUN: Command would be executed")
+        logger.info("DRY RUN: Command would be executed")
         return None
     
     try:
@@ -59,9 +65,9 @@ def dbt_runner(
             stderr=""
         )
     except BaseException as e:
-        print(e)
+        logger.error(e)
         raise
     except Exception as e:
-        print(f"Unexpected error: {e}", file=sys.stderr)
+        logger.error(f"Unexpected error: {e}")
         sys.exit(1)
 

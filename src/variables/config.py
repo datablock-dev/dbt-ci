@@ -6,6 +6,27 @@ from src.schema import DependencyGraphNodeType, RunModes
 
 
 OPTIONS_CONFIG = {
+    'state_uri': {
+        'env_vars': ['DBT_STATE_URI', 'STATE_URI'],
+        'cli_flags': ['state_uri'],
+        'required': False,
+        'default': None,
+        'help': 'S3 URI for the state manifest.json files (e.g., s3://my-bucket/dbt-state/)'
+    },
+    'dbt_version': {
+        'env_vars': ['DBT_VERSION'],
+        'cli_flags': ['dbt_version'],
+        'required': False,
+        'default': None,
+        'help': 'Specify a dbt version to use for this command'
+    },
+    'adapter': {
+        'env_vars': ['DBT_ADAPTER'],
+        'cli_flags': ['adapter', '-a'],
+        'required': False,
+        'default': None,
+        'help': "Specify the dbt adapter to use (e.g., 'postgres', 'snowflake')"
+    },
     'nodes': {
         'env_vars': ['DBT_NODES'],
         'cli_flags': ['nodes'],
@@ -14,12 +35,12 @@ OPTIONS_CONFIG = {
         'choices': ['all', 'models', 'seeds', 'snapshots', 'tests'],
         'help': 'Run mode for dbt-ci (default: all)'
     },
-    'prod_manifest_dir': {
+    'reference_state': {
         'env_vars': ['DBT_STATE', 'DBT_STATE_DIR', 'STATE_DIR'],
-        'cli_flags': ['prod_manifest_dir', 'reference_manifest_dir', 'state'],
+        'cli_flags': ['reference_state','state', 'reference_manifest_dir'],
         'required': True,
         'default': None,
-        'help': 'Path to the production/reference manifest.json directory'
+        'help': 'Path to the reference manifest.json directory'
     },
     'dbt_project_dir': {
         'env_vars': ['DBT_PROJECT_DIR'],
@@ -145,7 +166,7 @@ OPTIONS_CONFIG = {
         'default': '/bin/bash',
         'help': 'Path to shell executable for bash runner'
     },
-    # Ephemeral Flags
+    # Ephemeral Flags (deprecate?)
     'keep_env': {
         'env_vars': ['DBT_KEEP_ENV'],
         'cli_flags': ['keep_env'],
@@ -153,6 +174,14 @@ OPTIONS_CONFIG = {
         'default': False,
         'type': 'bool',
         'help': "Don't destroy ephemeral environment after run (if supported by runner)"
+    },
+    # Adapter specific configs
+    "slack_webhook": {
+        "env_vars": ['SLACK_WEBHOOK', 'SLACK_WEBHOOK_URL'],
+        "cli_flags": ['slack_webhook'],
+        "required": False,
+        "default": None,
+        "help": 'Slack webhook URL for notifications (https://hooks.slack.com/services/...)'
     }
 }
 
