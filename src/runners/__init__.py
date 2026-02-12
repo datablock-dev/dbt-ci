@@ -42,7 +42,7 @@ def run_dbt_command(
         config = {
             'runner': 'local',
             'dbt_project_dir': 'dbt',
-            'prod_manifest_dir': 'dbt/.dbtstate',
+            'reference_state': 'dbt/.dbtstate',
             ...
         }
         output = run_dbt_command(['ls', '--select', 'state:modified+'], config)
@@ -168,7 +168,7 @@ def resolve_dbt_commands(
     path_flags = {
         "dbt_project_dir": "--project-dir",
         "profiles_dir": "--profiles-dir",
-        "prod_manifest_dir": "--state",
+        "reference_state": "--state",
     }
     if runner in ["local", "dbt"]:
         for var, flag in path_flags.items():

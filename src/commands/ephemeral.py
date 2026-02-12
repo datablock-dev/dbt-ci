@@ -17,7 +17,7 @@ from src.connectors import CONNECTORS, get_connector
 from src.dependency_graph import DbtGraph
 from src.schema import EphemeralMapNode
 from src.variables import Variables
-from src.utilities.getters import (
+from src.utilities.graph_utils import (
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes,
     get_nodes,
@@ -50,7 +50,7 @@ def ephemeral(**kwargs):
         config = Variables(args)
         variables = config.to_namespace()
         target_graph = DbtGraph(variables)
-        reference_graph = DbtGraph(variables, user_production_state=True)
+        reference_graph = DbtGraph(variables, is_production=True)
         connector_type = variables.target_config.get("type")
         ephemeral_connector = get_connector(connector_type)["ephemeral"]
 

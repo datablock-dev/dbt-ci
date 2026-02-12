@@ -35,12 +35,12 @@ OPTIONS_CONFIG = {
         'choices': ['all', 'models', 'seeds', 'snapshots', 'tests'],
         'help': 'Run mode for dbt-ci (default: all)'
     },
-    'prod_manifest_dir': {
+    'reference_state': {
         'env_vars': ['DBT_STATE', 'DBT_STATE_DIR', 'STATE_DIR'],
-        'cli_flags': ['prod_manifest_dir', 'reference_manifest_dir', 'state'],
+        'cli_flags': ['reference_state','state', 'reference_manifest_dir'],
         'required': True,
         'default': None,
-        'help': 'Path to the production/reference manifest.json directory'
+        'help': 'Path to the reference manifest.json directory'
     },
     'dbt_project_dir': {
         'env_vars': ['DBT_PROJECT_DIR'],

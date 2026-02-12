@@ -18,18 +18,18 @@ class DbtGraph:
 
     Args:
         args (Namespace): Command-line arguments parsed
-        user_production_state (bool, optional): Flag indicating whether to use the production state for comparison. Defaults to False.
+        is_production (bool, optional): Flag indicating whether to use the production state for comparison. Defaults to False.
 
     Returns:
         DbtGraph: An instance of the DbtGraph class containing the dependency graph and related
     """
-    def __init__(self, args: Namespace, user_production_state: bool = False):
+    def __init__(self, args: Namespace, is_production: bool = False):
         self.args = args
         self.variables = Variables(args).to_namespace()
         for key, value in self.variables.__dict__.items():
             setattr(self, key, value)
 
-        self.user_production_state = user_production_state
+        self.is_production = is_production
 
         # Bash runner configuration
         shell_path = getattr(self.variables, 'shell_path', '/bin/bash')
@@ -40,10 +40,10 @@ class DbtGraph:
         self.shell_path = shell_path
         
         # Keep paths as provided by user (relative or absolute)
-        #self.prod_manifest_file = self.reference_manifest_file
+        #self.reference_manifest_file = self.reference_manifest_file
         self.dependency_graph = generate_dependency_graph(
-            self.variables.dbt_project_dir if not self.user_production_state else self.variables.prod_manifest_dir,
-            is_state_manifest=self.user_production_state
+            self.variables.dbt_project_dir if not self.is_production else self.variables.reference_state,
+            is_state_manifest=self.is_production
         )
 
     def to_dict(self) -> DependencyGraph:

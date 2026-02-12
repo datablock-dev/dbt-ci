@@ -266,7 +266,7 @@ class DBTManifest(TypedDict):
 
 class CLIArgs(TypedDict):
     """Command-line arguments for the DBT CI Tool."""
-    prod_manifest_path: str
+    reference_manifest_path: str
     profiles_dir: Optional[str]
     dbt_project_dir: str
     target: str
@@ -361,7 +361,7 @@ class RunnerConfig(TypedDict):
     """Configuration for dbt command execution across different runners."""
     runner: Runners
     dbt_project_dir: str
-    prod_manifest_dir: str
+    reference_state: str
     profiles_dir: Optional[str]
     target: Optional[str]
     vars: str
@@ -441,3 +441,11 @@ class MigrationMap(TypedDict):
     """Structure for tracking table partitioning migrations."""
     connector: str
     nodes: Dict[str, MigrationMapNodeEntry]
+
+class StorageConnectorConfig(TypedDict):
+    client: Callable[..., Any]
+    upload: Callable[[str, dict], None]
+    download: Callable[[str], DBTManifest]
+
+type SupportedConnectors = Literal["google"]
+type StorageConnector = Dict[SupportedConnectors, StorageConnectorConfig]

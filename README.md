@@ -216,7 +216,7 @@ These options apply to all commands:
 |--------|-------------|---------|
 | `--dbt-project-dir` | Path to dbt project directory | `.` |
 | `--profiles-dir` | Path to profiles.yml directory | Auto-detect |
-| `--state`, `--prod-manifest-dir` | Directory containing production manifest.json | Required for run/delete |
+| `--state`, `--reference-manifest-dir` | Directory containing reference manifest.json | Required for run/delete |
 | `--production-target` | dbt target for production/reference manifest | None |
 | `--target`, `-t` | dbt target to use | From profiles.yml |
 | `--vars`, `-v` | YAML string or file path with dbt variables | `""` |

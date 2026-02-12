@@ -5,7 +5,7 @@ from argparse import Namespace
 import click
 from src.cache import CacheManager
 from src.dependency_graph import DbtGraph
-from src.utilities.getters import filter_node_ids_by_type, get_node_ids_from_structured_nodes, get_nodes
+from src.utilities.graph_utils import filter_node_ids_by_type, get_node_ids_from_structured_nodes, get_nodes
 from src.variables import Variables
 from src.connectors import get_connector
 
@@ -29,7 +29,7 @@ def migration(**kwargs):
         config = Variables(args)
         variables = config.to_namespace()
         target_graph = DbtGraph(variables)
-        reference_graph = DbtGraph(variables, user_production_state=True)
+        reference_graph = DbtGraph(variables, is_production=True)
         connector_type = variables.target_config.get("type")
         ephemeral_connector = get_connector(connector_type)["ephemeral"]
 

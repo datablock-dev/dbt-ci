@@ -32,10 +32,10 @@ def common_options(f):
     )(f)
     # Main commands
     f = click.option( # Change to --state only to simplify and avoid confusion around "production" vs "current" state, since the tool can now compare any two states
-        '--prod-manifest-dir', 
-        '--reference-manifest-dir', 
-        '--state',
-        help='Path to the production/reference manifest.json directory'
+        '--reference-state', '--state',
+        default=None,
+        type=str,
+        help='Path to the reference manifest.json directory'
     )(f)
     f = click.option(
         '--dbt-project-dir', 
@@ -48,7 +48,7 @@ def common_options(f):
         help='Path to the directory containing the dbt profiles.yml file'
     )(f)
     f = click.option(
-        '--production-target', # to be renamed to --reference-target
+        '--reference-target',
         default=None,
         help='The dbt target to use for production/reference manifest (defaults to default)'
     )(f)

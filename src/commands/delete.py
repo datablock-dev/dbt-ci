@@ -11,7 +11,7 @@ from src.cache import CacheManager
 from src.connectors import get_connector
 from src.dependency_graph import DbtGraph
 from src.schema import DeleteMapNode
-from src.utilities.getters import get_node_ids_from_structured_nodes, get_nodes
+from src.utilities.graph_utils import get_node_ids_from_structured_nodes, get_nodes
 from src.variables import Variables
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ def delete(**kwargs):
         config = Variables(args)
         variables = config.to_namespace()
         target_graph = DbtGraph(variables)
-        reference_graph = DbtGraph(variables, user_production_state=True)
+        reference_graph = DbtGraph(variables, is_production=True)
         connector_type = variables.target_config.get("type")
         delete_connector = get_connector(connector_type)["delete"]
 

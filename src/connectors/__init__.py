@@ -1,14 +1,20 @@
 """Init file for connectors module."""
+from argparse import Namespace
 import sys
-from typing import Dict, Final
-from src.schema import ConnectorConfig, SupportedConnectors
-from src.connectors.bigquery import (
+from typing import Dict, Final, Tuple
+from src.schema import ConnectorConfig, SupportedConnectors, StorageConnector, StorageConnectorConfig
+from src.connectors.google.storage import (
+    google_storage_client,
+    google_download_json,
+    google_upload_json
+)
+from src.connectors.google.bigquery import (
     bigquery_client,
     bigquery_ephemeral_strategy,
     bigquery_delete_table
 )
 
-CONNECTORS: Final[Dict[SupportedConnectors, ConnectorConfig]] = {
+DB_CONNECTORS: Final[Dict[SupportedConnectors, ConnectorConfig]] = {
     "bigquery": {
         "client": bigquery_client,
         "ephemeral": bigquery_ephemeral_strategy,
@@ -17,14 +23,43 @@ CONNECTORS: Final[Dict[SupportedConnectors, ConnectorConfig]] = {
     }
 }
 
+STORAGE_URI_PREFIXES: Final[Dict[str, str]] = {
+    "gs": "google"
+}
+
+STORAGE_CONNECTORS: Final[StorageConnector] = {
+    "google": {
+        "client": google_storage_client,
+        "upload": google_upload_json,
+        "download": google_download_json,
+    }
+}
+
+def init_storage_connector(args: Namespace) -> Tuple[StorageConnectorConfig, str] | None:
+    """Resolve state manifest path with state URI if provided."""
+    if getattr(args, "state_uri", None) is None:
+        return None
+    state_uri = getattr(args, "state_uri")
+    provider = state_uri.split("://")[0]
+    if provider not in STORAGE_URI_PREFIXES:
+        print(f"Storage provider '{provider}' is not supported. Supported providers: {list(STORAGE_URI_PREFIXES.keys())}")
+        sys.exit(1)
+
+    # Now get the configs
+    storage_connector = STORAGE_CONNECTORS.get(STORAGE_URI_PREFIXES[provider])
+    if storage_connector is None:
+        print(f"No storage connector found for provider '{provider}'.")
+        sys.exit(1)
+
+    return storage_connector, state_uri
 
 def get_connector(connector: SupportedConnectors) -> ConnectorConfig | Dict[SupportedConnectors, ConnectorConfig]:
     """Factory function to get the appropriate connector based on configuration."""
-    if connector not in CONNECTORS:
+    if connector not in DB_CONNECTORS:
         print(f"Connector '{connector}' is not supported.")
         sys.exit(1)
 
-    return CONNECTORS[connector]
+    return DB_CONNECTORS[connector]
 
 
 __init__ = [

@@ -12,7 +12,7 @@ from src.schema import RunnerConfig
 from src.variables import Variables
 from src.cache import CacheManager
 from src.runners import resolve_dbt_commands, run_dbt_command, append_dbt_variables_to_command
-from src.utilities.getters import (
+from src.utilities.graph_utils import (
     get_deleted_nodes,
     get_new_nodes,
     get_nodes,get_structured_modified_nodes
@@ -55,7 +55,7 @@ def init(**kwargs):
 
         logger.info("DBT project compiled successfully. manifest.json generated.")
         target_graph = DbtGraph(variables)
-        reference_graph = DbtGraph(variables, user_production_state=True)
+        reference_graph = DbtGraph(variables, is_production=True)
 
         ls_output = run_dbt_command(
             command_args=resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], variables),
@@ -85,7 +85,7 @@ def init(**kwargs):
 
         # Write cache
         cache.write_cache(state_change_summary)
-        cache.write_cache(target_manifest_file, "target_prod_manifest.json" if production_target else "target_manifest.json")
+        cache.write_cache(target_manifest_file, "reference_manifest.json" if production_target else "target_manifest.json")
 
         logger.info("\n------------------------------------------------------")
         logger.info("State Change Summary:")
