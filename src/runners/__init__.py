@@ -1,19 +1,18 @@
 """Central dispatcher for running dbt commands across different runners."""
-import os
-from pathlib import Path
 import subprocess
 import sys
 import venv
+from pathlib import Path
 from argparse import Namespace
-from subprocess import CompletedProcess
 from typing import Callable, Dict, List
 from src.schema import RunnerConfig, Runners
 from src.runners.dbt import dbt_runner
 from src.runners.local import local_runner
 from src.runners.docker import docker_runner
 from src.runners.bash import bash_runner
+from src.utilities.paths import get_absolute_path
 
-RUNNERS: Dict[Runners, Callable[[List[str], RunnerConfig], CompletedProcess | None]] = {
+RUNNERS: Dict[Runners, Callable[[List[str], RunnerConfig], subprocess.CompletedProcess | None]] = {
     "local": local_runner,
     "dbt": dbt_runner,
     "docker": docker_runner,
@@ -23,7 +22,7 @@ RUNNERS: Dict[Runners, Callable[[List[str], RunnerConfig], CompletedProcess | No
 def run_dbt_command(
     command_args: List[str],
     runner_config: RunnerConfig
-) -> CompletedProcess | None:
+) -> subprocess.CompletedProcess | None:
     """
     Central dispatcher for running dbt commands across any runner.
     
@@ -174,7 +173,7 @@ def resolve_dbt_commands(
         for var, flag in path_flags.items():
             value = getattr(variables, var, None)
             if value is not None and value != "":
-                absolute_path = _get_absolute_path(value)
+                absolute_path = get_absolute_path(value)
                 commands.extend([flag, absolute_path])
 
     for var, dbt_flag in dbt_variables.items():
@@ -192,9 +191,3 @@ def resolve_dbt_commands(
         sys.exit(1)
 
     return commands
-
-def _get_absolute_path(path: str) -> str:
-    """Convert path to absolute if it's relative."""
-    if not path:
-        return path
-    return os.path.abspath(path) if not os.path.isabs(path) else path

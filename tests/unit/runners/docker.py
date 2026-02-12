@@ -3,6 +3,7 @@ import pytest
 import os
 from pathlib import Path
 from src.runners.docker import get_docker_env, get_docker_volumes
+from src.utilities.paths import get_absolute_path
 
 
 class TestGetDockerEnv:
@@ -47,6 +48,31 @@ class TestGetDockerEnv:
         result = get_docker_env(mock_runner_config)
         
         assert result == {'DATABASE_URL': 'postgres://user:pass@host/db?param=value'}
+    
+    # Should return the correct absolute paths for config variables
+    def test_get_docker_env_includes_config_vars(self, mock_runner_config):
+        """Test that config vars are included in Docker env."""
+        mock_runner_config = {
+            'dbt_project_dir': '/dbt',
+            'profiles_dir': '/dbt',
+            "reference_state": "/dbt/.dbtstate"
+        }
+        result = get_docker_env(mock_runner_config)
+        
+        assert result['DBT_PROJECT_DIR'] == '/dbt'
+        assert result['DBT_PROFILES_DIR'] == '/dbt'
+        assert result['DBT_REFERENCE_STATE'] == '/dbt/.dbtstate'
+
+    def test_get_docker_volumes_with_config_vars(self, mock_runner_config):
+        """Test that config vars are included in Docker volumes."""
+        mock_runner_config = {
+            'docker_volumes': ['./data:/data:ro'],
+        }
+        result = get_docker_volumes(mock_runner_config)
+        
+        assert any(path.endswith('data') and Path(path).is_absolute() 
+            for path in result.keys())
+
 
 
 class TestGetDockerVolumes:

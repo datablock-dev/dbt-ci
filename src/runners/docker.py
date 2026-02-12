@@ -7,6 +7,7 @@ import docker
 from docker import errors
 from typing import List
 from src.schema import RunnerConfig
+from src.utilities.paths import get_absolute_path
 
 def docker_runner(commands: List[str], runner_config: RunnerConfig) -> CompletedProcess | None:
     """
@@ -112,6 +113,9 @@ def get_docker_env(runner_config: RunnerConfig) -> dict | None:
         "reference_state": "DBT_REFERENCE_STATE",
     }
 
+    for config_key, env_key in config_to_env.items():
+        if runner_config.get(config_key, None) is not None:
+            env_dict[env_key] = runner_config[config_key]
 
     if runner_config.get("docker_env", None) is not None or len(runner_config["docker_env"]) > 0:
         for env in runner_config.get("docker_env", []):
@@ -123,18 +127,15 @@ def get_docker_env(runner_config: RunnerConfig) -> dict | None:
 
 def get_docker_volumes(runner_config: RunnerConfig) -> dict | None:
     """Build Docker volume bindings based on runner configuration."""
+    volume_dict = {}
     if runner_config.get("docker_volumes", None) is None or len(runner_config["docker_volumes"]) == 0:
         return None
-
-    cwd = Path.cwd()
-    volume_dict = {}
+    
     for volume in runner_config.get("docker_volumes", []):
         parts = volume.split(":", 2)
-        host_path = parts[0]
+        host_path = get_absolute_path(parts[0])
         container_path = parts[1]
         mode = parts[2] if len(parts) == 3 else "rw"
-        if not os.path.isabs(host_path):
-            host_path = str((cwd / host_path).resolve())
         volume_dict[host_path] = {
             "bind": container_path, 
             "mode": mode

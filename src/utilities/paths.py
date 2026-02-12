@@ -161,3 +161,7 @@ def get_profile(args: Namespace) -> DBTProfile:
     output_config: DBTProfile = profile["outputs"][target]
 
     return output_config
+
+def get_absolute_path(path: str) -> str:
+    """Return an absolute version of the given path."""
+    return str(Path(path).resolve())

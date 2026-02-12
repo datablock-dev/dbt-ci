@@ -3,16 +3,15 @@
 """
 
 import sys
-from typing import Dict
-import click
 import logging
+from typing import Dict
 from argparse import Namespace
+import click
 from src.cache import CacheManager
 from src.connectors import get_connector
 from src.dependency_graph import DbtGraph
 from src.schema import DeleteMapNode
 from src.utilities.graph_utils import get_node_ids_from_structured_nodes, get_nodes
-from src.utilities.multi_threading import run_multithreaded
 from src.variables import Variables
 
 logger = logging.getLogger(__name__)
