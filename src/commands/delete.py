@@ -87,17 +87,7 @@ def delete(**kwargs):
         if variables.dry_run:
             click.echo("\nDry run complete - no nodes were actually deleted.")
 
-        func_list = [
-            lambda 
-        ]
-
-        run_multithreaded(
-
-            threads=threads,
-            exit_on_exception=True
-        )
         delete_connector(delete_map, variables)
-
         click.echo("Delete process completed successfully.")
         sys.exit(0)
     except Exception as e:

@@ -13,7 +13,7 @@ from argparse import Namespace
 from typing import Dict, Optional
 import click
 from src.cache import CacheManager
-from src.connectors import CONNECTORS, get_connector
+from src.connectors import DB_CONNECTORS, get_connector
 from src.dependency_graph import DbtGraph
 from src.schema import EphemeralMapNode
 from src.variables import Variables
@@ -55,10 +55,10 @@ def ephemeral(**kwargs):
         ephemeral_connector = get_connector(connector_type)["ephemeral"]
 
         if connector_type is None:
-            logger.error(f"Missing connector type for ephemeral mode: {connector_type}. Supported connectors: {list(CONNECTORS.keys())}")
+            logger.error(f"Missing connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
             sys.exit(1)
-        elif connector_type not in CONNECTORS:
-            logger.error(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(CONNECTORS.keys())}")
+        elif connector_type not in DB_CONNECTORS:
+            logger.error(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
             sys.exit(1)
 
         # Look for cache
