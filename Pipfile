@@ -19,6 +19,8 @@ google-cloud-bigquery = ">=3.0.0"
 google-cloud-storage = "*"
 boto3 = "*"
 slack-sdk = "*"
+pytest-cov = "*"
+pytest-mock = "*"
 
 [requires]
 python_version = "3.12"
