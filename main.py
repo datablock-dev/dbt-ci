@@ -31,7 +31,7 @@ def common_options(f):
         help="Specify the dbt adapter to use (e.g., 'postgres', 'snowflake')"
     )(f)
     # Main commands
-    f = click.option(
+    f = click.option( # Change to --state only to simplify and avoid confusion around "production" vs "current" state, since the tool can now compare any two states
         '--prod-manifest-dir', 
         '--reference-manifest-dir', 
         '--state',
@@ -48,7 +48,7 @@ def common_options(f):
         help='Path to the directory containing the dbt profiles.yml file'
     )(f)
     f = click.option(
-        '--production-target',
+        '--production-target', # to be renamed to --reference-target
         default=None,
         help='The dbt target to use for production/reference manifest (defaults to default)'
     )(f)

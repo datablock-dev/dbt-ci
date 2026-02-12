@@ -157,7 +157,7 @@ def run_with_mode(
 
         if runner_config.get("dry_run", False):
             click.echo("DRY RUN: Command would be executed")
-            return None
+            continue
 
         result = run_dbt_command(
             command_args=append_dbt_variables_to_command([command, "--select", " ".join(final_nodes_to_run)], variables),
