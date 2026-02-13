@@ -30,6 +30,7 @@ dependencies = [    "docker",
 [project.optional-dependencies]
 dev = [
     "google-cloud-bigquery>=3.0.0",
+    "google-cloud-storage>=2.10.0",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
