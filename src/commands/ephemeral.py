@@ -88,7 +88,7 @@ def ephemeral(**kwargs):
         # We skip newly created nodes as they should not be included in ephemeral checks
         # They should be created in the PR/merge
         selected_nodes = list(chain(
-            modified_nodes_dict["modified_nodes"] or [],
+            filter_node_ids_by_type(target_graph.to_dict(), modified_nodes_dict["modified_nodes"], ["model"]),
             get_downstream_dependencies(target_graph.to_dict(), modified_nodes, "model") or [],
             get_upstream_dependencies(target_graph.to_dict(), modified_nodes, "snapshot") or [],
             get_upstream_dependencies(target_graph.to_dict(), modified_nodes, "test") or []
