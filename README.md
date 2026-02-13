@@ -13,7 +13,11 @@ pip install dbt-ci
 ### From GitHub
 
 ```bash
+# Install from main branch
 pip install git+https://github.com/datablock-dev/dbt-ci.git@main
+
+# Install a specific version
+pip install git+https://github.com/datablock-dev/dbt-ci.git@v1.0.0
 ```
 
 ### Local Development
