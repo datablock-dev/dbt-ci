@@ -168,7 +168,8 @@ def init_cmd(**kwargs):
     Creates initial state from production manifest. Run this before using other commands.
     
     Examples:
-        dbt-ci init --prod-manifest-dir prod-manifest/ --dbt-project-dir ./dbt --production-target production
+        dbt-ci init --dbt-project-dir ./dbt --reference-target production
+        dbt-ci init --state-uri s3://my-bucket/dbt-state/ --reference-target production
     """
     setup_logging(to_namespace(kwargs).log_level)
     return init(**kwargs)

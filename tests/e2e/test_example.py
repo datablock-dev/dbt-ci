@@ -13,7 +13,7 @@ class TestInitWorkflow:
         return {
             'dbt_project_dir': './dbt',
             'profiles_dir': './dbt',
-            'production_target': 'production',
+            'reference_target': 'production',
             'state': './dbt/.dbtstate',
             'runner': 'dbt',
             'dry_run': False,

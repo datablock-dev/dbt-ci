@@ -56,9 +56,9 @@ OPTIONS_CONFIG = {
         'default': None,
         'help': 'Path to the directory containing the dbt profiles.yml file'
     },
-    'production_target': {
-        'env_vars': ['DBT_PRODUCTION_TARGET'],
-        'cli_flags': ['production_target'],
+    'reference_target': {
+        'env_vars': ['DBT_REFERENCE_TARGET'],
+        'cli_flags': ['reference_target'],
         'required': False,
         'default': None,
         'help': 'The dbt target to use for production/reference manifest (defaults to default)'

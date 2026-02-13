@@ -37,7 +37,7 @@ class TestInitCommand:
             dbt_project_dir='/dbt',
             reference_state='/dbt/.dbtstate',
             runner='local',
-            production_target=None,
+            reference_target=None,
             target_config={'type': 'bigquery'}
         )
         mock_vars.return_value = mock_vars_instance
@@ -105,7 +105,7 @@ class TestInitCommand:
             dbt_project_dir='/dbt',
             reference_state='/dbt/.dbtstate',
             runner='local',
-            production_target='prod',
+            reference_target='prod',
             target_config={'type': 'bigquery'}
         )
         mock_vars.return_value = mock_vars_instance
@@ -145,7 +145,7 @@ class TestInitCommand:
         mock_get_manifest.return_value = {"metadata": {}}
         
         # Run init - should complete successfully without raising SystemExit
-        init(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate', production_target='prod')
+        init(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate', reference_target='prod')
         
         # Verify cache was written
         assert mock_cache_instance.write_cache.call_count >= 2
@@ -181,7 +181,7 @@ class TestInitCommand:
     @patch('src.commands.init.DbtGraph')
     @patch('src.commands.init.get_manifest_file')
     @patch('src.commands.init.click.secho')
-    def test_init_with_production_target(
+    def test_init_with_reference_target(
         self,
         mock_secho,
         mock_get_manifest,
@@ -192,7 +192,7 @@ class TestInitCommand:
         mock_vars,
         mock_cache
     ):
-        """Test init with production target specified."""
+        """Test init with reference target specified."""
         # Setup mocks
         mock_cache_instance = MagicMock()
         mock_cache.return_value = mock_cache_instance
@@ -202,7 +202,7 @@ class TestInitCommand:
             dbt_project_dir='/dbt',
             reference_state='/dbt/.dbtstate',
             runner='local',
-            production_target='prod',
+            reference_target='prod',
             target_config={'type': 'bigquery'}
         )
         mock_vars.return_value = mock_vars_instance
@@ -225,9 +225,9 @@ class TestInitCommand:
         
         # Run init - expect SystemExit(0)
         with pytest.raises(SystemExit) as exc_info:
-            init(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate', production_target='prod')
+            init(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate', reference_target='prod')
         
-        # Verify resolve_dbt_commands was called - it should use production target internally
+        # Verify resolve_dbt_commands was called - it should use reference target internally
         mock_resolve_cmds.assert_called()
         
         # Verify exit code

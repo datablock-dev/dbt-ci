@@ -44,17 +44,17 @@ def init(**kwargs):
         cache = CacheManager()
         config = Variables(args)
         variables = config.to_namespace()
-        production_target = getattr(variables, "production_target", None)
+        reference_target = getattr(variables, "reference_target", None)
         command = ["compile"]
         resolved_storage = init_storage_connector(variables)
 
         if resolved_storage is not None:
             resolve_manifest_file_from_storage(resolved_storage)
 
-        if production_target is None:
-            logger.warning("No production target specified, using current target as production state for comparison.")
+        if reference_target is None:
+            logger.warning("No reference target specified, using current target as production state for comparison.")
         else:
-            command.extend(["--target", production_target])
+            command.extend(["--target", reference_target])
 
         run_dbt_command(
             command_args=resolve_dbt_commands(command, variables, True),
@@ -93,7 +93,7 @@ def init(**kwargs):
 
         # Write cache
         cache.write_cache(state_change_summary)
-        cache.write_cache(target_manifest_file, "reference_manifest.json" if production_target else "target_manifest.json")
+        cache.write_cache(target_manifest_file, "reference_manifest.json" if reference_target else "target_manifest.json")
 
         logger.info("\n------------------------------------------------------")
         logger.info("State Change Summary:")
@@ -109,7 +109,7 @@ def init(**kwargs):
                     logger.info(f"  • {node['name']} ({node['resource_type']})")
         logger.info("------------------------------------------------------\n")
 
-        if production_target is not None:
+        if reference_target is not None:
             run_dbt_command(
                 command_args=append_dbt_variables_to_command(command, variables),
                 runner_config=RunnerConfig(variables.__dict__)

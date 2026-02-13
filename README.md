@@ -40,7 +40,7 @@ First, initialize the dbt-ci state by compiling your project and creating a base
 dbt-ci init \
   --dbt-project-dir dbt \
   --profiles-dir dbt \
-  --production-target production
+  --reference-target production
 ```
 
 **With Cloud Storage (S3):**
@@ -48,7 +48,7 @@ dbt-ci init \
 dbt-ci init \
   --dbt-project-dir dbt \
   --state-uri s3://my-bucket/dbt-state/ \
-  --production-target production
+  --reference-target production
 ```
 
 ### 2. Run Modified Models
@@ -79,11 +79,11 @@ Creates initial state from your dbt project. **Always run this first.**
 dbt-ci init \
   --dbt-project-dir dbt \
   --profiles-dir dbt \
-  --production-target production
+  --reference-target production
 ```
 
 **Options:**
-- `--production-target`: Target to use for production/reference manifest (optional)
+- `--reference-target`: Target to use for production/reference manifest (optional)
 - `--dbt-version`: Specific dbt version to use (e.g., `1.10.13`)
 - `--adapter`, `-a`: Adapter to install (e.g., `dbt-duckdb=1.10.0`)
 
@@ -256,7 +256,7 @@ These options apply to all commands:
 | `--profiles-dir` | Path to profiles.yml directory | Auto-detect |
 | `--state`, `--reference-state` | Path to the reference manifest.json directory | Required for run/delete |
 | `--state-uri` | Cloud storage URI for state files (e.g., `s3://bucket/path/`) | None |
-| `--production-target` | dbt target for production/reference manifest | None |
+| `--reference-target` | dbt target for production/reference manifest | None |
 | `--target`, `-t` | dbt target to use | From profiles.yml |
 | `--vars`, `-v` | YAML string or file path with dbt variables | `""` |
 | `--defer` | Use dbt's defer flag for production state | `false` |
@@ -299,7 +299,7 @@ Store your dbt state in S3 for shared access across CI runs:
 dbt-ci init \
   --dbt-project-dir dbt \
   --state-uri s3://my-bucket/dbt-state/ \
-  --production-target production
+  --reference-target production
 
 # Run using state from S3
 dbt-ci run \
@@ -389,7 +389,7 @@ jobs:
           dbt-ci init \
             --dbt-project-dir dbt \
             --state-uri s3://my-dbt-state/prod/ \
-            --production-target production
+            --reference-target production
       
       - name: Run modified models
         run: |
@@ -405,7 +405,7 @@ dbt-ci:
   image: python:3.11
   script:
     - pip install git+https://github.com/datablock-dev/dbt-ci.git@main
-    - dbt-ci init --dbt-project-dir dbt --state-uri s3://my-dbt-state/prod/ --production-target production
+    - dbt-ci init --dbt-project-dir dbt --state-uri s3://my-dbt-state/prod/ --reference-target production
     - dbt-ci run --mode models --state-uri s3://my-dbt-state/prod/
   only:
     - merge_requests
@@ -430,7 +430,7 @@ dbt-ci:
 ### Pull Request CI
 Only build and test models affected by PR changes:
 ```bash
-dbt-ci init --production-target production
+dbt-ci init --reference-target production
 dbt-ci run --mode models --defer
 ```
 
@@ -438,7 +438,7 @@ dbt-ci run --mode models --defer
 Share state across multiple CI jobs using S3:
 ```bash
 # Job 1: Initialize state
-dbt-ci init --state-uri s3://my-bucket/dbt-state/ --production-target production
+dbt-ci init --state-uri s3://my-bucket/dbt-state/ --reference-target production
 
 # Job 2: Run models
 dbt-ci run --state-uri s3://my-bucket/dbt-state/ --mode models
