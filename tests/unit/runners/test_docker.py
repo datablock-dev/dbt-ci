@@ -16,7 +16,7 @@ class TestGetDockerEnv:
         # Should still include config vars even when docker_env is empty
         assert 'DBT_PROJECT_DIR' in result
         assert 'DBT_PROFILES_DIR' in result
-        assert 'DBT_REFERENCE_STATE' in result
+        assert 'DBT_STATE' in result
     
     def test_get_docker_env_none(self, mock_runner_config):
         """Test that None docker_env still returns config vars."""
@@ -69,7 +69,7 @@ class TestGetDockerEnv:
         
         assert result['DBT_PROJECT_DIR'] == '/dbt'
         assert result['DBT_PROFILES_DIR'] == '/dbt'
-        assert result['DBT_REFERENCE_STATE'] == '/dbt/.dbtstate'
+        assert result['DBT_STATE'] == '/dbt/.dbtstate'
 
     def test_get_docker_volumes_with_config_vars(self, mock_runner_config):
         """Test that config vars are included in Docker volumes."""

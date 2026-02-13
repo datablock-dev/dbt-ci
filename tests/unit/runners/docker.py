@@ -16,7 +16,7 @@ class TestGetDockerEnv:
         # Should still include config vars even when docker_env is empty
         assert 'DBT_PROJECT_DIR' in result
         assert 'DBT_PROFILES_DIR' in result
-        assert 'DBT_REFERENCE_STATE' in result
+        assert 'DBT_STATE' in result
     
     def test_get_docker_env_none(self, mock_runner_config):
         """Test that None docker_env still returns config vars."""
@@ -52,10 +52,20 @@ class TestGetDockerEnv:
     
     def test_get_docker_env_with_equals_in_value(self, mock_runner_config):
         """Test parsing env var with equals sign in value."""
-        config = mock_runner_config({'docker_env': ['DATABASE_URL=postgres://user:pass@host/db?param=value']})
+        config = mock_runner_config({
+            'docker_env': [
+                'DATABASE_URL=postgres://user:pass@host/db?param=value',
+                "DBT_PROFILES_DIR=/usr/app",
+                "DBT_PROJECT_DIR=/usr/app",
+                "DBT_STATE=/usr/app/.dbtstate"
+            ]
+        })
         result = get_docker_env(config)
         
         assert result['DATABASE_URL'] == 'postgres://user:pass@host/db?param=value'
+        assert result['DBT_PROFILES_DIR'] == '/usr/app'
+        assert result['DBT_PROJECT_DIR'] == '/usr/app'
+        assert result['DBT_STATE'] == '/usr/app/.dbtstate'
     
     # Should return the correct absolute paths for config variables
     def test_get_docker_env_includes_config_vars(self, mock_runner_config):
@@ -69,16 +79,18 @@ class TestGetDockerEnv:
         
         assert result['DBT_PROJECT_DIR'] == '/dbt'
         assert result['DBT_PROFILES_DIR'] == '/dbt'
-        assert result['DBT_REFERENCE_STATE'] == '/dbt/.dbtstate'
+        assert result['DBT_STATE'] == '/dbt/.dbtstate'
 
     def test_get_docker_volumes_with_config_vars(self, mock_runner_config):
         """Test that config vars are included in Docker volumes."""
         config = mock_runner_config({
-            'docker_volumes': ['./data:/data:ro'],
+            'docker_volumes': [
+                './dbt:/usr/app:rw',
+                "./dbt/.dbtstate:/dbtstate:ro"
+            ],
         })
         result = get_docker_volumes(config)
-        
-        assert any(path.endswith('data')
+        assert any(path.endswith('dbt')
             and Path(path).is_absolute()
             for path in result.keys()
         )

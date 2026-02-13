@@ -1,3 +1,4 @@
+"""Module for parsing dbt manifest files and generating dependency graphs."""
 import sys
 import json
 from typing import Dict, List, Optional, Set
@@ -61,22 +62,16 @@ def generate_dependency_graph(manifest_file_path: str, is_state_manifest: bool =
         # Skip if the node type is not recognized (e.g., "analysis", "docs", etc.)
         if node_type not in dependency_graph.keys():
             continue
-        elif manifest_key is None:
+        if manifest_key is None:
             print(f"Unknown node type '{node_type}' found in manifest file. Exiting.")
             sys.exit(1)
-        elif full_item is None:
+        if full_item is None:
             print(f"Item '{key}' not found in manifest file under '{manifest_key}'. Skipping.")
             continue
         
         name = full_item.get("name", None)
         compiled_code = full_item.get("compiled_code", None)
         original_file_path = full_item.get("original_file_path", None)
-
-        #if node_type == "seed" and original_file_path:
-        #    compiled_code = parse_seed_file(
-        #        manifest_file_path=manifest_file_path, 
-        #        seed_file_path=original_file_path
-        #    )
 
         node_type_map: Dict[str, set] = {
             "model": set(),
@@ -282,20 +277,3 @@ def append_indirect_dependencies(dependency_graph, direction="upstream"):
                     # Only add to dependencies_by_type if the indirect_type is tracked
                     if indirect_type in node_data[indirect_key]["dependencies_by_type"]:
                         node_data[indirect_key]["dependencies_by_type"][indirect_type].add(indirect_node["name"])
-
-"""
-def parse_seed_file(manifest_file_path: str, seed_file_path: str) -> str:
-    extensions = ['.csv'] # Expand if needed
-    dbt_root_path = get_root_path_from_manifest_file_path(manifest_file_path)
-    adjusted_seed_file_path = os.path.join(dbt_root_path, seed_file_path)
-
-    # Check that file exists
-    if not os.path.exists(adjusted_seed_file_path):
-        print(f"Seed file not found at {adjusted_seed_file_path}")
-        sys.exit(1)
-
-    with open(adjusted_seed_file_path, 'r') as file:        
-        # For simplicity, just read the content
-        content = file.read()
-        return content
-"""

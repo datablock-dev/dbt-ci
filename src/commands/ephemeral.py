@@ -138,7 +138,7 @@ def ephemeral(**kwargs):
         logger.info("Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies.")
         sys.exit(0)
     except Exception as e:
-        logger.error(f"❌ Error: {e}", err=True)
+        logger.error(f"❌ Error: {e}")
         sys.exit(1)
 
 def full_config_or_none(

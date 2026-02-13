@@ -145,13 +145,14 @@ class Column(TypedDict, total=False):
     quote: Optional[bool]
     tags: List[str]
 
+type NodeResourceType = Literal["model", "macro", "source", "seed", "snapshot", "test", "exposure"]
 
 class Node(TypedDict, total=False):
     """A node in the dbt DAG (model, test, seed, etc.)."""
     database: str
     schema: str
     name: str
-    resource_type: str
+    resource_type: NodeResourceType
     package_name: str
     path: str
     original_file_path: str
@@ -405,7 +406,8 @@ class EphemeralMapNode(TypedDict):
     reference_config: NodeConfig | None
 
 class DeleteMapNode(TypedDict):
-    type: Node["resource_type"]
+    """Structure for nodes in the delete map."""
+    type: NodeResourceType
     name: str
     table_id: str
 
