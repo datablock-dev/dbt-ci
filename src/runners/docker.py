@@ -110,7 +110,7 @@ def get_docker_env(runner_config: RunnerConfig) -> dict | None:
     config_to_env = {
         "dbt_project_dir": "DBT_PROJECT_DIR",
         "profiles_dir": "DBT_PROFILES_DIR",
-        "reference_state": "DBT_REFERENCE_STATE",
+        "reference_state": "DBT_STATE",
     }
 
     for config_key, env_key in config_to_env.items():
