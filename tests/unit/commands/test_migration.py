@@ -184,7 +184,8 @@ class TestMigrationCommand:
         mock_get_node_ids.return_value = ['model.project.model1']
         mock_filter.return_value = ['model.project.model1']
         
-        mock_get_nodes_util.return_value = {
+        # Target node with new partitioning and incremental materialization
+        target_nodes = {
             'model.project.model1': {
                 'id': 'model.project.model1',
                 'resource_type': 'model',
@@ -192,33 +193,53 @@ class TestMigrationCommand:
                 'database': 'my_db',
                 'schema': 'my_schema',
                 'config': {
-                    'partition_by': {'field': 'date', 'data_type': 'date'}
+                    'materialized': 'incremental',
+                    'partition_by': {'field': 'new_date', 'data_type': 'date'}
                 },
                 'compiled_code': 'SELECT * FROM table'
             }
         }
         
-        mock_graph_instance = MagicMock()
-        mock_graph_instance.to_dict.return_value = {
-            "model": {
-                "model.project.model1": {
-                    'config': {
-                        'partition_by': {'field': 'date', 'data_type': 'date'}
-                    }
-                }
+        # Reference node with old partitioning
+        reference_nodes = {
+            'model.project.model1': {
+                'id': 'model.project.model1',
+                'resource_type': 'model',
+                'name': 'model1',
+                'database': 'my_db',
+                'schema': 'my_schema',
+                'config': {
+                    'materialized': 'incremental',
+                    'partition_by': {'field': 'old_date', 'data_type': 'date'}
+                },
+                'compiled_code': 'SELECT * FROM table'
             }
         }
+        
+        # get_nodes is called twice: once for target, once for reference
+        mock_get_nodes_util.side_effect = [target_nodes, reference_nodes]
+        
+        # Graph to_dict returns are not directly used since get_nodes is mocked
+        mock_graph_instance = MagicMock()
         mock_graph.return_value = mock_graph_instance
         
         mock_migration_func = MagicMock()
         mock_get_connector.return_value = {'migration': mock_migration_func}
         
-        # Run command - expect SystemExit(0) after completion
-        with pytest.raises(SystemExit) as exc_info:
-            migration(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate')
+        # Run command - migration should complete successfully without sys.exit()
+        migration(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate', dry_run=False)
         
-        # Command may exit with 0 if no migrations needed
-        assert exc_info.value.code == 0
+        # Verify migration function was called with correct migration map
+        mock_migration_func.assert_called_once()
+        call_args = mock_migration_func.call_args[0]
+        migration_map = call_args[0]
+        
+        # Verify migration map structure
+        assert migration_map['connector'] == 'bigquery'
+        assert 'model.project.model1' in migration_map['nodes']
+        assert migration_map['nodes']['model.project.model1']['table_id'] == 'my_db.my_schema.model1'
+        assert migration_map['nodes']['model.project.model1']['old_partitioning'] == {'field': 'old_date', 'data_type': 'date'}
+        assert migration_map['nodes']['model.project.model1']['new_partitioning'] == {'field': 'new_date', 'data_type': 'date'}
     
     @patch('src.commands.migration.CacheManager')
     @patch('src.commands.migration.Variables')
