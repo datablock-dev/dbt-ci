@@ -18,6 +18,7 @@ from src.dependency_graph import DbtGraph
 from src.schema import EphemeralMapNode
 from src.variables import Variables
 from src.utilities.graph_utils import (
+    filter_node_ids_by_type,
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes,
     get_nodes,
