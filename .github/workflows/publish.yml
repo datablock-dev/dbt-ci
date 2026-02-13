@@ -33,21 +33,10 @@ jobs:
       run: |
         pytest -v --cov=src --cov-report=xml --cov-report=term
     
-    - name: Python Semantic Release
+    - name: Semantic Release
       id: release
-      uses: python-semantic-release/python-semantic-release@v8.3.0
+      uses: python-semantic-release/publish-action@v9.14.0
       with:
         github_token: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
-    
-    - name: Publish to PyPI
-      if: steps.release.outputs.released == 'true'
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.PYPI_TOKEN }}
-    
-    - name: Publish to GitHub Releases
-      if: steps.release.outputs.released == 'true'
-      uses: python-semantic-release/upload-to-gh-release@main
-      with:
-        github_token: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
-        tag: ${{ steps.release.outputs.tag }}
+        repository_username: __token__
+        repository_password: ${{ secrets.PYPI_TOKEN }}
