@@ -139,6 +139,15 @@ def ephemeral(**kwargs):
         # will handle the ephemeral execution logic based on the connector type
         if variables.dry_run:
             logger.info("Dry run mode enabled - no actual ephemeral environment will be created.")
+            logger.info("\n------------------------------------------------------")
+            for node_id, node_info in ephemeral_map.items():
+                target_table_id = f"{node_info['ephemeral_config']['database']}.{node_info['ephemeral_config']['schema']}.{node_info['ephemeral_config']['name']}" if node_info['ephemeral_config'] else "N/A"
+                reference_table_id = f"{node_info['reference_config']['database']}.{node_info['reference_config']['schema']}.{node_info['reference_config']['name']}" if node_info['reference_config'] else "N/A"
+
+                logger.info(f"Model: {node_id}")
+                logger.info(f"  - Ephemeral Target: {target_table_id}")
+                logger.info(f"  - Reference Target: {reference_table_id}") 
+            logger.info("------------------------------------------------------\n")
             sys.exit(0)
         elif len(ephemeral_map) == 0:
             logger.info("No nodes found to create ephemeral environment for. Exiting...")
