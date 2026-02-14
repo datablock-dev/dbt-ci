@@ -8,10 +8,6 @@ on:
         required: false
         type: boolean
         default: true
-    secrets:
-      github_token:
-        description: 'GitHub token for container registry'
-        required: true
 
 env:
   REGISTRY: ghcr.io
@@ -52,7 +48,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.github_token }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Extract metadata
         id: meta

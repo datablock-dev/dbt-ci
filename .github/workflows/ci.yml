@@ -6,6 +6,10 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: "${{ github.ref }}-${{ github.workflow }}"
+  cancel-in-progress: true
+
 jobs:
   # Run tests first
   tests:
@@ -18,8 +22,6 @@ jobs:
     uses: ./.github/workflows/docker.yml
     with:
       push_images: ${{ github.event_name != 'pull_request' }}
-    secrets:
-      github_token: ${{ secrets.GITHUB_TOKEN }}
   
   # Publish to PyPI (only on main branch)
   pypi:
