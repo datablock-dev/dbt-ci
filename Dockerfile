@@ -12,4 +12,4 @@ RUN grep -v "^dbt-core" requirements.txt > /tmp/requirements.txt && \
     pip install --no-cache-dir dbt-core==${DBT_CORE_VERSION} && \
     rm /tmp/requirements.txt
 
-ENTRYPOINT ["python", "-m", "src.cli"]
+ENTRYPOINT ["python", "-m", "main"]
