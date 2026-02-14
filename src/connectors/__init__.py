@@ -36,11 +36,13 @@ STORAGE_URI_PREFIXES: Final[Dict[str, str]] = {
 
 STORAGE_CONNECTORS: Final[Dict[SupportedStorageConnectors, StorageConnectorConfig]] = {
     "aws": {
+        "name": "AWS S3",
         "client": aws_storage_client,
         "upload": aws_upload_json,
         "download": aws_download_json,
     },
     "google": {
+        "name": "Google Cloud Storage",
         "client": google_storage_client,
         "upload": google_upload_json,
         "download": google_download_json,
