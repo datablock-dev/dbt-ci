@@ -41,8 +41,9 @@ jobs:
     
     - name: Semantic Release
       id: release
+      env:
+        GH_TOKEN: ${{ secrets.semantic_release_token }}
+        PYPI_TOKEN: ${{ secrets.pypi_token }}
       uses: python-semantic-release/publish-action@v9.14.0
       with:
         github_token: ${{ secrets.semantic_release_token }}
-        repository_username: __token__
-        repository_password: ${{ secrets.pypi_token }}

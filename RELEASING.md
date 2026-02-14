@@ -1,16 +1,22 @@
 # Release Process
 
-This project uses automated semantic versioning and releases.
+This project uses automated semantic versioning and releases via `python-semantic-release`.
 
 ## How It Works
 
-When you push to `main`, the CI automatically:
-1. Analyzes commit messages to determine version bump
-2. Updates version in `pyproject.toml`
-3. Creates a git tag
-4. Generates a changelog
-5. Creates a GitHub release
-6. Publishes to PyPI
+When you push commits to `main` branch, the CI/CD pipeline (`publish-pypi.yml`) automatically:
+1. ✅ Runs tests across multiple dbt-core versions
+2. ✅ Analyzes commit messages using Conventional Commits to determine version bump
+3. ✅ Updates version in `pyproject.toml`
+4. ✅ Updates `CHANGELOG.md` with release notes
+5. ✅ Creates a git tag (e.g., `v1.1.0`)
+6. ✅ Commits version changes back to repository with `[skip ci]`
+7. ✅ Creates a GitHub Release with changelog
+8. ✅ Builds Python package (wheel + sdist)
+9. ✅ Publishes to PyPI (https://pypi.org/project/dbt-ci/)
+10. ✅ Builds Docker images for multiple dbt-core versions
+
+**Note:** The first release after setup may require a manual commit with conventional commit format to trigger semantic-release.
 
 ## Commit Message Format
 
@@ -85,20 +91,72 @@ git commit -m "docs: update README [skip ci]"
 
 ## Manual Release (if needed)
 
-If you need to manually trigger a release:
+If you need to manually trigger a release or test the release process:
 
 ```bash
 # Ensure you're on main with latest changes
 git checkout main
 git pull
 
-# Create a tag manually
-git tag v0.2.0
-git push origin v0.2.0
+# Run semantic-release locally (requires python-semantic-release installed)
+pip install python-semantic-release
+semantic-release version
+semantic-release publish
 
-# Or use gh CLI
-gh release create v0.2.0 --generate-notes
+# Or just trigger the GitHub Actions workflow manually
+gh workflow run ci.yml
 ```
+
+## Troubleshooting
+
+### No Release Created
+
+**Problem:** Commits pushed to main but no release was created.
+
+**Solutions:**
+1. Check that commits follow Conventional Commits format
+2. Verify commits are not marked with `[skip ci]`
+3. Check GitHub Actions logs for errors
+4. Ensure secrets `SEMANTIC_RELEASE_TOKEN` and `PYPI_TOKEN` are configured
+
+### Version Not Updated
+
+**Problem:** Release created but version in `pyproject.toml` still shows old version.
+
+**Solution:** This was fixed by ensuring:
+- `version_toml = ["pyproject.toml:project.version"]` in semantic_release config
+- Workflow has `persist-credentials: true` and proper token access
+- Semantic release has permission to commit back to repository
+
+### PyPI Upload Failed
+
+**Problem:** Release created but package not on PyPI.
+
+**Solution:** Verify:
+- `PYPI_TOKEN` secret is configured correctly
+- `upload_to_pypi = true` in `[tool.semantic_release]` (fixed in recent update)
+- PyPI project name matches `name` in `pyproject.toml`
+
+## Docker Image Releases
+
+Docker images are built for every push to main and tagged with:
+- `dbt-{VERSION}` (e.g., `dbt-1.10.13`)
+- `latest` (points to dbt-1.10.13 currently)
+- Future: `v{RELEASE}-dbt{VERSION}` (e.g., `v1.2.3-dbt1.10.13`)
+
+Images are hosted at: `ghcr.io/datablock-dev/dbt-ci`
+
+Supported dbt-core versions: 1.10.13, 1.11.5 (and future versions)
+
+**Note:** Only dbt-core 1.10.13 and above are supported.
+
+## Versioning Strategy
+
+See [VERSION_STRATEGY.md](VERSION_STRATEGY.md) for detailed information about:
+- Supporting multiple dbt-core versions
+- PyPI package versioning approach
+- Docker multi-tag strategy
+- How production companies handle multi-version support
 
 ## First Release
 

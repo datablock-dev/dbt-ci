@@ -23,17 +23,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Define dbt-core version range
-        # Update these versions as new releases become available
+        # Only include the LATEST patch version of each minor dbt-core version
+        # When a new patch is released (e.g., 1.10.14), replace the old one (1.10.13)
+        # This keeps the registry clean - each tag gets overwritten with updates
         dbt_version:
-          - '1.8.0'
-          - '1.8.7'
-          - '1.9.0'
-          - '1.9.1'
-          - '1.10.0'
-          - '1.10.13'
-          - '1.11.0'
-          - '1.11.5'
+          - '1.10.13' # Latest 1.10.x (update this when 1.10.14 is released)
+          - '1.11.5'  # Latest 1.11.x (update this when 1.11.6 is released)
     
     steps:
       - name: Checkout repository
@@ -58,7 +53,6 @@ jobs:
           tags: |
             type=raw,value=dbt-${{ matrix.dbt_version }}
             type=raw,value=latest,enable=${{ matrix.dbt_version == '1.10.13' }}
-            type=sha,prefix=dbt-${{ matrix.dbt_version }}-
       
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
