@@ -134,6 +134,13 @@ def ephemeral(**kwargs):
 
         # Pass the ephemeral map and variables to the connector strategy which
         # will handle the ephemeral execution logic based on the connector type
+        if variables.dry_run:
+            logger.info("Dry run mode enabled - no actual ephemeral environment will be created.")
+            sys.exit(0)
+        elif len(ephemeral_map) == 0:
+            logger.info("No nodes found to create ephemeral environment for. Exiting...")
+            sys.exit(0)
+
         ephemeral_connector(ephemeral_map, variables)
         logger.info("Ephemeral strategy completed successfully.")
         logger.info("Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies.")

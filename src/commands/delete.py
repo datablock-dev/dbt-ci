@@ -83,6 +83,7 @@ def delete(**kwargs):
 
         if variables.dry_run:
             click.echo("\nDry run complete - no nodes were actually deleted.")
+            sys.exit(0)
 
         delete_connector(delete_map, variables)
         click.echo("Delete process completed successfully.")

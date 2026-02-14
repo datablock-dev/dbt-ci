@@ -5,8 +5,8 @@ from argparse import Namespace
 from typing import Any, Dict, Set, Tuple
 import click
 from google.cloud import bigquery
+from src.schema import DeleteMapNode, EphemeralMapNode, MigrationMap
 from src.utilities.paths import get_profile, get_profiles_file
-from src.schema import DeleteMapNode, DependencyGraphNode, EphemeralMapNode, MigrationMap
 from src.utilities.multi_threading import run_multithreaded
 
 logger = logging.getLogger(__name__)
@@ -18,8 +18,21 @@ def bigquery_client(variables: Namespace) -> bigquery.Client:
         dbt_project_dir=variables.dbt_project_dir,
         profiles_dir=variables.profiles_dir
     )
+    
+    # Get the profile name from the project config
+    profile_name = variables.project.get("profile")
+    
+    if not profile_name:
+        raise ValueError(
+            "No 'profile' key found in dbt_project.yml")
+    
+    profile_config = dbt_profile.get(profile_name, {})
+    
+    if not profile_config:
+        raise ValueError(
+            f"Profile '{profile_name}' not found in profiles.yml")
 
-    output = dbt_profile.get("outputs", {}).get(variables.target, {})
+    output = profile_config.get("outputs", {}).get(variables.target, {})
     if not output:
         raise ValueError(
             f"No output configuration found for target '{variables.target}' in profiles.yml")

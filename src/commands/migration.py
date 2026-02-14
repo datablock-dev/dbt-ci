@@ -6,6 +6,7 @@ from typing import Dict
 import click
 from src.cache import CacheManager
 from src.dependency_graph import DbtGraph
+from src.logging import print_exception
 from src.schema import DependencyGraphNode, MigrationMap
 from src.variables import Variables
 from src.connectors import get_connector
@@ -84,7 +85,7 @@ def migration(**kwargs):
         migration_connector(migration_map, args)
 
     except Exception as e:
-        sys.exit(1)
+        print_exception(e)
 
 def get_changed_partitioning(
     target_nodes: Dict[str, Dict[str, DependencyGraphNode]],
