@@ -1,6 +1,7 @@
-name: Tests
+name: Tests (Reusable)
 
 on:
+  workflow_call:
   pull_request:
     branches: [ main ]
 

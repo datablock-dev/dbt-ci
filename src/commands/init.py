@@ -11,7 +11,8 @@ from typing import Tuple
 import click
 from src.connectors import init_storage_connector
 from src.dependency_graph import DbtGraph
-from src.utilities.paths import get_manifest_file
+from src.logging import print_exception
+from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 from src.schema import RunnerConfig, StorageConnectorConfig
 from src.variables import Variables
 from src.cache import CacheManager
@@ -49,7 +50,11 @@ def init(**kwargs):
         resolved_storage = init_storage_connector(variables)
 
         if resolved_storage is not None:
-            resolve_manifest_file_from_storage(resolved_storage)
+            local_state_dir = resolve_manifest_file_from_storage(resolved_storage, variables)
+            # Update reference_state to use the local path where manifest was downloaded
+            variables.reference_state = str(local_state_dir)
+            # Reload reference manifest file after downloading from storage
+            variables.reference_manifest_file = get_reference_manifest_file(variables.reference_state)
 
         if reference_target is None:
             logger.warning("No reference target specified, using current target as production state for comparison.")
@@ -111,7 +116,7 @@ def init(**kwargs):
 
         if reference_target is not None:
             run_dbt_command(
-                command_args=append_dbt_variables_to_command(command, variables),
+                command_args=resolve_dbt_commands(command, variables),
                 runner_config=RunnerConfig(variables.__dict__)
             )
 
@@ -121,25 +126,30 @@ def init(**kwargs):
         logger.info("Initialization complete. Cache updated with current state(s).")
         logger.info("You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state.")
     except Exception as e:
-        logger.error(f"Error during initialization: {str(e)}")
+        print_exception(e, "Error during initialization")
         sys.exit(1)
 
 def resolve_manifest_file_from_storage(
     resolved_storage: Tuple[StorageConnectorConfig, str],
     variables: Namespace
-) -> None:
-    """Download manifest file from storage and save to local path for graph generation."""
+) -> Path:
+    """Download manifest file from storage and save to local path for graph generation.
+    
+    Returns:
+        Path: The local directory path where the manifest was saved
+    """
     cwd = Path.cwd()
     storage_connector, state_uri = resolved_storage
-    logger.info(f"Using storage connector '{storage_connector}' for state management with URI: {state_uri}")
+    logger.info(f"Using storage connector '{storage_connector.get('name', 'Unknown')}' for state management with URI: {state_uri}")
     reference_manifest = storage_connector["download"](state_uri)
-    dbtstate_dir: str | None = None
+    dbtstate_dir: Path | None = None
 
     # Write and download manifest to path
-    if variables.reference_state is None:
+    # When using Docker, always use the local dbt_project_dir/.dbtstate path on host
+    if variables.runner == "docker" or variables.reference_state is None:
         dbtstate_dir = cwd / variables.dbt_project_dir / ".dbtstate" # Default
     else:
-        dbtstate_dir = cwd / variables.state
+        dbtstate_dir = cwd / variables.reference_state
     if dbtstate_dir is None:
         logger.error("No valid path found for downloading manifest file. Please specify a valid --state path or ensure your dbt_project_dir is correct.")
         sys.exit(1)
@@ -150,3 +160,5 @@ def resolve_manifest_file_from_storage(
     with open(manifest_path, "w", encoding="utf-8") as f:
         f.write(json.dumps(reference_manifest, indent=2))
     logger.info(f"Reference manifest successfully downloaded and saved to {manifest_path}")
+    
+    return dbtstate_dir

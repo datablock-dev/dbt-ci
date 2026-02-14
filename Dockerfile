@@ -1,16 +1,15 @@
-FROM ghcr.io/dbt-labs/dbt-core:1.11.3
+FROM python:3.12-slim
 
-RUN pip install dbt-duckdb
+# Build argument for dbt-core version
+ARG DBT_CORE_VERSION=1.10.13
 
-# Copy dbt project (or mount at runtime with -v)
-COPY dbt /dbt
-WORKDIR /dbt
+WORKDIR /app
+COPY . /app
 
-# Install dbt dependencies
-RUN dbt deps
+# Install dependencies excluding dbt-core, then install specific dbt-core version
+RUN grep -v "^dbt-core" requirements.txt > /tmp/requirements.txt && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    pip install --no-cache-dir dbt-core==${DBT_CORE_VERSION} && \
+    rm /tmp/requirements.txt
 
-# Set entrypoint to dbt command
-ENTRYPOINT ["dbt"]
-
-# Default to showing version
-CMD ["--version"]
+ENTRYPOINT ["python", "-m", "src.cli"]

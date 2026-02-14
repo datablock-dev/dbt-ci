@@ -446,6 +446,7 @@ class MigrationMap(TypedDict):
 
 class StorageConnectorConfig(TypedDict):
     """Configuration for storage connectors."""
+    name: str
     client: Callable[..., Any]
     upload: Callable[[str, dict], None]
     download: Callable[[str], DBTManifest]

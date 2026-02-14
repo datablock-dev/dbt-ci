@@ -163,18 +163,32 @@ def resolve_dbt_commands(
         "defer": "--defer",
     }
 
-    # Local and dbt runners need absolute paths for certain flags
+    # Path mappings for different runners
     path_flags = {
         "dbt_project_dir": "--project-dir",
         "profiles_dir": "--profiles-dir",
         "reference_state": "--state",
     }
+    
+    # Local and dbt runners need absolute paths
     if runner in ["local", "dbt"]:
         for var, flag in path_flags.items():
             value = getattr(variables, var, None)
             if value is not None and value != "":
                 absolute_path = get_absolute_path(value)
                 commands.extend([flag, absolute_path])
+    
+    # Docker runner needs container paths from docker-env
+    elif runner == "docker":
+        from src.runners.docker import get_container_paths
+        
+        # Use the shared function to get container path mappings
+        container_path_map = get_container_paths(variables.__dict__)
+        
+        for var, flag in path_flags.items():
+            container_path = container_path_map.get(var)
+            if container_path:
+                commands.extend([flag, container_path])
 
     for var, dbt_flag in dbt_variables.items():
         if skip_target and var == "target":

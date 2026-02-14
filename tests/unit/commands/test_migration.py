@@ -176,7 +176,8 @@ class TestMigrationCommand:
             dbt_project_dir='/dbt',
             reference_state='/dbt/.dbtstate',
             runner='local',
-            target_config={'type': 'bigquery'}
+            target_config={'type': 'bigquery'},
+            dry_run=False
         )
         mock_vars_instance.to_namespace.return_value = namespace
         mock_vars.return_value = mock_vars_instance
@@ -277,7 +278,8 @@ class TestMigrationCommand:
             dbt_project_dir='/dbt',
             reference_state='/dbt/.dbtstate',
             runner='local',
-            target_config={'type': 'bigquery'}
+            target_config={'type': 'bigquery'},
+            dry_run=False
         )
         mock_vars_instance.to_namespace.return_value = namespace
         mock_vars.return_value = mock_vars_instance

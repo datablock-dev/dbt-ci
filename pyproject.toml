@@ -22,27 +22,25 @@ classifiers = [
 
 # Read dependencies from requirements.txt
 dependencies = [    
-    "docker",
-    "click>=8.0.0",
-    "PyYAML>=6.0",
-    "dbt-core>=1.10.13",
-    "boto3>=1.26.0",
-    "google-cloud-bigquery>=3.0.0",
-    "google-cloud-storage>=2.10.0",
+    "click==8.1.8",
+    "pyyaml==6.0.3",
+    "dbt-core==1.10.13",
+    "docker==7.1.0",
+    "boto3==1.35.0",
+    "google-cloud-bigquery==3.27.0",
+    "google-cloud-storage==2.19.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "google-cloud-bigquery>=3.0.0",
-    "google-cloud-storage>=2.10.0",
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "pytest-mock>=3.10.0",
-    "black>=22.0.0",
-    "mypy>=0.950",
-    "flake8>=6.0.0",
-    "duckdb>=0.8.0",
-    "boto3>=1.26.0",
+    "pytest==8.3.5",
+    "black==24.10.0",
+    "mypy==1.14.1",
+    "flake8==7.1.2",
+    "duckdb==1.2.0",
+    "slack-sdk==3.36.0",
+    "pytest-cov==6.0.0",
+    "pytest-mock==3.14.0",
 ]
 
 [project.scripts]

@@ -57,7 +57,13 @@ class Variables:
         # Variables requiring helper functions to resolve value
         self._resolved["project"] = get_dbt_project_file(self.dbt_project_dir)
         self._resolved["target_manifest_file"] = get_manifest_file(self.dbt_project_dir)
-        self._resolved["reference_manifest_file"] = get_reference_manifest_file(self.reference_state)
+        
+        # Skip reference manifest validation if state_uri is provided (will be downloaded later)
+        if self.state_uri is not None:
+            self._resolved["reference_manifest_file"] = None
+        else:
+            self._resolved["reference_manifest_file"] = get_reference_manifest_file(self.reference_state)
+        
         self._resolved["profile"] = get_profiles_file(self.dbt_project_dir, self.profiles_dir)
         
         # Get target info (call once to avoid recomputing)

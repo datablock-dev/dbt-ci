@@ -6,6 +6,7 @@ from typing import Dict
 import click
 from src.cache import CacheManager
 from src.dependency_graph import DbtGraph
+from src.logging import print_exception
 from src.schema import DependencyGraphNode, MigrationMap
 from src.variables import Variables
 from src.connectors import get_connector
@@ -76,14 +77,15 @@ def migration(**kwargs):
                 logger.info(f"  - New Partitioning: {node_info['new_partitioning']}")
             logger.info("------------------------------------------------------\n")
 
-        if args.dry_run:
+        if variables.dry_run:
             logger.info("Dry run mode enabled - no changes will be applied.")
             sys.exit(0)
         
         # Apply partitioning changes
-        migration_connector(migration_map, args)
+        migration_connector(migration_map, variables)
 
     except Exception as e:
+        print_exception(e)
         sys.exit(1)
 
 def get_changed_partitioning(

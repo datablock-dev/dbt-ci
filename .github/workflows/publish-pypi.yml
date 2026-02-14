@@ -1,8 +1,14 @@
-name: Publish to PyPI
+name: Publish to PyPI (Reusable)
 
 on:
-  push:
-    branches: [ main ]
+  workflow_call:
+    secrets:
+      semantic_release_token:
+        description: 'Token for semantic release'
+        required: true
+      pypi_token:
+        description: 'Token for PyPI publishing'
+        required: true
 
 jobs:
   release:
@@ -16,7 +22,7 @@ jobs:
       with:
         fetch-depth: 0
         persist-credentials: true
-        token: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
+        token: ${{ secrets.semantic_release_token }}
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -37,6 +43,6 @@ jobs:
       id: release
       uses: python-semantic-release/publish-action@v9.14.0
       with:
-        github_token: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
+        github_token: ${{ secrets.semantic_release_token }}
         repository_username: __token__
-        repository_password: ${{ secrets.PYPI_TOKEN }}
+        repository_password: ${{ secrets.pypi_token }}

@@ -251,7 +251,8 @@ class TestResolveManifestFromStorage:
         variables = Namespace(
             reference_state=None,
             dbt_project_dir='dbt',
-            state='dbt/.dbtstate'
+            state='dbt/.dbtstate',
+            runner='local'
         )
         
         # Mock Path operations
