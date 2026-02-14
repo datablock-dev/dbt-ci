@@ -115,8 +115,15 @@ def init(**kwargs):
         logger.info("------------------------------------------------------\n")
 
         if reference_target is not None:
+            # Compile with the actual target (not reference target)
+            # Use the user-specified target, or let dbt use the default from dbt_project.yml
+            target_command = ["compile"]
+            actual_target = getattr(variables, "target", None)
+            if actual_target and actual_target != "default":
+                target_command.extend(["--target", actual_target])
+            # If no target specified, dbt will use the default from dbt_project.yml
             run_dbt_command(
-                command_args=resolve_dbt_commands(command, variables),
+                command_args=resolve_dbt_commands(target_command, variables),
                 runner_config=RunnerConfig(variables.__dict__)
             )
 
