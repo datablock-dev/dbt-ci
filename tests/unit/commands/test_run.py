@@ -11,12 +11,12 @@ class TestRunCommand:
     @patch('src.commands.run.CacheManager')
     @patch('src.commands.run.Variables')
     @patch('src.commands.run.DbtGraph')
+    @patch('src.commands.run.logging.error')
     @patch('src.commands.run.click.secho')
-    @patch('src.commands.run.click.echo')
     def test_run_no_cache(
         self,
-        mock_echo,
         mock_secho,
+        mock_logger_error,
         mock_graph,
         mock_vars,
         mock_cache
@@ -37,8 +37,8 @@ class TestRunCommand:
         # Run command
         run(dbt_project_dir='/dbt')
         
-        # Verify message was shown
-        mock_echo.assert_called_with(
+        # Verify message was logged
+        mock_logger_error.assert_called_with(
             "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
         )
     
@@ -47,12 +47,12 @@ class TestRunCommand:
     @patch('src.commands.run.DbtGraph')
     @patch('src.commands.run.get_node_ids_from_structured_nodes')
     @patch('src.commands.run.run_with_mode')
+    @patch('src.commands.run.logging.info')
     @patch('src.commands.run.click.secho')
-    @patch('src.commands.run.click.echo')
     def test_run_no_modified_nodes(
         self,
-        mock_echo,
         mock_secho,
+        mock_logger_info,
         mock_run_mode,
         mock_get_nodes,
         mock_graph,
@@ -81,8 +81,8 @@ class TestRunCommand:
         # Run command
         run(dbt_project_dir='/dbt')
         
-        # Verify appropriate message was shown
-        mock_echo.assert_any_call("No modified, new, or deleted nodes found in cache, skipping...")
+        # Verify appropriate message was logged
+        mock_logger_info.assert_any_call("No modified, new, or deleted nodes found in cache, skipping...")
     
     @patch('src.commands.run.CacheManager')
     @patch('src.commands.run.Variables')
@@ -238,10 +238,10 @@ class TestRunWithMode:
     
     @patch('src.commands.run.get_downstream_dependencies')
     @patch('src.commands.run.filter_node_ids_by_type')
-    @patch('src.commands.run.click.echo')
+    @patch('src.commands.run.logging.info')
     def test_run_with_mode_no_nodes(
         self,
-        mock_echo,
+        mock_logger_info,
         mock_filter,
         mock_downstream
     ):
@@ -264,16 +264,16 @@ class TestRunWithMode:
         # Run
         run_with_mode('models', variables, target_graph, modified_nodes_dict, modified_nodes)
         
-        # Verify no models message was shown
-        mock_echo.assert_any_call("No models to run")
+        # Verify no models message was logged
+        mock_logger_info.assert_any_call("No models to run")
     
     @patch('src.commands.run.run_dbt_command')
     @patch('src.commands.run.get_downstream_dependencies')
     @patch('src.commands.run.filter_node_ids_by_type')
-    @patch('src.commands.run.click.echo')
+    @patch('src.commands.run.logging.info')
     def test_run_with_mode_dry_run(
         self,
-        mock_echo,
+        mock_logger_info,
         mock_filter,
         mock_downstream,
         mock_run_cmd
@@ -300,5 +300,5 @@ class TestRunWithMode:
         # Verify dbt command was NOT executed
         mock_run_cmd.assert_not_called()
         
-        # Verify dry run message was shown
-        mock_echo.assert_any_call("DRY RUN: Command would be executed")
+        # Verify dry run message was logged
+        mock_logger_info.assert_any_call("DRY RUN: Command would be executed")

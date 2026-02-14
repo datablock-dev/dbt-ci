@@ -15,6 +15,7 @@ import click
 from src.cache import CacheManager
 from src.connectors import DB_CONNECTORS, get_connector
 from src.dependency_graph import DbtGraph
+from src.logging import print_exception
 from src.schema import EphemeralMapNode
 from src.variables import Variables
 from src.utilities.graph_utils import (
@@ -53,14 +54,16 @@ def ephemeral(**kwargs):
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, is_production=True)
         connector_type = variables.target_config.get("type")
-        ephemeral_connector = get_connector(connector_type)["ephemeral"]
-
+        
+        # Validate connector before calling get_connector
         if connector_type is None:
             logger.error(f"Missing connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
             sys.exit(1)
         elif connector_type not in DB_CONNECTORS:
             logger.error(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
             sys.exit(1)
+        
+        ephemeral_connector = get_connector(connector_type)["ephemeral"]
 
         # Look for cache
         prev_cache = cache.get_cache()
@@ -146,7 +149,7 @@ def ephemeral(**kwargs):
         logger.info("Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies.")
         sys.exit(0)
     except Exception as e:
-        logger.error(f"❌ Error: {e}")
+        print_exception(e)
         sys.exit(1)
 
 def full_config_or_none(

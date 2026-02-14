@@ -1,6 +1,7 @@
 """Run command for dbt-ci"""
 
 import sys
+import logging
 from argparse import Namespace
 from itertools import chain
 from typing import Dict, List
@@ -10,12 +11,15 @@ from src.schema import RunModes, RunnerConfig
 from src.variables import Variables
 from src.variables.config import MODE_MAPPING, NODE_TYPE_COMMAND_MAPPING, REVERSE_MODE_MAPPING
 from src.cache import CacheManager
+from src.logging import print_exception
 from src.runners import run_dbt_command, append_dbt_variables_to_command
 from src.utilities.graph_utils import (
     filter_node_ids_by_type,
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes
 )
+
+logger = logging.getLogger(__name__)
 
 def run(**kwargs):
     """Run modified dbt models
@@ -44,9 +48,9 @@ def run(**kwargs):
         # Look for cache
         prev_cache = cache.get_cache()
         if prev_cache is None: # Should we exit here instead of compiling?
-            click.echo("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
+            logging.error("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
             return
-        click.echo("Cache successfully found - using cached state for comparison")
+        logging.info("Cache successfully found - using cached state for comparison")
 
         modified_nodes_dict = {
             "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
@@ -63,11 +67,11 @@ def run(**kwargs):
         )
 
         if len(modified_nodes) == 0:
-            click.echo("No modified, new, or deleted nodes found in cache, skipping...")
+            logging.info("No modified, new, or deleted nodes found in cache, skipping...")
             return
         
-        click.echo("\n-------------------------------------------------------")
-        click.echo(f"Found {len(modified_nodes)} modified model(s):")
+        logging.info("\n-------------------------------------------------------")
+        logging.info(f"Found {len(modified_nodes)} modified model(s):")
         for node in modified_nodes:
             string = f"  • {node.split('.')[-1]}"
             if node in modified_nodes_dict["deleted_nodes"]:
@@ -77,8 +81,8 @@ def run(**kwargs):
             elif node in modified_nodes_dict["new_nodes"]:
                 string += " [New]"
             
-            click.echo(string)
-        click.echo("-------------------------------------------------------\n")
+            logging.info(string)
+        logging.info("-------------------------------------------------------\n")
 
         run_with_mode(
             mode=variables.nodes,
@@ -87,9 +91,9 @@ def run(**kwargs):
             modified_nodes_dict=modified_nodes_dict,
             modified_nodes=modified_nodes
         )
-        click.echo("\nAll done!")
+        logging.info("\nAll done!")
     except Exception as e:
-        click.echo(f"❌ Error: {e}", err=True)
+        print_exception(e)
         sys.exit(1)
 
 def run_with_mode(
@@ -106,7 +110,7 @@ def run_with_mode(
         run_order = [MODE_MAPPING[mode]]
 
     for command in run_order:
-        click.echo(f"\nIdentifying modified nodes of type: {REVERSE_MODE_MAPPING[command]}")
+        logging.info(f"\nIdentifying modified nodes of type: {REVERSE_MODE_MAPPING[command]}")
         node_type = NODE_TYPE_COMMAND_MAPPING[REVERSE_MODE_MAPPING[command]]
 
         # Get downstream dependencies for this node type
@@ -131,31 +135,31 @@ def run_with_mode(
         )
 
         if len(final_nodes_to_run) == 0:
-            click.echo(f"No {REVERSE_MODE_MAPPING[command]} to run")
+            logging.info(f"No {REVERSE_MODE_MAPPING[command]} to run")
             continue
 
         modified_of_type = [n for n in modified_nodes_dict.get("modified_nodes", []) if n in final_nodes_to_run]
 
         # Display what will run, categorized by change type
-        click.echo("\n-------------------------------------------------------")
-        click.echo(f"The following {REVERSE_MODE_MAPPING[command]} will be run:")
+        logging.info("\n-------------------------------------------------------")
+        logging.info(f"The following {REVERSE_MODE_MAPPING[command]} will be run:")
         for node in modified_of_type:
-            click.echo(f"  • [Modified] {node}")
+            logging.info(f"  • [Modified] {node}")
         
         new_of_type = [n for n in modified_nodes_dict.get("new_nodes", []) if n in final_nodes_to_run]
         for node in new_of_type:
-            click.echo(f"  • [New] {node}")
+            logging.info(f"  • [New] {node}")
         
         downstream_of_type = [n for n in downstream_dependencies if n in final_nodes_to_run]
         for node in downstream_of_type:
-            click.echo(f"  • [Downstream] {node}")
-        click.echo(f"\nTotal {REVERSE_MODE_MAPPING[command]} to run: {len(final_nodes_to_run)}")
-        click.echo("-------------------------------------------------------\n")
+            logging.info(f"  • [Downstream] {node}")
+        logging.info(f"\nTotal {REVERSE_MODE_MAPPING[command]} to run: {len(final_nodes_to_run)}")
+        logging.info("-------------------------------------------------------\n")
 
-        click.echo(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
+        logging.info(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
 
         if runner_config.get("dry_run", False):
-            click.echo("DRY RUN: Command would be executed")
+            logging.info("DRY RUN: Command would be executed")
             continue
 
         result = run_dbt_command(
@@ -164,9 +168,9 @@ def run_with_mode(
         )
 
         if result and result.returncode == 0:
-            click.echo(f"\n✅ Successfully ran {len(final_nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
+            logging.info(f"\n✅ Successfully ran {len(final_nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
         else:
-            click.echo("\n❌ Run failed", err=True)
+            logging.error("\n❌ Run failed")
             sys.exit(1)
 
     return
