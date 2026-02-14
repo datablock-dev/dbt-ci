@@ -10,30 +10,27 @@ class TestGetDockerEnv:
     """Test get_docker_env function."""
     
     def test_get_docker_env_empty(self, mock_runner_config):
-        """Test that empty docker_env still returns config vars."""
+        """Test that empty docker_env returns empty dict."""
         config = mock_runner_config()
         result = get_docker_env(config)
-        # Should still include config vars even when docker_env is empty
-        assert 'DBT_PROJECT_DIR' in result
-        assert 'DBT_PROFILES_DIR' in result
-        assert 'DBT_STATE' in result
+        # Should return empty dict when docker_env is empty
+        assert result == {}
     
     def test_get_docker_env_none(self, mock_runner_config):
-        """Test that None docker_env still returns config vars."""
+        """Test that None docker_env returns empty dict."""
         config = mock_runner_config({'docker_env': None})
         result = get_docker_env(config)
-        # Should still include config vars even when docker_env is None
-        assert 'DBT_PROJECT_DIR' in result
-        assert 'DBT_PROFILES_DIR' in result
+        # Should return empty dict when docker_env is None
+        assert result == {}
     
     def test_get_docker_env_single(self, mock_runner_config):
         """Test parsing single environment variable."""
         config = mock_runner_config({'docker_env': ['MY_VAR=test_value']})
         result = get_docker_env(config)
         
-        # Should include both custom env var and config vars
+        # Should include only custom env var
         assert result['MY_VAR'] == 'test_value'
-        assert 'DBT_PROJECT_DIR' in result
+        assert len(result) == 1
     
     def test_get_docker_env_multiple(self, mock_runner_config):
         """Test parsing multiple environment variables."""
@@ -44,11 +41,11 @@ class TestGetDockerEnv:
         ]})
         result = get_docker_env(config)
         
-        # Should include all custom env vars and config vars
+        # Should include only custom env vars
         assert result['VAR1'] == 'value1'
         assert result['VAR2'] == 'value2'
         assert result['VAR3'] == 'value3'
-        assert 'DBT_PROJECT_DIR' in result
+        assert len(result) == 3
     
     def test_get_docker_env_with_equals_in_value(self, mock_runner_config):
         """Test parsing env var with equals sign in value."""
@@ -57,13 +54,15 @@ class TestGetDockerEnv:
         
         assert result['DATABASE_URL'] == 'postgres://user:pass@host/db?param=value'
     
-    # Should return the correct absolute paths for config variables
+    # Config vars should be passed via docker_env explicitly, not automatically
     def test_get_docker_env_includes_config_vars(self, mock_runner_config):
-        """Test that config vars are included in Docker env."""
+        """Test that config vars can be passed via docker_env."""
         config = mock_runner_config({
-            'dbt_project_dir': '/dbt',
-            'profiles_dir': '/dbt',
-            "reference_state": "/dbt/.dbtstate"
+            'docker_env': [
+                'DBT_PROJECT_DIR=/dbt',
+                'DBT_PROFILES_DIR=/dbt',
+                'DBT_STATE=/dbt/.dbtstate'
+            ]
         })
         result = get_docker_env(config)
         
