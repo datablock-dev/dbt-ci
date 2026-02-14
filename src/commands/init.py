@@ -116,7 +116,7 @@ def init(**kwargs):
 
         if reference_target is not None:
             run_dbt_command(
-                command_args=append_dbt_variables_to_command(command, variables),
+                command_args=resolve_dbt_commands(command, variables),
                 runner_config=RunnerConfig(variables.__dict__)
             )
 
