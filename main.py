@@ -12,12 +12,6 @@ from src.logging import setup_logging
 # Shared options for all commands
 def common_options(f):
     """Decorator to add common options to all commands"""
-    # S3 options
-    f = click.option(
-        "--state-uri",
-        default=None,
-        help="S3 URI for the state manifest.json files (e.g., s3://my-bucket/dbt-state/)"
-    )(f)
     # Dynamic package options
     f = click.option(
         "--dbt-version",
@@ -162,6 +156,11 @@ def cli():
 
 @cli.command(name="init")
 @common_options
+@click.option(
+    "--state-uri",
+    default=None,
+    help="S3 URI for the state manifest.json files (e.g., s3://my-bucket/dbt-state/)"
+)
 def init_cmd(**kwargs):
     """Initialize dbt CI state
     
@@ -259,6 +258,28 @@ def delete_cmd(**kwargs):
     """
     setup_logging(to_namespace(kwargs).log_level)
     return delete(**kwargs)
+
+@cli.command(name="finalize")
+@common_options
+@click.option(
+    "--artifacts-uri",
+    default=None,
+    type=str,
+    help="S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., s3://my-bucket/dbt-artifacts/)"
+)
+def finalize_cmd(**kwargs):
+    """Finalize the state after running CI commands
+    
+    This command should be run after 'run' or 'delete' to update the reference state with the new production state.
+    It will also clean up any temporary files and reset the cache for the next run.
+    
+    Examples:
+        dbt-ci finalize
+        dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
+    """
+    setup_logging(to_namespace(kwargs).log_level)
+    # Finalize logic can be implemented here, such as updating reference manifest, clearing cache, etc.
+    click.echo("Finalize command executed. Implement state update and cleanup logic here.")
 
 def to_namespace(kwargs):
     """Convert kwargs dict to argparse.Namespace for easier access and compatibility with existing code"""
