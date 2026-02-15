@@ -34,6 +34,7 @@ def migration(**kwargs):
         cache = CacheManager()
         config = Variables(args)
         variables = config.to_namespace()
+        cache.start_report("migration", variables)
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, is_production=True)
         connector_type = variables.target_config.get("type")
@@ -83,8 +84,11 @@ def migration(**kwargs):
         
         # Apply partitioning changes
         migration_connector(migration_map, variables)
-
+        cache.update_report("migration", "completed", comment=str(list(migration_map["nodes"].keys())))
+        logger.info("Migration completed successfully.")
+        sys.exit(0)
     except Exception as e:
+        cache.update_report("migration", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
 

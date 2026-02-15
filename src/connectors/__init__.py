@@ -49,12 +49,11 @@ STORAGE_CONNECTORS: Final[Dict[SupportedStorageConnectors, StorageConnectorConfi
     }
 }
 
-def init_storage_connector(args: Namespace) -> Tuple[StorageConnectorConfig, str] | None:
+def init_storage_connector(uri: str | None) -> Tuple[StorageConnectorConfig, str] | None:
     """Resolve state manifest path with state URI if provided."""
-    if getattr(args, "state_uri", None) is None:
+    if uri is None:
         return None
-    state_uri = getattr(args, "state_uri")
-    provider = state_uri.split("://")[0]
+    provider = uri.split("://")[0]
     if provider not in STORAGE_URI_PREFIXES:
         print(f"Storage provider '{provider}' is not supported. Supported providers: {list(STORAGE_URI_PREFIXES.keys())}")
         sys.exit(1)
@@ -65,7 +64,7 @@ def init_storage_connector(args: Namespace) -> Tuple[StorageConnectorConfig, str
         print(f"No storage connector found for provider '{provider}'.")
         sys.exit(1)
 
-    return storage_connector, state_uri
+    return storage_connector, uri
 
 def get_connector(connector: SupportedConnectors) -> ConnectorConfig | Dict[SupportedConnectors, ConnectorConfig]:
     """Factory function to get the appropriate connector based on configuration."""

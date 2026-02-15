@@ -38,6 +38,7 @@ class TestInitCommand:
             reference_state='/dbt/.dbtstate',
             runner='local',
             reference_target=None,
+            state_uri=None,
             target_config={'type': 'bigquery'}
         )
         mock_vars.return_value = mock_vars_instance
@@ -106,6 +107,7 @@ class TestInitCommand:
             reference_state='/dbt/.dbtstate',
             runner='local',
             reference_target='prod',
+            state_uri=None,
             target_config={'type': 'bigquery'}
         )
         mock_vars.return_value = mock_vars_instance
@@ -203,6 +205,7 @@ class TestInitCommand:
             reference_state='/dbt/.dbtstate',
             runner='local',
             reference_target='prod',
+            state_uri=None,
             target_config={'type': 'bigquery'}
         )
         mock_vars.return_value = mock_vars_instance

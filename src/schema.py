@@ -3,6 +3,7 @@ from argparse import Namespace
 from typing import Callable, Dict, Any, List, Optional, TypedDict, NotRequired, Literal, Set
 
 type LoggingLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+type Commands = Literal["init", "delete", "migrate", "ephemeral", "run", "finalize"]
 class DBTProfile(TypedDict):
     """Structure of a dbt profiles.yml profile."""
     type: str

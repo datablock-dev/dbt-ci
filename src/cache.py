@@ -1,7 +1,11 @@
+from argparse import Namespace
 import json
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+from src.schema import Commands
 
 class CacheManager:
     """
@@ -33,3 +37,41 @@ class CacheManager:
                 return json.load(f)
         else:
             return None
+        
+    def start_report(self, command: Commands, variables: Namespace):
+        """Add information to report.json"""
+        # Check if key exists in cache, if not create it
+        report_cache = self.get_cache("report.json")
+        if report_cache is None:
+            self.write_cache({
+                command: {
+                    "status": "started",
+                    "started_at": datetime.now().isoformat(),
+                    "variables": {
+                        "runner": variables.runner,
+                        "target": getattr(variables, "target", None),
+                        "reference_target": getattr(variables, "reference_target", None),
+                    }
+                }
+            }, "report.json")
+        else:
+            report_cache[command] = {
+                "status": "started",
+                "started_at": datetime.now().isoformat(),
+                "variables": {
+                    "runner": variables.runner,
+                    "target": getattr(variables, "target", None),
+                    "reference_target": getattr(variables, "reference_target", None),
+                }
+            }
+            self.write_cache(report_cache, "report.json")
+
+    def update_report(self, command: Commands, status: str, comment: Optional[str] = None):
+        """Update report.json with status and timestamp"""
+        report_cache = self.get_cache("report.json")
+        if report_cache is not None and command in report_cache:
+            report_cache[command]["status"] = status
+            report_cache[command][f"{status}_at"] = datetime.now().isoformat()
+            if comment:
+                report_cache[command]["comment"] = comment
+            self.write_cache(report_cache, "report.json")

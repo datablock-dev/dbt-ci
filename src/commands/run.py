@@ -43,6 +43,7 @@ def run(**kwargs):
         cache = CacheManager()
         config = Variables(args)
         variables = config.to_namespace()
+        cache.start_report("run", variables)
         target_graph = DbtGraph(variables)
                 
         # Look for cache
@@ -91,8 +92,11 @@ def run(**kwargs):
             modified_nodes_dict=modified_nodes_dict,
             modified_nodes=modified_nodes
         )
+
+        cache.update_report("run", "completed", comment=str(modified_nodes))
         logging.info("\nAll done!")
     except Exception as e:
+        cache.update_report("run", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
 

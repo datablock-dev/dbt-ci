@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 from argparse import Namespace
 from typing import Tuple
+from datetime import datetime
 import click
 from src.connectors import init_storage_connector
 from src.dependency_graph import DbtGraph
@@ -45,9 +46,10 @@ def init(**kwargs):
         cache = CacheManager()
         config = Variables(args)
         variables = config.to_namespace()
+        cache.start_report("init", variables)
         reference_target = getattr(variables, "reference_target", None)
         command = ["compile"]
-        resolved_storage = init_storage_connector(variables)
+        resolved_storage = init_storage_connector(getattr(variables, "state_uri", None))
 
         if resolved_storage is not None:
             local_state_dir = resolve_manifest_file_from_storage(resolved_storage, variables)
@@ -130,9 +132,11 @@ def init(**kwargs):
             target_manifest_file = get_manifest_file(variables.dbt_project_dir)
             cache.write_cache(target_manifest_file, "target_manifest.json")
 
+        cache.update_report(command="init", status="completed")
         logger.info("Initialization complete. Cache updated with current state(s).")
         logger.info("You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state.")
     except Exception as e:
+        cache.update_report(command="init", status="failed")
         print_exception(e, "Error during initialization")
         sys.exit(1)
 

@@ -24,6 +24,7 @@ def delete(**kwargs):
         cache = CacheManager()
         config = Variables(args)
         variables = config.to_namespace()
+        cache.start_report("delete", variables)
         reference_graph = DbtGraph(variables, is_production=True)
         connector_type = variables.target_config.get("type")
         delete_connector = get_connector(connector_type)["delete"]
@@ -86,8 +87,10 @@ def delete(**kwargs):
             sys.exit(0)
 
         delete_connector(delete_map, variables)
+        cache.update_report("delete", "completed", comment=str(list(delete_map.keys())))
         click.echo("Delete process completed successfully.")
         sys.exit(0)
     except Exception as e:
+        cache.update_report("delete", "failed", comment=str(e))
         logger.error(f"An error occurred during the delete process: {str(e)}")
         sys.exit(1)
