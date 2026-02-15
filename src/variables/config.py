@@ -13,6 +13,13 @@ OPTIONS_CONFIG = {
         'default': None,
         'help': 'S3 URI for the state manifest.json files (e.g., s3://my-bucket/dbt-state/)'
     },
+    "artifacts_uri": {
+        "env_vars": ['DBT_ARTIFACTS_URI', 'ARTIFACTS_URI'],
+        "cli_flags": ['artifacts_uri'],
+        "required": False,
+        "default": None,
+        "help": 'S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., s3://my-bucket/dbt-artifacts/)'
+    },
     'dbt_version': {
         'env_vars': ['DBT_VERSION'],
         'cli_flags': ['dbt_version'],

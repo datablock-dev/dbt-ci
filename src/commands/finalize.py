@@ -29,6 +29,7 @@ def finalize(**kwargs):
         variables = config.to_namespace()
         logger.info("Finalizing ci/cd process by uploading manifest.json and cleaning up cache...")
         manifest_file = cache.get_cache("target_manifest.json") or cache.get_cache("reference_manifest.json")
+        cache.start_report("finalize", variables)
         report = cache.get_cache("report.json")
         if manifest_file is None:
             logger.warning("No manifest file found in cache to upload. Skipping artifact upload.")
@@ -49,6 +50,7 @@ def finalize(**kwargs):
         else:
             if report is not None:
                 logger.info(report)
+        cache.update_report("finalize", "completed", cache.get_cache())
         logger.info("Finalize complete.")
         sys.exit(0)
     except Exception as e:

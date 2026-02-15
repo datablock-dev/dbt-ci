@@ -93,7 +93,7 @@ def run(**kwargs):
             modified_nodes=modified_nodes
         )
 
-        cache.update_report("run", "completed", comment=str(modified_nodes))
+        cache.update_report("run", "completed")
         logging.info("\nAll done!")
     except Exception as e:
         cache.update_report("run", "failed", comment=str(e))

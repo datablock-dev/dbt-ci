@@ -1,13 +1,14 @@
 """DBT CI Tool - Intelligent CI for DBT projects"""
 from argparse import Namespace
 import click
+from src.logging import setup_logging
 from src.commands import (
     delete,
     run,
     ephemeral,
-    init
+    init,
+    finalize
 )
-from src.logging import setup_logging
 
 # Shared options for all commands
 def common_options(f):
@@ -278,8 +279,8 @@ def finalize_cmd(**kwargs):
         dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
     """
     setup_logging(to_namespace(kwargs).log_level)
-    # Finalize logic can be implemented here, such as updating reference manifest, clearing cache, etc.
-    click.echo("Finalize command executed. Implement state update and cleanup logic here.")
+    return finalize(**kwargs)
+    
 
 def to_namespace(kwargs):
     """Convert kwargs dict to argparse.Namespace for easier access and compatibility with existing code"""

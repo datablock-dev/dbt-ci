@@ -86,7 +86,6 @@ def migration(**kwargs):
         migration_connector(migration_map, variables)
         cache.update_report("migration", "completed", comment=str(list(migration_map["nodes"].keys())))
         logger.info("Migration completed successfully.")
-        sys.exit(0)
     except Exception as e:
         cache.update_report("migration", "failed", comment=str(e))
         print_exception(e)
