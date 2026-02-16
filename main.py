@@ -203,6 +203,7 @@ def init_cmd(**kwargs):
         'snapshots', 
         'tests'
     ], case_sensitive=False),
+    multiple=True,
     default=None,
     help="Extra filters to apply, dbt-lineage run -m tests -f snapshots to run modified models and their snapshot dependencies only"
 )
