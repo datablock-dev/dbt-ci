@@ -34,6 +34,13 @@ OPTIONS_CONFIG = {
         'default': None,
         'help': "Specify the dbt adapter to use (e.g., 'postgres', 'snowflake')"
     },
+    'filters': {
+        'cli_flags': ['filters', '-f'],
+        'required': False,
+        'default': None,
+        'choices': ['models', 'seeds', 'snapshots', 'tests'],
+        'help': "Extra filters to apply, e.g., dbt-ci run -m tests -f snapshots to run modified models and their snapshot dependencies only"
+    },
     'nodes': {
         'env_vars': ['DBT_NODES'],
         'cli_flags': ['nodes'],

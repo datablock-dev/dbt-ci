@@ -1,5 +1,4 @@
 """Command to finalize the ephemeral environment by replacing references with actual targets."""
-import json
 import sys
 import logging
 from argparse import Namespace

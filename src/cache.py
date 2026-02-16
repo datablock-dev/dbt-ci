@@ -40,6 +40,9 @@ class CacheManager:
         
     def start_report(self, command: Commands, variables: Namespace):
         """Add information to report.json"""
+        if command == "init":
+            # Clear previous report on init
+            self.write_cache({}, "report.json")
         # Check if key exists in cache, if not create it
         report_cache = self.get_cache("report.json")
         if report_cache is None:
@@ -66,12 +69,16 @@ class CacheManager:
             }
             self.write_cache(report_cache, "report.json")
 
-    def update_report(self, command: Commands, status: str, comment: Optional[str] = None):
+    def update_report(self, command: Commands, status: str, comment: dict | str | None = None):
         """Update report.json with status and timestamp"""
         report_cache = self.get_cache("report.json")
         if report_cache is not None and command in report_cache:
             report_cache[command]["status"] = status
             report_cache[command][f"{status}_at"] = datetime.now().isoformat()
             if comment:
-                report_cache[command]["comment"] = comment
+                if isinstance(comment, dict):
+                    for key, value in comment.items():
+                        report_cache[command][key] = value
+                else:
+                    report_cache[command]["comment"] = comment
             self.write_cache(report_cache, "report.json")

@@ -192,11 +192,21 @@ def init_cmd(**kwargs):
     help='Run mode for dbt-ci (default: auto)'
 )
 @click.option(
-    "--levels",
-    type=int,
+    '--filters', '-f',
+    type=click.Choice([
+        'models', 
+        'seeds', 
+        'snapshots', 
+        'tests'], case_sensitive=False),
     default=None,
-    help="Number of dependency levels to include (default: all)"
+    help="Extra filters to apply, dbt-lineage run -m tests -f snapshots to run modified models and their snapshot dependencies only"
 )
+#@click.option( # Not yet implemented
+#    "--levels",
+#    type=int,
+#    default=None,
+#    help="Number of dependency levels to include (default: all)"
+#)
 def run_cmd(**kwargs):
     """Run modified dbt models
     
