@@ -59,7 +59,7 @@ def init(**kwargs):
             variables.reference_manifest_file = get_reference_manifest_file(variables.reference_state)
 
         if reference_target is None:
-            logger.warning("No reference target specified, using current target as production state for comparison.")
+            logger.warning("No reference target specified, using current target as reference state for comparison.")
         else:
             command.extend(["--target", reference_target])
 
@@ -100,7 +100,11 @@ def init(**kwargs):
 
         # Write cache
         cache.write_cache(state_change_summary)
-        cache.write_cache(target_manifest_file, "reference_manifest.json" if reference_target else "target_manifest.json")
+        if reference_target is not None and reference_target != variables.target:
+            cache.write_cache(target_manifest_file, "reference_manifest.json")
+        elif reference_target is None:
+            cache.write_cache(target_manifest_file, "reference_manifest.json")
+            cache.write_cache(target_manifest_file, "target_manifest.json")
 
         logger.info("\n------------------------------------------------------")
         logger.info("State Change Summary:")
@@ -116,9 +120,9 @@ def init(**kwargs):
                     logger.info(f"  • {node['name']} ({node['resource_type']})")
         logger.info("------------------------------------------------------\n")
 
-        if reference_target is not None:
-            # Compile with the actual target (not reference target)
-            # Use the user-specified target, or let dbt use the default from dbt_project.yml
+        # Compile with the actual target (not reference target)
+        # Use the user-specified target, or let dbt use the default from dbt_project.yml
+        if reference_target is not None and reference_target != variables.target:
             target_command = ["compile"]
             actual_target = getattr(variables, "target", None)
             if actual_target and actual_target != "default":
@@ -128,7 +132,6 @@ def init(**kwargs):
                 command_args=resolve_dbt_commands(target_command, variables),
                 runner_config=RunnerConfig(variables.__dict__)
             )
-
             target_manifest_file = get_manifest_file(variables.dbt_project_dir)
             cache.write_cache(target_manifest_file, "target_manifest.json")
 
