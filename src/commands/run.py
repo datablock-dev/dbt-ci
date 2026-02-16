@@ -58,16 +58,11 @@ def run(**kwargs):
             "new_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("new_nodes", None)) or [],
             "deleted_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("deleted_nodes", None)) or []
         }
-
-        modified_nodes = list(chain(
-            modified_nodes_dict["modified_nodes"],
-            modified_nodes_dict["deleted_nodes"],
-            modified_nodes_dict["new_nodes"]
-        ))
+        modified_nodes = [value for values in modified_nodes_dict.values() for value in values]
 
         if len(modified_nodes) == 0:
             logger.info("No modified, new, or deleted nodes found in cache, skipping...")
-            return
+            sys.exit(0)
         
         logger.info("\n-------------------------------------------------------")
         logger.info(f"Found {len(modified_nodes)} modified model(s):")
@@ -117,33 +112,30 @@ def run_with_mode(
             node_type = NODE_TYPE_COMMAND_MAPPING[REVERSE_MODE_MAPPING[command]]
 
             # Get downstream dependencies for this node type
-            downstream_dependencies = get_downstream_dependencies(
+            set_of_downstream_dependencies = get_downstream_dependencies(
                 dependency_graph=target_graph.to_dict(),
                 node_ids=modified_nodes,  # All modified, new, deleted
                 node_type=node_type
             )
             # Convert to list (function returns set or None)
-            downstream_dependencies = list(downstream_dependencies) if downstream_dependencies else []
+            downstream_dependencies = list(set_of_downstream_dependencies) if set_of_downstream_dependencies else []
 
             # Combine all nodes that need to run (modified + new + downstream)
-            all_nodes_to_run = list(set(
-                modified_nodes_dict.get("modified_nodes", []) +
-                modified_nodes_dict.get("new_nodes", []) +
-                downstream_dependencies
-            ))
-
-            # Filter once by node type to get final list
-            final_nodes_to_run = filter_node_ids_by_type(
+            nodes_to_run = filter_node_ids_by_type(
                 dependency_graph=target_graph.to_dict(),
-                node_ids=all_nodes_to_run,
-                node_type=node_type
+                node_type=node_type,
+                node_ids=list(set(
+                    modified_nodes_dict.get("modified_nodes", []) +
+                    modified_nodes_dict.get("new_nodes", []) +
+                    downstream_dependencies
+                ))
             )
 
-            if len(final_nodes_to_run) == 0:
+            if len(nodes_to_run) == 0:
                 logger.info(f"No {REVERSE_MODE_MAPPING[command]} to run")
                 continue
 
-            modified_of_type = [n for n in modified_nodes_dict.get("modified_nodes", []) if n in final_nodes_to_run]
+            modified_of_type = [n for n in modified_nodes_dict.get("modified_nodes", []) if n in nodes_to_run]
 
             # Display what will run, categorized by change type
             logger.info("\n-------------------------------------------------------")
@@ -151,14 +143,14 @@ def run_with_mode(
             for node in modified_of_type:
                 logger.info(f"  • [Modified] {node}")
 
-            new_of_type = [n for n in modified_nodes_dict.get("new_nodes", []) if n in final_nodes_to_run]
+            new_of_type = [n for n in modified_nodes_dict.get("new_nodes", []) if n in nodes_to_run]
             for node in new_of_type:
                 logger.info(f"  • [New] {node}")
 
-            downstream_of_type = [n for n in downstream_dependencies if n in final_nodes_to_run]
+            downstream_of_type = [n for n in downstream_dependencies if n in nodes_to_run]
             for node in downstream_of_type:
                 logger.info(f"  • [Downstream] {node}")
-            logger.info(f"\nTotal {REVERSE_MODE_MAPPING[command]} to run: {len(final_nodes_to_run)}")
+            logger.info(f"\nTotal {REVERSE_MODE_MAPPING[command]} to run: {len(nodes_to_run)}")
             logger.info("-------------------------------------------------------\n")
 
             logger.info(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
@@ -168,12 +160,12 @@ def run_with_mode(
                 continue
 
             result = run_dbt_command(
-                command_args=append_dbt_variables_to_command([command, "--select", " ".join(final_nodes_to_run)], variables),
+                command_args=append_dbt_variables_to_command([command, "--select", " ".join(nodes_to_run)], variables),
                 runner_config=runner_config
             )
 
             if result and result.returncode == 0:
-                logger.info(f"\n✅ Successfully ran {len(final_nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
+                logger.info(f"\n✅ Successfully ran {len(nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
             else:
                 logger.error("\n❌ Run failed")
                 sys.exit(1)

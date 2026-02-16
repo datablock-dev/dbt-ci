@@ -78,8 +78,12 @@ class TestRunCommand:
         
         mock_get_nodes.return_value = []
         
-        # Run command
-        run(dbt_project_dir='/dbt')
+        # Run command - expect it to exit with code 0
+        with pytest.raises(SystemExit) as exc_info:
+            run(dbt_project_dir='/dbt')
+        
+        # Verify it exited with code 0
+        assert exc_info.value.code == 0
         
         # Verify appropriate message was logged
         mock_logger_info.assert_any_call("No modified, new, or deleted nodes found in cache, skipping...")
