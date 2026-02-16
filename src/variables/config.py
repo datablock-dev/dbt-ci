@@ -10,6 +10,7 @@ OPTIONS_CONFIG = {
         'env_vars': ['DBT_STATE_URI', 'STATE_URI'],
         'cli_flags': ['state_uri'],
         'required': False,
+        'required_for': ['init'],  # Only init uses state_uri
         'default': None,
         'help': 'S3 URI for the state manifest.json files (e.g., s3://my-bucket/dbt-state/)'
     },
@@ -52,7 +53,8 @@ OPTIONS_CONFIG = {
     'reference_state': {
         'env_vars': ['DBT_STATE', 'DBT_STATE_DIR', 'STATE_DIR'],
         'cli_flags': ['reference_state','state', 'reference_manifest_dir'],
-        'required': True,
+        'required': False,
+        'required_for': ['init'],  # Only required for init command
         'default': None,
         'help': 'Path to the reference manifest.json directory'
     },

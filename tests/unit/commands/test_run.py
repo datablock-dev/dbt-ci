@@ -11,7 +11,7 @@ class TestRunCommand:
     @patch('src.commands.run.CacheManager')
     @patch('src.commands.run.Variables')
     @patch('src.commands.run.DbtGraph')
-    @patch('src.commands.run.logging.error')
+    @patch('src.commands.run.logger.error')
     @patch('src.commands.run.click.secho')
     def test_run_no_cache(
         self,
@@ -47,7 +47,7 @@ class TestRunCommand:
     @patch('src.commands.run.DbtGraph')
     @patch('src.commands.run.get_node_ids_from_structured_nodes')
     @patch('src.commands.run.run_with_mode')
-    @patch('src.commands.run.logging.info')
+    @patch('src.commands.run.logger.info')
     @patch('src.commands.run.click.secho')
     def test_run_no_modified_nodes(
         self,
@@ -238,7 +238,7 @@ class TestRunWithMode:
     
     @patch('src.commands.run.get_downstream_dependencies')
     @patch('src.commands.run.filter_node_ids_by_type')
-    @patch('src.commands.run.logging.info')
+    @patch('src.commands.run.logger.info')
     def test_run_with_mode_no_nodes(
         self,
         mock_logger_info,
@@ -270,7 +270,7 @@ class TestRunWithMode:
     @patch('src.commands.run.run_dbt_command')
     @patch('src.commands.run.get_downstream_dependencies')
     @patch('src.commands.run.filter_node_ids_by_type')
-    @patch('src.commands.run.logging.info')
+    @patch('src.commands.run.logger.info')
     def test_run_with_mode_dry_run(
         self,
         mock_logger_info,

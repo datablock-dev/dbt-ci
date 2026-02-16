@@ -49,7 +49,7 @@ def ephemeral(**kwargs):
         click.secho("DBT CI Ephemeral", fg="green", bold=True)
         args = Namespace(**kwargs)
         cache = CacheManager()
-        config = Variables(args)
+        config = Variables(args, command='ephemeral')
         variables = config.to_namespace()
         cache.start_report("ephemeral", variables)
         target_graph = DbtGraph(variables)

@@ -26,12 +26,6 @@ def common_options(f):
         help="Specify the dbt adapter to use (e.g., 'postgres', 'snowflake')"
     )(f)
     # Main commands
-    f = click.option( # Change to --state only to simplify and avoid confusion around "production" vs "current" state, since the tool can now compare any two states
-        '--reference-state', '--state',
-        default=None,
-        type=str,
-        help='Path to the reference manifest.json directory'
-    )(f)
     f = click.option(
         '--dbt-project-dir', 
         default='.',
@@ -158,18 +152,28 @@ def cli():
 @cli.command(name="init")
 @common_options
 @click.option(
+    '--reference-state', '--state',
+    default=None,
+    type=str,
+    help='Path to the reference manifest.json directory (local path where state will be downloaded)'
+)
+@click.option(
     "--state-uri",
     default=None,
-    help="S3 URI for the state manifest.json files (e.g., s3://my-bucket/dbt-state/)"
+    help="Remote URI for the state manifest.json file (e.g., gs://my-bucket/dbt-state/manifest.json or s3://my-bucket/dbt-state/manifest.json)"
 )
 def init_cmd(**kwargs):
     """Initialize dbt CI state
     
-    Creates initial state from production manifest. Run this before using other commands.
+    Downloads reference manifest and compares with current state. Creates cache for subsequent commands.
+    Run this before using run, delete, or ephemeral commands.
     
     Examples:
-        dbt-ci init --dbt-project-dir ./dbt --reference-target production
-        dbt-ci init --state-uri s3://my-bucket/dbt-state/ --reference-target production
+        # Download from GCS and use sandbox target as reference
+        dbt-ci init --state-uri gs://bucket/manifest.json --reference-target sandbox --state dbt/.dbtstate
+        
+        # Use local state directory
+        dbt-ci init --state dbt/.dbtstate --reference-target production
     """
     setup_logging(to_namespace(kwargs).log_level)
     return init(**kwargs)
@@ -197,7 +201,8 @@ def init_cmd(**kwargs):
         'models', 
         'seeds', 
         'snapshots', 
-        'tests'], case_sensitive=False),
+        'tests'
+    ], case_sensitive=False),
     default=None,
     help="Extra filters to apply, dbt-lineage run -m tests -f snapshots to run modified models and their snapshot dependencies only"
 )
@@ -210,15 +215,14 @@ def init_cmd(**kwargs):
 def run_cmd(**kwargs):
     """Run modified dbt models
     
-    Detects models that have changed based on state comparison and runs them.
+    Uses cached state from 'dbt-ci init' to detect and run modified models.
     
     Examples:
-        dbt-ci run --state prod-manifest/ --dbt-project-dir ./dbt
-        dbt-ci run --state prod-manifest/ --runner docker
+        # Run after init
+        dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
+        dbt-ci run --runner docker
         
-        # With environment variables
-        export DBT_STATE=./dbt/.dbtstate/
-        export DBT_PROJECT_DIR=./dbt
+        # Simple local run
         dbt-ci run
     """
     setup_logging(to_namespace(kwargs).log_level)
@@ -236,17 +240,16 @@ def run_cmd(**kwargs):
 def ephemeral_cmd(**kwargs):
     """Run ephemeral CI check workflow
     
-    Detects changes, lists modified models, but doesn't execute them.
-    Useful for quick CI checks and PR previews.
+    Uses cached state from 'dbt-ci init' to create and test ephemeral schemas.
+    Useful for full integration testing in isolated environments.
     
     Examples:
-        dbt-ci ephemeral --state prod-manifest/ --dbt-project-dir ./dbt
-        dbt-ci ephemeral --state prod-manifest/ --runner docker
+        # Run after init
+        dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
+        dbt-ci ephemeral --runner docker
         
-        # With environment variables
-        export DBT_STATE=./dbt/.dbtstate/
-        export DBT_PROJECT_DIR=./dbt
-        dbt-ci ephemeral
+        # Keep environment for debugging
+        dbt-ci ephemeral --keep-env
     """
     setup_logging(to_namespace(kwargs).log_level)
     return ephemeral(**kwargs)
@@ -254,18 +257,17 @@ def ephemeral_cmd(**kwargs):
 @cli.command(name='delete')
 @common_options
 def delete_cmd(**kwargs):
-    """Delete modified dbt models
+    """Delete removed dbt models
     
-    Detects models that have been deleted based on state comparison and deletes them from the target environment.
+    Uses cached state from 'dbt-ci init' to detect and delete models removed from the project.
     
     Examples:
-        dbt-ci delete --state prod-manifest/ --dbt-project-dir ./dbt
-        dbt-ci delete --state prod-manifest/ --runner docker
+        # Run after init
+        dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
+        dbt-ci delete --runner docker
         
-        # With environment variables
-        export DBT_STATE=./dbt/.dbtstate/
-        export DBT_PROJECT_DIR=./dbt
-        dbt-ci delete
+        # Dry run to preview deletions
+        dbt-ci delete --dry-run
     """
     setup_logging(to_namespace(kwargs).log_level)
     return delete(**kwargs)

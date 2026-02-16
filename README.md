@@ -2,6 +2,18 @@
 
 A CI tool for dbt (data build tool) projects that intelligently runs only modified models based on state comparison, supporting multiple execution environments including local, Docker, and dbt runners.
 
+## How It Works
+
+dbt-ci uses a **cache-based workflow**:
+
+1. **`init`** - Downloads reference state from cloud storage (or uses local), compares with current code, and creates a cache of changes
+2. **`run/delete/ephemeral`** - Use the cached state automatically (no need to re-specify state paths)
+
+This design ensures:
+- ✅ **Consistent state** across all commands in a CI run
+- ✅ **Better performance** (no redundant state downloads)
+- ✅ **Simpler CLI** (specify state once in init, reuse everywhere)
+
 ## Installation
 
 ### From PyPI (Recommended)
@@ -32,83 +44,82 @@ After installation, the tool is available as `dbt-ci`.
 
 ## Quick Start
 
+**The Workflow:** Initialize once with `init`, then run commands that use the cached state.
+
 ### 1. Initialize State
 
-First, initialize the dbt-ci state by compiling your project and creating a baseline:
+First, initialize the dbt-ci state. This downloads/reads reference state and creates a cache:
 
 ```bash
 dbt-ci init \
   --dbt-project-dir dbt \
   --profiles-dir dbt \
-  --reference-target production
+  --reference-target production \
+  --state dbt/.dbtstate
 ```
 
-**With Cloud Storage (S3):**
+**With Cloud Storage (GCS/S3):**
 ```bash
 dbt-ci init \
   --dbt-project-dir dbt \
-  --state-uri s3://my-bucket/dbt-state/ \
-  --reference-target production
+  --state-uri gs://my-bucket/dbt-state/manifest.json \
+  --reference-target production \
+  --state dbt/.dbtstate
 ```
 
 ### 2. Run Modified Models
 
-After making changes to your dbt project, run only the modified models:
+After initialization, run commands use the cached state automatically:
 
 ```bash
+# No need to specify --state again!
 dbt-ci run \
   --dbt-project-dir dbt \
-  --profiles-dir dbt \
-  --state dbt/.dbtstate
+  --profiles-dir dbt
 ```
 
-**Or from S3:**
+**With Docker:**
 ```bash
 dbt-ci run \
-  --dbt-project-dir dbt \
-  --state-uri s3://my-bucket/dbt-state/
+  --runner docker \
+  --docker-image ghcr.io/dbt-labs/dbt-bigquery:latest
 ```
 
 ## Commands
 
 ### `init` - Initialize State
 
-Creates initial state from your dbt project. **Always run this first.**
+Creates initial state from your dbt project. **Always run this first.** Downloads reference manifest from cloud storage (if specified) and creates a local cache for subsequent commands.
 
 ```bash
 dbt-ci init \
   --dbt-project-dir dbt \
   --profiles-dir dbt \
-  --reference-target production
+  --state-uri gs://my-bucket/manifest.json \
+  --reference-target production \
+  --state dbt/.dbtstate
 ```
 
 **Options:**
+- `--state`, `--reference-state`: Local path where state will be downloaded/stored
+- `--state-uri`: Remote URI for state manifest (e.g., `gs://bucket/manifest.json`, `s3://bucket/manifest.json`)
 - `--reference-target`: Target to use for production/reference manifest (optional)
 - `--dbt-version`: Specific dbt version to use (e.g., `1.10.13`)
 - `--adapter`, `-a`: Adapter to install (e.g., `dbt-duckdb=1.10.0`)
 
 ### `run` - Run Modified Models
 
-Detects and runs models that have changed:
+Detects and runs models that have changed. Uses cached state from `init` command.
 
 ```bash
+# Run after init - uses cached state
 dbt-ci run \
   --dbt-project-dir dbt \
-  --state dbt/.dbtstate \
-  --mode models
-```
-
-**With Cloud Storage:**
-```bash
-dbt-ci run \
-  --dbt-project-dir dbt \
-  --state-uri s3://my-bucket/dbt-state/ \
   --mode models
 ```
 
 **Options:**
 - `--mode`, `-m`: What to run: `all`, `models`, `seeds`, `snapshots`, `tests` (default: `all`)
-- `--levels`: Number of dependency levels to include
 - `--defer`: Use dbt's defer flag for production state
 
 **Examples:**
@@ -116,24 +127,23 @@ dbt-ci run \
 # Run only modified models
 dbt-ci run --mode models
 
-# Run modified models with 2 levels of dependencies
-dbt-ci run --mode models --levels 2
+# Run modified models with defer to production
+dbt-ci run --mode models --defer
 
 # Run all modified resources (models, tests, seeds, etc.)
 dbt-ci run --mode all
 
-# Run with cloud storage
-dbt-ci run --state-uri s3://my-bucket/state/ --mode models
+# With Docker
+dbt-ci run --runner docker --mode models
 ```
 
 ### `ephemeral` - Ephemeral Environment
 
-Creates ephemeral environments for testing without affecting production:
+Creates ephemeral environments for testing without affecting production. Uses cached state from `init`.
 
 ```bash
-dbt-ci ephemeral \
-  --dbt-project-dir dbt \
-  --state dbt/.dbtstate
+# Run after init
+dbt-ci ephemeral --dbt-project-dir dbt
 ```
 
 **Options:**
@@ -141,12 +151,11 @@ dbt-ci ephemeral \
 
 ### `delete` - Delete Removed Models
 
-Detects and deletes models that have been removed from the project:
+Detects and deletes models that have been removed from the project. Uses cached state from `init`.
 
 ```bash
-dbt-ci delete \
-  --dbt-project-dir dbt \
-  --state dbt/.dbtstate
+# Run after init
+dbt-ci delete --dbt-project-dir dbt
 ```
 
 ## Runners
@@ -158,10 +167,10 @@ dbt-ci supports multiple execution environments:
 Execute dbt commands directly on your machine:
 
 ```bash
+# After init
 dbt-ci run \
   --runner local \
-  --dbt-project-dir dbt \
-  --state dbt/.dbtstate
+  --dbt-project-dir dbt
 ```
 
 ### dbt Runner (Python API)
@@ -169,10 +178,10 @@ dbt-ci run \
 Uses dbt's Python API (fastest, default):
 
 ```bash
+# After init - uses dbt Python API
 dbt-ci run \
   --runner dbt \
-  --dbt-project-dir dbt \
-  --state dbt/.dbtstate
+  --dbt-project-dir dbt
 ```
 
 ### Docker Runner
@@ -254,9 +263,7 @@ These options apply to all commands:
 |--------|-------------|---------|
 | `--dbt-project-dir` | Path to dbt project directory | `.` |
 | `--profiles-dir` | Path to profiles.yml directory | Auto-detect |
-| `--state`, `--reference-state` | Path to the reference manifest.json directory | Required for run/delete |
-| `--state-uri` | Cloud storage URI for state files (e.g., `s3://bucket/path/`) | None |
-| `--reference-target` | dbt target for production/reference manifest | None |
+| `--reference-target` | dbt target for production/reference manifest (init only) | None |
 | `--target`, `-t` | dbt target to use | From profiles.yml |
 | `--vars`, `-v` | YAML string or file path with dbt variables | `""` |
 | `--defer` | Use dbt's defer flag for production state | `false` |
@@ -267,6 +274,15 @@ These options apply to all commands:
 | `--dry-run` | Print commands without executing | `false` |
 | `--log-level` | Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL | `INFO` |
 | `--slack-webhook` | Slack webhook URL for notifications | None |
+
+### Init-Specific Options
+
+These options are only available for the `init` command:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--state`, `--reference-state` |Local path where reference state will be stored | None |
+| `--state-uri` | Remote URI for state manifest (e.g., `gs://bucket/manifest.json`, `s3://bucket/manifest.json`) | None |
 
 ### Docker Options
 
@@ -288,49 +304,51 @@ These options apply to all commands:
 
 ## Cloud Storage Support
 
-dbt-ci supports storing and retrieving state files from cloud storage, making it ideal for distributed CI/CD workflows.
+dbt-ci supports storing and retrieving state files from cloud storage (GCS, S3), making it ideal for distributed CI/CD workflows.
 
-### S3 State Storage
+### GCS/S3 State Storage
 
-Store your dbt state in S3 for shared access across CI runs:
+Store your dbt reference state in cloud storage for shared access across CI runs:
 
 ```bash
-# Initialize and upload state to S3
+# Initialize and download state from GCS
 dbt-ci init \
   --dbt-project-dir dbt \
-  --state-uri s3://my-bucket/dbt-state/ \
-  --reference-target production
+  --state-uri gs://my-bucket/dbt-state/manifest.json \
+  --reference-target production \
+  --state dbt/.dbtstate
 
-# Run using state from S3
-dbt-ci run \
-  --dbt-project-dir dbt \
-  --state-uri s3://my-bucket/dbt-state/ \
-  --mode models
+# Run using cached state (no need to specify URI again)
+dbt-ci run --dbt-project-dir dbt --mode models
 ```
 
 **Benefits:**
-- 🔄 **Shared State**: Access the same state across different CI jobs and environments
-- 📦 **No Local Storage**: State files don't need to be committed to git
+- 🔄 **Shared State**: Download the same reference state across different CI jobs
+- 💾 **Cache-Based**: After init, commands use local cache (no repeated downloads)
+- 📦 **No Git Commits**: State files don't need to be committed to version control
 - 🚀 **Scalable**: Works seamlessly in containerized and distributed environments
-- 🔐 **Secure**: Leverage AWS IAM and S3 bucket policies for access control
+- 🔐 **Secure**: Leverage cloud IAM and bucket policies for access control
 
 **Configuration:**
 
-The tool uses AWS credentials from your environment (AWS CLI, IAM roles, environment variables). Ensure your S3 bucket is accessible:
+The tool uses cloud credentials from your environment. Ensure your bucket is accessible:
 
 ```bash
-# AWS credentials via environment
+# For GCS
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+
+# For AWS S3
 export AWS_ACCESS_KEY_ID=your_key
 export AWS_SECRET_ACCESS_KEY=your_secret
 export AWS_DEFAULT_REGION=us-east-1
 
 # Or use IAM roles (recommended in CI/CD)
-dbt-ci run --state-uri s3://my-bucket/dbt-state/
+dbt-ci init --state-uri gs://my-bucket/manifest.json
 ```
 
 **Supported URI Formats:**
-- `s3://bucket-name/path/to/state/`
-- `s3://bucket-name/dbt-state/`
+- `gs://bucket-name/path/to/manifest.json` (Google Cloud Storage)
+- `s3://bucket-name/path/to/manifest.json` (AWS S3)
 
 ## Environment Variables
 
@@ -339,21 +357,20 @@ All CLI options can also be set via environment variables:
 ```bash
 export DBT_PROJECT_DIR=./dbt
 export DBT_PROFILES_DIR=./dbt
-export DBT_STATE=./dbt/.dbtstate
-export DBT_STATE_URI=s3://my-bucket/dbt-state/
 export DBT_TARGET=production
 export DBT_RUNNER=local
 
+# After running init, just use:
 dbt-ci run
 ```
 
 **Common Environment Variables:**
-- `DBT_STATE` or `STATE_DIR` - Local path to state directory
-- `DBT_STATE_URI` or `STATE_URI` - Cloud storage URI for state files
 - `DBT_PROJECT_DIR` - Path to dbt project
 - `DBT_PROFILES_DIR` - Path to profiles.yml location
 - `DBT_TARGET` - Target environment to use
 - `DBT_RUNNER` - Runner type (local, docker, bash, dbt)
+
+**Note:** State management is cache-based. Run `init` once, then subsequent commands automatically use the cached state.
 
 ## CI/CD Integration
 
@@ -384,18 +401,17 @@ jobs:
       - name: Install dbt-ci
         run: pip install git+https://github.com/datablock-dev/dbt-ci.git@main
       
-      - name: Initialize dbt-ci with S3 state
+      - name: Initialize dbt-ci with cloud state
         run: |
           dbt-ci init \
             --dbt-project-dir dbt \
-            --state-uri s3://my-dbt-state/prod/ \
-            --reference-target production
+            --state-uri gs://my-dbt-state/prod/manifest.json \
+            --reference-target production \
+            --state dbt/.dbtstate
       
       - name: Run modified models
         run: |
-          dbt-ci run \
-            --mode models \
-            --state-uri s3://my-dbt-state/prod/
+          dbt-ci run --mode models
 ```
 
 ### GitLab CI Example
@@ -405,8 +421,8 @@ dbt-ci:
   image: python:3.11
   script:
     - pip install git+https://github.com/datablock-dev/dbt-ci.git@main
-    - dbt-ci init --dbt-project-dir dbt --state-uri s3://my-dbt-state/prod/ --reference-target production
-    - dbt-ci run --mode models --state-uri s3://my-dbt-state/prod/
+    - dbt-ci init --dbt-project-dir dbt --state-uri gs://my-dbt-state/prod/manifest.json --reference-target production --state dbt/.dbtstate
+    - dbt-ci run --mode models
   only:
     - merge_requests
 ```
@@ -430,32 +446,37 @@ dbt-ci:
 ### Pull Request CI
 Only build and test models affected by PR changes:
 ```bash
-dbt-ci init --reference-target production
+# Initialize with reference state
+dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production --state dbt/.dbtstate
+
+# Run modified models with defer
 dbt-ci run --mode models --defer
 ```
 
 ### Distributed CI with Cloud Storage
-Share state across multiple CI jobs using S3:
+Share state across multiple CI jobs:
 ```bash
-# Job 1: Initialize state
-dbt-ci init --state-uri s3://my-bucket/dbt-state/ --reference-target production
+# Job 1: Initialize state (downloads from cloud)
+dbt-ci init --state-uri gs://my-bucket/manifest.json --reference-target production --state dbt/.dbtstate
 
-# Job 2: Run models
-dbt-ci run --state-uri s3://my-bucket/dbt-state/ --mode models
+# Job 2: Run models (uses cached state)
+dbt-ci run --mode models
 
-# Job 3: Run tests
-dbt-ci run --state-uri s3://my-bucket/dbt-state/ --mode tests
+# Job 3: Run tests (uses cached state)
+dbt-ci run --mode tests
 ```
 
 ### Selective Testing
 Run tests only for modified models:
 ```bash
-dbt-ci run --mode tests --state dbt/.dbtstate
+# After init
+dbt-ci run --mode tests
 ```
 
 ### Schema Migrations
 Clean up deleted models from production:
 ```bash
+# After init
 dbt-ci delete --target production
 ```
 

@@ -39,6 +39,7 @@ class TestInitCommand:
             runner='local',
             reference_target=None,
             state_uri=None,
+            target=None,
             target_config={'type': 'bigquery'}
         )
         mock_vars.return_value = mock_vars_instance
@@ -108,6 +109,7 @@ class TestInitCommand:
             runner='local',
             reference_target='prod',
             state_uri=None,
+            target=None,
             target_config={'type': 'bigquery'}
         )
         mock_vars.return_value = mock_vars_instance
@@ -206,6 +208,7 @@ class TestInitCommand:
             runner='local',
             reference_target='prod',
             state_uri=None,
+            target=None,
             target_config={'type': 'bigquery'}
         )
         mock_vars.return_value = mock_vars_instance

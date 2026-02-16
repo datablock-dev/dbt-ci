@@ -43,16 +43,13 @@ def init(**kwargs):
         click.secho("DBT CI Initialization", fg="green", bold=True)
         args = Namespace(**kwargs)
         cache = CacheManager()
-        config = Variables(args)
+        config = Variables(args, command='init')
         variables = config.to_namespace()
         cache.start_report("init", variables)
         reference_target = getattr(variables, "reference_target", None)
         command = ["compile"]
         resolved_storage = init_storage_connector(getattr(variables, "state_uri", None))
 
-        print("Running with the following config:")
-        print(reference_target)
-        print(variables.target)
         if resolved_storage is not None:
             local_state_dir = resolve_manifest_file_from_storage(resolved_storage, variables)
             # Update reference_state to use the local path where manifest was downloaded

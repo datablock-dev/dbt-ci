@@ -36,8 +36,9 @@ class Variables:
         runner = vars.runner  # Will use env var or default if flag not set
     """
 
-    def __init__(self, args: Namespace):
+    def __init__(self, args: Namespace, command: Optional[str] = None):
         self.args = args
+        self.command = command
         self._resolved = {}
         self._missing_required = []
 
@@ -46,9 +47,18 @@ class Variables:
             resolved_value = self._resolve_option(option_name, config)
             self._resolved[option_name] = resolved_value if resolved_value != "" else None
             setattr(self, option_name, self._resolved[option_name])
+            
             # Track missing required fields
-            if config.get('required') and resolved_value is None:
-                self._missing_required.append(option_name)
+            if resolved_value is None:
+                # Check if field is required for this specific command
+                required_for = config.get('required_for')
+                if required_for is not None:
+                    # Only required for specific commands
+                    if command and command in required_for:
+                        self._missing_required.append(option_name)
+                elif config.get('required'):
+                    # Required for all commands
+                    self._missing_required.append(option_name)
 
         # Validate required fields
         if self._missing_required:
@@ -58,11 +68,25 @@ class Variables:
         self._resolved["project"] = get_dbt_project_file(self.dbt_project_dir)
         self._resolved["target_manifest_file"] = get_manifest_file(self.dbt_project_dir)
         
-        # Skip reference manifest validation if state_uri is provided (will be downloaded later)
+        # Handle reference manifest file resolution
         if self.state_uri is not None:
+            # Will be downloaded later during init
             self._resolved["reference_manifest_file"] = None
-        else:
+        elif self.reference_state is not None:
+            # Explicit reference_state provided
             self._resolved["reference_manifest_file"] = get_reference_manifest_file(self.reference_state)
+        elif command != 'init':
+            # For non-init commands, load from cache
+            from src.cache import CacheManager
+            cache = CacheManager()
+            cache_manifest_path = cache.dir_path / "reference_manifest.json"
+            if cache_manifest_path.exists():
+                self._resolved["reference_manifest_file"] = str(cache_manifest_path)
+            else:
+                self._resolved["reference_manifest_file"] = None
+        else:
+            # Init command without reference_state or state_uri
+            self._resolved["reference_manifest_file"] = None
         
         self._resolved["profile"] = get_profiles_file(self.dbt_project_dir, self.profiles_dir)
         

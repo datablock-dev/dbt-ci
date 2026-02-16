@@ -32,7 +32,7 @@ def migration(**kwargs):
         click.secho("DBT CI Migration", fg="green", bold=True)
         args = Namespace(**kwargs)
         cache = CacheManager()
-        config = Variables(args)
+        config = Variables(args, command='migration')
         variables = config.to_namespace()
         cache.start_report("migration", variables)
         target_graph = DbtGraph(variables)

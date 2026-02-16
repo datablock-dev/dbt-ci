@@ -24,7 +24,7 @@ def finalize(**kwargs):
         click.secho("DBT CI Finalize", fg="green", bold=True)
         args = Namespace(**kwargs)
         cache = CacheManager()
-        config = Variables(args)
+        config = Variables(args, command='finalize')
         variables = config.to_namespace()
         logger.info("Finalizing ci/cd process by uploading manifest.json and cleaning up cache...")
         manifest_file = cache.get_cache("target_manifest.json") or cache.get_cache("reference_manifest.json")
