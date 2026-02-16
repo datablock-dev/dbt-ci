@@ -8,16 +8,15 @@ import logging
 from pathlib import Path
 from argparse import Namespace
 from typing import Tuple
-from datetime import datetime
 import click
-from src.connectors import init_storage_connector
 from src.dependency_graph import DbtGraph
-from src.logging import print_exception
-from src.utilities.paths import get_manifest_file, get_reference_manifest_file
-from src.schema import RunnerConfig, StorageConnectorConfig
 from src.variables import Variables
 from src.cache import CacheManager
-from src.runners import resolve_dbt_commands, run_dbt_command, append_dbt_variables_to_command
+from src.schema import RunnerConfig, StorageConnectorConfig
+from src.logging import print_exception
+from src.connectors import init_storage_connector
+from src.utilities.paths import get_manifest_file, get_reference_manifest_file
+from src.runners import resolve_dbt_commands, run_dbt_command
 from src.utilities.graph_utils import (
     get_deleted_nodes,
     get_new_nodes,
@@ -51,6 +50,9 @@ def init(**kwargs):
         command = ["compile"]
         resolved_storage = init_storage_connector(getattr(variables, "state_uri", None))
 
+        print("Running with the following config:")
+        print(reference_target)
+        print(variables.target)
         if resolved_storage is not None:
             local_state_dir = resolve_manifest_file_from_storage(resolved_storage, variables)
             # Update reference_state to use the local path where manifest was downloaded
@@ -69,6 +71,7 @@ def init(**kwargs):
         )
 
         logger.info("DBT project compiled successfully. manifest.json generated.")
+        target_manifest_file = get_manifest_file(variables.dbt_project_dir)
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, is_production=True)
 
@@ -95,8 +98,6 @@ def init(**kwargs):
             "deleted_nodes": get_structured_modified_nodes(get_nodes(reference_graph_dict, get_deleted_nodes(reference_graph_dict, target_graph_dict))),
             "new_nodes": get_structured_modified_nodes(get_nodes(target_graph_dict, get_new_nodes(reference_graph_dict, target_graph_dict)))
         }
-
-        target_manifest_file = get_manifest_file(variables.dbt_project_dir)
 
         # Write cache
         cache.write_cache(state_change_summary)
