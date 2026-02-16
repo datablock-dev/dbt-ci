@@ -1,23 +1,18 @@
 """DBT CI Tool - Intelligent CI for DBT projects"""
 from argparse import Namespace
 import click
+from src.logging import setup_logging
 from src.commands import (
     delete,
     run,
     ephemeral,
-    init
+    init,
+    finalize
 )
-from src.logging import setup_logging
 
 # Shared options for all commands
 def common_options(f):
     """Decorator to add common options to all commands"""
-    # S3 options
-    f = click.option(
-        "--state-uri",
-        default=None,
-        help="S3 URI for the state manifest.json files (e.g., s3://my-bucket/dbt-state/)"
-    )(f)
     # Dynamic package options
     f = click.option(
         "--dbt-version",
@@ -31,12 +26,6 @@ def common_options(f):
         help="Specify the dbt adapter to use (e.g., 'postgres', 'snowflake')"
     )(f)
     # Main commands
-    f = click.option( # Change to --state only to simplify and avoid confusion around "production" vs "current" state, since the tool can now compare any two states
-        '--reference-state', '--state',
-        default=None,
-        type=str,
-        help='Path to the reference manifest.json directory'
-    )(f)
     f = click.option(
         '--dbt-project-dir', 
         default='.',
@@ -162,14 +151,29 @@ def cli():
 
 @cli.command(name="init")
 @common_options
+@click.option(
+    '--reference-state', '--state',
+    default=None,
+    type=str,
+    help='Path to the reference manifest.json directory (local path where state will be downloaded)'
+)
+@click.option(
+    "--state-uri",
+    default=None,
+    help="Remote URI for the state manifest.json file (e.g., gs://my-bucket/dbt-state/manifest.json or s3://my-bucket/dbt-state/manifest.json)"
+)
 def init_cmd(**kwargs):
     """Initialize dbt CI state
     
-    Creates initial state from production manifest. Run this before using other commands.
+    Downloads reference manifest and compares with current state. Creates cache for subsequent commands.
+    Run this before using run, delete, or ephemeral commands.
     
     Examples:
-        dbt-ci init --dbt-project-dir ./dbt --reference-target production
-        dbt-ci init --state-uri s3://my-bucket/dbt-state/ --reference-target production
+        # Download from GCS and use sandbox target as reference
+        dbt-ci init --state-uri gs://bucket/manifest.json --reference-target sandbox --state dbt/.dbtstate
+        
+        # Use local state directory
+        dbt-ci init --state dbt/.dbtstate --reference-target production
     """
     setup_logging(to_namespace(kwargs).log_level)
     return init(**kwargs)
@@ -192,23 +196,34 @@ def init_cmd(**kwargs):
     help='Run mode for dbt-ci (default: auto)'
 )
 @click.option(
-    "--levels",
-    type=int,
+    '--filters', '-f',
+    type=click.Choice([
+        'models', 
+        'seeds', 
+        'snapshots', 
+        'tests'
+    ], case_sensitive=False),
+    multiple=True,
     default=None,
-    help="Number of dependency levels to include (default: all)"
+    help="Extra filters to apply, dbt-lineage run -m tests -f snapshots to run modified models and their snapshot dependencies only"
 )
+#@click.option( # Not yet implemented
+#    "--levels",
+#    type=int,
+#    default=None,
+#    help="Number of dependency levels to include (default: all)"
+#)
 def run_cmd(**kwargs):
     """Run modified dbt models
     
-    Detects models that have changed based on state comparison and runs them.
+    Uses cached state from 'dbt-ci init' to detect and run modified models.
     
     Examples:
-        dbt-ci run --state prod-manifest/ --dbt-project-dir ./dbt
-        dbt-ci run --state prod-manifest/ --runner docker
+        # Run after init
+        dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
+        dbt-ci run --runner docker
         
-        # With environment variables
-        export DBT_STATE=./dbt/.dbtstate/
-        export DBT_PROJECT_DIR=./dbt
+        # Simple local run
         dbt-ci run
     """
     setup_logging(to_namespace(kwargs).log_level)
@@ -226,17 +241,16 @@ def run_cmd(**kwargs):
 def ephemeral_cmd(**kwargs):
     """Run ephemeral CI check workflow
     
-    Detects changes, lists modified models, but doesn't execute them.
-    Useful for quick CI checks and PR previews.
+    Uses cached state from 'dbt-ci init' to create and test ephemeral schemas.
+    Useful for full integration testing in isolated environments.
     
     Examples:
-        dbt-ci ephemeral --state prod-manifest/ --dbt-project-dir ./dbt
-        dbt-ci ephemeral --state prod-manifest/ --runner docker
+        # Run after init
+        dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
+        dbt-ci ephemeral --runner docker
         
-        # With environment variables
-        export DBT_STATE=./dbt/.dbtstate/
-        export DBT_PROJECT_DIR=./dbt
-        dbt-ci ephemeral
+        # Keep environment for debugging
+        dbt-ci ephemeral --keep-env
     """
     setup_logging(to_namespace(kwargs).log_level)
     return ephemeral(**kwargs)
@@ -244,21 +258,42 @@ def ephemeral_cmd(**kwargs):
 @cli.command(name='delete')
 @common_options
 def delete_cmd(**kwargs):
-    """Delete modified dbt models
+    """Delete removed dbt models
     
-    Detects models that have been deleted based on state comparison and deletes them from the target environment.
+    Uses cached state from 'dbt-ci init' to detect and delete models removed from the project.
     
     Examples:
-        dbt-ci delete --state prod-manifest/ --dbt-project-dir ./dbt
-        dbt-ci delete --state prod-manifest/ --runner docker
+        # Run after init
+        dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
+        dbt-ci delete --runner docker
         
-        # With environment variables
-        export DBT_STATE=./dbt/.dbtstate/
-        export DBT_PROJECT_DIR=./dbt
-        dbt-ci delete
+        # Dry run to preview deletions
+        dbt-ci delete --dry-run
     """
     setup_logging(to_namespace(kwargs).log_level)
     return delete(**kwargs)
+
+@cli.command(name="finalize")
+@common_options
+@click.option(
+    "--artifacts-uri",
+    default=None,
+    type=str,
+    help="S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., s3://my-bucket/dbt-artifacts/)"
+)
+def finalize_cmd(**kwargs):
+    """Finalize the state after running CI commands
+    
+    This command should be run after 'run' or 'delete' to update the reference state with the new production state.
+    It will also clean up any temporary files and reset the cache for the next run.
+    
+    Examples:
+        dbt-ci finalize
+        dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
+    """
+    setup_logging(to_namespace(kwargs).log_level)
+    return finalize(**kwargs)
+    
 
 def to_namespace(kwargs):
     """Convert kwargs dict to argparse.Namespace for easier access and compatibility with existing code"""

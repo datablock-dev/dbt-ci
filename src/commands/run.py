@@ -41,16 +41,17 @@ def run(**kwargs):
         click.secho("DBT CI Run", fg="green", bold=True)
         args = Namespace(**kwargs)
         cache = CacheManager()
-        config = Variables(args)
+        config = Variables(args, command='run')
         variables = config.to_namespace()
+        cache.start_report("run", variables)
         target_graph = DbtGraph(variables)
                 
         # Look for cache
         prev_cache = cache.get_cache()
         if prev_cache is None: # Should we exit here instead of compiling?
-            logging.error("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
+            logger.error("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
             return
-        logging.info("Cache successfully found - using cached state for comparison")
+        logger.info("Cache successfully found - using cached state for comparison")
 
         modified_nodes_dict = {
             "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
@@ -58,20 +59,18 @@ def run(**kwargs):
             "deleted_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("deleted_nodes", None)) or []
         }
 
-        modified_nodes = list(
-            chain(
-                modified_nodes_dict["modified_nodes"],
-                modified_nodes_dict["deleted_nodes"],
-                modified_nodes_dict["new_nodes"]
-            )
-        )
+        modified_nodes = list(chain(
+            modified_nodes_dict["modified_nodes"],
+            modified_nodes_dict["deleted_nodes"],
+            modified_nodes_dict["new_nodes"]
+        ))
 
         if len(modified_nodes) == 0:
-            logging.info("No modified, new, or deleted nodes found in cache, skipping...")
+            logger.info("No modified, new, or deleted nodes found in cache, skipping...")
             return
         
-        logging.info("\n-------------------------------------------------------")
-        logging.info(f"Found {len(modified_nodes)} modified model(s):")
+        logger.info("\n-------------------------------------------------------")
+        logger.info(f"Found {len(modified_nodes)} modified model(s):")
         for node in modified_nodes:
             string = f"  • {node.split('.')[-1]}"
             if node in modified_nodes_dict["deleted_nodes"]:
@@ -81,8 +80,8 @@ def run(**kwargs):
             elif node in modified_nodes_dict["new_nodes"]:
                 string += " [New]"
             
-            logging.info(string)
-        logging.info("-------------------------------------------------------\n")
+            logger.info(string)
+        logger.info("-------------------------------------------------------\n")
 
         run_with_mode(
             mode=variables.nodes,
@@ -91,8 +90,11 @@ def run(**kwargs):
             modified_nodes_dict=modified_nodes_dict,
             modified_nodes=modified_nodes
         )
-        logging.info("\nAll done!")
+
+        cache.update_report("run", "completed")
+        logger.info("\nAll done!")
     except Exception as e:
+        cache.update_report("run", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
 
@@ -111,7 +113,7 @@ def run_with_mode(
             run_order = [MODE_MAPPING[mode]]
 
         for command in run_order:
-            logging.info(f"\nIdentifying modified nodes of type: {REVERSE_MODE_MAPPING[command]}")
+            logger.info(f"\nIdentifying modified nodes of type: {REVERSE_MODE_MAPPING[command]}")
             node_type = NODE_TYPE_COMMAND_MAPPING[REVERSE_MODE_MAPPING[command]]
 
             # Get downstream dependencies for this node type
@@ -138,31 +140,31 @@ def run_with_mode(
             )
 
             if len(final_nodes_to_run) == 0:
-                logging.info(f"No {REVERSE_MODE_MAPPING[command]} to run")
+                logger.info(f"No {REVERSE_MODE_MAPPING[command]} to run")
                 continue
 
             modified_of_type = [n for n in modified_nodes_dict.get("modified_nodes", []) if n in final_nodes_to_run]
 
             # Display what will run, categorized by change type
-            logging.info("\n-------------------------------------------------------")
-            logging.info(f"The following {REVERSE_MODE_MAPPING[command]} will be run:")
+            logger.info("\n-------------------------------------------------------")
+            logger.info(f"The following {REVERSE_MODE_MAPPING[command]} will be run:")
             for node in modified_of_type:
-                logging.info(f"  • [Modified] {node}")
+                logger.info(f"  • [Modified] {node}")
 
             new_of_type = [n for n in modified_nodes_dict.get("new_nodes", []) if n in final_nodes_to_run]
             for node in new_of_type:
-                logging.info(f"  • [New] {node}")
+                logger.info(f"  • [New] {node}")
 
             downstream_of_type = [n for n in downstream_dependencies if n in final_nodes_to_run]
             for node in downstream_of_type:
-                logging.info(f"  • [Downstream] {node}")
-            logging.info(f"\nTotal {REVERSE_MODE_MAPPING[command]} to run: {len(final_nodes_to_run)}")
-            logging.info("-------------------------------------------------------\n")
+                logger.info(f"  • [Downstream] {node}")
+            logger.info(f"\nTotal {REVERSE_MODE_MAPPING[command]} to run: {len(final_nodes_to_run)}")
+            logger.info("-------------------------------------------------------\n")
 
-            logging.info(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
+            logger.info(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
 
             if runner_config.get("dry_run", False):
-                logging.info("DRY RUN: Command would be executed")
+                logger.info("DRY RUN: Command would be executed")
                 continue
 
             result = run_dbt_command(
@@ -171,9 +173,9 @@ def run_with_mode(
             )
 
             if result and result.returncode == 0:
-                logging.info(f"\n✅ Successfully ran {len(final_nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
+                logger.info(f"\n✅ Successfully ran {len(final_nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
             else:
-                logging.error("\n❌ Run failed")
+                logger.error("\n❌ Run failed")
                 sys.exit(1)
     except Exception as e:
         print_exception(e)

@@ -10,8 +10,16 @@ OPTIONS_CONFIG = {
         'env_vars': ['DBT_STATE_URI', 'STATE_URI'],
         'cli_flags': ['state_uri'],
         'required': False,
+        'required_for': ['init'],  # Only init uses state_uri
         'default': None,
         'help': 'S3 URI for the state manifest.json files (e.g., s3://my-bucket/dbt-state/)'
+    },
+    "artifacts_uri": {
+        "env_vars": ['DBT_ARTIFACTS_URI', 'ARTIFACTS_URI'],
+        "cli_flags": ['artifacts_uri'],
+        "required": False,
+        "default": None,
+        "help": 'S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., s3://my-bucket/dbt-artifacts/)'
     },
     'dbt_version': {
         'env_vars': ['DBT_VERSION'],
@@ -27,6 +35,13 @@ OPTIONS_CONFIG = {
         'default': None,
         'help': "Specify the dbt adapter to use (e.g., 'postgres', 'snowflake')"
     },
+    'filters': {
+        'cli_flags': ['filters', '-f'],
+        'required': False,
+        'default': None,
+        'choices': ['models', 'seeds', 'snapshots', 'tests'],
+        'help': "Extra filters to apply, e.g., dbt-ci run -m tests -f snapshots to run modified models and their snapshot dependencies only"
+    },
     'nodes': {
         'env_vars': ['DBT_NODES'],
         'cli_flags': ['nodes'],
@@ -38,7 +53,8 @@ OPTIONS_CONFIG = {
     'reference_state': {
         'env_vars': ['DBT_STATE', 'DBT_STATE_DIR', 'STATE_DIR'],
         'cli_flags': ['reference_state','state', 'reference_manifest_dir'],
-        'required': True,
+        'required': False,
+        'required_for': ['init'],  # Only required for init command
         'default': None,
         'help': 'Path to the reference manifest.json directory'
     },

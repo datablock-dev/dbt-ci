@@ -9,14 +9,14 @@ from pathlib import Path
 from argparse import Namespace
 from typing import Tuple
 import click
-from src.connectors import init_storage_connector
 from src.dependency_graph import DbtGraph
-from src.logging import print_exception
-from src.utilities.paths import get_manifest_file, get_reference_manifest_file
-from src.schema import RunnerConfig, StorageConnectorConfig
 from src.variables import Variables
 from src.cache import CacheManager
-from src.runners import resolve_dbt_commands, run_dbt_command, append_dbt_variables_to_command
+from src.schema import RunnerConfig, StorageConnectorConfig
+from src.logging import print_exception
+from src.connectors import init_storage_connector
+from src.utilities.paths import get_manifest_file, get_reference_manifest_file
+from src.runners import resolve_dbt_commands, run_dbt_command
 from src.utilities.graph_utils import (
     get_deleted_nodes,
     get_new_nodes,
@@ -43,11 +43,12 @@ def init(**kwargs):
         click.secho("DBT CI Initialization", fg="green", bold=True)
         args = Namespace(**kwargs)
         cache = CacheManager()
-        config = Variables(args)
+        config = Variables(args, command='init')
         variables = config.to_namespace()
+        cache.start_report("init", variables)
         reference_target = getattr(variables, "reference_target", None)
         command = ["compile"]
-        resolved_storage = init_storage_connector(variables)
+        resolved_storage = init_storage_connector(getattr(variables, "state_uri", None))
 
         if resolved_storage is not None:
             local_state_dir = resolve_manifest_file_from_storage(resolved_storage, variables)
@@ -57,7 +58,7 @@ def init(**kwargs):
             variables.reference_manifest_file = get_reference_manifest_file(variables.reference_state)
 
         if reference_target is None:
-            logger.warning("No reference target specified, using current target as production state for comparison.")
+            logger.warning("No reference target specified, using current target as reference state for comparison.")
         else:
             command.extend(["--target", reference_target])
 
@@ -67,6 +68,7 @@ def init(**kwargs):
         )
 
         logger.info("DBT project compiled successfully. manifest.json generated.")
+        target_manifest_file = get_manifest_file(variables.dbt_project_dir)
         target_graph = DbtGraph(variables)
         reference_graph = DbtGraph(variables, is_production=True)
 
@@ -94,11 +96,13 @@ def init(**kwargs):
             "new_nodes": get_structured_modified_nodes(get_nodes(target_graph_dict, get_new_nodes(reference_graph_dict, target_graph_dict)))
         }
 
-        target_manifest_file = get_manifest_file(variables.dbt_project_dir)
-
         # Write cache
         cache.write_cache(state_change_summary)
-        cache.write_cache(target_manifest_file, "reference_manifest.json" if reference_target else "target_manifest.json")
+        if reference_target is not None and reference_target != variables.target:
+            cache.write_cache(target_manifest_file, "reference_manifest.json")
+        elif reference_target is None:
+            cache.write_cache(target_manifest_file, "reference_manifest.json")
+            cache.write_cache(target_manifest_file, "target_manifest.json")
 
         logger.info("\n------------------------------------------------------")
         logger.info("State Change Summary:")
@@ -114,9 +118,9 @@ def init(**kwargs):
                     logger.info(f"  • {node['name']} ({node['resource_type']})")
         logger.info("------------------------------------------------------\n")
 
-        if reference_target is not None:
-            # Compile with the actual target (not reference target)
-            # Use the user-specified target, or let dbt use the default from dbt_project.yml
+        # Compile with the actual target (not reference target)
+        # Use the user-specified target, or let dbt use the default from dbt_project.yml
+        if reference_target is not None and reference_target != variables.target:
             target_command = ["compile"]
             actual_target = getattr(variables, "target", None)
             if actual_target and actual_target != "default":
@@ -126,13 +130,14 @@ def init(**kwargs):
                 command_args=resolve_dbt_commands(target_command, variables),
                 runner_config=RunnerConfig(variables.__dict__)
             )
-
             target_manifest_file = get_manifest_file(variables.dbt_project_dir)
             cache.write_cache(target_manifest_file, "target_manifest.json")
 
+        cache.update_report(command="init", status="completed")
         logger.info("Initialization complete. Cache updated with current state(s).")
         logger.info("You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state.")
     except Exception as e:
+        cache.update_report(command="init", status="failed")
         print_exception(e, "Error during initialization")
         sys.exit(1)
 
