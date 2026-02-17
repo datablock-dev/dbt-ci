@@ -6,6 +6,7 @@ This module defines the DbtGraph class, which encapsulates the dependency graph 
 import json
 import os
 from argparse import Namespace
+from src.cache import CacheManager
 from src.parser import generate_dependency_graph
 from src.schema import DependencyGraph
 from src.utilities.paths import get_manifest_file
@@ -24,19 +25,11 @@ class DbtGraph:
         DbtGraph: An instance of the DbtGraph class containing the dependency graph and related
     """
     def __init__(self, args: Namespace, is_production: bool = False):
+        cache = CacheManager()
         self.args = args
+        self.is_production = is_production
         for key, value in self.args.__dict__.items():
             setattr(self, key, value)
-
-        self.is_production = is_production
-
-        # Bash runner configuration
-        shell_path = getattr(self.args, 'shell_path', '/bin/bash')
-        # Shell path needs to be absolute for subprocess execution
-        if not os.path.isabs(shell_path):
-            shell_path = os.path.abspath(shell_path)
-        
-        self.shell_path = shell_path
         
         # Keep paths as provided by user (relative or absolute)
         if getattr(self.args, "command", None) == "init":
@@ -46,9 +39,8 @@ class DbtGraph:
                 else get_manifest_file(self.args.reference_state),
             )
         else: # We retrive manifest file from cache
-            self.dependency_graph = generate_dependency_graph(
-                self.args.target_manifest_file if not self.is_production else self.args.reference_manifest_file,
-            )
+            manifest_file = cache.get_cache("target_manifest.json" if not self.is_production else "reference_manifest.json")
+            self.dependency_graph = generate_dependency_graph(manifest_file)
 
     def to_dict(self) -> DependencyGraph:
         """Convert the DependencyGraph instance to a dictionary."""

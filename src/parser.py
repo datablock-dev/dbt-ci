@@ -2,6 +2,8 @@
 import sys
 import json
 from typing import Dict, List, Optional, Set
+
+from pydantic import ValidationError
 from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 from src.schema import DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
@@ -32,13 +34,10 @@ def skeleton_dependencies_structure():
 
 def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
     """Generate dependency graph from manifest file.
-    
     Args:
         manifest_file: DBTManifest object representing the manifest file
     """
-    
     child_map = manifest_file.get("child_map", {})
-
     dependency_graph: DependencyGraph = {
         "metadata": manifest_file.get("metadata", {}),
         "model": {},
