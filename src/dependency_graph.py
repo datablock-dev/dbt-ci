@@ -4,12 +4,11 @@ This module defines the DbtGraph class, which encapsulates the dependency graph 
 """
 
 import json
-import os
 from argparse import Namespace
 from src.cache import CacheManager
-from src.parser import generate_dependency_graph
 from src.schema import DependencyGraph
-from src.utilities.paths import get_manifest_file
+from src.parser import generate_dependency_graph
+from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 
 class DbtGraph:
     """
@@ -36,7 +35,7 @@ class DbtGraph:
             self.dbt_project_dir = self.args.dbt_project_dir
             self.dependency_graph = generate_dependency_graph(
                 manifest_file=get_manifest_file(self.dbt_project_dir) if not self.is_production 
-                else get_manifest_file(self.args.reference_state),
+                else get_reference_manifest_file(self.args.reference_state),
             )
         else: # We retrive manifest file from cache
             manifest_file = cache.get_cache("target_manifest.json" if not self.is_production else "reference_manifest.json")

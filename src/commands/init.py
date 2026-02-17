@@ -88,16 +88,28 @@ def init(args: Namespace):
         reference_graph_dict = reference_graph.to_dict()
 
         state_change_summary = {
-            "modified_nodes": get_structured_modified_nodes(get_nodes(reference_graph_dict, modified_nodes)),
-            "deleted_nodes": get_structured_modified_nodes(get_nodes(reference_graph_dict, get_deleted_nodes(reference_graph_dict, target_graph_dict))),
-            "new_nodes": get_structured_modified_nodes(get_nodes(target_graph_dict, get_new_nodes(reference_graph_dict, target_graph_dict)))
+            "modified_nodes": get_structured_modified_nodes(get_nodes(
+                dependency_graph=reference_graph_dict, 
+                node_ids=modified_nodes
+            )),
+            "deleted_nodes": get_structured_modified_nodes(get_nodes(
+                dependency_graph=reference_graph_dict, 
+                node_ids=get_deleted_nodes(reference_graph_dict, target_graph_dict)
+            )),
+            "new_nodes": get_structured_modified_nodes(get_nodes(
+                dependency_graph=target_graph_dict, 
+                node_ids=get_new_nodes(reference_graph_dict, target_graph_dict)
+            ))
         }
 
         # Write cache
         cache.write_cache(state_change_summary)
         if reference_target is not None and reference_target != getattr(args, "target", None):
+            # Different targets - will compile again later with actual target
             cache.write_cache(target_manifest_file, "reference_manifest.json")
-        elif reference_target is None:
+        else:
+            # Same target or no reference target specified - reference and target are the same
+            logger.debug("Reference target is the same as current target, using the same manifest for both reference and target state.")
             cache.write_cache(target_manifest_file, "reference_manifest.json")
             cache.write_cache(target_manifest_file, "target_manifest.json")
 

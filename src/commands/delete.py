@@ -37,7 +37,7 @@ def delete(args: Namespace):
             return
         click.echo("Cache successfully found - using cached state for comparison")
 
-        deleted_nodes = get_node_ids_from_structured_nodes(cache.get_cache().get("deleted_nodes", None)) or []
+        deleted_nodes = get_node_ids_from_structured_nodes(prev_cache.get("deleted_nodes", None)) or []
         if len(deleted_nodes) == 0:
             click.echo("No deleted nodes found in cache, skipping...")
             return
