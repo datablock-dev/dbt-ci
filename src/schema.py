@@ -454,3 +454,31 @@ class StorageConnectorConfig(TypedDict):
 
 type SupportedStorageConnectors = Literal["google", "aws"]
 type StorageConnector = Dict[SupportedStorageConnectors, StorageConnectorConfig]
+
+MODE_MAPPING: Dict[RunModes, Optional[str]] = {
+    "all": None,
+    "seeds": "seed",
+    "models": "run",
+    "tests": "test",
+    "snapshots": "snapshot"
+}
+
+REVERSE_MODE_MAPPING: Dict[Optional[str], RunModes] = {v: k for k, v in MODE_MAPPING.items()}
+
+NODE_TYPE_COMMAND_MAPPING: Dict[str, DependencyGraphNodeType] = {
+    "models": "model",
+    "macros": "macro",
+    "seeds": "seed",
+    "snapshots": "snapshot",
+    "tests": "test"
+}
+
+MANIFEST_KEY_MAPPING = {
+    "model": "nodes",
+    "seed": "nodes",
+    "snapshot": "nodes",
+    "test": "nodes",
+    "macro": "macros",
+    "exposure": "exposures",
+    "source": "sources"
+}

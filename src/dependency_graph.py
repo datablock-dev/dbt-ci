@@ -8,7 +8,6 @@ import os
 from argparse import Namespace
 from src.parser import generate_dependency_graph
 from src.schema import DependencyGraph
-from src.variables import Variables
 
 class DbtGraph:
     """
@@ -25,14 +24,13 @@ class DbtGraph:
     """
     def __init__(self, args: Namespace, is_production: bool = False):
         self.args = args
-        self.variables = Variables(args).to_namespace()
-        for key, value in self.variables.__dict__.items():
+        for key, value in self.args.__dict__.items():
             setattr(self, key, value)
 
         self.is_production = is_production
 
         # Bash runner configuration
-        shell_path = getattr(self.variables, 'shell_path', '/bin/bash')
+        shell_path = getattr(self.args, 'shell_path', '/bin/bash')
         # Shell path needs to be absolute for subprocess execution
         if not os.path.isabs(shell_path):
             shell_path = os.path.abspath(shell_path)
@@ -42,7 +40,7 @@ class DbtGraph:
         # Keep paths as provided by user (relative or absolute)
         #self.reference_manifest_file = self.reference_manifest_file
         self.dependency_graph = generate_dependency_graph(
-            self.variables.dbt_project_dir if not self.is_production else self.variables.reference_state,
+            self.args.dbt_project_dir if not self.is_production else self.args.reference_state,
             is_state_manifest=self.is_production
         )
 

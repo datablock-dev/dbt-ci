@@ -123,11 +123,10 @@ def adapter_exists(adapter: str) -> bool:
 
 def append_dbt_variables_to_command(
     command_args: List[str],
-    variables: Namespace,
+    args: Namespace,
     skip_target: bool = False,
 ) -> List[str]:
     """Append dbt variables to command arguments."""
-    runner = getattr(variables, "runner", None)
     commands = command_args.copy()
     dbt_variables = {
         "target": "--target",
@@ -142,7 +141,7 @@ def append_dbt_variables_to_command(
         if dbt_flag in commands:
             continue  # Skip if already in command args
 
-        value = getattr(variables, var, None)
+        value = getattr(args, var, None)
         if value is not None and value != "":
             commands.extend([str(dbt_flag), str(value)])
 
@@ -151,15 +150,21 @@ def append_dbt_variables_to_command(
 # To replace append_dbt_variables_to_command
 def resolve_dbt_commands(
     command_args: List[str],
-    variables: Namespace,
+    args: Namespace,
     skip_target: bool = False
 ) -> List[str]:
     """Resolve dbt command arguments"""
     commands = command_args.copy()
-    runner = getattr(variables, "runner", None)
+    runner = getattr(args, "runner", None)
+    
+    # Regular dbt variables with values
     dbt_variables = {
         "target": "--target",
         "vars": "--vars",
+    }
+    
+    # Boolean flags (no value needed)
+    boolean_flags = {
         "defer": "--defer",
     }
 
@@ -173,7 +178,7 @@ def resolve_dbt_commands(
     # Local and dbt runners need absolute paths
     if runner in ["local", "dbt"]:
         for var, flag in path_flags.items():
-            value = getattr(variables, var, None)
+            value = getattr(args, var, None)
             if value is not None and value != "":
                 absolute_path = get_absolute_path(value)
                 commands.extend([flag, absolute_path])
@@ -183,22 +188,32 @@ def resolve_dbt_commands(
         from src.runners.docker import get_container_paths
         
         # Use the shared function to get container path mappings
-        container_path_map = get_container_paths(variables.__dict__)
+        container_path_map = get_container_paths(args.__dict__)
         
         for var, flag in path_flags.items():
             container_path = container_path_map.get(var)
             if container_path:
                 commands.extend([flag, container_path])
 
+    # Handle regular variables with values
     for var, dbt_flag in dbt_variables.items():
         if skip_target and var == "target":
             continue  # Skip adding target if skip_target is True
         if dbt_flag in commands:
             continue  # Skip if already in command args
 
-        value = getattr(variables, var, None)
+        value = getattr(args, var, None)
         if value is not None and value != "":
             commands.extend([str(dbt_flag), str(value)])
+    
+    # Handle boolean flags (only add flag if True)
+    for var, dbt_flag in boolean_flags.items():
+        if dbt_flag in commands:
+            continue  # Skip if already in command args
+        
+        value = getattr(args, var, None)
+        if value is True:
+            commands.append(dbt_flag)
 
     if runner is None:
         print("Runner not found! Exiting...")

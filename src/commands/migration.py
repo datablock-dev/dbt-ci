@@ -8,7 +8,6 @@ from src.cache import CacheManager
 from src.dependency_graph import DbtGraph
 from src.logging import print_exception
 from src.schema import DependencyGraphNode, MigrationMap
-from src.variables import Variables
 from src.connectors import get_connector
 from src.utilities.graph_utils import (
     filter_node_ids_by_type,
@@ -18,7 +17,7 @@ from src.utilities.graph_utils import (
 
 logger = logging.getLogger(__name__)
 
-def migration(**kwargs):
+def migration(args: Namespace):
     """
     Perform a migration operation.
 
@@ -26,18 +25,15 @@ def migration(**kwargs):
     It currently does not implement any functionality.
 
     Args:
-        **kwargs: Arbitrary keyword arguments.
+        args: Namespace object containing command-line arguments.
     """
     try:
         click.secho("DBT CI Migration", fg="green", bold=True)
-        args = Namespace(**kwargs)
         cache = CacheManager()
-        config = Variables(args, command='migration')
-        variables = config.to_namespace()
-        cache.start_report("migration", variables)
-        target_graph = DbtGraph(variables)
-        reference_graph = DbtGraph(variables, is_production=True)
-        connector_type = variables.target_config.get("type")
+        cache.start_report("migration", args)
+        target_graph = DbtGraph(args)
+        reference_graph = DbtGraph(args, is_production=True)
+        connector_type = args.target_config.get("type")
         migration_connector = get_connector(connector_type)["migration"]
 
         if migration_connector is None:
@@ -78,12 +74,12 @@ def migration(**kwargs):
                 logger.info(f"  - New Partitioning: {node_info['new_partitioning']}")
             logger.info("------------------------------------------------------\n")
 
-        if variables.dry_run:
+        if args.dry_run:
             logger.info("Dry run mode enabled - no changes will be applied.")
             sys.exit(0)
         
         # Apply partitioning changes
-        migration_connector(migration_map, variables)
+        migration_connector(migration_map, args)
         cache.update_report("migration", "completed", comment=str(list(migration_map["nodes"].keys())))
         logger.info("Migration completed successfully.")
     except Exception as e:

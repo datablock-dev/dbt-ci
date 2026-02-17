@@ -12,24 +12,20 @@ from src.connectors import get_connector
 from src.dependency_graph import DbtGraph
 from src.schema import DeleteMapNode
 from src.utilities.graph_utils import get_node_ids_from_structured_nodes, get_nodes
-from src.variables import Variables
 
 logger = logging.getLogger(__name__)
 
-def delete(**kwargs):
+def delete(args: Namespace):
     """Delete deleted dbt models"""
     try:
         click.secho("DBT CI Delete", fg="green", bold=True)
-        args = Namespace(**kwargs)
         cache = CacheManager()
-        config = Variables(args, command='delete')
-        variables = config.to_namespace()
-        cache.start_report("delete", variables)
-        reference_graph = DbtGraph(variables, is_production=True)
-        connector_type = variables.target_config.get("type")
+        cache.start_report("delete", args)
+        reference_graph = DbtGraph(args, is_production=True)
+        connector_type = args.target_config.get("type")
         delete_connector = get_connector(connector_type)["delete"]
 
-        if variables.dry_run:
+        if args.dry_run:
             click.echo("Dry run mode enabled - no actual deletions will be performed.")
 
         # Look for cache
@@ -82,11 +78,11 @@ def delete(**kwargs):
             click.echo(f"  • {node['table_id']}")
         click.echo("------------------------------------------------------\n")
 
-        if variables.dry_run:
+        if args.dry_run:
             click.echo("\nDry run complete - no nodes were actually deleted.")
             sys.exit(0)
 
-        delete_connector(delete_map, variables)
+        delete_connector(delete_map, args)
         cache.update_report("delete", "completed", comment=str(list(delete_map.keys())))
         click.echo("Delete process completed successfully.")
         sys.exit(0)

@@ -38,7 +38,7 @@ class CacheManager:
         else:
             return None
         
-    def start_report(self, command: Commands, variables: Namespace):
+    def start_report(self, command: Commands, args: Namespace):
         """Add information to report.json"""
         if command == "init":
             # Clear previous report on init
@@ -51,9 +51,9 @@ class CacheManager:
                     "status": "started",
                     "started_at": datetime.now().isoformat(),
                     "variables": {
-                        "runner": variables.runner,
-                        "target": getattr(variables, "target", None),
-                        "reference_target": getattr(variables, "reference_target", None),
+                        "runner": args.runner,
+                        "target": getattr(args, "target", None),
+                        "reference_target": getattr(args, "reference_target", None),
                     }
                 }
             }, "report.json")
@@ -62,9 +62,9 @@ class CacheManager:
                 "status": "started",
                 "started_at": datetime.now().isoformat(),
                 "variables": {
-                    "runner": variables.runner,
-                    "target": getattr(variables, "target", None),
-                    "reference_target": getattr(variables, "reference_target", None),
+                    "runner": args.runner,
+                    "target": getattr(args, "target", None),
+                    "reference_target": getattr(args, "reference_target", None),
                 }
             }
             self.write_cache(report_cache, "report.json")

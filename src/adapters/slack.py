@@ -3,12 +3,12 @@ import os
 from argparse import Namespace
 from slack_sdk.webhook import WebhookClient
 
-def slack_client(variables: Namespace) -> WebhookClient | None:
-    """Initialize Slack client using configuration from variables."""
+def slack_client(args: Namespace) -> WebhookClient | None:
+    """Initialize Slack client using configuration from args."""
     slack_webhook_url = None
 
-    if variables.slack_webhook:
-        slack_webhook_url = variables.slack_webhook
+    if args.slack_webhook:
+        slack_webhook_url = args.slack_webhook
     elif os.getenv("SLACK_WEBHOOK_URL"):
         slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
     elif os.getenv("SLACK_WEBHOOK"):

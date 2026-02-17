@@ -11,16 +11,15 @@ from src.utilities.multi_threading import run_multithreaded
 
 logger = logging.getLogger(__name__)
 
-
-def bigquery_client(variables: Namespace) -> bigquery.Client:
+def bigquery_client(args: Namespace) -> bigquery.Client:
     """Create a BigQuery client using credentials from the dbt profiles.yml file."""
     dbt_profile = get_profiles_file(
-        dbt_project_dir=variables.dbt_project_dir,
-        profiles_dir=variables.profiles_dir
+        dbt_project_dir=getattr(args, "dbt_project_dir", None),
+        profiles_dir=getattr(args, "profiles_dir", None)
     )
     
     # Get the profile name from the project config
-    profile_name = variables.project.get("profile")
+    profile_name = getattr(args, "project", {}).get("profile")
     
     if not profile_name:
         raise ValueError(
@@ -32,19 +31,19 @@ def bigquery_client(variables: Namespace) -> bigquery.Client:
         raise ValueError(
             f"Profile '{profile_name}' not found in profiles.yml")
 
-    output = profile_config.get("outputs", {}).get(variables.target, {})
+    output = profile_config.get("outputs", {}).get(getattr(args, "target", None), {})
     if not output:
         raise ValueError(
-            f"No output configuration found for target '{variables.target}' in profiles.yml")
+            f"No output configuration found for target '{getattr(args, 'target', None)}' in profiles.yml")
     elif output.get("type") != "bigquery":
         raise ValueError(
-            f"Output type for target '{variables.target}' is not 'bigquery' in profiles.yml")
+            f"Output type for target '{getattr(args, 'target', None)}' is not 'bigquery' in profiles.yml")
     elif output.get("project") is None:
         raise ValueError(
-            f"No 'project' specified for target '{variables.target}' in profiles.yml")
+            f"No 'project' specified for target '{getattr(args, 'target', None)}' in profiles.yml")
     elif output.get("location") is None:
         raise ValueError(
-            f"No 'location' specified for target '{variables.target}' in profiles.yml")
+            f"No 'location' specified for target '{getattr(args, 'target', None)}' in profiles.yml")
 
     client = bigquery.Client(
         project=output.get("project", ""),
@@ -68,7 +67,7 @@ def bigquery_query(client: bigquery.Client, query: str):
 
 def bigquery_ephemeral_strategy(
     ephemeral_map: Dict[str, EphemeralMapNode],
-    variables: Namespace
+    args: Namespace
 ) -> None:
     """Strategy for handling ephemeral run towards BigQuery."""
     def get_full_config(config: EphemeralMapNode | None) -> Tuple[str | None, str | None, str | None]:
@@ -80,8 +79,8 @@ def bigquery_ephemeral_strategy(
     # In BigQuery, ephemeral models can be materialized as temporary tables or CTEs.
     # For this implementation, we will materialize them as CTEs to avoid unnecessary storage costs.
     try:
-        client = bigquery_client(variables)
-        threads = variables.target_config.get("threads", 5)
+        client = bigquery_client(args)
+        threads = args.target_config.get("threads", 5)
 
         datasets_to_create: Set[str] = set()
         # Stored as {node_name: {"ephemeral_table_id": str, "reference_table_id": str }}
@@ -177,9 +176,9 @@ def clone_tables(
     )
 
 
-def bigquery_delete_strategy(delete_map: Dict[str, DeleteMapNode], variables: Namespace) -> None:
+def bigquery_delete_strategy(delete_map: Dict[str, DeleteMapNode], args: Namespace) -> None:
     """Strategy for handling deletes towards BigQuery."""
-    client = bigquery_client(variables)
+    client = bigquery_client(args)
 
     def _delete(table_id: str) -> None:
         """
@@ -187,7 +186,7 @@ def bigquery_delete_strategy(delete_map: Dict[str, DeleteMapNode], variables: Na
 
         Args:
             table_id: Full table identifier (project.dataset.table)
-            variables: Namespace with dbt configuration (used to get BigQuery client)
+            args: Namespace with dbt configuration (used to get BigQuery client)
 
         Returns:
             None
@@ -210,7 +209,7 @@ def bigquery_delete_strategy(delete_map: Dict[str, DeleteMapNode], variables: Na
     # For BigQuery, we will delete tables directly using the BigQuery client.
     # This function can be expanded to handle any pre-deletion logic if needed.
     try:
-        threads = variables.target_config.get("threads", 5)
+        threads = args.target_config.get("threads", 5)
         funct_list = [
             lambda node_id=node_id, node_info=node_info: _delete(
                 node_info["table_id"])
@@ -227,13 +226,13 @@ def bigquery_delete_strategy(delete_map: Dict[str, DeleteMapNode], variables: Na
         sys.exit(1)
 
 
-def delete_table(table_id: str, variables: Namespace) -> None:
+def delete_table(table_id: str, args: Namespace) -> None:
     """
     Delete a single BigQuery table and its dbt temporary table.
 
     Args:
         table_id: Full table identifier (project.dataset.table)
-        variables: Namespace with dbt configuration (used to get BigQuery client)
+        args: Namespace with dbt configuration (used to get BigQuery client)
 
     Returns:
         None
@@ -242,7 +241,7 @@ def delete_table(table_id: str, variables: Namespace) -> None:
         This function is designed to be called in parallel via multithreading.
         Each invocation deletes one table independently.
     """
-    client = bigquery_client(variables)
+    client = bigquery_client(args)
 
     try:
         client.delete_table(table_id, not_found_ok=True)
@@ -252,11 +251,11 @@ def delete_table(table_id: str, variables: Namespace) -> None:
         raise
 
 
-def bigquery_migration_strategy(migration_map: MigrationMap, variables: Namespace) -> None:
+def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) -> None:
     """Strategy for handling partitioning migrations towards BigQuery."""
     try:
-        client = bigquery_client(variables)
-        profile = get_profile(variables)
+        client = bigquery_client(args)
+        profile = get_profile(args)
         if profile is None:
             print("No profile found for the specified target. Please check your profiles.yml configuration.")
             sys.exit(1)
@@ -281,7 +280,7 @@ def bigquery_migration_strategy(migration_map: MigrationMap, variables: Namespac
                 """
             )
 
-        if variables.dry_run:
+        if args.dry_run:
             click.echo("Dry run mode enabled - no changes will be applied.")
             sys.exit(0)
 
