@@ -40,6 +40,7 @@ def init(args: Namespace):
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Initialization", fg="green", bold=True)
+        logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager()
         cache.start_report("init", args)
         reference_target = getattr(args, "reference_target", None)

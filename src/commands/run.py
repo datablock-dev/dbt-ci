@@ -44,6 +44,7 @@ def run(args: Namespace):
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Run", fg="green", bold=True)
+        logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager()
         cache.start_report("run", args)
         target_graph = DbtGraph(args)
@@ -123,15 +124,15 @@ def run_with_mode(
             downstream_dependencies = list(set_of_downstream_dependencies) if set_of_downstream_dependencies else []
 
             # Combine all nodes that need to run (modified + new + downstream)
+            # Skip deleted since they can't be run, but we still want to include their downstream dependencies 
+            # to make sure they function without the deleted node
             nodes_to_run = filter_node_ids_by_type(
                 dependency_graph=target_graph.to_dict(),
                 node_type=node_type, # seeds, models, snapshots, tests
                 node_ids=list(set(chain(
                     changed_nodes_dict.get("modified_nodes", []),
                     changed_nodes_dict.get("new_nodes", []),
-                    downstream_dependencies,
-                    get_upstream_dependencies(target_graph.to_dict(), changed_nodes, "snapshot") or [],
-                    get_upstream_dependencies(target_graph.to_dict(), changed_nodes, "test") or []
+                    downstream_dependencies, # includes downstream dependencie of modified, new & deleted nodes
                 )))
             )
 
@@ -139,16 +140,17 @@ def run_with_mode(
             # dbt-ci run -m tests -f snapshots --> 
             # This should run modified tests and their snapshot dependencies only, not all downstream dependencies
             if getattr(args, "filters", None) and node_type == "test":
-                # If filters are provided and we're in test mode, we need to further filter nodes to only include those that match the specified filters
+                # When filters are provided in test mode, include upstream dependencies but only of types specified in filters
+                # Example: -f snapshots means include upstream snapshot dependencies of the changed tests
                 nodes_to_run = filter_node_ids_by_type(
                     dependency_graph=target_graph.to_dict(),
-                    node_type=node_type, # seeds, models, snapshots, tests
+                    node_type=node_type, # tests
                     node_ids=list(set(chain(
                         changed_nodes_dict.get("modified_nodes", []),
                         changed_nodes_dict.get("new_nodes", []),
                         downstream_dependencies,
-                        get_upstream_dependencies(target_graph.to_dict(), changed_nodes, "snapshot", getattr(args, "filters", None)) or [],
-                        get_upstream_dependencies(target_graph.to_dict(), changed_nodes, "test", getattr(args, "filters", None)) or []
+                        # Get upstream dependencies of any type, but filter to only include types specified in filters
+                        get_upstream_dependencies(target_graph.to_dict(), changed_nodes, None, getattr(args, "filters", None)) or []
                     )))
                 )
 

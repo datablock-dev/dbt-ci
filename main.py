@@ -26,6 +26,7 @@ def cli():
 @common_options
 @click.option(
     '--reference-state', '--state',
+    envvar=['DBT_STATE', 'DBT_STATE_DIR', 'STATE_DIR'],
     default=None,
     type=str,
     help='Path to the reference manifest.json directory (local path where state will be downloaded)'
@@ -49,9 +50,8 @@ def init_cmd(**kwargs):
         # Use local state directory
         dbt-ci init --state dbt/.dbtstate --reference-target production
     """
-    print(to_namespace(kwargs))
     setup_logging(to_namespace(kwargs).log_level)
-    return init(to_namespace(kwargs))
+    return init(to_namespace(kwargs, command="init"))
 
 # Add support for --levels option to specify how many levels of dependencies to include
 @cli.command(name='run')
@@ -59,6 +59,7 @@ def init_cmd(**kwargs):
 @click.option(
     '--nodes', '-n',
     '--mode', '-m',
+    envvar=['DBT_NODES'],
     type=click.Choice([
         "all",
         "models",
@@ -102,13 +103,14 @@ def run_cmd(**kwargs):
         dbt-ci run
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return run(to_namespace(kwargs))
+    return run(to_namespace(kwargs, command="run"))
 
 
 @cli.command(name='ephemeral')
 @common_options
 @click.option(
     "--keep-env",
+    envvar=['DBT_KEEP_ENV'],
     is_flag=True,
     default=False,
     help="Don't destroy ephemeral environment after run (if supported by runner)"
@@ -128,7 +130,7 @@ def ephemeral_cmd(**kwargs):
         dbt-ci ephemeral --keep-env
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return ephemeral(to_namespace(kwargs))
+    return ephemeral(to_namespace(kwargs, command="ephemeral"))
 
 @cli.command(name='delete')
 @common_options
@@ -146,14 +148,14 @@ def delete_cmd(**kwargs):
         dbt-ci delete --dry-run
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return delete(to_namespace(kwargs))
+    return delete(to_namespace(kwargs, command="delete"))
 
 @cli.command(name="finalize")
 @common_options
 @click.option(
     "--artifacts-uri",
+    envvar=['DBT_ARTIFACTS_URI', 'ARTIFACTS_URI'],
     default=None,
-    envvar=['ARTIFACTS_URI'],
     type=str,
     help="S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., s3://my-bucket/dbt-artifacts/)"
 )
@@ -168,11 +170,13 @@ def finalize_cmd(**kwargs):
         dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return finalize(to_namespace(kwargs))
+    return finalize(to_namespace(kwargs, command="finalize"))
     
 
-def to_namespace(kwargs):
+def to_namespace(kwargs, command=None):
     """Convert kwargs dict to argparse.Namespace for easier access and compatibility with existing code"""
+    if command:
+        kwargs["command"] = command
     return Namespace(**kwargs)
 
 if __name__ == "__main__":

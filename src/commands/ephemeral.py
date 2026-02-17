@@ -18,12 +18,14 @@ from src.dependency_graph import DbtGraph
 from src.logging import print_exception
 from src.schema import EphemeralMapNode
 from src.utilities.graph_utils import (
+    filter_node_ids_by_multiple_types,
     filter_node_ids_by_type,
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes,
     get_nodes,
     get_upstream_dependencies
 )
+from src.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +48,12 @@ def ephemeral(args: Namespace):
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Ephemeral", fg="green", bold=True)
+        logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager()
         cache.start_report("ephemeral", args)
         target_graph = DbtGraph(args)
         reference_graph = DbtGraph(args, is_production=True)
-        connector_type = args.target_config.get("type")
+        connector_type = get_profile(args)["type"]
         
         # Validate connector before calling get_connector
         if connector_type is None:
@@ -83,18 +86,31 @@ def ephemeral(args: Namespace):
             logger.info("No modified or deleted nodes found in cache, skipping...")
             sys.exit(0)
 
-        # Deleted nodes dont need to be tested.
-        # However, we need to include the modified nodes & their downstream
-        # dependencies to truly test that the change does not break anything.
-        # We skip newly created nodes as they should not be included in ephemeral checks
-        # They should be created in the PR/merge
-        selected_nodes = list(chain(
-            filter_node_ids_by_type(target_graph.to_dict(), changed_nodes_dict["modified_nodes"], ["model"]),
-            get_downstream_dependencies(target_graph.to_dict(), changed_nodes, "model") or [],
-            get_upstream_dependencies(target_graph.to_dict(), changed_nodes, "snapshot") or [],
-            get_upstream_dependencies(target_graph.to_dict(), changed_nodes, "test") or []
-        ))
-
+        # Ephemeral cloning strategy:
+        # 1. All modified nodes (models, snapshots, tests)
+        # 2. Downstream dependencies of modified & deleted nodes
+        # 3. If a snapshot changed, include its upstream dependencies (first level)
+        # 4. If a test changed, include its upstream dependencies (first level)
+        # Note: New nodes are skipped - they should be created in the PR/merge, not cloned
+        
+        # Get modified nodes by type
+        modified_snapshots = filter_node_ids_by_type(target_graph.to_dict(), changed_nodes_dict["modified_nodes"], "snapshot")
+        modified_tests = filter_node_ids_by_type(target_graph.to_dict(), changed_nodes_dict["modified_nodes"], "test")
+        
+        selected_nodes = filter_node_ids_by_multiple_types(
+            dependency_graph=target_graph.to_dict(),
+            node_types=["model", "snapshot"],
+            node_ids=list(chain(
+                # 1. All modified nodes (models, snapshots, tests)
+                changed_nodes_dict["modified_nodes"],
+                # 2. Indirect Downstream dependencies of modified & deleted nodes (all types)
+                get_downstream_dependencies(target_graph.to_dict(), changed_nodes, None) or [],
+                # 3. Upstream dependencies of modified snapshots (first level, any type)
+                get_upstream_dependencies(target_graph.to_dict(), modified_snapshots, None) or [],
+                # 4. Upstream dependencies of modified tests (first level, any type)
+                get_upstream_dependencies(target_graph.to_dict(), modified_tests, None) or []
+            ))
+        )
         # Lets get all metadata related to these downstream dependencies
         #print(downstream_dependencies)
         target_nodes = get_nodes(target_graph.to_dict(), selected_nodes)
@@ -107,8 +123,12 @@ def ephemeral(args: Namespace):
         # We use reference since it will also include deleted nodes
         # In target, they wont exist and return None
         for node_id, node_metadata in reference_nodes.items():
-            # Skip ephemeral models since they are not materialized and should not be executed
-            if node_metadata["materialized"] in ("ephemeral", "view", "table"):
+            # Skip ephemeral models since they are not materialized in the database
+            # and therefore cannot be cloned
+            if (
+                node_metadata["materialized"] in ("ephemeral", "view", "table")
+                and node_metadata["resource_type"] == "model"
+            ):
                 continue
             
             target_node = target_nodes.get(node_id, None)

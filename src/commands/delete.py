@@ -12,6 +12,7 @@ from src.connectors import get_connector
 from src.dependency_graph import DbtGraph
 from src.schema import DeleteMapNode
 from src.utilities.graph_utils import get_node_ids_from_structured_nodes, get_nodes
+from src.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +20,11 @@ def delete(args: Namespace):
     """Delete deleted dbt models"""
     try:
         click.secho("DBT CI Delete", fg="green", bold=True)
+        logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager()
         cache.start_report("delete", args)
         reference_graph = DbtGraph(args, is_production=True)
-        connector_type = args.target_config.get("type")
+        connector_type = get_profile(args)["type"]
         delete_connector = get_connector(connector_type)["delete"]
 
         if args.dry_run:

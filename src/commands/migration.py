@@ -14,6 +14,7 @@ from src.utilities.graph_utils import (
     get_node_ids_from_structured_nodes,
     get_nodes
 )
+from src.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,12 @@ def migration(args: Namespace):
     """
     try:
         click.secho("DBT CI Migration", fg="green", bold=True)
+        logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager()
         cache.start_report("migration", args)
         target_graph = DbtGraph(args)
         reference_graph = DbtGraph(args, is_production=True)
-        connector_type = args.target_config.get("type")
+        connector_type = get_profile(args)["type"]
         migration_connector = get_connector(connector_type)["migration"]
 
         if migration_connector is None:

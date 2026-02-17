@@ -125,7 +125,11 @@ def get_downstream_dependencies(
     node_type: Optional[DependencyGraphNodeType] = None,
     levels: int | None = None # To be implemented in the future
 ):
-    """Get downstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
+    """
+        Get downstream dependencies for a list of node IDs, 
+        optionally up to a certain number of levels. Defaults to indirect downstream dependencies 
+        if levels is not specified.
+    """
     key = "indirect_downstream_dependencies"
     if node_ids is None or len(node_ids) == 0:
         return None

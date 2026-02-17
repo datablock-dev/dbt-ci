@@ -8,6 +8,7 @@ import os
 from argparse import Namespace
 from src.parser import generate_dependency_graph
 from src.schema import DependencyGraph
+from src.utilities.paths import get_manifest_file
 
 class DbtGraph:
     """
@@ -38,11 +39,16 @@ class DbtGraph:
         self.shell_path = shell_path
         
         # Keep paths as provided by user (relative or absolute)
-        #self.reference_manifest_file = self.reference_manifest_file
-        self.dependency_graph = generate_dependency_graph(
-            self.args.dbt_project_dir if not self.is_production else self.args.reference_state,
-            is_state_manifest=self.is_production
-        )
+        if getattr(self.args, "command", None) == "init":
+            self.dbt_project_dir = self.args.dbt_project_dir
+            self.dependency_graph = generate_dependency_graph(
+                manifest_file=get_manifest_file(self.dbt_project_dir) if not self.is_production 
+                else get_manifest_file(self.args.reference_state),
+            )
+        else: # We retrive manifest file from cache
+            self.dependency_graph = generate_dependency_graph(
+                self.args.target_manifest_file if not self.is_production else self.args.reference_manifest_file,
+            )
 
     def to_dict(self) -> DependencyGraph:
         """Convert the DependencyGraph instance to a dictionary."""
