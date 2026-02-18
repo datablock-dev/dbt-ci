@@ -59,11 +59,11 @@ def init(args: Namespace):
             logger.warning("No reference target specified, using current target as reference state for comparison.")
         else:
             command.extend(["--target", reference_target])
-            command.extend(["--vars", args.reference_vars]) if args.reference_vars else None
+            command.extend(["--vars", getattr(args, "reference_vars", None)]) if getattr(args, "reference_vars", None) else None
 
         run_dbt_command(
             command_args=resolve_dbt_commands(command, args, ["vars", "target"]),  # Don't pass vars or target when compiling reference manifest
-            runner_config=RunnerConfig(**args.__dict__),
+            args=args
         )
 
         logger.info("DBT project compiled successfully. manifest.json generated.")
@@ -73,7 +73,7 @@ def init(args: Namespace):
 
         ls_output = run_dbt_command(
             command_args=resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], args),
-            runner_config=RunnerConfig(**args.__dict__)
+            args=args
         )
 
         if ls_output is None:
@@ -139,7 +139,7 @@ def init(args: Namespace):
             # If no target specified, dbt will use the default from dbt_project.yml
             run_dbt_command(
                 command_args=resolve_dbt_commands(target_command, args),
-                runner_config=RunnerConfig(**args.__dict__)
+                args=args
             )
             target_manifest_file = get_manifest_file(args.dbt_project_dir)
             cache.write_cache(target_manifest_file, "target_manifest.json")
@@ -163,8 +163,8 @@ def resolve_manifest_file_from_storage(
     """
     cwd = Path.cwd()
     storage_connector, state_uri = resolved_storage
-    logger.info(f"Using storage connector '{storage_connector.get('name', 'Unknown')}' for state management with URI: {state_uri}")
-    reference_manifest = storage_connector["download"](state_uri)
+    logger.info(f"Using storage connector '{storage_connector.name}' for state management with URI: {state_uri}")
+    reference_manifest = storage_connector.download(state_uri)
     dbtstate_dir: Path | None = None
 
     # Write and download manifest to path

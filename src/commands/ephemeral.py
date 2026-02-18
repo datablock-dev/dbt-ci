@@ -63,7 +63,7 @@ def ephemeral(args: Namespace):
             logger.error(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
             sys.exit(1)
         
-        ephemeral_connector = get_connector(connector_type)["ephemeral"]
+        ephemeral_connector = get_connector(connector_type).ephemeral
 
         # Look for cache
         prev_cache = cache.get_cache()

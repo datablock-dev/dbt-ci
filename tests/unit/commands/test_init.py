@@ -233,9 +233,9 @@ class TestResolveManifestFromStorage:
         from src.commands.init import resolve_manifest_file_from_storage
         
         # Setup mocks
-        storage_connector = {
-            "download": MagicMock(return_value={"metadata": {}})
-        }
+        storage_connector = MagicMock()
+        storage_connector.name = "Test Storage"
+        storage_connector.download = MagicMock(return_value={"metadata": {}})
         state_uri = "s3://bucket/path"
         variables = Namespace(
             reference_state=None,
@@ -253,4 +253,4 @@ class TestResolveManifestFromStorage:
         resolve_manifest_file_from_storage((storage_connector, state_uri), variables)
         
         # Verify download was called
-        storage_connector["download"].assert_called_once_with(state_uri)
+        storage_connector.download.assert_called_once_with(state_uri)

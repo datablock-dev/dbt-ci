@@ -129,7 +129,9 @@ class TestDeleteCommand:
         mock_graph.return_value = mock_graph_instance
         
         mock_delete_func = MagicMock()
-        mock_get_connector.return_value = {'delete': mock_delete_func}
+        mock_connector = MagicMock()
+        mock_connector.delete = mock_delete_func
+        mock_get_connector.return_value = mock_connector
         
         # Run command
         args = Namespace(
@@ -195,7 +197,9 @@ class TestDeleteCommand:
         mock_graph.return_value = mock_graph_instance
         
         mock_delete_func = MagicMock()
-        mock_get_connector.return_value = {'delete': mock_delete_func}
+        mock_connector = MagicMock()
+        mock_connector.delete = mock_delete_func
+        mock_get_connector.return_value = mock_connector
         
         # Run command
         args = Namespace(
@@ -253,7 +257,9 @@ class TestDeleteCommand:
         mock_graph.return_value = mock_graph_instance
         
         mock_delete_func = MagicMock()
-        mock_get_connector.return_value = {'delete': mock_delete_func}
+        mock_connector = MagicMock()
+        mock_connector.delete = mock_delete_func
+        mock_get_connector.return_value = mock_connector
         
         # Run command
         args = Namespace(

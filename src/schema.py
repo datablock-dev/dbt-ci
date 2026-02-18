@@ -1,7 +1,16 @@
 """Pydantic models for dbt manifest.json structure and CLI arguments."""
+import warnings
 from argparse import Namespace
 from typing import Callable, Dict, Any, List, Optional, Literal, Set
 from pydantic import BaseModel, Field, ConfigDict
+
+# Suppress warnings about 'schema' field name shadowing BaseModel attributes
+# This is expected since we're modeling dbt's structure which uses 'schema' as a field name
+warnings.filterwarnings(
+    "ignore",
+    message='Field name "schema".*shadows an attribute in parent',
+    category=UserWarning
+)
 
 type LoggingLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 type Commands = Literal["init", "delete", "migrate", "ephemeral", "run", "finalize"]
@@ -79,6 +88,8 @@ class DBTProject(BaseModel):
 
 class Quoting(BaseModel):
     """Quoting configuration."""
+    model_config = ConfigDict(protected_namespaces=())
+    
     database: Optional[bool] = None
     schema: Optional[bool] = None
     identifier: Optional[bool] = None

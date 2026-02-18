@@ -5,15 +5,15 @@ import sys
 import logging
 from typing import List
 import subprocess
+from argparse import Namespace
 from subprocess import CompletedProcess
 from src.logging import setup_logging
-from src.schema import RunnerConfig
 
 logger = logging.getLogger(__name__)
 
 def bash_runner(
     commands: List[str],
-    runner_config: RunnerConfig
+    args: Namespace
 ) -> CompletedProcess | None:
     """
     Execute dbt commands using a custom dbt binary/script.
@@ -26,13 +26,13 @@ def bash_runner(
     
     Note: The first element 'dbt' in commands will be replaced with shell_path
     """
-    setup_logging(runner_config.get('log_level', 'INFO'))
-    commands = [runner_config['shell_path']] + commands
+    setup_logging(getattr(args, "log_level", "INFO"))
+    commands = [getattr(args, "shell_path", "dbt")] + commands
     
-    if not runner_config.get('quiet', False):
+    if not getattr(args, "quiet", False):
         logger.debug(f"Running command: {' '.join(commands)}")
     
-    if runner_config.get('dry_run', False):
+    if getattr(args, "dry_run", False):
         logger.info("DRY RUN: Command would be executed")
         return None
     
@@ -44,7 +44,7 @@ def bash_runner(
             text=True
         )
 
-        if not runner_config.get('quiet', False):
+        if not getattr(args, "quiet", False):
             print(result.stdout)
 
         if result.stderr:

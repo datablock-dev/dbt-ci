@@ -21,7 +21,7 @@ RUNNERS: Dict[Runners, Callable[[List[str], RunnerConfig], subprocess.CompletedP
 
 def run_dbt_command(
     command_args: List[str],
-    runner_config: RunnerConfig
+    args: Namespace
 ) -> subprocess.CompletedProcess | None:
     """
     Central dispatcher for running dbt commands across any runner.
@@ -33,7 +33,7 @@ def run_dbt_command(
     
     Args:
         command_args: dbt command arguments (e.g., ['ls', '--select', 'state:modified+'])
-        runner_config: Configuration containing runner type, paths, and runner-specific settings
+        args: Namespace containing all configuration and runner settings (e.g., runner type, dbt version, adapter, paths, etc.)
     Returns:
         CompletedProcess from subprocess, or None if dry_run
     
@@ -46,17 +46,17 @@ def run_dbt_command(
         }
         output = run_dbt_command(['ls', '--select', 'state:modified+'], config)
     """
-    runner = runner_config.runner
+    runner = getattr(args, "runner", None)
     if runner in RUNNERS:
-        if runner == "dbt" and not dbt_version_exists(runner_config.get('dbt_version')):
-            print(f"dbt version {runner_config.get('dbt_version')} not found. Installing...")
-            run_with_dbt_version(runner_config.get('dbt_version'))
+        if runner == "dbt" and not dbt_version_exists(getattr(args, "dbt_version", None)):
+            print(f"dbt version {getattr(args, 'dbt_version', None)} not found. Installing...")
+            run_with_dbt_version(getattr(args, "dbt_version", None))
         
-        if runner_config.get("adapter") and not adapter_exists(runner_config.get("adapter")):
-            print(f"Adapter {runner_config.get('adapter')} not found. Installing...")
-            install_adapter(runner_config.get("adapter"))
+        if getattr(args, "adapter", None) and not adapter_exists(getattr(args, "adapter", None)):
+            print(f"Adapter {getattr(args, 'adapter', None)} not found. Installing...")
+            install_adapter(getattr(args, "adapter", None))
 
-        return RUNNERS[runner](command_args, runner_config)
+        return RUNNERS[runner](command_args, args)
 
     print(f"Unsupported runner: {runner}")
     sys.exit(1)
@@ -188,7 +188,7 @@ def resolve_dbt_commands(
         from src.runners.docker import get_container_paths
         
         # Use the shared function to get container path mappings
-        container_path_map = get_container_paths(args.__dict__)
+        container_path_map = get_container_paths(args)
         
         for var, flag in path_flags.items():
             container_path = container_path_map.get(var)

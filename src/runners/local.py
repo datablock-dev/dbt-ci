@@ -4,16 +4,16 @@ import sys
 import subprocess
 import logging
 from subprocess import CompletedProcess
+from argparse import Namespace
 from typing import List
 from src.logging import setup_logging
-from src.schema import RunnerConfig
 
 logger = logging.getLogger(__name__)
 
-def local_runner(commands: List[str], runner_config: RunnerConfig) -> CompletedProcess | None:
+def local_runner(commands: List[str], args: Namespace) -> CompletedProcess | None:
     """Execute dbt commands locally."""
-    setup_logging(runner_config.get('log_level', 'INFO'))
-    full_command = [*([runner_config.get('entrypoint')] if runner_config.get('entrypoint') else []), *commands]
+    setup_logging(getattr(args, 'log_level', 'INFO'))
+    full_command = [*([getattr(args, 'entrypoint')] if getattr(args, 'entrypoint') else []), *commands]
     absolute_command = []
     path_flags = {'--state', '--project-dir', '--profiles-dir', '--target-path', '--log-path'}
     prev_arg = None
@@ -25,10 +25,10 @@ def local_runner(commands: List[str], runner_config: RunnerConfig) -> CompletedP
             absolute_command.append(arg)
         prev_arg = arg
 
-    if not runner_config.get('quiet', False):
+    if not getattr(args, 'quiet', False):
         logger.debug(f"Running command: {' '.join(absolute_command)}")
     
-    if runner_config.get('dry_run', False):
+    if getattr(args, 'dry_run', False):
         logger.info("DRY RUN: Command would be executed")
         return None
     
@@ -40,7 +40,7 @@ def local_runner(commands: List[str], runner_config: RunnerConfig) -> CompletedP
             text=True
         )
 
-        if not runner_config.get('quiet', False):
+        if not getattr(args, 'quiet', False):
             logger.info(result.stdout)
         
         if result.stderr:

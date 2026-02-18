@@ -137,7 +137,9 @@ class TestEphemeralCommand:
         mock_graph.return_value = mock_graph_instance
         
         mock_ephemeral_func = MagicMock()
-        mock_get_connector.return_value = {'ephemeral': mock_ephemeral_func}
+        mock_connector = MagicMock()
+        mock_connector.ephemeral = mock_ephemeral_func
+        mock_get_connector.return_value = mock_connector
         
         # Run command
         args = Namespace(

@@ -1,4 +1,5 @@
 """DBT CI Tool - Intelligent CI for DBT projects"""
+import warnings
 from argparse import Namespace
 import click
 from src.cli import common_options
@@ -9,6 +10,15 @@ from src.commands import (
     ephemeral,
     init,
     finalize
+)
+
+# Suppress Pydantic warnings about 'schema' field name shadowing BaseModel attributes
+# This is expected since we're modeling dbt's schema which uses 'schema' as a field name
+warnings.filterwarnings(
+    "ignore",
+    message='Field name "schema" .* shadows an attribute in parent "BaseModel"',
+    category=UserWarning,
+    module="pydantic"
 )
 
 @click.group()

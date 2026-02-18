@@ -2,13 +2,13 @@
 import os
 import sys
 from subprocess import CompletedProcess
+from typing import List
+from argparse import Namespace
 import docker
 from docker import errors
-from typing import List
-from src.schema import RunnerConfig
 from src.utilities.paths import get_absolute_path
 
-def docker_runner(commands: List[str], runner_config: RunnerConfig) -> CompletedProcess | None:
+def docker_runner(commands: List[str], args: Namespace) -> CompletedProcess | None:
     """
     Execute dbt commands inside a Docker container.
     
@@ -30,14 +30,14 @@ def docker_runner(commands: List[str], runner_config: RunnerConfig) -> Completed
     try:
         client = docker.client.from_env()
         container = client.containers.run(
-            image=runner_config.get("docker_image", "ghcr.io/dbt-labs/dbt-core:latest"),
+            image=getattr(args, "docker_image", "ghcr.io/dbt-labs/dbt-core:latest"),
             command=commands,
             detach=True,
             stdout=True,
             stderr=True,
-            user=runner_config.get("docker_user", f"{os.getuid()}:{os.getgid()}"),
-            environment=get_docker_env(runner_config),
-            volumes=get_docker_volumes(runner_config)
+            user=getattr(args, "docker_user", f"{os.getuid()}:{os.getgid()}"),
+            environment=parse_docker_env(args),
+            volumes=parse_docker_volumes(args)
         )
         
         # Capture all logs as string
@@ -101,10 +101,10 @@ def docker_runner(commands: List[str], runner_config: RunnerConfig) -> Completed
         print(f"Unexpected error: {e}")
         sys.exit(1)
 
-def parse_docker_env(runner_config: RunnerConfig) -> dict:
+def parse_docker_env(args: Namespace) -> dict:
     """Parse docker_env list into a dictionary."""
     env_dict = {}
-    docker_env = runner_config.get("docker_env", [])
+    docker_env = getattr(args, "docker_env", [])
     if docker_env:
         for env in docker_env:
             if "=" in env:
@@ -112,10 +112,10 @@ def parse_docker_env(runner_config: RunnerConfig) -> dict:
                 env_dict[key] = value
     return env_dict
 
-def parse_docker_volumes(runner_config: RunnerConfig) -> dict:
+def parse_docker_volumes(args: Namespace) -> dict:
     """Parse docker_volumes list into a host_path -> container_path mapping."""
     volume_map = {}
-    docker_volumes = runner_config.get("docker_volumes", [])
+    docker_volumes = getattr(args, "docker_volumes", [])
     for volume in docker_volumes:
         parts = volume.split(":", 2)
         if len(parts) >= 2:
@@ -124,7 +124,7 @@ def parse_docker_volumes(runner_config: RunnerConfig) -> dict:
             volume_map[host_path] = container_path
     return volume_map
 
-def get_container_paths(runner_config: RunnerConfig) -> dict:
+def get_container_paths(args: Namespace) -> dict:
     """Get container paths for dbt configuration variables.
     
     Returns a mapping of variable names to their container paths:
@@ -134,8 +134,8 @@ def get_container_paths(runner_config: RunnerConfig) -> dict:
         'reference_state': '/dbt/.dbtstate'
     }
     """
-    env_dict = parse_docker_env(runner_config)
-    volume_map = parse_docker_volumes(runner_config)
+    env_dict = parse_docker_env(args)
+    volume_map = parse_docker_volumes(args)
     
     container_path_map = {}
     
@@ -144,7 +144,7 @@ def get_container_paths(runner_config: RunnerConfig) -> dict:
         container_path_map["dbt_project_dir"] = env_dict["DBT_PROJECT_DIR"]
     else:
         # Try to derive from volume mapping
-        dbt_project_host = runner_config.get("dbt_project_dir")
+        dbt_project_host = getattr(args, "dbt_project_dir", None)
         if dbt_project_host and dbt_project_host in volume_map:
             container_path_map["dbt_project_dir"] = volume_map[dbt_project_host]
     
@@ -157,7 +157,7 @@ def get_container_paths(runner_config: RunnerConfig) -> dict:
         container_path_map["reference_state"] = env_dict["DBT_STATE"]
     else:
         # Try to derive from volume mapping if state is within a mounted volume
-        reference_state_host = runner_config.get("reference_state")
+        reference_state_host = getattr(args, "reference_state", None)
         if reference_state_host:
             reference_state_abs = get_absolute_path(reference_state_host)
             # Check if state path is within any mounted volume
@@ -172,26 +172,26 @@ def get_container_paths(runner_config: RunnerConfig) -> dict:
     
     return container_path_map
 
-def get_docker_env(runner_config: RunnerConfig) -> dict | None:
+def get_docker_env(args: Namespace) -> dict | None:
     """Build Docker environment variables based on runner configuration."""
     # Don't automatically set environment variables - let the command-line flags handle paths
     # and only use user-provided docker_env
     env_dict = {}
     
     # Only use user-provided docker_env
-    user_env = parse_docker_env(runner_config)
+    user_env = parse_docker_env(args)
     env_dict.update(user_env)
     
     return env_dict
 
 
-def get_docker_volumes(runner_config: RunnerConfig) -> dict | None:
+def get_docker_volumes(args: Namespace) -> dict | None:
     """Build Docker volume bindings based on runner configuration."""
     volume_dict = {}
-    if runner_config.get("docker_volumes", None) is None or len(runner_config["docker_volumes"]) == 0:
+    if getattr(args, "docker_volumes", None) is None or len(getattr(args, "docker_volumes", [])) == 0:
         return None
     
-    for volume in runner_config.get("docker_volumes", []):
+    for volume in getattr(args, "docker_volumes", []):
         parts = volume.split(":", 2)
         host_path = get_absolute_path(parts[0])
         container_path = parts[1]

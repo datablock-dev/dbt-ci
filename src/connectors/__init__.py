@@ -21,12 +21,12 @@ from src.connectors.google.bigquery import (
 )
 
 DB_CONNECTORS: Final[Dict[SupportedConnectors, ConnectorConfig]] = {
-    "bigquery": {
-        "client": bigquery_client,
-        "ephemeral": bigquery_ephemeral_strategy,
-        "delete": bigquery_delete_strategy,
-        "migration": bigquery_migration_strategy
-    }
+    "bigquery": ConnectorConfig(
+        client=bigquery_client,
+        ephemeral=bigquery_ephemeral_strategy,
+        delete=bigquery_delete_strategy,
+        migration=bigquery_migration_strategy
+    )
 }
 
 STORAGE_URI_PREFIXES: Final[Dict[str, str]] = {
@@ -35,18 +35,18 @@ STORAGE_URI_PREFIXES: Final[Dict[str, str]] = {
 }
 
 STORAGE_CONNECTORS: Final[Dict[SupportedStorageConnectors, StorageConnectorConfig]] = {
-    "aws": {
-        "name": "AWS S3",
-        "client": aws_storage_client,
-        "upload": aws_upload_json,
-        "download": aws_download_json,
-    },
-    "google": {
-        "name": "Google Cloud Storage",
-        "client": google_storage_client,
-        "upload": google_upload_json,
-        "download": google_download_json,
-    }
+    "aws": StorageConnectorConfig(
+        name="AWS S3",
+        client=aws_storage_client,
+        upload=aws_upload_json,
+        download=aws_download_json,
+    ),
+    "google": StorageConnectorConfig(
+        name="Google Cloud Storage",
+        client=google_storage_client,
+        upload=google_upload_json,
+        download=google_download_json,
+    )
 }
 
 def init_storage_connector(uri: str | None) -> Tuple[StorageConnectorConfig, str] | None:

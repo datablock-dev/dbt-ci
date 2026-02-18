@@ -25,7 +25,7 @@ def delete(args: Namespace):
         cache.start_report("delete", args)
         reference_graph = DbtGraph(args, is_production=True)
         connector_type = get_profile(args)["type"]
-        delete_connector = get_connector(connector_type)["delete"]
+        delete_connector = get_connector(connector_type).delete
 
         if args.dry_run:
             click.echo("Dry run mode enabled - no actual deletions will be performed.")

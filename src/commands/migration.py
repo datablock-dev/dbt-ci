@@ -36,7 +36,7 @@ def migration(args: Namespace):
         target_graph = DbtGraph(args)
         reference_graph = DbtGraph(args, is_production=True)
         connector_type = get_profile(args)["type"]
-        migration_connector = get_connector(connector_type)["migration"]
+        migration_connector = get_connector(connector_type).migration
 
         if migration_connector is None:
             logger.error(f"Connector '{connector_type}' does not support migration strategy, which is required for migration command.")

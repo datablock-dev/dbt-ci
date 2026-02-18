@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 from subprocess import CompletedProcess
+from argparse import Namespace
 from typing import List
 from dbt.cli.main import dbtRunner
 from src.logging import setup_logging
@@ -11,13 +12,13 @@ logger = logging.getLogger(__name__)
 
 def dbt_runner(
     commands: List[str],
-    runner_config: RunnerConfig
+    args: Namespace
 ) -> CompletedProcess | None:
     """Execute dbt commands through dbtRunner (Python API).
     
     Returns a CompletedProcess-compatible object for consistency with other runners.
     """
-    setup_logging(runner_config.get('log_level', 'INFO'))
+    setup_logging(getattr(args, "log_level", "INFO"))
     runner = dbtRunner()
     # dbtRunner Python API expects commands without 'dbt' prefix (e.g., ['compile', '--target', 'prod'])
     # If first element is 'dbt', strip it; otherwise use commands as-is
@@ -35,10 +36,10 @@ def dbt_runner(
             absolute_command.append(arg)
         prev_arg = arg
 
-    if not runner_config.get('quiet', False):
+    if not getattr(args, "quiet", False):
         logger.debug(f"Running command: {' '.join(absolute_command)}")
     
-    if runner_config.get('dry_run', False):
+    if getattr(args, "dry_run", False):
         logger.info("DRY RUN: Command would be executed")
         return None
     
