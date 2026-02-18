@@ -1,16 +1,16 @@
 import pytest
-from typing import cast
+from argparse import Namespace
 from src.schema import RunnerConfig
 
 
 @pytest.fixture
 def mock_runner_config():
     """
-    Factory fixture that returns a RunnerConfig dict.
+    Factory fixture that returns a Namespace object with RunnerConfig fields.
     Allows overriding default values by passing a dict.
     """
 
-    default_config: RunnerConfig = {
+    default_config = {
         'runner': 'docker',
         'dbt_project_dir': '/workspace/dbt',
         'reference_state': '/workspace/dbt/.dbtstate',
@@ -31,7 +31,7 @@ def mock_runner_config():
         'shell_path': '/bin/bash',
     }
 
-    def _factory(overrides: dict | None = None) -> RunnerConfig:
+    def _factory(overrides: dict | None = None) -> Namespace:
         config = default_config.copy()
 
         if overrides:
@@ -42,8 +42,8 @@ def mock_runner_config():
                     f"Allowed keys: {set(default_config)}"
                 )
 
-            config.update(cast(RunnerConfig, overrides))
+            config.update(overrides)
 
-        return config
+        return Namespace(**config)
 
     return _factory

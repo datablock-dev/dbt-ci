@@ -122,7 +122,10 @@ class TestInitCommand:
         mock_get_deleted.return_value = []
         mock_get_new.return_value = []
         
-        mock_get_manifest.return_value = {"metadata": {}}
+        # Mock manifest file with model_dump method
+        mock_manifest = MagicMock()
+        mock_manifest.model_dump.return_value = {"metadata": {}}
+        mock_get_manifest.return_value = mock_manifest
         
         # Run init - should complete successfully without raising SystemExit
         args = Namespace(

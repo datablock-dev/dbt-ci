@@ -1,7 +1,7 @@
 """Pydantic models for dbt manifest.json structure and CLI arguments."""
 import warnings
 from argparse import Namespace
-from typing import Callable, Dict, Any, List, Optional, Literal, Set
+from typing import Callable, Dict, Any, List, Optional, Literal, Set, Union
 from pydantic import BaseModel, Field, ConfigDict
 
 # Suppress warnings about 'schema' field name shadowing BaseModel attributes
@@ -98,7 +98,10 @@ class Quoting(BaseModel):
 
 class Metadata(BaseModel):
     """Metadata section of dbt manifest."""
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(
+        protected_namespaces=(),
+        extra="allow"
+    )
     dbt_schema_version: str
     dbt_version: str
     generated_at: str
@@ -111,7 +114,7 @@ class Metadata(BaseModel):
     send_anonymous_usage_stats: bool
     adapter_type: str
     quoting: Quoting
-    run_started_at: str
+    run_started_at: Optional[str] = None
 
 
 class Checksum(BaseModel):
@@ -138,7 +141,10 @@ class Config(BaseModel):
     
     Add more adaptor-specific config options as needed.
     """
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(
+        protected_namespaces=(),
+        extra="allow"
+    )
     enabled: bool = True
     alias: Optional[str] = None
     schema: Optional[str] = None
@@ -147,17 +153,17 @@ class Config(BaseModel):
     meta: Dict[str, Any] = Field(default_factory=dict)
     group: Optional[str] = None
     materialized: str = "view"
-    incremental_strategy: Optional[str]
-    batch_size: Optional[int]
-    lookback: Optional[int]
-    begin: Optional[str]
+    incremental_strategy: Optional[str] = None
+    batch_size: Optional[int] = None
+    lookback: Optional[int] = None
+    begin: Optional[str] = None
     persist_docs: Dict[str, Any] = Field(default_factory=dict)
     post_hook: List[Any] = Field(default_factory=list)
     pre_hook: List[Any] = Field(default_factory=list)
     quoting: Dict[str, Any] = Field(default_factory=dict)
     column_types: Dict[str, Any] = Field(default_factory=dict)
-    full_refresh: Optional[bool]
-    unique_key: Optional[str]
+    full_refresh: Optional[bool] = None
+    unique_key: Optional[Union[str, List[str]]] = None
     on_schema_change: str = "ignore"
     on_configuration_change: str = "apply"
     grants: Dict[str, Any] = Field(default_factory=dict)
@@ -167,13 +173,13 @@ class Config(BaseModel):
     event_time: Optional[str] = None
     concurrent_batches: Optional[int] = None
     access: str = "protected"
-    freshness: Optional[Any]
+    freshness: Optional[Any] = None
     # BigQuery-specific config options
-    partition_by: Optional[Dict[str, Any]]
-    cluster_by: Optional[List[str]]
+    partition_by: Optional[Dict[str, Any]] = None
+    cluster_by: Optional[Union[str, List[str]]] = None
     # Snowflake-specific config options
-    snowflake_warehouse: Optional[str]
-    snowflake_role: Optional[str]
+    snowflake_warehouse: Optional[str] = None
+    snowflake_role: Optional[str] = None
 
 
 class Ref(BaseModel):
@@ -199,11 +205,14 @@ class Column(BaseModel):
     quote: Optional[bool] = None
     tags: List[str] = Field(default_factory=list)
 
-type NodeResourceType = Literal["model", "macro", "source", "seed", "snapshot", "test", "exposure"]
+type NodeResourceType = Literal["model", "macro", "source", "seed", "snapshot", "test", "exposure", "analysis", "operation"]
 
 class Node(BaseModel):
     """A node in the dbt DAG (model, test, seed, etc.)."""
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(
+        protected_namespaces=(),
+        extra="allow"
+    )
     database: str
     schema: str
     name: str
@@ -226,7 +235,7 @@ class Node(BaseModel):
     build_path: Optional[str] = None
     unrendered_config: Dict[str, Any] = Field(default_factory=dict)
     created_at: float
-    relation_name: str
+    relation_name: Optional[str] = None
     raw_code: str = ""
     doc_blocks: List[Any] = Field(default_factory=list)
     language: str = "sql"
@@ -270,7 +279,10 @@ class Macro(BaseModel):
 
 class Source(BaseModel):
     """A dbt source definition."""
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(
+        protected_namespaces=(),
+        extra="allow"
+    )
     database: str
     schema: str
     name: str
@@ -320,7 +332,7 @@ class DBTManifest(BaseModel):
     saved_queries: Dict[str, Any] = Field(default_factory=dict)
     semantic_models: Dict[str, Any] = Field(default_factory=dict)
     unit_tests: Dict[str, Any] = Field(default_factory=dict)
-    functions: Dict[str, Any] = Field(default_factory=dict)
+    #functions: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CLIArgs(BaseModel):
@@ -517,7 +529,7 @@ class StorageConnectorConfig(BaseModel):
     name: str
     client: Callable[..., Any]
     upload: Callable[[str, dict], None]
-    download: Callable[[str], DBTManifest]
+    download: Callable[[str], dict]
 
 type SupportedStorageConnectors = Literal["google", "aws"]
 type StorageConnector = Dict[SupportedStorageConnectors, StorageConnectorConfig]

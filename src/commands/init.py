@@ -53,7 +53,7 @@ def init(args: Namespace):
             args.reference_state = str(local_state_dir)
             # Reload reference manifest file after downloading from storage
             args.reference_manifest_file = get_reference_manifest_file(args.reference_state)
-            cache.write_cache(get_reference_manifest_file(args.reference_state), "reference_manifest.json")
+            cache.write_cache(args.reference_manifest_file.model_dump(), "reference_manifest.json")
 
         if reference_target is None:
             logger.warning("No reference target specified, using current target as reference state for comparison.")
@@ -108,12 +108,12 @@ def init(args: Namespace):
         cache.write_cache(state_change_summary)
         if reference_target is not None and reference_target != getattr(args, "target", None):
             # Different targets - will compile again later with actual target
-            cache.write_cache(target_manifest_file, "target_manifest.json")
+            cache.write_cache(target_manifest_file.model_dump(), "target_manifest.json")
         else:
             # Same target or no reference target specified - reference and target are the same
             logger.debug("Reference target is the same as current target, using the same manifest for both reference and target state.")
-            cache.write_cache(target_manifest_file, "reference_manifest.json")
-            cache.write_cache(target_manifest_file, "target_manifest.json")
+            cache.write_cache(target_manifest_file.model_dump(), "reference_manifest.json")
+            cache.write_cache(target_manifest_file.model_dump(), "target_manifest.json")
 
         logger.info("\n------------------------------------------------------")
         logger.info("State Change Summary:")
@@ -142,7 +142,7 @@ def init(args: Namespace):
                 args=args
             )
             target_manifest_file = get_manifest_file(args.dbt_project_dir)
-            cache.write_cache(target_manifest_file, "target_manifest.json")
+            cache.write_cache(target_manifest_file.model_dump(), "target_manifest.json")
 
         cache.update_report(command="init", status="completed")
         logger.info("Initialization complete. Cache updated with current state(s).")

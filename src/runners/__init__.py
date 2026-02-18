@@ -5,6 +5,7 @@ import venv
 from pathlib import Path
 from argparse import Namespace
 from typing import Callable, Dict, List
+from src.logging import print_exception
 from src.schema import RunnerConfig, Runners
 from src.runners.dbt import dbt_runner
 from src.runners.local import local_runner
@@ -46,20 +47,24 @@ def run_dbt_command(
         }
         output = run_dbt_command(['ls', '--select', 'state:modified+'], config)
     """
-    runner = getattr(args, "runner", None)
-    if runner in RUNNERS:
-        if runner == "dbt" and not dbt_version_exists(getattr(args, "dbt_version", None)):
-            print(f"dbt version {getattr(args, 'dbt_version', None)} not found. Installing...")
-            run_with_dbt_version(getattr(args, "dbt_version", None))
-        
-        if getattr(args, "adapter", None) and not adapter_exists(getattr(args, "adapter", None)):
-            print(f"Adapter {getattr(args, 'adapter', None)} not found. Installing...")
-            install_adapter(getattr(args, "adapter", None))
+    try:
+        runner = getattr(args, "runner", None)
+        if runner in RUNNERS:
+            if runner == "dbt" and not dbt_version_exists(getattr(args, "dbt_version", None)):
+                print(f"dbt version {getattr(args, 'dbt_version', None)} not found. Installing...")
+                run_with_dbt_version(getattr(args, "dbt_version", None))
 
-        return RUNNERS[runner](command_args, args)
+            if getattr(args, "adapter", None) and not adapter_exists(getattr(args, "adapter", None)):
+                print(f"Adapter {getattr(args, 'adapter', None)} not found. Installing...")
+                install_adapter(getattr(args, "adapter", None))
 
-    print(f"Unsupported runner: {runner}")
-    sys.exit(1)
+            return RUNNERS[runner](command_args, args)
+
+        print(f"Unsupported runner: {runner}")
+        sys.exit(1)
+    except Exception as e:
+        print_exception(e)
+        sys.exit(1)
 
 def run_with_dbt_version(version: str):
     """Create a persistent virtual environment with a specific dbt version."""

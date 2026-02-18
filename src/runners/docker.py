@@ -6,6 +6,7 @@ from typing import List
 from argparse import Namespace
 import docker
 from docker import errors
+from src.logging import print_exception
 from src.utilities.paths import get_absolute_path
 
 def docker_runner(commands: List[str], args: Namespace) -> CompletedProcess | None:
@@ -37,7 +38,7 @@ def docker_runner(commands: List[str], args: Namespace) -> CompletedProcess | No
             stderr=True,
             user=getattr(args, "docker_user", f"{os.getuid()}:{os.getgid()}"),
             environment=parse_docker_env(args),
-            volumes=parse_docker_volumes(args)
+            volumes=get_docker_volumes(args)
         )
         
         # Capture all logs as string
@@ -98,7 +99,7 @@ def docker_runner(commands: List[str], args: Namespace) -> CompletedProcess | No
         print(f"Docker API error: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        print_exception(e)
         sys.exit(1)
 
 def parse_docker_env(args: Namespace) -> dict:

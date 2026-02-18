@@ -1,6 +1,5 @@
 import json
 from google.cloud import storage
-from src.schema import DBTManifest
 
 def google_storage_client():
     """Initialize Google Cloud Storage client."""
@@ -25,14 +24,14 @@ def google_upload_json(uri: str, data: dict) -> None:
     except Exception as e:
         raise RuntimeError(f"Failed to upload JSON to {uri}: {e}")
 
-def google_download_json(uri: str) -> DBTManifest:
+def google_download_json(uri: str) -> dict:
     """Download and parse a JSON blob from GCS using a URI.
     
     Args:
         uri: GCS URI in format gs://bucket-name/path/to/file.json
         
     Returns:
-        Parsed JSON as a DBTManifest dictionary
+        Parsed JSON as a dictionary
         
     Raises:
         ValueError: If URI format is invalid

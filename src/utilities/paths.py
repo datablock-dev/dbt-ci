@@ -26,11 +26,14 @@ def get_manifest_file(dbt_project_dir: str) -> DBTManifest:
     if not os.path.isfile(file):
         print (f"manifest.json not found in {dbt_project_dir}")
         sys.exit(1)
-    with open(file, 'r', encoding='utf-8') as f:
-        item = json.load(f)
-        if isinstance(item, DBTManifest):
-            return item
+    try:
+        with open(file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            manifest = DBTManifest(**data)
+            return manifest
+    except Exception as e:
         print(f"manifest.json at {file} does not conform to expected structure.")
+        print(f"Error: {e}")
         sys.exit(1)
     
 def get_manifest_file_full_path(file_path: str) -> DBTManifest:
@@ -42,11 +45,14 @@ def get_manifest_file_full_path(file_path: str) -> DBTManifest:
     if not os.path.isfile(file_path):
         print(f"manifest.json not found at {file_path}")
         sys.exit(1)
-    with open(file_path, 'r', encoding='utf-8') as f:
-        item = json.load(f)
-        if isinstance(item, DBTManifest):
-            return item
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            manifest = DBTManifest(**data)
+            return manifest
+    except Exception as e:
         print(f"manifest.json at {file_path} does not conform to expected structure.")
+        print(f"Error: {e}")
         sys.exit(1)
 
 def get_reference_manifest_file(reference_state_dir: str) -> DBTManifest:
@@ -62,8 +68,15 @@ def get_reference_manifest_file(reference_state_dir: str) -> DBTManifest:
     if not os.path.isfile(file):
         print(f"manifest.json not found in {reference_state_dir}")
         sys.exit(1)
-    with open(file, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    try:
+        with open(file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            manifest = DBTManifest(**data)
+            return manifest
+    except Exception as e:
+        print(f"manifest.json at {file} does not conform to expected structure.")
+        print(f"Error: {e}")
+        sys.exit(1)
 
 def get_dbt_project_file(dbt_project_dir: str) -> DBTProject:
     """
