@@ -374,9 +374,9 @@ type Runners = Literal["local", "docker", "bash", "dbt"]
 
 class RunnerConfig(BaseModel):
     """Configuration for dbt command execution across different runners."""
+    #reference_state: str -> Moved to init command only
     runner: Runners = "dbt"
     dbt_project_dir: str
-    reference_state: str
     profiles_dir: Optional[str] = None
     target: Optional[str] = None
     vars: str = ""
