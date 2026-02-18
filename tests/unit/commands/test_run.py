@@ -158,7 +158,11 @@ class TestRunWithMode:
     ):
         """Test run_with_mode with 'all' mode."""
         # Setup
-        variables = Namespace(dry_run=False)
+        variables = Namespace(
+            dry_run=False,
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate'
+        )
         target_graph = MagicMock()
         target_graph.to_dict.return_value = {
             "model": {},
@@ -201,7 +205,11 @@ class TestRunWithMode:
     ):
         """Test run_with_mode with 'models' mode."""
         # Setup
-        variables = Namespace(dry_run=False)
+        variables = Namespace(
+            dry_run=False,
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate'
+        )
         target_graph = MagicMock()
         target_graph.to_dict.return_value = {"model": {}}
         
@@ -236,7 +244,11 @@ class TestRunWithMode:
     ):
         """Test run_with_mode when no nodes match the filter."""
         # Setup
-        variables = Namespace(dry_run=False)
+        variables = Namespace(
+            dry_run=False,
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate'
+        )
         target_graph = MagicMock()
         target_graph.to_dict.return_value = {}
         
@@ -269,7 +281,11 @@ class TestRunWithMode:
     ):
         """Test run_with_mode in dry run mode."""
         # Setup
-        variables = Namespace(dry_run=True)
+        variables = Namespace(
+            dry_run=True,
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate'
+        )
         target_graph = MagicMock()
         target_graph.to_dict.return_value = {"model": {}}
         

@@ -24,22 +24,30 @@ def get_manifest_file(dbt_project_dir: str) -> DBTManifest:
 
     file = os.path.join(dbt_project_dir, "target/manifest.json")
     if not os.path.isfile(file):
-        raise FileNotFoundError(f"manifest.json not found in {dbt_project_dir}")
+        print (f"manifest.json not found in {dbt_project_dir}")
+        sys.exit(1)
     with open(file, 'r', encoding='utf-8') as f:
-        return json.load(f)
+        item = json.load(f)
+        if isinstance(item, DBTManifest):
+            return item
+        print(f"manifest.json at {file} does not conform to expected structure.")
+        sys.exit(1)
     
-def get_manifest_file_full_path(file_path: str) -> DBTManifest | None:
+def get_manifest_file_full_path(file_path: str) -> DBTManifest:
     """
     Get the manifest.json file from the specified path.
     Raises a FileNotFoundError if the file does not exist.
     Uses pydantic to confirm the structure of the manifest file.
     """
     if not os.path.isfile(file_path):
-        raise FileNotFoundError(f"manifest.json not found at {file_path}")
+        print(f"manifest.json not found at {file_path}")
+        sys.exit(1)
     with open(file_path, 'r', encoding='utf-8') as f:
         item = json.load(f)
         if isinstance(item, DBTManifest):
             return item
+        print(f"manifest.json at {file_path} does not conform to expected structure.")
+        sys.exit(1)
 
 def get_reference_manifest_file(reference_state_dir: str) -> DBTManifest:
     """
@@ -52,7 +60,8 @@ def get_reference_manifest_file(reference_state_dir: str) -> DBTManifest:
         file = reference_state_dir
 
     if not os.path.isfile(file):
-        raise FileNotFoundError(f"manifest.json not found in {reference_state_dir}")
+        print(f"manifest.json not found in {reference_state_dir}")
+        sys.exit(1)
     with open(file, 'r', encoding='utf-8') as f:
         return json.load(f)
 
@@ -63,7 +72,8 @@ def get_dbt_project_file(dbt_project_dir: str) -> dict:
     """
     file = os.path.join(dbt_project_dir, "dbt_project.yml")
     if not os.path.isfile(file):
-        raise FileNotFoundError(f"dbt_project.yml not found in {dbt_project_dir}")
+        print(f"dbt_project.yml not found in {dbt_project_dir}")
+        sys.exit(1)
     
     with open(file, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
@@ -76,7 +86,8 @@ def get_profiles_file(dbt_project_dir: str, profiles_dir: str | None = None):
     if profiles_dir:
         file = os.path.join(profiles_dir, "profiles.yml")
         if not os.path.isfile(file):
-            raise FileNotFoundError(f"profiles.yml not found in {profiles_dir}")
+            print(f"profiles.yml not found in {profiles_dir}")
+            sys.exit(1)
         
         with open(file, 'r', encoding='utf-8') as f:
             return yaml.safe_load(f)
@@ -94,9 +105,9 @@ def get_profiles_file(dbt_project_dir: str, profiles_dir: str | None = None):
             with open(file, 'r', encoding='utf-8') as f:
                 return yaml.safe_load(f)
 
-        raise FileNotFoundError("profiles.yml not found in the specified profiles directory, dbt project directory, or ~/.dbt/")
+        print("profiles.yml not found in the specified profiles directory, dbt project directory, or ~/.dbt/")
+        sys.exit(1)
 
-## New methods, review them
 def get_dbt_project_config(dbt_root_path: str) -> dict:
     """Get the DBT project configuration from the dbt_project.yml file.
     Raises a FileNotFoundError if the dbt_project.yml file does not exist in the specified directory.

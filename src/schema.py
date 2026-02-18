@@ -8,7 +8,11 @@ type Commands = Literal["init", "delete", "migrate", "ephemeral", "run", "finali
 
 class DBTProfile(BaseModel):
     """Structure of a dbt profiles.yml profile."""
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(
+        protected_namespaces=(),
+        extra="allow"
+    )
+
     type: str
     method: Optional[str] = None
     project: Optional[str] = None
@@ -254,6 +258,8 @@ class Source(BaseModel):
 
 class DBTManifest(BaseModel):
     """Complete dbt manifest.json structure."""
+    model_config = ConfigDict(extra="allow")
+
     metadata: Metadata
     nodes: Dict[str, Node] = Field(default_factory=dict)
     sources: Dict[str, Source] = Field(default_factory=dict)

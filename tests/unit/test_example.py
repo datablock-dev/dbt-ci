@@ -6,19 +6,23 @@ from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 class TestPathUtilities:
     """Test path utility functions."""
     
-    def test_get_manifest_file_not_found(self):
-        """Test that get_manifest_file raises FileNotFoundError for non-existent path."""
-        with pytest.raises(FileNotFoundError) as exc_info:
+    def test_get_manifest_file_not_found(self, capsys):
+        """Test that get_manifest_file exits with error for non-existent path."""
+        with pytest.raises(SystemExit) as exc_info:
             get_manifest_file("/nonexistent/path")
         
-        assert "manifest.json not found" in str(exc_info.value)
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "manifest.json not found" in captured.out
     
-    def test_get_reference_manifest_file_not_found(self):
-        """Test that get_reference_manifest_file raises FileNotFoundError for non-existent path."""
-        with pytest.raises(FileNotFoundError) as exc_info:
+    def test_get_reference_manifest_file_not_found(self, capsys):
+        """Test that get_reference_manifest_file exits with error for non-existent path."""
+        with pytest.raises(SystemExit) as exc_info:
             get_reference_manifest_file("/nonexistent/path")
         
-        assert "manifest.json not found" in str(exc_info.value)
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "manifest.json not found" in captured.out
 
 
 # Add more test classes for other utilities:
