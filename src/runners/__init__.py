@@ -46,7 +46,7 @@ def run_dbt_command(
         }
         output = run_dbt_command(['ls', '--select', 'state:modified+'], config)
     """
-    runner = runner_config['runner']
+    runner = runner_config.runner
     if runner in RUNNERS:
         if runner == "dbt" and not dbt_version_exists(runner_config.get('dbt_version')):
             print(f"dbt version {runner_config.get('dbt_version')} not found. Installing...")

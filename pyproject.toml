@@ -29,6 +29,8 @@ dependencies = [
     "boto3==1.35.0",
     "google-cloud-bigquery==3.27.0",
     "google-cloud-storage==2.19.0",
+    "pydantic==2.12.5",
+    "pydantic-settings==2.13.0"
 ]
 
 [project.optional-dependencies]

@@ -1,52 +1,58 @@
-"""TypedDict definitions for dbt manifest.json structure and CLI arguments."""
+"""Pydantic models for dbt manifest.json structure and CLI arguments."""
 from argparse import Namespace
-from typing import Callable, Dict, Any, List, Optional, TypedDict, NotRequired, Literal, Set
+from typing import Callable, Dict, Any, List, Optional, Literal, Set
+from pydantic import BaseModel, Field, ConfigDict
 
 type LoggingLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 type Commands = Literal["init", "delete", "migrate", "ephemeral", "run", "finalize"]
-class DBTProfile(TypedDict):
-    """Structure of a dbt profiles.yml profile."""
-    type: str
-    method: Optional[str]
-    project: Optional[str]
-    dataset: Optional[str]
-    threads: Optional[int]
-    timeout_seconds: Optional[int]
-    retries: Optional[int]
-    priority: Optional[str]
-    location: Optional[str]
-    keyfile: Optional[str]
-    keyfile_json: Optional[Dict[str, Any]]
-    schema: Optional[str]
-    database: Optional[str]
-    warehouse: Optional[str]
-    role: Optional[str]
-    account: Optional[str]
-    user: Optional[str]
-    password: Optional[str]
-    port: Optional[int]
-    host: Optional[str]
-    sid: Optional[str]
-    service: Optional[str]
-    encrypt: Optional[bool]
-    trust_cert: Optional[bool]
-    oauth_access_token: Optional[str]
 
-class DBTProfileConfig(TypedDict):
+class DBTProfile(BaseModel):
+    """Structure of a dbt profiles.yml profile."""
+    model_config = ConfigDict(protected_namespaces=())
+    
+    type: str
+    method: Optional[str] = None
+    project: Optional[str] = None
+    dataset: Optional[str] = None
+    threads: Optional[int] = None
+    timeout_seconds: Optional[int] = None
+    retries: Optional[int] = None
+    priority: Optional[str] = None
+    location: Optional[str] = None
+    keyfile: Optional[str] = None
+    keyfile_json: Optional[Dict[str, Any]] = None
+    schema: Optional[str] = None
+    database: Optional[str] = None
+    warehouse: Optional[str] = None
+    role: Optional[str] = None
+    account: Optional[str] = None
+    user: Optional[str] = None
+    password: Optional[str] = None
+    port: Optional[int] = None
+    host: Optional[str] = None
+    sid: Optional[str] = None
+    service: Optional[str] = None
+    encrypt: Optional[bool] = None
+    trust_cert: Optional[bool] = None
+    oauth_access_token: Optional[str] = None
+
+class DBTProfileConfig(BaseModel):
     """Structure of a dbt profiles.yml profile."""
     target: str
     outputs: Dict[str, DBTProfile]
 
-class Quoting(TypedDict):
+class Quoting(BaseModel):
     """Quoting configuration."""
-    database: Optional[bool]
-    schema: Optional[bool]
-    identifier: Optional[bool]
-    column: Optional[bool]
+    database: Optional[bool] = None
+    schema: Optional[bool] = None
+    identifier: Optional[bool] = None
+    column: Optional[bool] = None
 
 
-class Metadata(TypedDict):
+class Metadata(BaseModel):
     """Metadata section of dbt manifest."""
+    model_config = ConfigDict(protected_namespaces=())
+    
     dbt_schema_version: str
     dbt_version: str
     generated_at: str
@@ -62,58 +68,59 @@ class Metadata(TypedDict):
     run_started_at: str
 
 
-class Checksum(TypedDict):
+class Checksum(BaseModel):
     """Checksum information for a resource."""
     name: str
     checksum: str
 
 
-class Docs(TypedDict):
+class Docs(BaseModel):
     """Documentation configuration."""
-    show: bool
-    node_color: Optional[str]
+    show: bool = True
+    node_color: Optional[str] = None
 
 
-class Contract(TypedDict):
+class Contract(BaseModel):
     """Contract configuration."""
     enforced: bool
     alias_types: bool
-    checksum: NotRequired[Optional[str]]
+    checksum: Optional[str] = None
 
 
-class Config(TypedDict, total=False):
-    """Configuration for a dbt resource."""
+class Config(BaseModel):
+    """Configuration for a dbt resource.
+    
+    Add more adaptor-specific config options as needed.
     """
-        Add more adaptor-specific config options as needed.
-    """
-    enabled: bool
-    alias: Optional[str]
-    schema: Optional[str]
-    database: Optional[str]
-    tags: List[str]
-    meta: Dict[str, Any]
-    group: Optional[str]
-    materialized: str
+    model_config = ConfigDict(protected_namespaces=())
+    enabled: bool = True
+    alias: Optional[str] = None
+    schema: Optional[str] = None
+    database: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    meta: Dict[str, Any] = Field(default_factory=dict)
+    group: Optional[str] = None
+    materialized: str = "view"
     incremental_strategy: Optional[str]
     batch_size: Optional[int]
     lookback: Optional[int]
     begin: Optional[str]
-    persist_docs: Dict[str, Any]
-    post_hook: List[Any]
-    pre_hook: List[Any]
-    quoting: Dict[str, Any]
-    column_types: Dict[str, Any]
+    persist_docs: Dict[str, Any] = Field(default_factory=dict)
+    post_hook: List[Any] = Field(default_factory=list)
+    pre_hook: List[Any] = Field(default_factory=list)
+    quoting: Dict[str, Any] = Field(default_factory=dict)
+    column_types: Dict[str, Any] = Field(default_factory=dict)
     full_refresh: Optional[bool]
     unique_key: Optional[str]
-    on_schema_change: str
-    on_configuration_change: str
-    grants: Dict[str, Any]
-    packages: List[Any]
-    docs: Docs
-    contract: Contract
-    event_time: Optional[str]
-    concurrent_batches: Optional[int]
-    access: str
+    on_schema_change: str = "ignore"
+    on_configuration_change: str = "apply"
+    grants: Dict[str, Any] = Field(default_factory=dict)
+    packages: List[Any] = Field(default_factory=list)
+    docs: Docs = Field(default_factory=lambda: Docs(show=True, node_color=None))
+    contract: Contract = Field(default_factory=lambda: Contract(enforced=False, alias_types=True, checksum=None))
+    event_time: Optional[str] = None
+    concurrent_batches: Optional[int] = None
+    access: str = "protected"
     freshness: Optional[Any]
     # BigQuery-specific config options
     partition_by: Optional[Dict[str, Any]]
@@ -123,33 +130,34 @@ class Config(TypedDict, total=False):
     snowflake_role: Optional[str]
 
 
-class Ref(TypedDict):
+class Ref(BaseModel):
     """Reference to another dbt resource."""
     name: str
-    package: Optional[str]
-    version: Optional[str]
+    package: Optional[str] = None
+    version: Optional[str] = None
 
 
-class DependsOn(TypedDict):
+class DependsOn(BaseModel):
     """Dependencies of a resource."""
-    macros: List[str]
-    nodes: List[str]
+    macros: List[str] = Field(default_factory=list)
+    nodes: List[str] = Field(default_factory=list)
 
 
-class Column(TypedDict, total=False):
+class Column(BaseModel):
     """Column definition."""
     name: str
-    description: str
-    data_type: Optional[str]
-    constraints: Optional[List[Any]]
-    meta: Dict[str, Any]
-    quote: Optional[bool]
-    tags: List[str]
+    description: str = ""
+    data_type: Optional[str] = None
+    constraints: Optional[List[Any]] = None
+    meta: Dict[str, Any] = Field(default_factory=dict)
+    quote: Optional[bool] = None
+    tags: List[str] = Field(default_factory=list)
 
 type NodeResourceType = Literal["model", "macro", "source", "seed", "snapshot", "test", "exposure"]
 
-class Node(TypedDict, total=False):
+class Node(BaseModel):
     """A node in the dbt DAG (model, test, seed, etc.)."""
+    model_config = ConfigDict(protected_namespaces=())
     database: str
     schema: str
     name: str
@@ -158,45 +166,45 @@ class Node(TypedDict, total=False):
     path: str
     original_file_path: str
     unique_id: str
-    fqn: List[str]
+    fqn: List[str] = Field(default_factory=list)
     alias: str
     checksum: Checksum
-    config: Config
-    tags: List[str]
-    description: str
-    columns: Dict[str, Column]
-    meta: Dict[str, Any]
-    group: Optional[str]
-    docs: Docs
-    patch_path: Optional[str]
-    build_path: Optional[str]
-    unrendered_config: Dict[str, Any]
+    config: Config = Field(default_factory=Config)
+    tags: List[str] = Field(default_factory=list)
+    description: str = ""
+    columns: Dict[str, Column] = Field(default_factory=dict)
+    meta: Dict[str, Any] = Field(default_factory=dict)
+    group: Optional[str] = None
+    docs: Docs = Field(default_factory=lambda: Docs(show=True, node_color=None))
+    patch_path: Optional[str] = None
+    build_path: Optional[str] = None
+    unrendered_config: Dict[str, Any] = Field(default_factory=dict)
     created_at: float
     relation_name: str
-    raw_code: str
-    doc_blocks: List[Any]
-    language: str
-    refs: List[Ref]
-    sources: List[Any]
-    metrics: List[Any]
-    functions: List[Any]
-    depends_on: DependsOn
-    compiled_path: Optional[str]
-    compiled: bool
-    compiled_code: Optional[str]
-    extra_ctes_injected: bool
-    extra_ctes: List[Any]
-    contract: Contract
-    access: str
-    constraints: List[Any]
-    version: Optional[str]
-    latest_version: Optional[str]
-    deprecation_date: Optional[str]
-    primary_key: List[str]
-    time_spine: Optional[Any]
+    raw_code: str = ""
+    doc_blocks: List[Any] = Field(default_factory=list)
+    language: str = "sql"
+    refs: List[Ref] = Field(default_factory=list)
+    sources: List[Any] = Field(default_factory=list)
+    metrics: List[Any] = Field(default_factory=list)
+    functions: List[Any] = Field(default_factory=list)
+    depends_on: DependsOn = Field(default_factory=DependsOn)
+    compiled_path: Optional[str] = None
+    compiled: bool = False
+    compiled_code: Optional[str] = None
+    extra_ctes_injected: bool = False
+    extra_ctes: List[Any] = Field(default_factory=list)
+    contract: Contract = Field(default_factory=lambda: Contract(enforced=False, alias_types=True, checksum=None))
+    access: str = "protected"
+    constraints: List[Any] = Field(default_factory=list)
+    version: Optional[str] = None
+    latest_version: Optional[str] = None
+    deprecation_date: Optional[str] = None
+    primary_key: List[str] = Field(default_factory=list)
+    time_spine: Optional[Any] = None
 
 
-class Macro(TypedDict, total=False):
+class Macro(BaseModel):
     """A dbt macro definition."""
     name: str
     unique_id: str
@@ -204,18 +212,19 @@ class Macro(TypedDict, total=False):
     path: str
     original_file_path: str
     macro_sql: str
-    depends_on: DependsOn
-    description: str
-    meta: Dict[str, Any]
-    docs: Docs
-    patch_path: Optional[str]
-    arguments: List[Any]
+    depends_on: DependsOn = Field(default_factory=DependsOn)
+    description: str = ""
+    meta: Dict[str, Any] = Field(default_factory=dict)
+    docs: Docs = Field(default_factory=lambda: Docs(show=True, node_color=None))
+    patch_path: Optional[str] = None
+    arguments: List[Any] = Field(default_factory=list)
     created_at: float
-    supported_languages: Optional[List[str]]
+    supported_languages: Optional[List[str]] = None
 
 
-class Source(TypedDict, total=False):
+class Source(BaseModel):
     """A dbt source definition."""
+    model_config = ConfigDict(protected_namespaces=())
     database: str
     schema: str
     name: str
@@ -224,67 +233,67 @@ class Source(TypedDict, total=False):
     path: str
     original_file_path: str
     unique_id: str
-    fqn: List[str]
+    fqn: List[str] = Field(default_factory=list)
     source_name: str
-    source_description: str
-    loader: str
+    source_description: str = ""
+    loader: str = ""
     identifier: str
-    quoting: Quoting
-    loaded_at_field: Optional[str]
-    freshness: Optional[Any]
-    external: Optional[Any]
-    description: str
-    columns: Dict[str, Column]
-    meta: Dict[str, Any]
-    source_meta: Dict[str, Any]
-    tags: List[str]
-    config: Config
-    patch_path: Optional[str]
-    unrendered_config: Dict[str, Any]
+    quoting: Quoting = Field(default_factory=Quoting)
+    loaded_at_field: Optional[str] = None
+    freshness: Optional[Any] = None
+    external: Optional[Any] = None
+    description: str = ""
+    columns: Dict[str, Column] = Field(default_factory=dict)
+    meta: Dict[str, Any] = Field(default_factory=dict)
+    source_meta: Dict[str, Any] = Field(default_factory=dict)
+    tags: List[str] = Field(default_factory=list)
+    config: Config = Field(default_factory=Config)
+    patch_path: Optional[str] = None
+    unrendered_config: Dict[str, Any] = Field(default_factory=dict)
     relation_name: str
     created_at: float
 
 
-class DBTManifest(TypedDict):
+class DBTManifest(BaseModel):
     """Complete dbt manifest.json structure."""
     metadata: Metadata
-    nodes: Dict[str, Node]
-    sources: Dict[str, Source]
-    macros: Dict[str, Macro]
-    docs: Dict[str, Any]
-    exposures: Dict[str, Any]
-    metrics: Dict[str, Any]
-    groups: Dict[str, Any]
-    selectors: Dict[str, Any]
-    disabled: Dict[str, Any]
-    parent_map: Dict[str, List[str]]
-    child_map: Dict[str, List[str]]
-    group_map: Dict[str, Any]
-    saved_queries: Dict[str, Any]
-    semantic_models: Dict[str, Any]
-    unit_tests: Dict[str, Any]
-    functions: Dict[str, Any]
+    nodes: Dict[str, Node] = Field(default_factory=dict)
+    sources: Dict[str, Source] = Field(default_factory=dict)
+    macros: Dict[str, Macro] = Field(default_factory=dict)
+    docs: Dict[str, Any] = Field(default_factory=dict)
+    exposures: Dict[str, Any] = Field(default_factory=dict)
+    metrics: Dict[str, Any] = Field(default_factory=dict)
+    groups: Dict[str, Any] = Field(default_factory=dict)
+    selectors: Dict[str, Any] = Field(default_factory=dict)
+    disabled: Dict[str, Any] = Field(default_factory=dict)
+    parent_map: Dict[str, List[str]] = Field(default_factory=dict)
+    child_map: Dict[str, List[str]] = Field(default_factory=dict)
+    group_map: Dict[str, Any] = Field(default_factory=dict)
+    saved_queries: Dict[str, Any] = Field(default_factory=dict)
+    semantic_models: Dict[str, Any] = Field(default_factory=dict)
+    unit_tests: Dict[str, Any] = Field(default_factory=dict)
+    functions: Dict[str, Any] = Field(default_factory=dict)
 
 
-class CLIArgs(TypedDict):
+class CLIArgs(BaseModel):
     """Command-line arguments for the DBT CI Tool."""
     reference_manifest_path: str
-    profiles_dir: Optional[str]
+    profiles_dir: Optional[str] = None
     dbt_project_dir: str
     target: str
-    vars: str
-    dry_run: bool
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-    log_file: Optional[str]
-    mode: Literal["run", "test", "snapshot", "seed", None]
-    runner: Literal["local", "docker"]
-    docker_image: str
-    docker_platform: Optional[str]
-    docker_volumes: List[str]
-    docker_env: List[str]
-    docker_network: str
-    docker_user: Optional[str]
-    docker_args: str
+    vars: str = ""
+    dry_run: bool = False
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    log_file: Optional[str] = None
+    mode: Literal["run", "test", "snapshot", "seed", None] = None
+    runner: Literal["local", "docker"] = "local"
+    docker_image: str = "ghcr.io/dbt-labs/dbt-core:latest"
+    docker_platform: Optional[str] = None
+    docker_volumes: List[str] = Field(default_factory=list)
+    docker_env: List[str] = Field(default_factory=list)
+    docker_network: str = "host"
+    docker_user: Optional[str] = None
+    docker_args: str = ""
 
 ###########################################
 #   Dependency graph structures for lineage analysis
@@ -306,17 +315,18 @@ type DependencyGraphNodeType = Literal[
     "test", 
     "exposure"
 ]
-class DependenciesByType(TypedDict):
-    model: Set[str]
-    macro: Set[str]
-    source: Set[str]
-    seed: Set[str]
-    snapshot: Set[str]
-    test: Set[str]
-    exposure: Set[str]
-class DependencyGraphDownstreamDependency(TypedDict):
-    node_dependencies: Set[str]
-    dependencies_by_type: DependenciesByType
+class DependenciesByType(BaseModel):
+    model: Set[str] = Field(default_factory=set)
+    macro: Set[str] = Field(default_factory=set)
+    source: Set[str] = Field(default_factory=set)
+    seed: Set[str] = Field(default_factory=set)
+    snapshot: Set[str] = Field(default_factory=set)
+    test: Set[str] = Field(default_factory=set)
+    exposure: Set[str] = Field(default_factory=set)
+
+class DependencyGraphDownstreamDependency(BaseModel):
+    node_dependencies: Set[str] = Field(default_factory=set)
+    dependencies_by_type: DependenciesByType = Field(default_factory=DependenciesByType)
 
 type DBTMaterialized = Literal[
     "view",
@@ -327,8 +337,10 @@ type DBTMaterialized = Literal[
     "test",
     "seed"
 ]
-class DependencyGraphNode(TypedDict):
+class DependencyGraphNode(BaseModel):
     """Structured representation of dbt dependencies for lineage analysis."""
+    model_config = ConfigDict(protected_namespaces=())
+    
     name: str
     id: str
     database: str
@@ -337,76 +349,80 @@ class DependencyGraphNode(TypedDict):
     original_file_path: str
     compiled_path: str
     compiled_code: str
-    config: Config
-    columns: Set[str]
+    config: Config = Field(default_factory=Config)
+    columns: Set[str] = Field(default_factory=set)
     materialized: DBTMaterialized
-    incremental_strategy: Optional[str]
-    downstream_dependencies: DependencyGraphDownstreamDependency
-    upstream_dependencies: DependencyGraphDownstreamDependency
-    indirect_upstream_dependencies: DependencyGraphDownstreamDependency
-    indirect_downstream_dependencies: DependencyGraphDownstreamDependency
+    incremental_strategy: Optional[str] = None
+    downstream_dependencies: DependencyGraphDownstreamDependency = Field(default_factory=DependencyGraphDownstreamDependency)
+    upstream_dependencies: DependencyGraphDownstreamDependency = Field(default_factory=DependencyGraphDownstreamDependency)
+    indirect_upstream_dependencies: DependencyGraphDownstreamDependency = Field(default_factory=DependencyGraphDownstreamDependency)
+    indirect_downstream_dependencies: DependencyGraphDownstreamDependency = Field(default_factory=DependencyGraphDownstreamDependency)
 
-class DependencyGraph(TypedDict):
+class DependencyGraph(BaseModel):
     """Complete dependency graph for dbt resources."""
     metadata: Metadata
-    model: Dict[str, DependencyGraphNode]
-    macro: Dict[str, DependencyGraphNode]
-    seed: Dict[str, DependencyGraphNode]
-    snapshot: Dict[str, DependencyGraphNode]
-    source: Dict[str, DependencyGraphNode]
-    test: Dict[str, DependencyGraphNode]
-    exposure: Dict[str, DependencyGraphNode]
+    model: Dict[str, DependencyGraphNode] = Field(default_factory=dict)
+    macro: Dict[str, DependencyGraphNode] = Field(default_factory=dict)
+    seed: Dict[str, DependencyGraphNode] = Field(default_factory=dict)
+    snapshot: Dict[str, DependencyGraphNode] = Field(default_factory=dict)
+    source: Dict[str, DependencyGraphNode] = Field(default_factory=dict)
+    test: Dict[str, DependencyGraphNode] = Field(default_factory=dict)
+    exposure: Dict[str, DependencyGraphNode] = Field(default_factory=dict)
 
 type Runners = Literal["local", "docker", "bash", "dbt"]
 
-class RunnerConfig(TypedDict):
+class RunnerConfig(BaseModel):
     """Configuration for dbt command execution across different runners."""
-    runner: Runners
+    runner: Runners = "dbt"
     dbt_project_dir: str
     reference_state: str
-    profiles_dir: Optional[str]
-    target: Optional[str]
-    vars: str
-    entrypoint: str
-    dry_run: bool
-    quiet: bool
-    log_level: LoggingLevel
+    profiles_dir: Optional[str] = None
+    target: Optional[str] = None
+    vars: str = ""
+    entrypoint: str = "dbt"
+    dry_run: bool = False
+    quiet: bool = False
+    log_level: LoggingLevel = "INFO"
+    dbt_version: Optional[str] = None
+    adapter: Optional[str] = None
     # Docker-specific configuration
-    docker_image: Optional[str]
-    docker_platform: Optional[str]
-    docker_volumes: List[str]
-    docker_env: List[str]
-    docker_network: str
-    docker_user: Optional[str]
-    docker_args: str
+    docker_image: Optional[str] = None
+    docker_platform: Optional[str] = None
+    docker_volumes: List[str] = Field(default_factory=list)
+    docker_env: List[str] = Field(default_factory=list)
+    docker_network: str = "host"
+    docker_user: Optional[str] = None
+    docker_args: str = ""
     # Bash-specific configuration
-    shell_path: str
+    shell_path: str = "/bin/bash"
 
-class OptionsConfig(TypedDict):
+class OptionsConfig(BaseModel):
     """Configuration mapping for CLI options."""
-    env_vars: List[str]
-    cli_flags: List[str]
-    required: bool
-    default: Optional[Any]
-    help: str
-    choices: Optional[List[Any]]
-    resolve_value: Optional[Callable[..., Any]] # Explore this option for complex value resolution
+    env_vars: List[str] = Field(default_factory=list)
+    cli_flags: List[str] = Field(default_factory=list)
+    required: bool = False
+    default: Optional[Any] = None
+    help: str = ""
+    choices: Optional[List[Any]] = None
+    resolve_value: Optional[Callable[..., Any]] = None  # Explore this option for complex value resolution
 
-class NodeConfig(TypedDict):
+class NodeConfig(BaseModel):
     """Configuration for a dbt node's database location."""
-    database: Optional[str]
-    schema: Optional[str]
-    name: Optional[str]
-    alias: Optional[str]
+    model_config = ConfigDict(protected_namespaces=())
+    
+    database: Optional[str] = None
+    schema: Optional[str] = None
+    name: Optional[str] = None
+    alias: Optional[str] = None
 
-class EphemeralMapNode(TypedDict):
+class EphemeralMapNode(BaseModel):
     """Structure for nodes in the ephemeral environment map."""
     name: str
     resource_type: str
-    ephemeral_config: NodeConfig | None
-    reference_config: NodeConfig | None
+    ephemeral_config: Optional[NodeConfig] = None
+    reference_config: Optional[NodeConfig] = None
 
-class DeleteMapNode(TypedDict):
+class DeleteMapNode(BaseModel):
     """Structure for nodes in the delete map."""
     type: NodeResourceType
     name: str
@@ -424,28 +440,28 @@ type EphemeralConnectors = Dict[
     Callable[[Dict[str, EphemeralMapNode], Namespace], None]
 ]
 
-class ConnectorConfig(TypedDict):
+class ConnectorConfig(BaseModel):
     """Configuration for supported connectors."""
     client: Callable[..., Any]
     ephemeral: Callable[[Dict[str, EphemeralMapNode], Namespace], None]
     delete: Callable[[Dict[str, DeleteMapNode], Namespace], None]
-    migration: Callable[..., Any] # Fix
+    migration: Callable[..., Any]  # Fix
 
 # Add better type definitions
-class MigrationMapNodeEntry(TypedDict):
+class MigrationMapNodeEntry(BaseModel):
     """Entry for a node in the migration map."""
     table_id: str
-    compiled_code: str | None
-    old_partitioning: Any | None
-    new_partitioning: Any | None
+    compiled_code: Optional[str] = None
+    old_partitioning: Optional[Any] = None
+    new_partitioning: Optional[Any] = None
 
 
-class MigrationMap(TypedDict):
+class MigrationMap(BaseModel):
     """Structure for tracking table partitioning migrations."""
     connector: str
-    nodes: Dict[str, MigrationMapNodeEntry]
+    nodes: Dict[str, MigrationMapNodeEntry] = Field(default_factory=dict)
 
-class StorageConnectorConfig(TypedDict):
+class StorageConnectorConfig(BaseModel):
     """Configuration for storage connectors."""
     name: str
     client: Callable[..., Any]

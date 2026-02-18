@@ -3,7 +3,7 @@ import pytest
 import tempfile
 import shutil
 from pathlib import Path
-
+from src.schema import RunnerConfig
 
 @pytest.fixture
 def temp_dir():
@@ -77,13 +77,18 @@ def mock_state_dir(temp_dir, mock_manifest):
 
 @pytest.fixture
 def mock_runner_config():
-    """Create a mock RunnerConfig dictionary for testing."""
-    return {
-        'dbt_project_dir': '/dbt',
-        'profiles_dir': '/dbt',
-        'reference_state': '/dbt/.dbtstate',
-        'docker_env': [],
-        'docker_volumes': [],
-        'runner': 'docker',
-        'docker_image': 'ghcr.io/dbt-labs/dbt-core:latest'
-    }
+    """Create a mock RunnerConfig for testing."""
+    def _create_config(overrides=None):
+        defaults = {
+            'dbt_project_dir': '/dbt',
+            'reference_state': '/dbt/.dbtstate',
+            'profiles_dir': '/dbt',
+            'docker_env': [],
+            'docker_volumes': [],
+            'runner': 'docker',
+            'docker_image': 'ghcr.io/dbt-labs/dbt-core:latest'
+        }
+        if overrides:
+            defaults.update(overrides)
+        return RunnerConfig(**defaults)
+    return _create_config

@@ -63,7 +63,7 @@ def init(args: Namespace):
 
         run_dbt_command(
             command_args=resolve_dbt_commands(command, args, ["vars", "target"]),  # Don't pass vars or target when compiling reference manifest
-            runner_config=RunnerConfig(args.__dict__),
+            runner_config=RunnerConfig(**args.__dict__),
         )
 
         logger.info("DBT project compiled successfully. manifest.json generated.")
@@ -73,7 +73,7 @@ def init(args: Namespace):
 
         ls_output = run_dbt_command(
             command_args=resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], args),
-            runner_config=RunnerConfig(args.__dict__)
+            runner_config=RunnerConfig(**args.__dict__)
         )
 
         if ls_output is None:
@@ -139,7 +139,7 @@ def init(args: Namespace):
             # If no target specified, dbt will use the default from dbt_project.yml
             run_dbt_command(
                 command_args=resolve_dbt_commands(target_command, args),
-                runner_config=RunnerConfig(args.__dict__)
+                runner_config=RunnerConfig(**args.__dict__)
             )
             target_manifest_file = get_manifest_file(args.dbt_project_dir)
             cache.write_cache(target_manifest_file, "target_manifest.json")

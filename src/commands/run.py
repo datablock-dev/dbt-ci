@@ -105,7 +105,7 @@ def run_with_mode(
 ):
     """Run modified nodes with specific dbt command based on mode"""
     try:
-        runner_config = RunnerConfig(args.__dict__)
+        runner_config = RunnerConfig(**args.__dict__)
         run_order = ["seed", "run", "test", "snapshot"]
         if mode != "all":
             run_order = [MODE_MAPPING[mode]]
