@@ -8,48 +8,46 @@ from src.commands.delete import delete
 class TestDeleteCommand:
     """Test the delete command."""
     
+    @patch('src.commands.delete.get_profile')
     @patch('src.commands.delete.DbtGraph')
     @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.Variables')
     @patch('src.commands.delete.click.secho')
     @patch('src.commands.delete.click.echo')
     def test_delete_no_cache(
         self,
         mock_echo,
         mock_secho,
-        mock_vars,
         mock_cache,
-        mock_graph
+        mock_graph,
+        mock_get_profile
     ):
         """Test delete command exits when no cache is found."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = None
         mock_cache.return_value = mock_cache_instance
         
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
+        mock_graph_instance = MagicMock()
+        mock_graph.return_value = mock_graph_instance
+        
+        # Run command (now expects Namespace args directly)
+        args = Namespace(
             dbt_project_dir='/dbt',
-            reference_state='/dbt/dbtstate',
+            reference_state='/dbt/.dbtstate',
             dry_run=False,
             runner='local',
             target_config={'type': 'bigquery'}
         )
-        mock_vars.return_value = mock_vars_instance
-        
-        mock_graph_instance = MagicMock()
-        mock_graph.return_value = mock_graph_instance
-        
-        # Run command
-        delete(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate')
+        delete(args)
         
         # Verify message was shown
         mock_echo.assert_called_with(
             "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
         )
     
+    @patch('src.commands.delete.get_profile')
     @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.Variables')
     @patch('src.commands.delete.DbtGraph')
     @patch('src.commands.delete.get_connector')
     @patch('src.commands.delete.get_node_ids_from_structured_nodes')
@@ -62,35 +60,31 @@ class TestDeleteCommand:
         mock_get_nodes,
         mock_get_connector,
         mock_graph,
-        mock_vars,
-        mock_cache
+        mock_cache,
+        mock_get_profile
     ):
         """Test delete command when no deleted nodes are found."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "deleted_nodes": None
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
-            dbt_project_dir='/dbt',
-            dry_run=False,
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_nodes.return_value = []
         
         # Run command
-        delete(dbt_project_dir='/dbt')
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            dry_run=False
+        )
+        delete(args)
         
         # Verify appropriate message was shown
         mock_echo.assert_any_call("No deleted nodes found in cache, skipping...")
     
+    @patch('src.commands.delete.get_profile')
     @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.Variables')
     @patch('src.commands.delete.DbtGraph')
     @patch('src.commands.delete.get_connector')
     @patch('src.commands.delete.get_node_ids_from_structured_nodes')
@@ -107,26 +101,17 @@ class TestDeleteCommand:
         mock_get_node_ids,
         mock_get_connector,
         mock_graph,
-        mock_vars,
-        mock_cache
+        mock_cache,
+        mock_get_profile
     ):
         """Test delete command with deleted nodes."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "deleted_nodes": {"model": {"model.project.old_model": {}}}
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        namespace = Namespace(
-            dbt_project_dir='/dbt',
-            dry_run=False,
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars_instance.to_namespace.return_value = namespace
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_node_ids.return_value = ['model.project.old_model']
         
         mock_get_nodes_util.return_value = {
@@ -147,7 +132,11 @@ class TestDeleteCommand:
         mock_get_connector.return_value = {'delete': mock_delete_func}
         
         # Run command
-        delete(dbt_project_dir='/dbt')
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            dry_run=False
+        )
+        delete(args)
         
         # Verify delete connector was called
         mock_delete_func.assert_called_once()
@@ -161,8 +150,8 @@ class TestDeleteCommand:
         # Verify success exit
         mock_exit.assert_called_with(0)
     
+    @patch('src.commands.delete.get_profile')
     @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.Variables')
     @patch('src.commands.delete.DbtGraph')
     @patch('src.commands.delete.get_connector')
     @patch('src.commands.delete.get_node_ids_from_structured_nodes')
@@ -179,26 +168,17 @@ class TestDeleteCommand:
         mock_get_node_ids,
         mock_get_connector,
         mock_graph,
-        mock_vars,
-        mock_cache
+        mock_cache,
+        mock_get_profile
     ):
         """Test delete command in dry run mode."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "deleted_nodes": {"model": {"model.project.old_model": {}}}
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        namespace = Namespace(
-            dbt_project_dir='/dbt',
-            dry_run=True,
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars_instance.to_namespace.return_value = namespace
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_node_ids.return_value = ['model.project.old_model']
         
         mock_get_nodes_util.return_value = {
@@ -218,13 +198,17 @@ class TestDeleteCommand:
         mock_get_connector.return_value = {'delete': mock_delete_func}
         
         # Run command
-        delete(dbt_project_dir='/dbt', dry_run=True)
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            dry_run=True
+        )
+        delete(args)
         
         # Verify dry run message was shown
         mock_echo.assert_any_call("Dry run mode enabled - no actual deletions will be performed.")
     
+    @patch('src.commands.delete.get_profile')
     @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.Variables')
     @patch('src.commands.delete.DbtGraph')
     @patch('src.commands.delete.get_connector')
     @patch('src.commands.delete.get_node_ids_from_structured_nodes')
@@ -241,26 +225,17 @@ class TestDeleteCommand:
         mock_get_node_ids,
         mock_get_connector,
         mock_graph,
-        mock_vars,
-        mock_cache
+        mock_cache,
+        mock_get_profile
     ):
         """Test delete command skips nodes with missing database/schema/name."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "deleted_nodes": {"model": {"model.project.incomplete": {}}}
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        namespace = Namespace(
-            dbt_project_dir='/dbt',
-            dry_run=False,
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars_instance.to_namespace.return_value = namespace
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_node_ids.return_value = ['model.project.incomplete']
         
         # Node with missing schema
@@ -281,7 +256,11 @@ class TestDeleteCommand:
         mock_get_connector.return_value = {'delete': mock_delete_func}
         
         # Run command
-        delete(dbt_project_dir='/dbt')
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            dry_run=False
+        )
+        delete(args)
         
         # Verify warning was logged
         mock_logger.warning.assert_called_once()

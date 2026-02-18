@@ -1,6 +1,7 @@
 """DBT CI Tool - Intelligent CI for DBT projects"""
 from argparse import Namespace
 import click
+from src.cli import common_options
 from src.logging import setup_logging
 from src.commands import (
     delete,
@@ -9,134 +10,6 @@ from src.commands import (
     init,
     finalize
 )
-
-# Shared options for all commands
-def common_options(f):
-    """Decorator to add common options to all commands"""
-    # Dynamic package options
-    f = click.option(
-        "--dbt-version",
-        default=None,
-        help="Specify a dbt version to use for this command"
-    )(f)
-    f = click.option(
-        "--adapter", "-a",
-        type=str,
-        default=None,
-        help="Specify the dbt adapter to use (e.g., 'postgres', 'snowflake')"
-    )(f)
-    # Main commands
-    f = click.option(
-        '--dbt-project-dir', 
-        default='.',
-        help='Path to the dbt project directory (default: current directory)'
-    )(f)
-    f = click.option(
-        '--profiles-dir', 
-        default=None,
-        help='Path to the directory containing the dbt profiles.yml file'
-    )(f)
-    f = click.option(
-        '--reference-target',
-        default=None,
-        help='The dbt target to use for production/reference manifest (defaults to default)'
-    )(f)
-    f = click.option(
-        '--target', 
-        '-t', 
-        default=None,
-        help='The dbt target to use (defaults to what is defined in profiles.yml)'
-    )(f)
-    f = click.option(
-        '--vars', 
-        '-v', 
-        default='',
-        help='A YAML string or path to YAML file containing variables to pass to dbt'
-    )(f)
-    f = click.option(
-        "--defer",
-        is_flag=True,
-        default=False,
-        help="Use dbt's --defer flag to defer to the state of the production manifest (only applicable to run and test commands)"
-    )(f)
-    f = click.option(
-        '--runner', 
-        '-r', 
-        type=click.Choice(['local', 'docker', 'bash', 'dbt']),
-        default='dbt',
-        help='Runner to use for executing dbt commands'
-    )(f)
-    f = click.option(
-        '--entrypoint', 
-        default='dbt',
-        help='Command entrypoint for dbt (default: dbt)'
-    )(f)
-    f = click.option(
-        '--dry-run', 
-        is_flag=True,
-        default=False,
-        help='Print commands without executing them'
-    )(f)
-    f = click.option(
-        '--log-level', 
-        type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], case_sensitive=False),
-        default='INFO',
-        callback=lambda ctx, param, value: value.upper() if value else value,
-        help='Logging level'
-    )(f)
-    f = click.option(
-        "--slack-webhook",
-        "--slack-webhook-url",
-        default=None,
-        type=str,
-        help="Slack webhook URL for notifications (optional)"
-    )(f)
-    # Docker options
-    f = click.option(
-        '--docker-image', 
-        default='ghcr.io/dbt-labs/dbt-core:latest',
-        help='Docker image to use'
-    )(f)
-    f = click.option(
-        '--docker-platform', 
-        default=None,
-        help='Platform for Docker (e.g., linux/amd64)'
-    )(f)
-    f = click.option(
-        '--docker-volumes', 
-        multiple=True,
-        help='Additional volume mounts (format: host:container). Repeat flag for multiple volumes: --docker-volumes /path1:/path1 --docker-volumes /path2:/path2'
-    )(f)
-    f = click.option(
-        '--docker-env', 
-        multiple=True,
-        help='Environment variables (format: KEY=VALUE). Repeat flag for multiple vars: --docker-env VAR1=val1 --docker-env VAR2=val2'
-    )(f)
-    f = click.option(
-        '--docker-network', 
-        default='host',
-        help='Docker network mode'
-    )(f)
-    f = click.option(
-        '--docker-user', 
-        default=None,
-        help='User to run as inside container'
-    )(f)
-    f = click.option(
-        '--docker-args', 
-        default='',
-        help='Additional docker run arguments'
-    )(f)
-    # Bash options
-    f = click.option(
-        '--shell-path', 
-        '--bash-path', 
-        default='/bin/bash',
-        help='Path to shell executable for bash runner'
-    )(f)
-
-    return f
-
 
 @click.group()
 @click.version_option(version='0.1.0', prog_name='dbt-ci')
@@ -152,15 +25,36 @@ def cli():
 @cli.command(name="init")
 @common_options
 @click.option(
+    "--reference-target", "-ref-target",
+    envvar=['DBT_REFERENCE_TARGET'],
+    default=None,
+    help="The dbt target to use for production/reference manifest (defaults to default)"
+)
+@click.option(
     '--reference-state', '--state',
+    envvar=['DBT_STATE', 'DBT_STATE_DIR', 'STATE_DIR'],
     default=None,
     type=str,
     help='Path to the reference manifest.json directory (local path where state will be downloaded)'
 )
 @click.option(
+    "--reference-vars", "--ref-vars",
+    envvar=['DBT_REFERENCE_VARS'],
+    default=None,
+    help="Variables to pass to dbt when compiling the reference manifest (YAML string or path to YAML file)"
+)
+@click.option(
     "--state-uri",
+    envvar=['DBT_STATE_URI', 'STATE_URI'],
     default=None,
     help="Remote URI for the state manifest.json file (e.g., gs://my-bucket/dbt-state/manifest.json or s3://my-bucket/dbt-state/manifest.json)"
+)
+@click.option(
+    "--skip-target-compile",
+    envvar=['DBT_SKIP_TARGET_COMPILE'],
+    is_flag=True,
+    default=False,
+    help="Skip compiling towards target (or default)"
 )
 def init_cmd(**kwargs):
     """Initialize dbt CI state
@@ -176,7 +70,7 @@ def init_cmd(**kwargs):
         dbt-ci init --state dbt/.dbtstate --reference-target production
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return init(**kwargs)
+    return init(to_namespace(kwargs, command="init"))
 
 # Add support for --levels option to specify how many levels of dependencies to include
 @cli.command(name='run')
@@ -184,6 +78,7 @@ def init_cmd(**kwargs):
 @click.option(
     '--nodes', '-n',
     '--mode', '-m',
+    envvar=['DBT_NODES'],
     type=click.Choice([
         "all",
         "models",
@@ -205,7 +100,7 @@ def init_cmd(**kwargs):
     ], case_sensitive=False),
     multiple=True,
     default=None,
-    help="Extra filters to apply, dbt-lineage run -m tests -f snapshots to run modified models and their snapshot dependencies only"
+    help="Extra filters to apply for tests, dbt-lineage run -m tests -f snapshots to run modified models and their snapshot dependencies only"
 )
 #@click.option( # Not yet implemented
 #    "--levels",
@@ -227,13 +122,14 @@ def run_cmd(**kwargs):
         dbt-ci run
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return run(**kwargs)
+    return run(to_namespace(kwargs, command="run"))
 
 
 @cli.command(name='ephemeral')
 @common_options
 @click.option(
     "--keep-env",
+    envvar=['DBT_KEEP_ENV'],
     is_flag=True,
     default=False,
     help="Don't destroy ephemeral environment after run (if supported by runner)"
@@ -253,7 +149,7 @@ def ephemeral_cmd(**kwargs):
         dbt-ci ephemeral --keep-env
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return ephemeral(**kwargs)
+    return ephemeral(to_namespace(kwargs, command="ephemeral"))
 
 @cli.command(name='delete')
 @common_options
@@ -271,12 +167,13 @@ def delete_cmd(**kwargs):
         dbt-ci delete --dry-run
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return delete(**kwargs)
+    return delete(to_namespace(kwargs, command="delete"))
 
 @cli.command(name="finalize")
 @common_options
 @click.option(
     "--artifacts-uri",
+    envvar=['DBT_ARTIFACTS_URI', 'ARTIFACTS_URI'],
     default=None,
     type=str,
     help="S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., s3://my-bucket/dbt-artifacts/)"
@@ -292,11 +189,13 @@ def finalize_cmd(**kwargs):
         dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return finalize(**kwargs)
+    return finalize(to_namespace(kwargs, command="finalize"))
     
 
-def to_namespace(kwargs):
+def to_namespace(kwargs, command=None):
     """Convert kwargs dict to argparse.Namespace for easier access and compatibility with existing code"""
+    if command:
+        kwargs["command"] = command
     return Namespace(**kwargs)
 
 if __name__ == "__main__":

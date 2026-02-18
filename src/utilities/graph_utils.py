@@ -125,7 +125,11 @@ def get_downstream_dependencies(
     node_type: Optional[DependencyGraphNodeType] = None,
     levels: int | None = None # To be implemented in the future
 ):
-    """Get downstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
+    """
+        Get downstream dependencies for a list of node IDs, 
+        optionally up to a certain number of levels. Defaults to indirect downstream dependencies 
+        if levels is not specified.
+    """
     key = "indirect_downstream_dependencies"
     if node_ids is None or len(node_ids) == 0:
         return None
@@ -153,8 +157,9 @@ def get_upstream_dependencies(
     dependency_graph: DependencyGraph,
     node_ids: List[str] | None,
     node_type: Optional[DependencyGraphNodeType] = None,
+    filters: Optional[List[DependencyGraphNodeType]] = None,
     levels: int | None = None # To be implemented in the future
-):
+) -> Set[str] | None:
     """Get upstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
     if node_ids is None or len(node_ids) == 0:
         return None
@@ -169,7 +174,9 @@ def get_upstream_dependencies(
         for dep_type, dep_names in dependency_by_type.items():
             if node_type and dep_type != node_type:
                 continue
-            if dep_names is not None and len(dep_names) > 0:
+            if filters and dep_type not in filters:
+                continue
+            if dep_names and len(dep_names) > 0:
                 upstream_dependencies.update(dep_names)
 
     if len(upstream_dependencies) == 0:
@@ -210,5 +217,18 @@ def filter_node_ids_by_type(
     for node_id in node_ids:
         node = get_node(dependency_graph, node_id)
         if node and node.get("resource_type") == node_type:
+            filtered_node_ids.append(node_id)
+    return filtered_node_ids
+
+def filter_node_ids_by_multiple_types(
+    dependency_graph: DependencyGraph,
+    node_ids: List[str],
+    node_types: List[DependencyGraphNodeType]
+) -> List[str]:
+    """Filter a list of node IDs by multiple types."""
+    filtered_node_ids = []
+    for node_id in node_ids:
+        node = get_node(dependency_graph, node_id)
+        if node and node.get("resource_type") in node_types:
             filtered_node_ids.append(node_id)
     return filtered_node_ids

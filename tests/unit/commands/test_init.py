@@ -9,7 +9,6 @@ class TestInitCommand:
     """Test the init command."""
     
     @patch('src.commands.init.CacheManager')
-    @patch('src.commands.init.Variables')
     @patch('src.commands.init.init_storage_connector')
     @patch('src.commands.init.resolve_dbt_commands')
     @patch('src.commands.init.run_dbt_command')
@@ -24,26 +23,12 @@ class TestInitCommand:
         mock_run_cmd,
         mock_resolve_cmds,
         mock_storage,
-        mock_vars,
         mock_cache
     ):
         """Test successful init with no modified nodes."""
         # Setup mocks
         mock_cache_instance = MagicMock()
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
-            dbt_project_dir='/dbt',
-            reference_state='/dbt/.dbtstate',
-            runner='local',
-            reference_target=None,
-            state_uri=None,
-            target=None,
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars.return_value = mock_vars_instance
-        
         mock_storage.return_value = None
         
         # Mock resolve_dbt_commands to return a list of command args
@@ -61,8 +46,14 @@ class TestInitCommand:
         mock_get_manifest.return_value = {'metadata': {}}
         
         # Run init - expect SystemExit(0)
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            reference_vars=None,
+            dry_run=False
+        )
         with pytest.raises(SystemExit) as exc_info:
-            init(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate')
+            init(args)
         
         # Verify cache was written with no modified nodes
         mock_cache_instance.write_cache.assert_called()
@@ -71,7 +62,6 @@ class TestInitCommand:
         assert exc_info.value.code == 0
     
     @patch('src.commands.init.CacheManager')
-    @patch('src.commands.init.Variables')
     @patch('src.commands.init.init_storage_connector')
     @patch('src.commands.init.resolve_dbt_commands')
     @patch('src.commands.init.run_dbt_command')
@@ -94,26 +84,12 @@ class TestInitCommand:
         mock_run_cmd,
         mock_resolve_cmds,
         mock_storage,
-        mock_vars,
         mock_cache
     ):
         """Test successful init with modified nodes."""
         # Setup mocks
         mock_cache_instance = MagicMock()
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
-            dbt_project_dir='/dbt',
-            reference_state='/dbt/.dbtstate',
-            runner='local',
-            reference_target='prod',
-            state_uri=None,
-            target=None,
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars.return_value = mock_vars_instance
-        
         mock_storage.return_value = None
         
         # Mock resolve_dbt_commands to return command args
@@ -149,7 +125,15 @@ class TestInitCommand:
         mock_get_manifest.return_value = {"metadata": {}}
         
         # Run init - should complete successfully without raising SystemExit
-        init(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate', reference_target='prod')
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            reference_target='prod',
+            reference_vars=None,
+            skip_target_compile=False,
+            dry_run=False
+        )
+        init(args)
         
         # Verify cache was written
         assert mock_cache_instance.write_cache.call_count >= 2
@@ -158,27 +142,32 @@ class TestInitCommand:
         assert mock_resolve_cmds.call_count >= 1
     
     @patch('src.commands.init.CacheManager')
-    @patch('src.commands.init.Variables')
     @patch('src.commands.init.click.secho')
     def test_init_error_handling(
         self,
         mock_secho,
-        mock_vars,
         mock_cache
     ):
         """Test init error handling."""
-        # Setup mocks to raise an exception
-        mock_vars.side_effect = Exception("Configuration error")
+        # Setup mocks to raise an exception during initialization
+        mock_cache_instance = MagicMock()
+        mock_cache_instance.get_cache.side_effect = Exception("Configuration error")
+        mock_cache.return_value = mock_cache_instance
         
         # Run init - expect SystemExit(1)
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_vars=None,
+            skip_target_compile=False,
+            dry_run=False
+        )
         with pytest.raises(SystemExit) as exc_info:
-            init(dbt_project_dir='/dbt')
+            init(args)
         
         # Verify exit was called with error code
         assert exc_info.value.code == 1
     
     @patch('src.commands.init.CacheManager')
-    @patch('src.commands.init.Variables')
     @patch('src.commands.init.init_storage_connector')
     @patch('src.commands.init.resolve_dbt_commands')
     @patch('src.commands.init.run_dbt_command')
@@ -193,26 +182,12 @@ class TestInitCommand:
         mock_run_cmd,
         mock_resolve_cmds,
         mock_storage,
-        mock_vars,
         mock_cache
     ):
         """Test init with reference target specified."""
         # Setup mocks
         mock_cache_instance = MagicMock()
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
-            dbt_project_dir='/dbt',
-            reference_state='/dbt/.dbtstate',
-            runner='local',
-            reference_target='prod',
-            state_uri=None,
-            target=None,
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars.return_value = mock_vars_instance
-        
         mock_storage.return_value = None
         
         # Mock resolve_dbt_commands to return command args
@@ -230,8 +205,16 @@ class TestInitCommand:
         mock_get_manifest.return_value = {'metadata': {}}
         
         # Run init - expect SystemExit(0)
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            reference_target='prod',
+            reference_vars=None,
+            skip_target_compile=False,
+            dry_run=False
+        )
         with pytest.raises(SystemExit) as exc_info:
-            init(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate', reference_target='prod')
+            init(args)
         
         # Verify resolve_dbt_commands was called - it should use reference target internally
         mock_resolve_cmds.assert_called()

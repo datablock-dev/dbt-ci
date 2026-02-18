@@ -6,6 +6,16 @@ import yaml
 import json
 from src.schema import DBTManifest, DBTProfile
 
+def get_dir_name_from_path(path: str) -> str:
+    """Get the directory name from a given path."""
+    if os.path.isdir(path):
+        return os.path.basename(os.path.normpath(path))
+    elif os.path.isfile(path):
+        return os.path.basename(os.path.dirname(path))
+    elif not os.path.exists(path):
+        print(f"Path '{path}' does not exist.")
+        sys.exit(1)
+
 def get_manifest_file(dbt_project_dir: str) -> DBTManifest:
     """
     Get the path to the manifest.json file in the target directory.
@@ -18,13 +28,29 @@ def get_manifest_file(dbt_project_dir: str) -> DBTManifest:
     with open(file, 'r', encoding='utf-8') as f:
         return json.load(f)
     
+def get_manifest_file_full_path(file_path: str) -> DBTManifest | None:
+    """
+    Get the manifest.json file from the specified path.
+    Raises a FileNotFoundError if the file does not exist.
+    Uses pydantic to confirm the structure of the manifest file.
+    """
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(f"manifest.json not found at {file_path}")
+    with open(file_path, 'r', encoding='utf-8') as f:
+        item = json.load(f)
+        if isinstance(item, DBTManifest):
+            return item
+
 def get_reference_manifest_file(reference_state_dir: str) -> DBTManifest:
     """
     Get the reference manifest.json file from the state directory.
     Raises a FileNotFoundError if the file does not exist.
     """
-
     file = os.path.join(reference_state_dir, "manifest.json")
+    if os.path.isfile(reference_state_dir):
+        # If the provided reference_state_dir is actually a file, use it directly
+        file = reference_state_dir
+
     if not os.path.isfile(file):
         raise FileNotFoundError(f"manifest.json not found in {reference_state_dir}")
     with open(file, 'r', encoding='utf-8') as f:
@@ -129,9 +155,9 @@ def get_dbt_profiles_config(dbt_root_path: str):
 
 def get_profile(args: Namespace) -> DBTProfile:
     """Get the DBT profile output configuration based on the provided arguments."""
-    dbt_root_path = getattr(args, "dbt_project_path", None)
+    dbt_root_path = getattr(args, "dbt_project_dir", None)
     if dbt_root_path is None:
-        print("DBT project path not specified in arguments. Please pass the path using --dbt-project-path <path>.")
+        print("DBT project path not specified in arguments. Please pass the path using --dbt-project-dir <path>.")
         sys.exit(1)
 
     dbt_project_file = get_dbt_project_config(dbt_root_path)

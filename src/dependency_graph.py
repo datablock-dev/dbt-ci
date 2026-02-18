@@ -4,11 +4,11 @@ This module defines the DbtGraph class, which encapsulates the dependency graph 
 """
 
 import json
-import os
 from argparse import Namespace
-from src.parser import generate_dependency_graph
+from src.cache import CacheManager
 from src.schema import DependencyGraph
-from src.variables import Variables
+from src.parser import generate_dependency_graph
+from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 
 class DbtGraph:
     """
@@ -24,27 +24,22 @@ class DbtGraph:
         DbtGraph: An instance of the DbtGraph class containing the dependency graph and related
     """
     def __init__(self, args: Namespace, is_production: bool = False):
+        cache = CacheManager()
         self.args = args
-        self.variables = Variables(args).to_namespace()
-        for key, value in self.variables.__dict__.items():
-            setattr(self, key, value)
-
         self.is_production = is_production
-
-        # Bash runner configuration
-        shell_path = getattr(self.variables, 'shell_path', '/bin/bash')
-        # Shell path needs to be absolute for subprocess execution
-        if not os.path.isabs(shell_path):
-            shell_path = os.path.abspath(shell_path)
-        
-        self.shell_path = shell_path
+        for key, value in self.args.__dict__.items():
+            setattr(self, key, value)
         
         # Keep paths as provided by user (relative or absolute)
-        #self.reference_manifest_file = self.reference_manifest_file
-        self.dependency_graph = generate_dependency_graph(
-            self.variables.dbt_project_dir if not self.is_production else self.variables.reference_state,
-            is_state_manifest=self.is_production
-        )
+        if getattr(self.args, "command", None) == "init":
+            self.dbt_project_dir = self.args.dbt_project_dir
+            self.dependency_graph = generate_dependency_graph(
+                manifest_file=get_manifest_file(self.dbt_project_dir) if not self.is_production 
+                else get_reference_manifest_file(self.args.reference_state),
+            )
+        else: # We retrive manifest file from cache
+            manifest_file = cache.get_cache("target_manifest.json" if not self.is_production else "reference_manifest.json")
+            self.dependency_graph = generate_dependency_graph(manifest_file)
 
     def to_dict(self) -> DependencyGraph:
         """Convert the DependencyGraph instance to a dictionary."""

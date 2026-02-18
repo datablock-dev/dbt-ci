@@ -8,45 +8,41 @@ from src.commands.migration import migration
 class TestMigrationCommand:
     """Test the migration command."""
     
+    @patch('src.commands.migration.get_profile')
     @patch('src.commands.migration.DbtGraph')
     @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.Variables')
     @patch('src.commands.migration.logger')
     @patch('src.commands.migration.click.secho')
     def test_migration_no_cache(
         self,
         mock_secho,
         mock_logger,
-        mock_vars,
         mock_cache,
-        mock_graph
+        mock_graph,
+        mock_get_profile
     ):
         """Test migration command exits when no cache is found."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = None
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
-            dbt_project_dir='/dbt',
-            reference_state='/dbt/.dbtstate',
-            runner='local',
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars.return_value = mock_vars_instance
-        
         mock_graph_instance = MagicMock()
         mock_graph.return_value = mock_graph_instance
         
         # Run command - expect SystemExit(1)
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            dry_run=False
+        )
         with pytest.raises(SystemExit) as exc_info:
-            migration(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate')
+            migration(args)
         
         assert exc_info.value.code == 1
     
+    @patch('src.commands.migration.get_profile')
     @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.Variables')
     @patch('src.commands.migration.DbtGraph')
     @patch('src.commands.migration.get_connector')
     @patch('src.commands.migration.logger')
@@ -59,28 +55,25 @@ class TestMigrationCommand:
         mock_logger,
         mock_get_connector,
         mock_graph,
-        mock_vars,
-        mock_cache
+        mock_cache,
+        mock_get_profile
     ):
         """Test migration command with unsupported connector."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": {}
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
-            dbt_project_dir='/dbt',
-            target_config={'type': 'unsupported'}
-        )
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_connector.return_value = {'migration': None}
         
         # Run command
-        migration(dbt_project_dir='/dbt')
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            dry_run=False
+        )
+        migration(args)
         
         # Verify error was logged
         mock_logger.error.assert_called_once()
@@ -89,8 +82,8 @@ class TestMigrationCommand:
         # Verify exit with error
         mock_exit.assert_called_with(1)
     
+    @patch('src.commands.migration.get_profile')
     @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.Variables')
     @patch('src.commands.migration.DbtGraph')
     @patch('src.commands.migration.get_connector')
     @patch('src.commands.migration.get_node_ids_from_structured_nodes')
@@ -107,26 +100,17 @@ class TestMigrationCommand:
         mock_get_node_ids,
         mock_get_connector,
         mock_graph,
-        mock_vars,
-        mock_cache
+        mock_cache,
+        mock_get_profile
     ):
         """Test migration command when no modified models are found."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": None
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
-            dbt_project_dir='/dbt',
-            reference_state='/dbt/.dbtstate',
-            runner='local',
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_connector.return_value = {'migration': MagicMock()}
         mock_get_node_ids.return_value = []
         mock_filter.return_value = []
@@ -135,13 +119,18 @@ class TestMigrationCommand:
         mock_graph.return_value = mock_graph_instance
         
         # Run command - expect SystemExit(0)
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            dry_run=False
+        )
         with pytest.raises(SystemExit) as exc_info:
-            migration(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate')
+            migration(args)
         
         assert exc_info.value.code == 0
     
+    @patch('src.commands.migration.get_profile')
     @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.Variables')
     @patch('src.commands.migration.DbtGraph')
     @patch('src.commands.migration.get_connector')
     @patch('src.commands.migration.get_node_ids_from_structured_nodes')
@@ -160,28 +149,17 @@ class TestMigrationCommand:
         mock_get_node_ids,
         mock_get_connector,
         mock_graph,
-        mock_vars,
-        mock_cache
+        mock_cache,
+        mock_get_profile
     ):
         """Test migration command with modified models."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": {"model": {"model.project.model1": {}}}
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        namespace = Namespace(
-            dbt_project_dir='/dbt',
-            reference_state='/dbt/.dbtstate',
-            runner='local',
-            target_config={'type': 'bigquery'},
-            dry_run=False
-        )
-        mock_vars_instance.to_namespace.return_value = namespace
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_node_ids.return_value = ['model.project.model1']
         mock_filter.return_value = ['model.project.model1']
         
@@ -228,7 +206,12 @@ class TestMigrationCommand:
         mock_get_connector.return_value = {'migration': mock_migration_func}
         
         # Run command - migration should complete successfully without sys.exit()
-        migration(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate', dry_run=False)
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            dry_run=False
+        )
+        migration(args)
         
         # Verify migration function was called with correct migration map
         mock_migration_func.assert_called_once()
@@ -242,8 +225,8 @@ class TestMigrationCommand:
         assert migration_map['nodes']['model.project.model1']['old_partitioning'] == {'field': 'old_date', 'data_type': 'date'}
         assert migration_map['nodes']['model.project.model1']['new_partitioning'] == {'field': 'new_date', 'data_type': 'date'}
     
+    @patch('src.commands.migration.get_profile')
     @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.Variables')
     @patch('src.commands.migration.DbtGraph')
     @patch('src.commands.migration.get_connector')
     @patch('src.commands.migration.get_node_ids_from_structured_nodes')
@@ -262,28 +245,17 @@ class TestMigrationCommand:
         mock_get_node_ids,
         mock_get_connector,
         mock_graph,
-        mock_vars,
-        mock_cache
+        mock_cache,
+        mock_get_profile
     ):
         """Test migration command when partitioning hasn't changed."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": {"model": {"model.project.model1": {}}}
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        namespace = Namespace(
-            dbt_project_dir='/dbt',
-            reference_state='/dbt/.dbtstate',
-            runner='local',
-            target_config={'type': 'bigquery'},
-            dry_run=False
-        )
-        mock_vars_instance.to_namespace.return_value = namespace
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_node_ids.return_value = ['model.project.model1']
         mock_filter.return_value = ['model.project.model1']
         
@@ -313,7 +285,12 @@ class TestMigrationCommand:
         mock_get_connector.return_value = {'migration': mock_migration_func}
         
         # Run command - expect SystemExit(0)
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            dry_run=False
+        )
         with pytest.raises(SystemExit) as exc_info:
-            migration(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate')
+            migration(args)
         
         assert exc_info.value.code == 0

@@ -2,18 +2,7 @@
 import sys
 import json
 from typing import Dict, List, Optional, Set
-from src.utilities.paths import get_manifest_file, get_reference_manifest_file
-from src.schema import DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
-
-MANIFEST_KEY_MAPPING = {
-    "model": "nodes",
-    "seed": "nodes",
-    "snapshot": "nodes",
-    "test": "nodes",
-    "macro": "macros",
-    "exposure": "exposures",
-    "source": "sources"
-}
+from src.schema import MANIFEST_KEY_MAPPING, DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 def skeleton_dependencies_structure():
     """Helper function to create an empty dependencies structure."""
@@ -30,19 +19,12 @@ def skeleton_dependencies_structure():
         },
     }
 
-def generate_dependency_graph(manifest_file_path: str, is_state_manifest: bool = False) -> DependencyGraph:
+def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
     """Generate dependency graph from manifest file.
-    
     Args:
-        manifest_file_path: Path to dbt project dir (looks in target/) or state dir (looks for manifest.json directly)
-        is_state_manifest: If True, load from {path}/manifest.json; if False, load from {path}/target/manifest.json
+        manifest_file: DBTManifest object representing the manifest file
     """
-    if is_state_manifest:
-        manifest_file = get_reference_manifest_file(manifest_file_path)
-    else:
-        manifest_file = get_manifest_file(manifest_file_path)
     child_map = manifest_file.get("child_map", {})
-
     dependency_graph: DependencyGraph = {
         "metadata": manifest_file.get("metadata", {}),
         "model": {},

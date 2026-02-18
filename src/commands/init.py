@@ -10,7 +10,6 @@ from argparse import Namespace
 from typing import Tuple
 import click
 from src.dependency_graph import DbtGraph
-from src.variables import Variables
 from src.cache import CacheManager
 from src.schema import RunnerConfig, StorageConnectorConfig
 from src.logging import print_exception
@@ -25,7 +24,7 @@ from src.utilities.graph_utils import (
 
 logger = logging.getLogger(__name__)
 
-def init(**kwargs):
+def init(args: Namespace):
     """
     Initialize the dbt CI tool with necessary configuration and setup.
     This step compiles the DBT project to ensure that we have a generated manifest.json
@@ -41,40 +40,40 @@ def init(**kwargs):
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Initialization", fg="green", bold=True)
-        args = Namespace(**kwargs)
+        logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager()
-        config = Variables(args, command='init')
-        variables = config.to_namespace()
-        cache.start_report("init", variables)
-        reference_target = getattr(variables, "reference_target", None)
+        cache.start_report("init", args)
+        reference_target = getattr(args, "reference_target", None)
         command = ["compile"]
-        resolved_storage = init_storage_connector(getattr(variables, "state_uri", None))
+        resolved_storage = init_storage_connector(getattr(args, "state_uri", None))
 
         if resolved_storage is not None:
-            local_state_dir = resolve_manifest_file_from_storage(resolved_storage, variables)
+            local_state_dir = resolve_manifest_file_from_storage(resolved_storage, args)
             # Update reference_state to use the local path where manifest was downloaded
-            variables.reference_state = str(local_state_dir)
+            args.reference_state = str(local_state_dir)
             # Reload reference manifest file after downloading from storage
-            variables.reference_manifest_file = get_reference_manifest_file(variables.reference_state)
+            args.reference_manifest_file = get_reference_manifest_file(args.reference_state)
+            cache.write_cache(get_reference_manifest_file(args.reference_state), "reference_manifest.json")
 
         if reference_target is None:
             logger.warning("No reference target specified, using current target as reference state for comparison.")
         else:
             command.extend(["--target", reference_target])
+            command.extend(["--vars", args.reference_vars]) if args.reference_vars else None
 
         run_dbt_command(
-            command_args=resolve_dbt_commands(command, variables, True),
-            runner_config=RunnerConfig(variables.__dict__),
+            command_args=resolve_dbt_commands(command, args, ["vars", "target"]),  # Don't pass vars or target when compiling reference manifest
+            runner_config=RunnerConfig(args.__dict__),
         )
 
         logger.info("DBT project compiled successfully. manifest.json generated.")
-        target_manifest_file = get_manifest_file(variables.dbt_project_dir)
-        target_graph = DbtGraph(variables)
-        reference_graph = DbtGraph(variables, is_production=True)
+        target_manifest_file = get_manifest_file(args.dbt_project_dir)
+        target_graph = DbtGraph(args)
+        reference_graph = DbtGraph(args, is_production=True)
 
         ls_output = run_dbt_command(
-            command_args=resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], variables),
-            runner_config=RunnerConfig(variables.__dict__)
+            command_args=resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], args),
+            runner_config=RunnerConfig(args.__dict__)
         )
 
         if ls_output is None:
@@ -91,16 +90,28 @@ def init(**kwargs):
         reference_graph_dict = reference_graph.to_dict()
 
         state_change_summary = {
-            "modified_nodes": get_structured_modified_nodes(get_nodes(reference_graph_dict, modified_nodes)),
-            "deleted_nodes": get_structured_modified_nodes(get_nodes(reference_graph_dict, get_deleted_nodes(reference_graph_dict, target_graph_dict))),
-            "new_nodes": get_structured_modified_nodes(get_nodes(target_graph_dict, get_new_nodes(reference_graph_dict, target_graph_dict)))
+            "modified_nodes": get_structured_modified_nodes(get_nodes(
+                dependency_graph=reference_graph_dict, 
+                node_ids=modified_nodes
+            )),
+            "deleted_nodes": get_structured_modified_nodes(get_nodes(
+                dependency_graph=reference_graph_dict, 
+                node_ids=get_deleted_nodes(reference_graph_dict, target_graph_dict)
+            )),
+            "new_nodes": get_structured_modified_nodes(get_nodes(
+                dependency_graph=target_graph_dict, 
+                node_ids=get_new_nodes(reference_graph_dict, target_graph_dict)
+            ))
         }
 
         # Write cache
         cache.write_cache(state_change_summary)
-        if reference_target is not None and reference_target != variables.target:
-            cache.write_cache(target_manifest_file, "reference_manifest.json")
-        elif reference_target is None:
+        if reference_target is not None and reference_target != getattr(args, "target", None):
+            # Different targets - will compile again later with actual target
+            cache.write_cache(target_manifest_file, "target_manifest.json")
+        else:
+            # Same target or no reference target specified - reference and target are the same
+            logger.debug("Reference target is the same as current target, using the same manifest for both reference and target state.")
             cache.write_cache(target_manifest_file, "reference_manifest.json")
             cache.write_cache(target_manifest_file, "target_manifest.json")
 
@@ -120,17 +131,17 @@ def init(**kwargs):
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
-        if reference_target is not None and reference_target != variables.target:
+        if args.skip_target_compile is False and reference_target is not None and reference_target != getattr(args, "target", None):
             target_command = ["compile"]
-            actual_target = getattr(variables, "target", None)
+            actual_target = getattr(args, "target", None)
             if actual_target and actual_target != "default":
                 target_command.extend(["--target", actual_target])
             # If no target specified, dbt will use the default from dbt_project.yml
             run_dbt_command(
-                command_args=resolve_dbt_commands(target_command, variables),
-                runner_config=RunnerConfig(variables.__dict__)
+                command_args=resolve_dbt_commands(target_command, args),
+                runner_config=RunnerConfig(args.__dict__)
             )
-            target_manifest_file = get_manifest_file(variables.dbt_project_dir)
+            target_manifest_file = get_manifest_file(args.dbt_project_dir)
             cache.write_cache(target_manifest_file, "target_manifest.json")
 
         cache.update_report(command="init", status="completed")
@@ -143,7 +154,7 @@ def init(**kwargs):
 
 def resolve_manifest_file_from_storage(
     resolved_storage: Tuple[StorageConnectorConfig, str],
-    variables: Namespace
+    args: Namespace
 ) -> Path:
     """Download manifest file from storage and save to local path for graph generation.
     
@@ -158,10 +169,10 @@ def resolve_manifest_file_from_storage(
 
     # Write and download manifest to path
     # When using Docker, always use the local dbt_project_dir/.dbtstate path on host
-    if variables.runner == "docker" or variables.reference_state is None:
-        dbtstate_dir = cwd / variables.dbt_project_dir / ".dbtstate" # Default
+    if getattr(args, "runner", None) == "docker" or getattr(args, "reference_state", None) is None:
+        dbtstate_dir = cwd / getattr(args, "dbt_project_dir", None) / ".dbtstate" # Default
     else:
-        dbtstate_dir = cwd / variables.reference_state
+        dbtstate_dir = cwd / getattr(args, "reference_state", None)
     if dbtstate_dir is None:
         logger.error("No valid path found for downloading manifest file. Please specify a valid --state path or ensure your dbt_project_dir is correct.")
         sys.exit(1)
