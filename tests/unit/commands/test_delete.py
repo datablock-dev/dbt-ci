@@ -10,14 +10,12 @@ class TestDeleteCommand:
     
     @patch('src.commands.delete.DbtGraph')
     @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.Variables')
     @patch('src.commands.delete.click.secho')
     @patch('src.commands.delete.click.echo')
     def test_delete_no_cache(
         self,
         mock_echo,
         mock_secho,
-        mock_vars,
         mock_cache,
         mock_graph
     ):
@@ -27,21 +25,18 @@ class TestDeleteCommand:
         mock_cache_instance.get_cache.return_value = None
         mock_cache.return_value = mock_cache_instance
         
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
+        mock_graph_instance = MagicMock()
+        mock_graph.return_value = mock_graph_instance
+        
+        # Run command (now expects Namespace args directly)
+        args = Namespace(
             dbt_project_dir='/dbt',
-            reference_state='/dbt/dbtstate',
+            reference_state='/dbt/.dbtstate',
             dry_run=False,
             runner='local',
             target_config={'type': 'bigquery'}
         )
-        mock_vars.return_value = mock_vars_instance
-        
-        mock_graph_instance = MagicMock()
-        mock_graph.return_value = mock_graph_instance
-        
-        # Run command
-        delete(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate')
+        delete(args)
         
         # Verify message was shown
         mock_echo.assert_called_with(
@@ -49,7 +44,6 @@ class TestDeleteCommand:
         )
     
     @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.Variables')
     @patch('src.commands.delete.DbtGraph')
     @patch('src.commands.delete.get_connector')
     @patch('src.commands.delete.get_node_ids_from_structured_nodes')
@@ -90,7 +84,6 @@ class TestDeleteCommand:
         mock_echo.assert_any_call("No deleted nodes found in cache, skipping...")
     
     @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.Variables')
     @patch('src.commands.delete.DbtGraph')
     @patch('src.commands.delete.get_connector')
     @patch('src.commands.delete.get_node_ids_from_structured_nodes')
@@ -162,7 +155,6 @@ class TestDeleteCommand:
         mock_exit.assert_called_with(0)
     
     @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.Variables')
     @patch('src.commands.delete.DbtGraph')
     @patch('src.commands.delete.get_connector')
     @patch('src.commands.delete.get_node_ids_from_structured_nodes')
@@ -224,7 +216,6 @@ class TestDeleteCommand:
         mock_echo.assert_any_call("Dry run mode enabled - no actual deletions will be performed.")
     
     @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.Variables')
     @patch('src.commands.delete.DbtGraph')
     @patch('src.commands.delete.get_connector')
     @patch('src.commands.delete.get_node_ids_from_structured_nodes')

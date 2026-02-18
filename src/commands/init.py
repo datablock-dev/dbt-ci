@@ -53,14 +53,16 @@ def init(args: Namespace):
             args.reference_state = str(local_state_dir)
             # Reload reference manifest file after downloading from storage
             args.reference_manifest_file = get_reference_manifest_file(args.reference_state)
+            cache.write_cache(get_reference_manifest_file(args.reference_state), "reference_manifest.json")
 
         if reference_target is None:
             logger.warning("No reference target specified, using current target as reference state for comparison.")
         else:
             command.extend(["--target", reference_target])
+            command.extend(["--vars", args.reference_vars]) if args.reference_vars else None
 
         run_dbt_command(
-            command_args=resolve_dbt_commands(command, args, True),
+            command_args=resolve_dbt_commands(command, args, ["vars", "target"]),  # Don't pass vars or target when compiling reference manifest
             runner_config=RunnerConfig(args.__dict__),
         )
 
@@ -106,7 +108,7 @@ def init(args: Namespace):
         cache.write_cache(state_change_summary)
         if reference_target is not None and reference_target != getattr(args, "target", None):
             # Different targets - will compile again later with actual target
-            cache.write_cache(target_manifest_file, "reference_manifest.json")
+            cache.write_cache(target_manifest_file, "target_manifest.json")
         else:
             # Same target or no reference target specified - reference and target are the same
             logger.debug("Reference target is the same as current target, using the same manifest for both reference and target state.")
@@ -129,7 +131,7 @@ def init(args: Namespace):
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
-        if reference_target is not None and reference_target != getattr(args, "target", None):
+        if args.skip_target_compile is False and reference_target is not None and reference_target != getattr(args, "target", None):
             target_command = ["compile"]
             actual_target = getattr(args, "target", None)
             if actual_target and actual_target != "default":

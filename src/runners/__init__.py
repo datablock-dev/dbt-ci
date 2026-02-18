@@ -151,7 +151,7 @@ def append_dbt_variables_to_command(
 def resolve_dbt_commands(
     command_args: List[str],
     args: Namespace,
-    skip_target: bool = False
+    ignore_keys: List[str] | None = None,
 ) -> List[str]:
     """Resolve dbt command arguments"""
     commands = command_args.copy()
@@ -197,8 +197,8 @@ def resolve_dbt_commands(
 
     # Handle regular variables with values
     for var, dbt_flag in dbt_variables.items():
-        if skip_target and var == "target":
-            continue  # Skip adding target if skip_target is True
+        if ignore_keys and var in ignore_keys:
+            continue  # Skip adding variable if it's in the ignore_keys list
         if dbt_flag in commands:
             continue  # Skip if already in command args
 
@@ -208,6 +208,8 @@ def resolve_dbt_commands(
     
     # Handle boolean flags (only add flag if True)
     for var, dbt_flag in boolean_flags.items():
+        if ignore_keys and var in ignore_keys:
+            continue  # Skip adding variable if it's in the ignore_keys list
         if dbt_flag in commands:
             continue  # Skip if already in command args
         

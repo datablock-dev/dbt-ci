@@ -9,7 +9,6 @@ class TestInitCommand:
     """Test the init command."""
     
     @patch('src.commands.init.CacheManager')
-    @patch('src.commands.init.Variables')
     @patch('src.commands.init.init_storage_connector')
     @patch('src.commands.init.resolve_dbt_commands')
     @patch('src.commands.init.run_dbt_command')
@@ -71,7 +70,6 @@ class TestInitCommand:
         assert exc_info.value.code == 0
     
     @patch('src.commands.init.CacheManager')
-    @patch('src.commands.init.Variables')
     @patch('src.commands.init.init_storage_connector')
     @patch('src.commands.init.resolve_dbt_commands')
     @patch('src.commands.init.run_dbt_command')
@@ -158,7 +156,6 @@ class TestInitCommand:
         assert mock_resolve_cmds.call_count >= 1
     
     @patch('src.commands.init.CacheManager')
-    @patch('src.commands.init.Variables')
     @patch('src.commands.init.click.secho')
     def test_init_error_handling(
         self,
@@ -178,7 +175,6 @@ class TestInitCommand:
         assert exc_info.value.code == 1
     
     @patch('src.commands.init.CacheManager')
-    @patch('src.commands.init.Variables')
     @patch('src.commands.init.init_storage_connector')
     @patch('src.commands.init.resolve_dbt_commands')
     @patch('src.commands.init.run_dbt_command')

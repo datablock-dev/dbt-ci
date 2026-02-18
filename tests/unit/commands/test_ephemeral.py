@@ -10,7 +10,6 @@ class TestEphemeralCommand:
     
     @patch('src.commands.ephemeral.DbtGraph')
     @patch('src.commands.ephemeral.CacheManager')
-    @patch('src.commands.ephemeral.Variables')
     @patch('src.commands.ephemeral.click.secho')
     @patch('src.commands.ephemeral.click.echo')
     def test_ephemeral_no_cache(
@@ -48,7 +47,6 @@ class TestEphemeralCommand:
     
     @patch('src.commands.ephemeral.DbtGraph')
     @patch('src.commands.ephemeral.CacheManager')
-    @patch('src.commands.ephemeral.Variables')
     @patch('src.commands.ephemeral.get_node_ids_from_structured_nodes')
     @patch('src.commands.ephemeral.click.secho')
     @patch('src.commands.ephemeral.click.echo')
@@ -92,7 +90,6 @@ class TestEphemeralCommand:
         assert exc_info.value.code == 0
     
     @patch('src.commands.ephemeral.CacheManager')
-    @patch('src.commands.ephemeral.Variables')
     @patch('src.commands.ephemeral.DbtGraph')
     @patch('src.commands.ephemeral.DB_CONNECTORS', {'bigquery': 'bigquery'})
     @patch('src.commands.ephemeral.get_connector')
@@ -170,7 +167,6 @@ class TestEphemeralCommand:
         mock_exit.assert_called_with(0)
     
     @patch('src.commands.ephemeral.CacheManager')
-    @patch('src.commands.ephemeral.Variables')
     @patch('src.commands.ephemeral.DbtGraph')
     @patch('src.commands.ephemeral.DB_CONNECTORS', {})
     @patch('src.commands.ephemeral.get_node_ids_from_structured_nodes')
@@ -218,7 +214,6 @@ class TestEphemeralCommand:
         mock_exit.assert_called_with(1)
     
     @patch('src.commands.ephemeral.CacheManager')
-    @patch('src.commands.ephemeral.Variables')
     @patch('src.commands.ephemeral.DbtGraph')
     @patch('src.commands.ephemeral.DB_CONNECTORS', {'bigquery': 'bigquery'})
     @patch('src.commands.ephemeral.get_connector')

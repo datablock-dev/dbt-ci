@@ -9,7 +9,6 @@ class TestRunCommand:
     """Test the run command."""
     
     @patch('src.commands.run.CacheManager')
-    @patch('src.commands.run.Variables')
     @patch('src.commands.run.DbtGraph')
     @patch('src.commands.run.logger.error')
     @patch('src.commands.run.click.secho')
@@ -43,7 +42,6 @@ class TestRunCommand:
         )
     
     @patch('src.commands.run.CacheManager')
-    @patch('src.commands.run.Variables')
     @patch('src.commands.run.DbtGraph')
     @patch('src.commands.run.get_node_ids_from_structured_nodes')
     @patch('src.commands.run.run_with_mode')
@@ -89,7 +87,6 @@ class TestRunCommand:
         mock_logger_info.assert_any_call("No modified, new, or deleted nodes found in cache, skipping...")
     
     @patch('src.commands.run.CacheManager')
-    @patch('src.commands.run.Variables')
     @patch('src.commands.run.DbtGraph')
     @patch('src.commands.run.get_node_ids_from_structured_nodes')
     @patch('src.commands.run.run_with_mode')

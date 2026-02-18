@@ -31,12 +31,6 @@ def common_options(f):
         help='Path to the directory containing the dbt profiles.yml file'
     )(f)
     f = click.option(
-        '--reference-target',
-        envvar=['DBT_REFERENCE_TARGET'],
-        default=None,
-        help='The dbt target to use for production/reference manifest (defaults to default)'
-    )(f)
-    f = click.option(
         '--target', 
         '-t',
         envvar=['DBT_TARGET'],

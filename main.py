@@ -25,6 +25,12 @@ def cli():
 @cli.command(name="init")
 @common_options
 @click.option(
+    "--reference-target", "-ref-target",
+    envvar=['DBT_REFERENCE_TARGET'],
+    default=None,
+    help="The dbt target to use for production/reference manifest (defaults to default)"
+)
+@click.option(
     '--reference-state', '--state',
     envvar=['DBT_STATE', 'DBT_STATE_DIR', 'STATE_DIR'],
     default=None,
@@ -32,10 +38,23 @@ def cli():
     help='Path to the reference manifest.json directory (local path where state will be downloaded)'
 )
 @click.option(
+    "--reference-vars", "--ref-vars",
+    envvar=['DBT_REFERENCE_VARS'],
+    default=None,
+    help="Variables to pass to dbt when compiling the reference manifest (YAML string or path to YAML file)"
+)
+@click.option(
     "--state-uri",
     envvar=['DBT_STATE_URI', 'STATE_URI'],
     default=None,
     help="Remote URI for the state manifest.json file (e.g., gs://my-bucket/dbt-state/manifest.json or s3://my-bucket/dbt-state/manifest.json)"
+)
+@click.option(
+    "--skip-target-compile",
+    envvar=['DBT_SKIP_TARGET_COMPILE'],
+    is_flag=True,
+    default=False,
+    help="Skip compiling towards target (or default)"
 )
 def init_cmd(**kwargs):
     """Initialize dbt CI state

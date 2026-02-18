@@ -10,7 +10,6 @@ class TestMigrationCommand:
     
     @patch('src.commands.migration.DbtGraph')
     @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.Variables')
     @patch('src.commands.migration.logger')
     @patch('src.commands.migration.click.secho')
     def test_migration_no_cache(
@@ -46,7 +45,6 @@ class TestMigrationCommand:
         assert exc_info.value.code == 1
     
     @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.Variables')
     @patch('src.commands.migration.DbtGraph')
     @patch('src.commands.migration.get_connector')
     @patch('src.commands.migration.logger')
@@ -90,7 +88,6 @@ class TestMigrationCommand:
         mock_exit.assert_called_with(1)
     
     @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.Variables')
     @patch('src.commands.migration.DbtGraph')
     @patch('src.commands.migration.get_connector')
     @patch('src.commands.migration.get_node_ids_from_structured_nodes')
@@ -141,7 +138,6 @@ class TestMigrationCommand:
         assert exc_info.value.code == 0
     
     @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.Variables')
     @patch('src.commands.migration.DbtGraph')
     @patch('src.commands.migration.get_connector')
     @patch('src.commands.migration.get_node_ids_from_structured_nodes')
@@ -243,7 +239,6 @@ class TestMigrationCommand:
         assert migration_map['nodes']['model.project.model1']['new_partitioning'] == {'field': 'new_date', 'data_type': 'date'}
     
     @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.Variables')
     @patch('src.commands.migration.DbtGraph')
     @patch('src.commands.migration.get_connector')
     @patch('src.commands.migration.get_node_ids_from_structured_nodes')
