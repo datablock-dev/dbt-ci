@@ -56,17 +56,16 @@ src = ["py.typed"]
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
 branch = "main"
-upload_to_pypi = true
-upload_to_release = true
 build_command = "pip install build && python -m build"
 commit_message = "chore(release): {version} [skip ci]"
 
-[tool.semantic_release.publish]
-dist_glob_patterns = ["dist/*"]
-upload_to_vcs_release = true
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
 
 [tool.semantic_release.changelog]
 changelog_file = "CHANGELOG.md"
+template_dir = "templates"
 
 [tool.semantic_release.commit_parser_options]
 allowed_tags = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore"]
