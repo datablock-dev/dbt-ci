@@ -8,6 +8,7 @@ from src.commands.ephemeral import ephemeral
 class TestEphemeralCommand:
     """Test the ephemeral command."""
     
+    @patch('src.commands.ephemeral.get_profile')
     @patch('src.commands.ephemeral.DbtGraph')
     @patch('src.commands.ephemeral.CacheManager')
     @patch('src.commands.ephemeral.click.secho')
@@ -16,35 +17,31 @@ class TestEphemeralCommand:
         self,
         mock_echo,
         mock_secho,
-        mock_vars,
         mock_cache,
-        mock_graph
+        mock_graph,
+        mock_get_profile
     ):
         """Test ephemeral command exits when no cache is found."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = None
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
-            dbt_project_dir='/dbt',
-            reference_state='/dbt/.dbtstate',
-            dry_run=False,
-            runner='local',
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars.return_value = mock_vars_instance
-        
         mock_graph_instance = MagicMock()
         mock_graph.return_value = mock_graph_instance
         
         # Run command - expect SystemExit(1) since no cache is an error
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            dry_run=False
+        )
         with pytest.raises(SystemExit) as exc_info:
-            ephemeral(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate')
+            ephemeral(args)
         
         assert exc_info.value.code == 1
     
+    @patch('src.commands.ephemeral.get_profile')
     @patch('src.commands.ephemeral.DbtGraph')
     @patch('src.commands.ephemeral.CacheManager')
     @patch('src.commands.ephemeral.get_node_ids_from_structured_nodes')
@@ -55,40 +52,36 @@ class TestEphemeralCommand:
         mock_echo,
         mock_secho,
         mock_get_nodes,
-        mock_vars,
         mock_cache,
-        mock_graph
+        mock_graph,
+        mock_get_profile
     ):
         """Test ephemeral command when no modified nodes are found."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": None,
             "new_nodes": None
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
-            dbt_project_dir='/dbt',
-            reference_state='/dbt/.dbtstate',
-            dry_run=False,
-            runner='local',
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_nodes.return_value = []
         
         mock_graph_instance = MagicMock()
         mock_graph.return_value = mock_graph_instance
         
         # Run command - expect SystemExit(0)
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            dry_run=False
+        )
         with pytest.raises(SystemExit) as exc_info:
-            ephemeral(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate')
+            ephemeral(args)
         
         assert exc_info.value.code == 0
     
+    @patch('src.commands.ephemeral.get_profile')
     @patch('src.commands.ephemeral.CacheManager')
     @patch('src.commands.ephemeral.DbtGraph')
     @patch('src.commands.ephemeral.DB_CONNECTORS', {'bigquery': 'bigquery'})
@@ -109,29 +102,18 @@ class TestEphemeralCommand:
         mock_get_node_ids,
         mock_get_connector,
         mock_graph,
-        mock_vars,
-        mock_cache
+        mock_cache,
+        mock_get_profile
     ):
         """Test ephemeral command with modified nodes."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": {"model": {"model.project.model1": {}}},
             "new_nodes": {"model": {"model.project.model2": {}}}
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        namespace = Namespace(
-            dbt_project_dir='/dbt',
-            reference_state='/dbt/.dbtstate',
-            dry_run=False,
-            runner='local',
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars_instance.to_namespace.return_value = namespace
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_node_ids.side_effect = [
             ['model.project.model1'],  # modified
             ['model.project.model2']   # new
@@ -158,7 +140,12 @@ class TestEphemeralCommand:
         mock_get_connector.return_value = {'ephemeral': mock_ephemeral_func}
         
         # Run command
-        ephemeral(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate')
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            dry_run=False
+        )
+        ephemeral(args)
         
         # Verify ephemeral connector was called
         mock_ephemeral_func.assert_called_once()
@@ -166,6 +153,7 @@ class TestEphemeralCommand:
         # Verify success exit
         mock_exit.assert_called_with(0)
     
+    @patch('src.commands.ephemeral.get_profile')
     @patch('src.commands.ephemeral.CacheManager')
     @patch('src.commands.ephemeral.DbtGraph')
     @patch('src.commands.ephemeral.DB_CONNECTORS', {})
@@ -180,39 +168,35 @@ class TestEphemeralCommand:
         mock_logger,
         mock_get_node_ids,
         mock_graph,
-        mock_vars,
-        mock_cache
+        mock_cache,
+        mock_get_profile
     ):
         """Test ephemeral command with unsupported connector."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": {"model": {"model.project.model1": {}}},
             "new_nodes": None
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        namespace = Namespace(
-            dbt_project_dir='/dbt',
-            dry_run=False,
-            target_config={'type': 'unsupported'}
-        )
-        mock_vars_instance.to_namespace.return_value = namespace
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_node_ids.return_value = ['model.project.model1']
         
         # Run command
-        ephemeral(dbt_project_dir='/dbt')
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            dry_run=False
+        )
+        ephemeral(args)
         
         # Verify error was logged
         mock_logger.error.assert_called_once()
-        assert 'unsupported' in str(mock_logger.error.call_args)
+        assert 'Unsupported' in str(mock_logger.error.call_args)
         
         # Verify exit with error
         mock_exit.assert_called_with(1)
     
+    @patch('src.commands.ephemeral.get_profile')
     @patch('src.commands.ephemeral.CacheManager')
     @patch('src.commands.ephemeral.DbtGraph')
     @patch('src.commands.ephemeral.DB_CONNECTORS', {'bigquery': 'bigquery'})
@@ -231,29 +215,18 @@ class TestEphemeralCommand:
         mock_get_node_ids,
         mock_get_connector,
         mock_graph,
-        mock_vars,
-        mock_cache
+        mock_cache,
+        mock_get_profile
     ):
         """Test ephemeral command in dry run mode."""
         # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": {"model": {"model.project.model1": {}}},
             "new_nodes": None
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        namespace = Namespace(
-            dbt_project_dir='/dbt',
-            reference_state='/dbt/.dbtstate',
-            dry_run=True,
-            runner='local',
-            target_config={'type': 'bigquery'}
-        )
-        mock_vars_instance.to_namespace.return_value = namespace
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_node_ids.return_value = ['model.project.model1']
         
         mock_get_nodes_util.return_value = {
@@ -273,7 +246,12 @@ class TestEphemeralCommand:
         mock_graph.return_value = mock_graph_instance
         
         # Run command - expect SystemExit(0)
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            dry_run=True
+        )
         with pytest.raises(SystemExit) as exc_info:
-            ephemeral(dbt_project_dir='/dbt', reference_state='/dbt/.dbtstate', dry_run=True)
+            ephemeral(args)
         
         assert exc_info.value.code == 0

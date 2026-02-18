@@ -17,7 +17,6 @@ class TestRunCommand:
         mock_secho,
         mock_logger_error,
         mock_graph,
-        mock_vars,
         mock_cache
     ):
         """Test run command exits when no cache is found."""
@@ -25,16 +24,12 @@ class TestRunCommand:
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = None
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
-            dbt_project_dir='/dbt',
-            nodes='all'
-        )
-        mock_vars.return_value = mock_vars_instance
-        
         # Run command
-        run(dbt_project_dir='/dbt')
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            dry_run=False
+        )
+        run(args)
         
         # Verify message was logged
         mock_logger_error.assert_called_with(
@@ -54,7 +49,6 @@ class TestRunCommand:
         mock_run_mode,
         mock_get_nodes,
         mock_graph,
-        mock_vars,
         mock_cache
     ):
         """Test run command exits when no modified nodes are found."""
@@ -66,19 +60,15 @@ class TestRunCommand:
             "deleted_nodes": None
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        mock_vars_instance.to_namespace.return_value = Namespace(
-            dbt_project_dir='/dbt',
-            nodes='all'
-        )
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_nodes.return_value = []
         
         # Run command - expect it to exit with code 0
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            dry_run=False
+        )
         with pytest.raises(SystemExit) as exc_info:
-            run(dbt_project_dir='/dbt')
+            run(args)
         
         # Verify it exited with code 0
         assert exc_info.value.code == 0
@@ -99,7 +89,6 @@ class TestRunCommand:
         mock_run_mode,
         mock_get_nodes,
         mock_graph,
-        mock_vars,
         mock_cache
     ):
         """Test run command with modified nodes."""
@@ -111,15 +100,6 @@ class TestRunCommand:
             "deleted_nodes": None
         }
         mock_cache.return_value = mock_cache_instance
-        
-        mock_vars_instance = MagicMock()
-        namespace = Namespace(
-            dbt_project_dir='/dbt',
-            nodes='models'
-        )
-        mock_vars_instance.to_namespace.return_value = namespace
-        mock_vars.return_value = mock_vars_instance
-        
         mock_get_nodes.side_effect = [
             ['model.project.model1'],  # modified
             ['model.project.model2'],  # new
@@ -131,7 +111,12 @@ class TestRunCommand:
         mock_graph.return_value = mock_graph_instance
         
         # Run command
-        run(dbt_project_dir='/dbt', nodes='models')
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            nodes='models',
+            dry_run=False
+        )
+        run(args)
         
         # Verify run_with_mode was called
         mock_run_mode.assert_called_once()
@@ -147,8 +132,11 @@ class TestRunCommand:
     ):
         """Test run command error handling."""
         # Run with invalid kwargs to trigger exception
-        with patch('src.commands.run.Variables', side_effect=Exception("Test error")):
-            run(dbt_project_dir='/dbt')
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            dry_run=False
+        )
+        run(args)
         
         # Verify error was handled
         mock_exit.assert_called_once_with(1)

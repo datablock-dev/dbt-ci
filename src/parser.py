@@ -2,20 +2,7 @@
 import sys
 import json
 from typing import Dict, List, Optional, Set
-
-from pydantic import ValidationError
-from src.utilities.paths import get_manifest_file, get_reference_manifest_file
-from src.schema import DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
-
-MANIFEST_KEY_MAPPING = {
-    "model": "nodes",
-    "seed": "nodes",
-    "snapshot": "nodes",
-    "test": "nodes",
-    "macro": "macros",
-    "exposure": "exposures",
-    "source": "sources"
-}
+from src.schema import MANIFEST_KEY_MAPPING, DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 def skeleton_dependencies_structure():
     """Helper function to create an empty dependencies structure."""
