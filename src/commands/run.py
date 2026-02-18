@@ -105,7 +105,6 @@ def run_with_mode(
 ):
     """Run modified nodes with specific dbt command based on mode"""
     try:
-        runner_config = RunnerConfig(**args.__dict__)
         run_order = ["seed", "run", "test", "snapshot"]
         if mode != "all":
             run_order = [MODE_MAPPING[mode]]
@@ -177,13 +176,13 @@ def run_with_mode(
             logger.info("-------------------------------------------------------\n")
 
             logger.info(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
-            if runner_config.get("dry_run", False):
+            if getattr(args, "dry_run", False):
                 logger.info("DRY RUN: Command would be executed")
                 continue
 
             result = run_dbt_command(
                 command_args=append_dbt_variables_to_command([command, "--select", " ".join(nodes_to_run)], args),
-                runner_config=runner_config
+                runner_config=RunnerConfig(**args.__dict__)
             )
 
             if result and result.returncode == 0:

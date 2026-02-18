@@ -76,7 +76,7 @@ def migration(args: Namespace):
                 logger.info(f"  - New Partitioning: {node_info['new_partitioning']}")
             logger.info("------------------------------------------------------\n")
 
-        if args.dry_run:
+        if getattr(args, "dry_run", False):
             logger.info("Dry run mode enabled - no changes will be applied.")
             sys.exit(0)
         

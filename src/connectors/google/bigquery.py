@@ -87,8 +87,7 @@ def bigquery_ephemeral_strategy(
         clone_map: Dict[str, Dict[str, str]] = {}
         for node_metadata in ephemeral_map.values():
             if node_metadata["ephemeral_config"] is None or node_metadata["reference_config"] is None:
-                click.echo(
-                    f"Skipping node '{node_metadata['name']}' since it does not have both ephemeral and reference configurations.")
+                click.echo(f"Skipping node '{node_metadata['name']}' since it does not have both ephemeral and reference configurations.")
                 continue
             ephemeral_database, ephemeral_schema, ephemeral_table = get_full_config(
                 node_metadata["ephemeral_config"])

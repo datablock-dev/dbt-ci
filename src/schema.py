@@ -9,7 +9,6 @@ type Commands = Literal["init", "delete", "migrate", "ephemeral", "run", "finali
 class DBTProfile(BaseModel):
     """Structure of a dbt profiles.yml profile."""
     model_config = ConfigDict(protected_namespaces=())
-    
     type: str
     method: Optional[str] = None
     project: Optional[str] = None
@@ -52,7 +51,6 @@ class Quoting(BaseModel):
 class Metadata(BaseModel):
     """Metadata section of dbt manifest."""
     model_config = ConfigDict(protected_namespaces=())
-    
     dbt_schema_version: str
     dbt_version: str
     generated_at: str
@@ -276,7 +274,10 @@ class DBTManifest(BaseModel):
 
 
 class CLIArgs(BaseModel):
-    """Command-line arguments for the DBT CI Tool."""
+    """
+        Command-line arguments for the DBT CI Tool.
+        These args 
+    """
     reference_manifest_path: str
     profiles_dir: Optional[str] = None
     dbt_project_dir: str
