@@ -132,7 +132,7 @@ def run_with_mode(
                 node_ids=list(set(chain(
                     changed_nodes_dict.get("modified_nodes", []),
                     changed_nodes_dict.get("new_nodes", []),
-                    downstream_dependencies, # includes downstream dependencie of modified, new & deleted nodes
+                    downstream_dependencies # includes downstream dependencies of modified, new & deleted nodes
                 )))
             )
 
