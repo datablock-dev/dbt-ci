@@ -4,13 +4,15 @@ import sys
 import logging
 from argparse import Namespace
 from itertools import chain
-from typing import Dict, List
+from typing import Dict, List, Set
 import click
 from src.dependency_graph import DbtGraph
 from src.cache import CacheManager
 from src.logging import print_exception
 from src.runners import run_dbt_command, append_dbt_variables_to_command
 from src.schema import (
+    DependencyGraph,
+    DependencyGraphNodeType,
     RunModes, 
     RunnerConfig, 
     MODE_MAPPING, 
@@ -18,6 +20,7 @@ from src.schema import (
     REVERSE_MODE_MAPPING
 )
 from src.utilities.graph_utils import (
+    filter_node_ids_by_multiple_types,
     filter_node_ids_by_type,
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes,
@@ -139,20 +142,23 @@ def run_with_mode(
             # If the user specified additional filters
             # dbt-ci run -m tests -f snapshots --> 
             # This should run modified tests and their snapshot dependencies only, not all downstream dependencies
-            if getattr(args, "filters", None) and node_type == "test":
-                # When filters are provided in test mode, include upstream dependencies but only of types specified in filters
-                # Example: -f snapshots means include upstream snapshot dependencies of the changed tests
-                nodes_to_run = filter_node_ids_by_type(
-                    dependency_graph=target_graph.to_dict(),
-                    node_type=node_type, # tests
-                    node_ids=list(set(chain(
-                        changed_nodes_dict.get("modified_nodes", []),
-                        changed_nodes_dict.get("new_nodes", []),
-                        downstream_dependencies,
-                        # Get upstream dependencies of any type, but filter to only include types specified in filters
-                        get_upstream_dependencies(target_graph.to_dict(), changed_nodes, None, getattr(args, "filters", None)) or []
-                    )))
-                )
+            if getattr(args, "filters", None):
+                if node_type != "test":
+                    logger.warning(f"Filters are currently only supported for test mode. Ignoring filters for {REVERSE_MODE_MAPPING[command]}...")
+                    continue
+                else:
+                    # When filters are provided in test mode, include upstream dependencies but only of types specified in filters
+                    # Example: -f snapshots means include upstream snapshot dependencies of the changed tests
+                    nodes_to_run = test_additional_filter(
+                        dependency_graph=target_graph.to_dict(),
+                        node_type=node_type,
+                        args=args,
+                        node_ids=list(set(chain(
+                            changed_nodes_dict.get("modified_nodes", []),
+                            changed_nodes_dict.get("new_nodes", []),
+                            downstream_dependencies # includes downstream dependencies of modified, new & deleted nodes
+                        )))
+                    )
 
             if len(nodes_to_run) == 0:
                 logger.info(f"No {REVERSE_MODE_MAPPING[command]} to run")
@@ -194,3 +200,37 @@ def run_with_mode(
     except Exception as e:
         print_exception(e)
         sys.exit(1)
+
+def test_additional_filter(
+    dependency_graph: DependencyGraph,
+    node_type: DependencyGraphNodeType,
+    args: Namespace,
+    node_ids: List[str]
+) -> List[str] | None:
+    """Apply additional filters to the list of node IDs based on user input."""
+    converted_filter = [NODE_TYPE_COMMAND_MAPPING[f] for f in getattr(args, "filters", [])]
+    final_nodes: Set[str] = set()
+    filtered_nodes = filter_node_ids_by_type(
+        dependency_graph=dependency_graph,
+        node_type=node_type,
+        node_ids=node_ids
+    )
+
+    for node_id in filtered_nodes:
+        node_metadata = dependency_graph.get("test", {}).get(node_id, {})
+        if not node_metadata:
+            continue
+        # Continue if we have found the item
+        upstream_dependencies_by_type = node_metadata.get("upstream_dependencies", {}).get("dependencies_by_type", {})
+        if not upstream_dependencies_by_type:
+            continue
+        # Check if any of the dependencies match the filters
+        for dep_type in upstream_dependencies_by_type.keys():
+            if dep_type in converted_filter and len(upstream_dependencies_by_type[dep_type]) > 0:
+                final_nodes.add(node_id)
+                break
+
+    print(f"Filtering nodes by types {getattr(args, 'filters', [])} resulted in {len(final_nodes)} nodes to run")
+    print(final_nodes)
+
+    return list(final_nodes)

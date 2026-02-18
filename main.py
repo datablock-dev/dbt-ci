@@ -100,7 +100,7 @@ def init_cmd(**kwargs):
     ], case_sensitive=False),
     multiple=True,
     default=None,
-    help="Extra filters to apply for tests, dbt-lineage run -m tests -f snapshots to run modified models and their snapshot dependencies only"
+    help="Extra filters to apply for tests, dbt-lineage run -m tests -f snapshots to run tests that has a snapshot dependency"
 )
 #@click.option( # Not yet implemented
 #    "--levels",
