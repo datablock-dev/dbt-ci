@@ -44,6 +44,39 @@ class DBTProfileConfig(BaseModel):
     target: str
     outputs: Dict[str, DBTProfile]
 
+class DBTProject(BaseModel):
+    """Structure of a dbt_project.yml file."""
+    model_config = ConfigDict(
+        protected_namespaces=(),
+        extra="allow"
+    )
+    
+    name: str
+    version: str
+    profile: str
+    config_version: Optional[int] = Field(default=2, alias="config-version")
+    model_paths: Optional[List[str]] = Field(default_factory=lambda: ["models"], alias="model-paths")
+    seed_paths: Optional[List[str]] = Field(default_factory=lambda: ["seeds"], alias="seed-paths")
+    test_paths: Optional[List[str]] = Field(default_factory=lambda: ["tests"], alias="test-paths")
+    analysis_paths: Optional[List[str]] = Field(default_factory=lambda: ["analyses"], alias="analysis-paths")
+    macro_paths: Optional[List[str]] = Field(default_factory=lambda: ["macros"], alias="macro-paths")
+    snapshot_paths: Optional[List[str]] = Field(default_factory=lambda: ["snapshots"], alias="snapshot-paths")
+    target_path: Optional[str] = Field(default="target", alias="target-path")
+    clean_targets: Optional[List[str]] = Field(default_factory=lambda: ["target", "dbt_packages"], alias="clean-targets")
+    log_path: Optional[str] = Field(default="logs", alias="log-path")
+    packages_install_path: Optional[str] = Field(default="dbt_packages", alias="packages-install-path")
+    quoting: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    models: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    seeds: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    snapshots: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    sources: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    tests: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    vars: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    on_run_start: Optional[List[str]] = Field(default_factory=list, alias="on-run-start")
+    on_run_end: Optional[List[str]] = Field(default_factory=list, alias="on-run-end")
+    dispatch: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    require_dbt_version: Optional[str] = Field(default=None, alias="require-dbt-version")
+
 class Quoting(BaseModel):
     """Quoting configuration."""
     database: Optional[bool] = None

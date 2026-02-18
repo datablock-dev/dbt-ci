@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 import yaml
 import json
-from src.schema import DBTManifest, DBTProfile
+from src.schema import DBTManifest, DBTProfile, DBTProject
 
 def get_dir_name_from_path(path: str) -> str:
     """Get the directory name from a given path."""
@@ -65,10 +65,11 @@ def get_reference_manifest_file(reference_state_dir: str) -> DBTManifest:
     with open(file, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-def get_dbt_project_file(dbt_project_dir: str) -> dict:
+def get_dbt_project_file(dbt_project_dir: str) -> DBTProject:
     """
-    Get the path to the dbt_project.yml file in the specified directory.
-    Raises a FileNotFoundError if the file does not exist.
+    Get the dbt_project.yml file from the specified directory.
+    Validates the file conforms to the DBTProject structure.
+    Raises a SystemExit if the file does not exist or is invalid.
     """
     file = os.path.join(dbt_project_dir, "dbt_project.yml")
     if not os.path.isfile(file):
@@ -76,7 +77,12 @@ def get_dbt_project_file(dbt_project_dir: str) -> dict:
         sys.exit(1)
     
     with open(file, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
+        data = yaml.safe_load(f)
+        try:
+            return DBTProject(**data)
+        except Exception as e:
+            print(f"dbt_project.yml at {file} does not conform to expected structure: {e}")
+            sys.exit(1)
 
 def get_profiles_file(dbt_project_dir: str, profiles_dir: str | None = None):
     """
