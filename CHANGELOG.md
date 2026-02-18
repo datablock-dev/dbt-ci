@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v1.2.0 (2026-02-18)
+
+### Features
+
+- Enhance filter functionality for test mode in run command
+  ([#12](https://github.com/datablock-dev/dbt-ci/pull/12),
+  [`0eecabd`](https://github.com/datablock-dev/dbt-ci/commit/0eecabdb79ee80c824ca05cd0b178c7534f5f778))
+
+Co-authored-by: Patrick Tannoury <patrick.tannoury@kivra.com>
+
+
 ## v1.1.0 (2026-02-18)
 
 ### Bug Fixes
@@ -14,6 +25,9 @@ Co-authored-by: Patrick Tannoury <patrick.tannoury@kivra.com>
   ([`00808ef`](https://github.com/datablock-dev/dbt-ci/commit/00808efd88a9855e1964697ab2fff155e1bd2150))
 
 ### Chores
+
+- **release**: 1.1.0 [skip ci]
+  ([`d236ced`](https://github.com/datablock-dev/dbt-ci/commit/d236ced89cdbba361cb553c747035d5dff46907f))
 
 - Enhance CI/CD workflows for automatic releases and multi-version support
   ([`02b0b98`](https://github.com/datablock-dev/dbt-ci/commit/02b0b98fa1bdeff56b3ea584ffa6d6c46e0e1b42))
