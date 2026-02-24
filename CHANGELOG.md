@@ -1,7 +1,42 @@
 # CHANGELOG
 
 
+## v1.2.1 (2026-02-24)
+
+### Bug Fixes
+
+- Slack-sdk, logging & summary ([#13](https://github.com/datablock-dev/dbt-ci/pull/13),
+  [`893b299`](https://github.com/datablock-dev/dbt-ci/commit/893b299e8bef524b9102df57db84991dcd39fbef))
+
+* feat: Refactor Slack client initialization and message sending logic
+
+* Refactor code to use built-in `dict` type annotations and improve logging for initialization and
+  migration processes
+
+- Updated type annotations from `Dict` and `List` to built-in `dict` and `list` for consistency and
+  clarity across multiple files. - Introduced `init_summary` function in `init.py` to encapsulate
+  the summary generation logic, including migration and ephemeral plans. - Enhanced logging to
+  provide detailed summaries of state changes, migration plans, and ephemeral plans during
+  initialization. - Refactored migration logic in `migration.py` to utilize the new
+  `generate_migration_map` function for improved readability and maintainability. - Added a new
+  settings file for VSCode to streamline development environment setup.
+
+* fix: Update Slack webhook URL retrieval to use getattr for better error handling
+
+* feat: Enhance test coverage by adding logger patches and improving error handling in delete and
+  ephemeral command tests
+
+---------
+
+Co-authored-by: Patrick Tannoury <patrick.tannoury@kivra.com>
+
+
 ## v1.2.0 (2026-02-18)
+
+### Chores
+
+- **release**: 1.2.0 [skip ci]
+  ([`8a8ef8e`](https://github.com/datablock-dev/dbt-ci/commit/8a8ef8e15251703248f873c87f21b8228ce7e10c))
 
 ### Features
 
