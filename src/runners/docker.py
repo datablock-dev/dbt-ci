@@ -8,7 +8,7 @@ from typing import List
 from src.schema import RunnerConfig
 from src.utilities.paths import get_absolute_path
 
-def docker_runner(commands: List[str], runner_config: RunnerConfig) -> CompletedProcess | None:
+def docker_runner(commands: list[str], runner_config: RunnerConfig) -> CompletedProcess | None:
     """
     Execute dbt commands inside a Docker container.
     

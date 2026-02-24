@@ -4,10 +4,10 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Any, List
 
 def run_multithreaded(
-    func_list: List[Callable[..., Any]],
+    func_list: list[Callable[..., Any]],
     threads: int = 4,
     exit_on_exception: bool = False
-) -> List[Any]:
+) -> list[Any]:
     """
     Run a list of functions concurrently using multithreading.
 

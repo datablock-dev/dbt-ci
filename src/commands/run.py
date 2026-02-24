@@ -101,8 +101,8 @@ def run_with_mode(
     mode: RunModes,
     args: Namespace,
     target_graph: DbtGraph,
-    changed_nodes_dict: Dict[str, List[str]],
-    changed_nodes: List[str]
+    changed_nodes_dict: dict[str, list[str]],
+    changed_nodes: list[str]
 ):
     """Run modified nodes with specific dbt command based on mode"""
     try:
@@ -203,8 +203,8 @@ def test_additional_filter(
     dependency_graph: DependencyGraph,
     node_type: DependencyGraphNodeType,
     args: Namespace,
-    node_ids: List[str]
-) -> List[str] | None:
+    node_ids: list[str]
+) -> list[str] | None:
     """Apply additional filters to the list of node IDs based on user input."""
     converted_filter = [NODE_TYPE_COMMAND_MAPPING[f] for f in getattr(args, "filters", [])]
     final_nodes: Set[str] = set()
