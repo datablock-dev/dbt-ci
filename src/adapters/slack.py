@@ -7,7 +7,7 @@ class SlackClient:
 
     def __init__(self, args: Namespace):
         self.args = args
-        self.slack_webhook_url = args.slack_webhook
+        self.slack_webhook_url = getattr(args, 'slack_webhook', None)
         
         if not self.slack_webhook_url:
             print("Slack webhook URL not provided in args or environment variables.")

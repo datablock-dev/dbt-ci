@@ -160,13 +160,13 @@ def clone_tables(
         click.echo(
             f"\n  - Cloning '{table_ids['reference_table_id']}' to '{table_ids['ephemeral_table_id']}' for node '{node_name}'")
 
-    query = f"""
-    CREATE OR REPLACE TABLE `{table_ids['ephemeral_table_id']} 
-    CLONE `{table_ids['reference_table_id']}`
-    """
-
     func_list = [
-        lambda table_ids=table_ids: bigquery_query(client, query)
+        lambda table_ids=table_ids: bigquery_query(client=client, 
+        query=f"""
+            CREATE OR REPLACE TABLE `{table_ids['ephemeral_table_id']} 
+            CLONE `{table_ids['reference_table_id']}`
+            """
+        )
         for table_ids in clone_map.values()
     ]
     run_multithreaded(
