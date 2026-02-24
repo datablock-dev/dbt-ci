@@ -3,17 +3,20 @@ import os
 from argparse import Namespace
 from slack_sdk.webhook import WebhookClient
 
-def slack_client(args: Namespace) -> WebhookClient | None:
-    """Initialize Slack client using configuration from args."""
-    slack_webhook_url = None
+class SlackClient:
+    """Wrapper around Slack WebhookClient for sending notifications."""
 
-    if args.slack_webhook:
-        slack_webhook_url = args.slack_webhook
-    elif os.getenv("SLACK_WEBHOOK_URL"):
-        slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
-    elif os.getenv("SLACK_WEBHOOK"):
-        slack_webhook_url = os.getenv("SLACK_WEBHOOK")
+    def __init__(self, args: Namespace):
+        self.args = args
+        self.slack_webhook_url = args.slack_webhook
+        
+        if not self.slack_webhook_url:
+            raise ValueError("Slack webhook URL not provided in args or environment variables.")
+        
+        self.webhook_client = WebhookClient(self.slack_webhook_url)
 
-    if slack_webhook_url:
-        return WebhookClient(slack_webhook_url)
-    return None
+    def send_message(self, message: str) -> None:
+        """Send a message to Slack."""
+        response = self.webhook_client.send(text=message)
+        if response.status_code != 200:
+            raise Exception(f"Failed to send message to Slack: {response.status_code} - {response.body}")

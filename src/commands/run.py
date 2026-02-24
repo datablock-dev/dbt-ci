@@ -20,11 +20,9 @@ from src.schema import (
     REVERSE_MODE_MAPPING
 )
 from src.utilities.graph_utils import (
-    filter_node_ids_by_multiple_types,
     filter_node_ids_by_type,
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes,
-    get_upstream_dependencies
 )
 
 logger = logging.getLogger(__name__)
