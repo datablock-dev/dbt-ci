@@ -7,11 +7,13 @@ import sys
 import logging
 from pathlib import Path
 from argparse import Namespace
-from typing import Tuple
 import click
+from src.adapters.slack import SlackClient
+from src.commands.ephemeral import generate_ephemeral_map
+from src.commands.migration import generate_migration_map
 from src.dependency_graph import DbtGraph
 from src.cache import CacheManager
-from src.schema import RunnerConfig, StorageConnectorConfig
+from src.schema import DependencyGraphNode, RunnerConfig, StorageConnectorConfig
 from src.logging import print_exception
 from src.connectors import init_storage_connector
 from src.utilities.paths import get_manifest_file, get_reference_manifest_file
@@ -115,19 +117,10 @@ def init(args: Namespace):
             cache.write_cache(target_manifest_file, "reference_manifest.json")
             cache.write_cache(target_manifest_file, "target_manifest.json")
 
-        logger.info("\n------------------------------------------------------")
-        logger.info("State Change Summary:")
-        for change_type, values in state_change_summary.items():
-            if values is None or len(values) == 0:
-                logger.info(f"\n{change_type.replace('_', ' ').title()}: 0")
-                continue
-
-            total_count = sum(len(node_dict) for node_dict in values.values())
-            logger.info(f"\n{change_type.replace('_', ' ').title()}: {total_count}")
-            for node_dict in values.values():
-                for node in node_dict.values():
-                    logger.info(f"  • {node['name']} ({node['resource_type']})")
-        logger.info("------------------------------------------------------\n")
+        # Will generate summary and output it in the logs. It also covers:
+        # 1. Migration plan for partitioning changes
+        # 2. Ephemeral plan
+        init_summary(state_change_summary, args, cache)
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
@@ -152,8 +145,77 @@ def init(args: Namespace):
         print_exception(e, "Error during initialization")
         sys.exit(1)
 
+def init_summary(
+    state_change_summary: dict[str, dict[str, list[DependencyGraphNode]] | None],
+    args: Namespace,
+    cache: CacheManager
+):
+    """
+        The following method will call the following steps to generate a summary of changes,
+        but also migration, ephemeral:
+        1. Generate summary of modified, deleted, and new nodes with their resource types
+        2. Generate migration plan for modified nodes with partitioning changes
+        3. Generate ephemeral plan for modified nodes with non-partitioning changes
+    """
+    slack = SlackClient()
+    migration_map = generate_migration_map(args, cache)
+    ephemeral_map = generate_ephemeral_map(args, cache)
+
+    logger.info("\n------------------------------------------------------")
+    logger.info("State Change Summary:")
+    for change_type, values in state_change_summary.items():
+        if values is None or len(values) == 0:
+            logger.info(f"\n{change_type.replace('_', ' ').title()}: 0")
+            continue
+
+        total_count = sum(len(node_dict) for node_dict in values.values())
+        logger.info(f"\n{change_type.replace('_', ' ').title()}: {total_count}")
+        for node_dict in values.values():
+            for node in node_dict.values():
+                logger.info(f"  • {node['name']} ({node['resource_type']})")
+    logger.info("\n------------------------------------------------------")
+    logger.info("Ephemeral Plan:")
+    if len(ephemeral_map) == 0:
+        logger.info("No non-partitioning changes detected that require an ephemeral environment.")
+    else:
+        for node_id, node_info in ephemeral_map.items():
+            target_table_id = f"{node_info['ephemeral_config']['database']}.{node_info['ephemeral_config']['schema']}.{node_info['ephemeral_config']['name']}" if node_info['ephemeral_config'] else "N/A"
+            reference_table_id = f"{node_info['reference_config']['database']}.{node_info['reference_config']['schema']}.{node_info['reference_config']['name']}" if node_info['reference_config'] else "N/A"
+
+            logger.info(f"Model: {node_id}")
+            logger.info(f"  - Ephemeral Target: {target_table_id}")
+            logger.info(f"  - Reference Target: {reference_table_id}")
+    logger.info("\n------------------------------------------------------")
+    logger.info("Migration Plan:")
+    if len(migration_map["nodes"]) == 0:
+        logger.info("No partitioning changes detected.")
+    else:
+        for node_id, node_info in migration_map["nodes"].items():
+            logger.info(f"Model: {node_id}")
+            logger.info(f"  - Table ID: {node_info['table_id']}")
+            logger.info(f"  - Old Partitioning: {node_info['old_partitioning']}")
+            logger.info(f"  - New Partitioning: {node_info['new_partitioning']}")
+    logger.info("------------------------------------------------------\n")
+
+    try:
+        header = "*DBT CI Initialization Summary:*\n\n"
+
+        message = "*State Change Summary:*\n"
+        message += json.dumps(state_change_summary, indent=2)
+        message += "\n\n"
+
+        message += "*Migration Plan:*\n"
+        message += json.dumps(migration_map, indent=2)
+        message += "\n\n"
+
+        message += "*Ephemeral Plan:*\n"
+        message += json.dumps(ephemeral_map, indent=2)
+        slack.send_message(header, message)
+    except Exception as e:
+        logger.error(f"Failed to send Slack message: {e}")
+
 def resolve_manifest_file_from_storage(
-    resolved_storage: Tuple[StorageConnectorConfig, str],
+    resolved_storage: tuple[StorageConnectorConfig, str],
     args: Namespace
 ) -> Path:
     """Download manifest file from storage and save to local path for graph generation.

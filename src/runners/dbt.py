@@ -10,7 +10,7 @@ from src.schema import RunnerConfig
 logger = logging.getLogger(__name__)
 
 def dbt_runner(
-    commands: List[str],
+    commands: list[str],
     runner_config: RunnerConfig
 ) -> CompletedProcess | None:
     """Execute dbt commands through dbtRunner (Python API).

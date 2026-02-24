@@ -66,11 +66,11 @@ def bigquery_query(client: bigquery.Client, query: str):
 
 
 def bigquery_ephemeral_strategy(
-    ephemeral_map: Dict[str, EphemeralMapNode],
+    ephemeral_map: dict[str, EphemeralMapNode],
     args: Namespace
 ) -> None:
     """Strategy for handling ephemeral run towards BigQuery."""
-    def get_full_config(config: EphemeralMapNode | None) -> Tuple[str | None, str | None, str | None]:
+    def get_full_config(config: EphemeralMapNode | None) -> tuple[str | None, str | None, str | None]:
         """Extract (database, schema, name) from a config dict."""
         if config is None:
             return None, None, None
@@ -84,7 +84,7 @@ def bigquery_ephemeral_strategy(
 
         datasets_to_create: Set[str] = set()
         # Stored as {node_name: {"ephemeral_table_id": str, "reference_table_id": str }}
-        clone_map: Dict[str, Dict[str, str]] = {}
+        clone_map: dict[str, dict[str, str]] = {}
         for node_metadata in ephemeral_map.values():
             if node_metadata["ephemeral_config"] is None or node_metadata["reference_config"] is None:
                 click.echo(
@@ -151,7 +151,7 @@ def create_dataset(client: bigquery.Client, dataset_id: str) -> None:
 
 def clone_tables(
     client: bigquery.Client,
-    clone_map: Dict[str, Dict[str, str]],
+    clone_map: dict[str, dict[str, str]],
     threads: int = 5
 ) -> None:
     """Clone reference tables to ephemeral tables in BigQuery."""
@@ -160,13 +160,13 @@ def clone_tables(
         click.echo(
             f"\n  - Cloning '{table_ids['reference_table_id']}' to '{table_ids['ephemeral_table_id']}' for node '{node_name}'")
 
-    query = f"""
-    CREATE OR REPLACE TABLE `{table_ids['ephemeral_table_id']} 
-    CLONE `{table_ids['reference_table_id']}`
-    """
-
     func_list = [
-        lambda table_ids=table_ids: bigquery_query(client, query)
+        lambda table_ids=table_ids: bigquery_query(client=client, 
+        query=f"""
+            CREATE OR REPLACE TABLE `{table_ids['ephemeral_table_id']} 
+            CLONE `{table_ids['reference_table_id']}`
+            """
+        )
         for table_ids in clone_map.values()
     ]
     run_multithreaded(
@@ -176,7 +176,7 @@ def clone_tables(
     )
 
 
-def bigquery_delete_strategy(delete_map: Dict[str, DeleteMapNode], args: Namespace) -> None:
+def bigquery_delete_strategy(delete_map: dict[str, DeleteMapNode], args: Namespace) -> None:
     """Strategy for handling deletes towards BigQuery."""
     client = bigquery_client(args)
 
@@ -300,7 +300,7 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
         sys.exit(1)
 
 
-def render_bigquery_partition_clause(partition_by: Dict[str, Any]) -> str:
+def render_bigquery_partition_clause(partition_by: dict[str, Any]) -> str:
     """
     Render a BigQuery PARTITION BY clause from dbt-style partition_by config.
 

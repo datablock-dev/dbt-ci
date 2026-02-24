@@ -12,7 +12,7 @@ from src.schema import RunnerConfig
 logger = logging.getLogger(__name__)
 
 def bash_runner(
-    commands: List[str],
+    commands: list[str],
     runner_config: RunnerConfig
 ) -> CompletedProcess | None:
     """

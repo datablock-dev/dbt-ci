@@ -72,8 +72,10 @@ class TestInitCommand:
     @patch('src.commands.init.get_deleted_nodes')
     @patch('src.commands.init.get_new_nodes')
     @patch('src.commands.init.click.secho')
+    @patch('src.commands.init.init_summary')
     def test_init_success_with_modified_nodes(
         self,
+        mock_init_summary,
         mock_secho,
         mock_get_new,
         mock_get_deleted,

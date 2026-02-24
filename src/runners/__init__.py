@@ -12,7 +12,7 @@ from src.runners.docker import docker_runner
 from src.runners.bash import bash_runner
 from src.utilities.paths import get_absolute_path
 
-RUNNERS: Dict[Runners, Callable[[List[str], RunnerConfig], subprocess.CompletedProcess | None]] = {
+RUNNERS: dict[Runners, Callable[[list[str], RunnerConfig], subprocess.CompletedProcess | None]] = {
     "local": local_runner,
     "dbt": dbt_runner,
     "docker": docker_runner,
@@ -20,7 +20,7 @@ RUNNERS: Dict[Runners, Callable[[List[str], RunnerConfig], subprocess.CompletedP
 }
 
 def run_dbt_command(
-    command_args: List[str],
+    command_args: list[str],
     runner_config: RunnerConfig
 ) -> subprocess.CompletedProcess | None:
     """
@@ -122,10 +122,10 @@ def adapter_exists(adapter: str) -> bool:
         return False
 
 def append_dbt_variables_to_command(
-    command_args: List[str],
+    command_args: list[str],
     args: Namespace,
     skip_target: bool = False,
-) -> List[str]:
+) -> list[str]:
     """Append dbt variables to command arguments."""
     commands = command_args.copy()
     dbt_variables = {
@@ -149,10 +149,10 @@ def append_dbt_variables_to_command(
 
 # To replace append_dbt_variables_to_command
 def resolve_dbt_commands(
-    command_args: List[str],
+    command_args: list[str],
     args: Namespace,
-    ignore_keys: List[str] | None = None,
-) -> List[str]:
+    ignore_keys: list[str] | None = None,
+) -> list[str]:
     """Resolve dbt command arguments"""
     commands = command_args.copy()
     runner = getattr(args, "runner", None)

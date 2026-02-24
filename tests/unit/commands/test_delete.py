@@ -12,10 +12,14 @@ class TestDeleteCommand:
     @patch('src.commands.delete.DbtGraph')
     @patch('src.commands.delete.CacheManager')
     @patch('src.commands.delete.click.secho')
+    @patch('src.commands.delete.sys.exit')
+    @patch('src.commands.delete.logger')
     @patch('src.commands.delete.click.echo')
     def test_delete_no_cache(
         self,
         mock_echo,
+        mock_logger,
+        mock_exit,
         mock_secho,
         mock_cache,
         mock_graph,
@@ -42,7 +46,7 @@ class TestDeleteCommand:
         delete(args)
         
         # Verify message was shown
-        mock_echo.assert_called_with(
+        mock_logger.info.assert_any_call(
             "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
         )
     
@@ -52,10 +56,14 @@ class TestDeleteCommand:
     @patch('src.commands.delete.get_connector')
     @patch('src.commands.delete.get_node_ids_from_structured_nodes')
     @patch('src.commands.delete.click.secho')
+    @patch('src.commands.delete.sys.exit')
+    @patch('src.commands.delete.logger')
     @patch('src.commands.delete.click.echo')
     def test_delete_no_deleted_nodes(
         self,
         mock_echo,
+        mock_logger,
+        mock_exit,
         mock_secho,
         mock_get_nodes,
         mock_get_connector,
@@ -81,7 +89,7 @@ class TestDeleteCommand:
         delete(args)
         
         # Verify appropriate message was shown
-        mock_echo.assert_any_call("No deleted nodes found in cache, skipping...")
+        mock_logger.info.assert_any_call("No deleted nodes found in cache, skipping...")
     
     @patch('src.commands.delete.get_profile')
     @patch('src.commands.delete.CacheManager')
@@ -159,8 +167,10 @@ class TestDeleteCommand:
     @patch('src.commands.delete.click.secho')
     @patch('src.commands.delete.click.echo')
     @patch('src.commands.delete.sys.exit')
+    @patch('src.commands.delete.logger')
     def test_delete_dry_run(
         self,
+        mock_logger,
         mock_exit,
         mock_echo,
         mock_secho,
@@ -205,7 +215,7 @@ class TestDeleteCommand:
         delete(args)
         
         # Verify dry run message was shown
-        mock_echo.assert_any_call("Dry run mode enabled - no actual deletions will be performed.")
+        mock_logger.info.assert_any_call("Dry run mode enabled - no actual deletions will be performed.")
     
     @patch('src.commands.delete.get_profile')
     @patch('src.commands.delete.CacheManager')

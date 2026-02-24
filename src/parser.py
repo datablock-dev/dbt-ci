@@ -55,7 +55,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
         compiled_code = full_item.get("compiled_code", None)
         original_file_path = full_item.get("original_file_path", None)
 
-        node_type_map: Dict[str, set] = {
+        node_type_map: dict[str, set] = {
             "model": set(),
             "macro": set(),
             "seed": set(),
@@ -125,7 +125,7 @@ def append_depends_on_nodes(
     dependency_graph: DependencyGraph,
     node_type: DependencyGraphNodeType,
     name: str,
-    dependencies: Dict[DependencyGraphNodeType, List[str]], 
+    dependencies: dict[DependencyGraphNodeType, list[str]], 
     manifest_file: DBTManifest
 ) -> None:
     """Append dependencies from the "depends_on" section of the manifest file to the dependency graph."""

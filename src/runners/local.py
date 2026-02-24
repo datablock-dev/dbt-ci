@@ -10,7 +10,7 @@ from src.schema import RunnerConfig
 
 logger = logging.getLogger(__name__)
 
-def local_runner(commands: List[str], runner_config: RunnerConfig) -> CompletedProcess | None:
+def local_runner(commands: list[str], runner_config: RunnerConfig) -> CompletedProcess | None:
     """Execute dbt commands locally."""
     setup_logging(runner_config.get('log_level', 'INFO'))
     full_command = [*([runner_config.get('entrypoint')] if runner_config.get('entrypoint') else []), *commands]

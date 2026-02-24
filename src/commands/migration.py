@@ -2,12 +2,11 @@
 import sys
 import logging
 from argparse import Namespace
-from typing import Dict
 import click
 from src.cache import CacheManager
 from src.dependency_graph import DbtGraph
 from src.logging import print_exception
-from src.schema import DependencyGraphNode, MigrationMap
+from src.schema import MigrationMap
 from src.connectors import get_connector
 from src.utilities.graph_utils import (
     filter_node_ids_by_type,
@@ -33,36 +32,16 @@ def migration(args: Namespace):
         logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager()
         cache.start_report("migration", args)
-        target_graph = DbtGraph(args)
-        reference_graph = DbtGraph(args, is_production=True)
         connector_type = get_profile(args)["type"]
         migration_connector = get_connector(connector_type)["migration"]
 
         if migration_connector is None:
             logger.error(f"Connector '{connector_type}' does not support migration strategy, which is required for migration command.")
             sys.exit(1)
-        
-        # Look for cache
-        prev_cache = cache.get_cache()
-        if prev_cache is None: # Should we exit here instead of compiling?
-            logger.error("No cache found, please run 'model-lineage init' first to generate the necessary manifest files and cache for comparison.")
-            sys.exit(1)
-        logger.info("Cache successfully found - using cached state for comparison")
-
-        modified_nodes_dict = {
-            "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
-        }
-
-        selected_nodes = filter_node_ids_by_type(target_graph.to_dict(), modified_nodes_dict["modified_nodes"], ["model"])
-        if len(selected_nodes) == 0:
-            logger.info("No modified models found in cache, skipping...")
-            sys.exit(0)
-
-        target_nodes = get_nodes(target_graph.to_dict(), selected_nodes)
-        reference_nodes = get_nodes(reference_graph.to_dict(), selected_nodes)
 
         # Determine if there has been a change in clustering or partitioning configuration
-        migration_map = get_changed_partitioning(target_nodes, reference_nodes, connector_type)
+        migration_map = generate_migration_map(args, cache)
+
         if len(migration_map["nodes"]) == 0:
             logger.info("No partitioning changes detected between target and reference graphs.")
             sys.exit(0)
@@ -89,14 +68,35 @@ def migration(args: Namespace):
         print_exception(e)
         sys.exit(1)
 
-def get_changed_partitioning(
-    target_nodes: Dict[str, Dict[str, DependencyGraphNode]],
-    reference_nodes: Dict[str, Dict[str, DependencyGraphNode]],
-    connector: str = "bigquery"
+def generate_migration_map(
+    args: Namespace,
+    cache: CacheManager,
 ) -> MigrationMap:
     """Compare partitioning configurations between target and reference nodes and return a migration map."""
+    target_graph = DbtGraph(args)
+    reference_graph = DbtGraph(args, is_production=True)
+
+    # Look for cache
+    prev_cache = cache.get_cache()
+    if prev_cache is None: # Should we exit here instead of compiling?
+        logger.error("No cache found, please run 'model-lineage init' first to generate the necessary manifest files and cache for comparison.")
+        sys.exit(1)
+    logger.info("Cache successfully found - using cached state for comparison")
+
+    modified_nodes_dict = {
+        "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
+    }
+
+    selected_nodes = filter_node_ids_by_type(target_graph.to_dict(), modified_nodes_dict["modified_nodes"], ["model"])
+    if len(selected_nodes) == 0:
+        logger.info("No modified models found in cache, skipping...")
+        sys.exit(0)
+
+    target_nodes = get_nodes(target_graph.to_dict(), selected_nodes)
+    reference_nodes = get_nodes(reference_graph.to_dict(), selected_nodes)
+
     migration_map: MigrationMap = {
-        "connector": connector,
+        "connector": get_profile(args)["type"],
         "nodes": {}
     }
 

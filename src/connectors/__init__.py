@@ -20,7 +20,7 @@ from src.connectors.google.bigquery import (
     bigquery_migration_strategy
 )
 
-DB_CONNECTORS: Final[Dict[SupportedConnectors, ConnectorConfig]] = {
+DB_CONNECTORS: Final[dict[SupportedConnectors, ConnectorConfig]] = {
     "bigquery": {
         "client": bigquery_client,
         "ephemeral": bigquery_ephemeral_strategy,
@@ -29,12 +29,12 @@ DB_CONNECTORS: Final[Dict[SupportedConnectors, ConnectorConfig]] = {
     }
 }
 
-STORAGE_URI_PREFIXES: Final[Dict[str, str]] = {
+STORAGE_URI_PREFIXES: Final[dict[str, str]] = {
     "gs": "google",
     "s3": "aws"
 }
 
-STORAGE_CONNECTORS: Final[Dict[SupportedStorageConnectors, StorageConnectorConfig]] = {
+STORAGE_CONNECTORS: Final[dict[SupportedStorageConnectors, StorageConnectorConfig]] = {
     "aws": {
         "name": "AWS S3",
         "client": aws_storage_client,
@@ -49,7 +49,7 @@ STORAGE_CONNECTORS: Final[Dict[SupportedStorageConnectors, StorageConnectorConfi
     }
 }
 
-def init_storage_connector(uri: str | None) -> Tuple[StorageConnectorConfig, str] | None:
+def init_storage_connector(uri: str | None) -> tuple[StorageConnectorConfig, str] | None:
     """Resolve state manifest path with state URI if provided."""
     if uri is None:
         return None
@@ -66,7 +66,7 @@ def init_storage_connector(uri: str | None) -> Tuple[StorageConnectorConfig, str
 
     return storage_connector, uri
 
-def get_connector(connector: SupportedConnectors) -> ConnectorConfig | Dict[SupportedConnectors, ConnectorConfig]:
+def get_connector(connector: SupportedConnectors) -> ConnectorConfig | dict[SupportedConnectors, ConnectorConfig]:
     """Factory function to get the appropriate connector based on configuration."""
     if connector not in DB_CONNECTORS:
         print(f"Connector '{connector}' is not supported.")

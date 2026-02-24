@@ -1,6 +1,6 @@
 """TypedDict definitions for dbt manifest.json structure and CLI arguments."""
 from argparse import Namespace
-from typing import Callable, Dict, Any, List, Optional, TypedDict, NotRequired, Literal, Set
+from typing import Callable, Any, Optional, TypedDict, NotRequired, Literal, Set
 
 type LoggingLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 type Commands = Literal["init", "delete", "migrate", "ephemeral", "run", "finalize"]
@@ -16,7 +16,7 @@ class DBTProfile(TypedDict):
     priority: Optional[str]
     location: Optional[str]
     keyfile: Optional[str]
-    keyfile_json: Optional[Dict[str, Any]]
+    keyfile_json: Optional[dict[str, Any]]
     schema: Optional[str]
     database: Optional[str]
     warehouse: Optional[str]
@@ -35,7 +35,7 @@ class DBTProfile(TypedDict):
 class DBTProfileConfig(TypedDict):
     """Structure of a dbt profiles.yml profile."""
     target: str
-    outputs: Dict[str, DBTProfile]
+    outputs: dict[str, DBTProfile]
 
 class Quoting(TypedDict):
     """Quoting configuration."""
@@ -52,7 +52,7 @@ class Metadata(TypedDict):
     generated_at: str
     invocation_id: str
     invocation_started_at: str
-    env: Dict[str, Any]
+    env: dict[str, Any]
     project_name: str
     project_id: str
     user_id: str
@@ -90,25 +90,25 @@ class Config(TypedDict, total=False):
     alias: Optional[str]
     schema: Optional[str]
     database: Optional[str]
-    tags: List[str]
-    meta: Dict[str, Any]
+    tags: list[str]
+    meta: dict[str, Any]
     group: Optional[str]
     materialized: str
     incremental_strategy: Optional[str]
     batch_size: Optional[int]
     lookback: Optional[int]
     begin: Optional[str]
-    persist_docs: Dict[str, Any]
-    post_hook: List[Any]
-    pre_hook: List[Any]
-    quoting: Dict[str, Any]
-    column_types: Dict[str, Any]
+    persist_docs: dict[str, Any]
+    post_hook: list[Any]
+    pre_hook: list[Any]
+    quoting: dict[str, Any]
+    column_types: dict[str, Any]
     full_refresh: Optional[bool]
     unique_key: Optional[str]
     on_schema_change: str
     on_configuration_change: str
-    grants: Dict[str, Any]
-    packages: List[Any]
+    grants: dict[str, Any]
+    packages: list[Any]
     docs: Docs
     contract: Contract
     event_time: Optional[str]
@@ -116,8 +116,8 @@ class Config(TypedDict, total=False):
     access: str
     freshness: Optional[Any]
     # BigQuery-specific config options
-    partition_by: Optional[Dict[str, Any]]
-    cluster_by: Optional[List[str]]
+    partition_by: Optional[dict[str, Any]]
+    cluster_by: Optional[list[str]]
     # Snowflake-specific config options
     snowflake_warehouse: Optional[str]
     snowflake_role: Optional[str]
@@ -132,8 +132,8 @@ class Ref(TypedDict):
 
 class DependsOn(TypedDict):
     """Dependencies of a resource."""
-    macros: List[str]
-    nodes: List[str]
+    macros: list[str]
+    nodes: list[str]
 
 
 class Column(TypedDict, total=False):
@@ -141,10 +141,10 @@ class Column(TypedDict, total=False):
     name: str
     description: str
     data_type: Optional[str]
-    constraints: Optional[List[Any]]
-    meta: Dict[str, Any]
+    constraints: Optional[list[Any]]
+    meta: dict[str, Any]
     quote: Optional[bool]
-    tags: List[str]
+    tags: list[str]
 
 type NodeResourceType = Literal["model", "macro", "source", "seed", "snapshot", "test", "exposure"]
 
@@ -158,41 +158,41 @@ class Node(TypedDict, total=False):
     path: str
     original_file_path: str
     unique_id: str
-    fqn: List[str]
+    fqn: list[str]
     alias: str
     checksum: Checksum
     config: Config
-    tags: List[str]
+    tags: list[str]
     description: str
-    columns: Dict[str, Column]
-    meta: Dict[str, Any]
+    columns: dict[str, Column]
+    meta: dict[str, Any]
     group: Optional[str]
     docs: Docs
     patch_path: Optional[str]
     build_path: Optional[str]
-    unrendered_config: Dict[str, Any]
+    unrendered_config: dict[str, Any]
     created_at: float
     relation_name: str
     raw_code: str
-    doc_blocks: List[Any]
+    doc_blocks: list[Any]
     language: str
-    refs: List[Ref]
-    sources: List[Any]
-    metrics: List[Any]
-    functions: List[Any]
+    refs: list[Ref]
+    sources: list[Any]
+    metrics: list[Any]
+    functions: list[Any]
     depends_on: DependsOn
     compiled_path: Optional[str]
     compiled: bool
     compiled_code: Optional[str]
     extra_ctes_injected: bool
-    extra_ctes: List[Any]
+    extra_ctes: list[Any]
     contract: Contract
     access: str
-    constraints: List[Any]
+    constraints: list[Any]
     version: Optional[str]
     latest_version: Optional[str]
     deprecation_date: Optional[str]
-    primary_key: List[str]
+    primary_key: list[str]
     time_spine: Optional[Any]
 
 
@@ -206,12 +206,12 @@ class Macro(TypedDict, total=False):
     macro_sql: str
     depends_on: DependsOn
     description: str
-    meta: Dict[str, Any]
+    meta: dict[str, Any]
     docs: Docs
     patch_path: Optional[str]
-    arguments: List[Any]
+    arguments: list[Any]
     created_at: float
-    supported_languages: Optional[List[str]]
+    supported_languages: Optional[list[str]]
 
 
 class Source(TypedDict, total=False):
@@ -224,7 +224,7 @@ class Source(TypedDict, total=False):
     path: str
     original_file_path: str
     unique_id: str
-    fqn: List[str]
+    fqn: list[str]
     source_name: str
     source_description: str
     loader: str
@@ -234,13 +234,13 @@ class Source(TypedDict, total=False):
     freshness: Optional[Any]
     external: Optional[Any]
     description: str
-    columns: Dict[str, Column]
-    meta: Dict[str, Any]
-    source_meta: Dict[str, Any]
-    tags: List[str]
+    columns: dict[str, Column]
+    meta: dict[str, Any]
+    source_meta: dict[str, Any]
+    tags: list[str]
     config: Config
     patch_path: Optional[str]
-    unrendered_config: Dict[str, Any]
+    unrendered_config: dict[str, Any]
     relation_name: str
     created_at: float
 
@@ -248,22 +248,22 @@ class Source(TypedDict, total=False):
 class DBTManifest(TypedDict):
     """Complete dbt manifest.json structure."""
     metadata: Metadata
-    nodes: Dict[str, Node]
-    sources: Dict[str, Source]
-    macros: Dict[str, Macro]
-    docs: Dict[str, Any]
-    exposures: Dict[str, Any]
-    metrics: Dict[str, Any]
-    groups: Dict[str, Any]
-    selectors: Dict[str, Any]
-    disabled: Dict[str, Any]
-    parent_map: Dict[str, List[str]]
-    child_map: Dict[str, List[str]]
-    group_map: Dict[str, Any]
-    saved_queries: Dict[str, Any]
-    semantic_models: Dict[str, Any]
-    unit_tests: Dict[str, Any]
-    functions: Dict[str, Any]
+    nodes: dict[str, Node]
+    sources: dict[str, Source]
+    macros: dict[str, Macro]
+    docs: dict[str, Any]
+    exposures: dict[str, Any]
+    metrics: dict[str, Any]
+    groups: dict[str, Any]
+    selectors: dict[str, Any]
+    disabled: dict[str, Any]
+    parent_map: dict[str, list[str]]
+    child_map: dict[str, list[str]]
+    group_map: dict[str, Any]
+    saved_queries: dict[str, Any]
+    semantic_models: dict[str, Any]
+    unit_tests: dict[str, Any]
+    functions: dict[str, Any]
 
 
 class CLIArgs(TypedDict):
@@ -280,8 +280,8 @@ class CLIArgs(TypedDict):
     runner: Literal["local", "docker"]
     docker_image: str
     docker_platform: Optional[str]
-    docker_volumes: List[str]
-    docker_env: List[str]
+    docker_volumes: list[str]
+    docker_env: list[str]
     docker_network: str
     docker_user: Optional[str]
     docker_args: str
@@ -349,13 +349,13 @@ class DependencyGraphNode(TypedDict):
 class DependencyGraph(TypedDict):
     """Complete dependency graph for dbt resources."""
     metadata: Metadata
-    model: Dict[str, DependencyGraphNode]
-    macro: Dict[str, DependencyGraphNode]
-    seed: Dict[str, DependencyGraphNode]
-    snapshot: Dict[str, DependencyGraphNode]
-    source: Dict[str, DependencyGraphNode]
-    test: Dict[str, DependencyGraphNode]
-    exposure: Dict[str, DependencyGraphNode]
+    model: dict[str, DependencyGraphNode]
+    macro: dict[str, DependencyGraphNode]
+    seed: dict[str, DependencyGraphNode]
+    snapshot: dict[str, DependencyGraphNode]
+    source: dict[str, DependencyGraphNode]
+    test: dict[str, DependencyGraphNode]
+    exposure: dict[str, DependencyGraphNode]
 
 type Runners = Literal["local", "docker", "bash", "dbt"]
 
@@ -374,8 +374,8 @@ class RunnerConfig(TypedDict):
     # Docker-specific configuration
     docker_image: Optional[str]
     docker_platform: Optional[str]
-    docker_volumes: List[str]
-    docker_env: List[str]
+    docker_volumes: list[str]
+    docker_env: list[str]
     docker_network: str
     docker_user: Optional[str]
     docker_args: str
@@ -384,12 +384,12 @@ class RunnerConfig(TypedDict):
 
 class OptionsConfig(TypedDict):
     """Configuration mapping for CLI options."""
-    env_vars: List[str]
-    cli_flags: List[str]
+    env_vars: list[str]
+    cli_flags: list[str]
     required: bool
     default: Optional[Any]
     help: str
-    choices: Optional[List[Any]]
+    choices: Optional[list[Any]]
     resolve_value: Optional[Callable[..., Any]] # Explore this option for complex value resolution
 
 class NodeConfig(TypedDict):
@@ -419,16 +419,16 @@ type SupportedConnectorsEphemeralStrategy = Literal[
     "bigquery"
 ]
 
-type EphemeralConnectors = Dict[
+type EphemeralConnectors = dict[
     SupportedConnectorsEphemeralStrategy,
-    Callable[[Dict[str, EphemeralMapNode], Namespace], None]
+    Callable[[dict[str, EphemeralMapNode], Namespace], None]
 ]
 
 class ConnectorConfig(TypedDict):
     """Configuration for supported connectors."""
     client: Callable[..., Any]
-    ephemeral: Callable[[Dict[str, EphemeralMapNode], Namespace], None]
-    delete: Callable[[Dict[str, DeleteMapNode], Namespace], None]
+    ephemeral: Callable[[dict[str, EphemeralMapNode], Namespace], None]
+    delete: Callable[[dict[str, DeleteMapNode], Namespace], None]
     migration: Callable[..., Any] # Fix
 
 # Add better type definitions
@@ -443,7 +443,7 @@ class MigrationMapNodeEntry(TypedDict):
 class MigrationMap(TypedDict):
     """Structure for tracking table partitioning migrations."""
     connector: str
-    nodes: Dict[str, MigrationMapNodeEntry]
+    nodes: dict[str, MigrationMapNodeEntry]
 
 class StorageConnectorConfig(TypedDict):
     """Configuration for storage connectors."""
@@ -453,9 +453,9 @@ class StorageConnectorConfig(TypedDict):
     download: Callable[[str], DBTManifest]
 
 type SupportedStorageConnectors = Literal["google", "aws"]
-type StorageConnector = Dict[SupportedStorageConnectors, StorageConnectorConfig]
+type StorageConnector = dict[SupportedStorageConnectors, StorageConnectorConfig]
 
-MODE_MAPPING: Dict[RunModes, Optional[str]] = {
+MODE_MAPPING: dict[RunModes, Optional[str]] = {
     "all": None,
     "seeds": "seed",
     "models": "run",
@@ -463,9 +463,9 @@ MODE_MAPPING: Dict[RunModes, Optional[str]] = {
     "snapshots": "snapshot"
 }
 
-REVERSE_MODE_MAPPING: Dict[Optional[str], RunModes] = {v: k for k, v in MODE_MAPPING.items()}
+REVERSE_MODE_MAPPING: dict[Optional[str], RunModes] = {v: k for k, v in MODE_MAPPING.items()}
 
-NODE_TYPE_COMMAND_MAPPING: Dict[str, DependencyGraphNodeType] = {
+NODE_TYPE_COMMAND_MAPPING: dict[str, DependencyGraphNodeType] = {
     "models": "model",
     "macros": "macro",
     "seeds": "seed",

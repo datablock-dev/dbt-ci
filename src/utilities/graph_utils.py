@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 def get_deleted_nodes(
     target_dependency_graph: DependencyGraph,
     reference_dependency_graph: DependencyGraph
-) -> List[str] | None:
+) -> list[str] | None:
     """Get deleted nodes by comparing target and reference dependency graphs."""
     return get_diff_nodes(
         source_graph=target_dependency_graph,
@@ -24,7 +24,7 @@ def get_deleted_nodes(
 def get_new_nodes(
     target_dependency_graph: DependencyGraph,
     reference_dependency_graph: DependencyGraph
-) -> List[str] | None:
+) -> list[str] | None:
     """Get new nodes by comparing target and reference dependency graphs."""
     return get_diff_nodes(
         source_graph=reference_dependency_graph,
@@ -34,11 +34,11 @@ def get_new_nodes(
 def get_diff_nodes(
     source_graph: DependencyGraph,
     compare_graph: DependencyGraph,
-) -> List[str]:
+) -> list[str]:
     """
     Return node names that exist in source_graph but not in compare_graph.
     """
-    diff_nodes: List[str] = []
+    diff_nodes: list[str] = []
 
     for node_type, node_values in source_graph.items():
         if node_type == "metadata":
@@ -51,12 +51,12 @@ def get_diff_nodes(
 
     return diff_nodes
 
-def get_structured_modified_nodes(nodes: Dict[str, Dict[str, DependencyGraphNode]] | None) -> Dict[str, List[DependencyGraphNode]] | None:
+def get_structured_modified_nodes(nodes: dict[str, dict[str, DependencyGraphNode]] | None) -> dict[str, list[DependencyGraphNode]] | None:
     """Get modified nodes, structured by type"""
     if nodes is None or len(nodes) == 0:
         return None
 
-    structured_nodes: Dict[str, List[DependencyGraphNode]] = {}
+    structured_nodes: dict[str, list[DependencyGraphNode]] = {}
     for node_name, node_value in nodes.items():
         node_type = node_value.get("resource_type", None)
 
@@ -67,7 +67,7 @@ def get_structured_modified_nodes(nodes: Dict[str, Dict[str, DependencyGraphNode
 
     return structured_nodes
 
-def get_node(dependency_graph: DependencyGraph, node_id: str) -> Dict[str, DependencyGraphNode] | None:
+def get_node(dependency_graph: DependencyGraph, node_id: str) -> dict[str, DependencyGraphNode] | None:
     """Get a single node by ID, searching across all node types."""
     try:
         match = None
@@ -84,7 +84,7 @@ def get_node(dependency_graph: DependencyGraph, node_id: str) -> Dict[str, Depen
         print(f"Error retrieving node: {e}")
         return None
 
-def get_nodes(dependency_graph: DependencyGraph, node_ids: List[str] | None) -> Dict[str, Dict[str, DependencyGraphNode]] | None:
+def get_nodes(dependency_graph: DependencyGraph, node_ids: list[str] | None) -> dict[str, dict[str, DependencyGraphNode]] | None:
     """Get multiple nodes by ID, optionally filtered by type."""
     if node_ids is None or len(node_ids) == 0:
         return None
@@ -107,7 +107,7 @@ def get_nodes(dependency_graph: DependencyGraph, node_ids: List[str] | None) -> 
         print(f"Error retrieving nodes: {e}")
         return None
 
-def get_node_ids_from_structured_nodes(structured_nodes: Dict[str, DependencyGraph] | None) -> List[str] | None:
+def get_node_ids_from_structured_nodes(structured_nodes: dict[str, DependencyGraph] | None) -> list[str] | None:
     """Extract node IDs from structured nodes dictionary."""
     if structured_nodes is None or len(structured_nodes.keys()) == 0:
         return None
@@ -121,7 +121,7 @@ def get_node_ids_from_structured_nodes(structured_nodes: Dict[str, DependencyGra
 
 def get_downstream_dependencies(
     dependency_graph: DependencyGraph,
-    node_ids: List[str] | None,
+    node_ids: list[str] | None,
     node_type: Optional[DependencyGraphNodeType] = None,
     levels: int | None = None # To be implemented in the future
 ):
@@ -142,7 +142,7 @@ def get_downstream_dependencies(
         if node is None:
             continue
 
-        dependency_by_type: Dict[DependencyGraphNodeType, List[str]] = node[key]["dependencies_by_type"]
+        dependency_by_type: dict[DependencyGraphNodeType, list[str]] = node[key]["dependencies_by_type"]
         for dep_type, dep_names in dependency_by_type.items():
             if node_type and dep_type != node_type:
                 continue
@@ -155,9 +155,9 @@ def get_downstream_dependencies(
 
 def get_upstream_dependencies(
     dependency_graph: DependencyGraph,
-    node_ids: List[str] | None,
+    node_ids: list[str] | None,
     node_type: Optional[DependencyGraphNodeType] = None,
-    filters: Optional[List[DependencyGraphNodeType]] = None,
+    filters: Optional[list[DependencyGraphNodeType]] = None,
     levels: int | None = None # To be implemented in the future
 ) -> Set[str] | None:
     """Get upstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
@@ -170,7 +170,7 @@ def get_upstream_dependencies(
         if node is None:
             continue
 
-        dependency_by_type: Dict[DependencyGraphNodeType, List[str]] = node["upstream_dependencies"]["dependencies_by_type"]
+        dependency_by_type: dict[DependencyGraphNodeType, list[str]] = node["upstream_dependencies"]["dependencies_by_type"]
         for dep_type, dep_names in dependency_by_type.items():
             if node_type and dep_type != node_type:
                 continue
@@ -184,10 +184,10 @@ def get_upstream_dependencies(
     return upstream_dependencies
 
 def get_downstream_dependencies_from_cache(
-    cache: Dict[str, DependencyGraph] | None,
+    cache: dict[str, DependencyGraph] | None,
     node_type: Optional[DependencyGraphNodeType] = None,
     levels: int | None = None # To be implemented in the future
-) -> List[str] | None:
+) -> list[str] | None:
     """Get downstream dependencies for modified nodes from cache."""
     key = "indirect_downstream_dependencies"
     if cache is None:
@@ -209,9 +209,9 @@ def get_downstream_dependencies_from_cache(
 
 def filter_node_ids_by_type(
     dependency_graph: DependencyGraph,
-    node_ids: List[str],
+    node_ids: list[str],
     node_type: DependencyGraphNodeType
-) -> List[str]:
+) -> list[str]:
     """Filter a list of node IDs by type."""
     filtered_node_ids = []
     for node_id in node_ids:
@@ -222,9 +222,9 @@ def filter_node_ids_by_type(
 
 def filter_node_ids_by_multiple_types(
     dependency_graph: DependencyGraph,
-    node_ids: List[str],
-    node_types: List[DependencyGraphNodeType]
-) -> List[str]:
+    node_ids: list[str],
+    node_types: list[DependencyGraphNodeType]
+) -> list[str]:
     """Filter a list of node IDs by multiple types."""
     filtered_node_ids = []
     for node_id in node_ids:

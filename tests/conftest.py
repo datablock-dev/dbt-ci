@@ -1,8 +1,14 @@
 """pytest configuration and shared fixtures for dbt-ci tests."""
+import sys
+import os
 import pytest
 import tempfile
 import shutil
 from pathlib import Path
+
+# Ensure this project's src package takes priority over any editable
+# installs of other packages that also expose a `src` namespace.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 @pytest.fixture
