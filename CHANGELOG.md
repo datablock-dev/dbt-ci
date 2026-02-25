@@ -1,6 +1,23 @@
 # CHANGELOG
 
 
+## v1.2.2 (2026-02-25)
+
+### Bug Fixes
+
+- Update upstream dependency logic in generate_ephemeral_map function
+  ([#14](https://github.com/datablock-dev/dbt-ci/pull/14),
+  [`4820a08`](https://github.com/datablock-dev/dbt-ci/commit/4820a085fbf1f8c34a494ee07f72a03c998aa9e6))
+
+* fix: update upstream dependency logic in generate_ephemeral_map function
+
+* fix: remove target_type argument from get_upstream_dependencies in generate_ephemeral_map function
+
+---------
+
+Co-authored-by: Patrick Tannoury <patrick.tannoury@kivra.com>
+
+
 ## v1.2.1 (2026-02-24)
 
 ### Bug Fixes
@@ -29,6 +46,11 @@
 ---------
 
 Co-authored-by: Patrick Tannoury <patrick.tannoury@kivra.com>
+
+### Chores
+
+- **release**: 1.2.1 [skip ci]
+  ([`3acd559`](https://github.com/datablock-dev/dbt-ci/commit/3acd55958375698d61f1afacdd3bbe4f50eafec7))
 
 
 ## v1.2.0 (2026-02-18)
