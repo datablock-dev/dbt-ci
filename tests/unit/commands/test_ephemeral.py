@@ -88,6 +88,7 @@ class TestEphemeralCommand:
     @patch('src.commands.ephemeral.get_connector')
     @patch('src.commands.ephemeral.get_node_ids_from_structured_nodes')
     @patch('src.commands.ephemeral.get_nodes')
+    @patch('src.commands.ephemeral.get_upstream_dependencies')
     @patch('src.commands.ephemeral.get_downstream_dependencies')
     @patch('src.commands.ephemeral.click.secho')
     @patch('src.commands.ephemeral.click.echo')
@@ -98,6 +99,7 @@ class TestEphemeralCommand:
         mock_echo,
         mock_secho,
         mock_downstream,
+        mock_upstream,
         mock_get_nodes_util,
         mock_get_node_ids,
         mock_get_connector,
@@ -131,6 +133,7 @@ class TestEphemeralCommand:
         }
         
         mock_downstream.return_value = []
+        mock_upstream.return_value = []
         
         mock_graph_instance = MagicMock()
         mock_graph_instance.to_dict.return_value = {}
@@ -203,6 +206,7 @@ class TestEphemeralCommand:
     @patch('src.commands.ephemeral.get_connector')
     @patch('src.commands.ephemeral.get_node_ids_from_structured_nodes')
     @patch('src.commands.ephemeral.get_nodes')
+    @patch('src.commands.ephemeral.get_upstream_dependencies')
     @patch('src.commands.ephemeral.get_downstream_dependencies')
     @patch('src.commands.ephemeral.click.secho')
     @patch('src.commands.ephemeral.click.echo')
@@ -211,6 +215,7 @@ class TestEphemeralCommand:
         mock_echo,
         mock_secho,
         mock_downstream,
+        mock_upstream,
         mock_get_nodes_util,
         mock_get_node_ids,
         mock_get_connector,
@@ -241,6 +246,7 @@ class TestEphemeralCommand:
         }
         
         mock_downstream.return_value = []
+        mock_upstream.return_value = []
         
         mock_graph_instance = MagicMock()
         mock_graph.return_value = mock_graph_instance
