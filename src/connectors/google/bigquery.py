@@ -96,11 +96,16 @@ def bigquery_ephemeral_strategy(
             reference_database, reference_schema, reference_table = get_full_config(
                 node_metadata["reference_config"])
             dataset_id = f"{ephemeral_database}.{ephemeral_schema}"
-            datasets_to_create.add(dataset_id)
-            clone_map[node_metadata["name"]] = {
-                "ephemeral_table_id": f"{ephemeral_database}.{ephemeral_schema}.{ephemeral_table}",
-                "reference_table_id": f"{reference_database}.{reference_schema}.{reference_table}"
-            }
+
+            target_table_id = f"{ephemeral_database}.{ephemeral_schema}.{ephemeral_table}"
+            reference_table_id = f"{reference_database}.{reference_schema}.{reference_table}"
+
+            if target_table_id != reference_table_id:
+                datasets_to_create.add(dataset_id)
+                clone_map[node_metadata["name"]] = {
+                    "ephemeral_table_id": f"{ephemeral_database}.{ephemeral_schema}.{ephemeral_table}",
+                    "reference_table_id": f"{reference_database}.{reference_schema}.{reference_table}"
+                }
 
         click.echo("Running ephemeral strategy for BigQuery...")
         create_ephemeral_datasets(client, datasets_to_create, threads)
