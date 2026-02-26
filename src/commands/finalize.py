@@ -36,12 +36,13 @@ def finalize(args: Namespace):
             if resolved_storage is None:
                 logger.warning("No valid storage connector found for artifact upload. Skipping artifact upload.")
 
-            resolved_storage["upload"]("manifest.json", manifest_file)
+            storage_function = resolved_storage.get("upload")
+            storage_function("manifest.json", manifest_file)
             logger.info(f"Uploading manifest.json to {getattr(args, 'artifacts_uri', None)}...")
             # Upload manifest file to storage if artifacts_uri is provided
             if report is not None:
                 logger.info(f"Uploading report.json to {getattr(args, 'artifacts_uri', None)}...")
-                resolved_storage["upload"]("report.json", report)
+                storage_function("report.json", report)
                 # Upload report file to storage if artifacts_uri is provided
         else:
             if report is not None:
