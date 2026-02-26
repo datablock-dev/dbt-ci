@@ -141,7 +141,7 @@ def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, Ep
         dependency_graph=target_graph.to_dict(),
         node_types=["model", "snapshot"],
         node_ids=list(chain(
-            # 1. All modified nodes (models, snapshots, tests)
+            # 1. All modified nodes (models, snapshots)
             changed_nodes_dict["modified_nodes"],
             # 2. Upstream dependencies of modified models (first level, only models)
             get_upstream_dependencies(target_graph.to_dict(), changed_nodes, "model") or [],
