@@ -93,7 +93,7 @@ def init(args: Namespace):
 
         state_change_summary = {
             "modified_nodes": get_structured_modified_nodes(get_nodes(
-                dependency_graph=reference_graph_dict, 
+                dependency_graph=target_graph_dict, 
                 node_ids=modified_nodes
             )),
             "deleted_nodes": get_structured_modified_nodes(get_nodes(
