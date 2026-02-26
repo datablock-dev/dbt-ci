@@ -41,7 +41,6 @@ class TestDeleteCommand:
             reference_state='/dbt/.dbtstate',
             dry_run=False,
             runner='local',
-            target_config={'type': 'bigquery'}
         )
         delete(args)
         

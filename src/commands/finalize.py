@@ -5,8 +5,9 @@ from argparse import Namespace
 import click
 
 from src.cache import CacheManager
-from src.connectors import init_storage_connector
+from src.connectors import DB_CONNECTORS, get_connector, init_storage_connector
 from src.logging import print_exception
+from src.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ def finalize(args: Namespace):
             sys.exit(1)
 
         if getattr(args, "artifacts_uri", None):
-            resolved_storage = init_storage_connector(getattr(args, "artifacts_uri", None))
+            resolved_storage, _ = init_storage_connector(getattr(args, "artifacts_uri", None))
             if resolved_storage is None:
                 logger.warning("No valid storage connector found for artifact upload. Skipping artifact upload.")
 
@@ -47,9 +48,38 @@ def finalize(args: Namespace):
         else:
             if report is not None:
                 logger.info(report)
+
+        if getattr(args, "clean_ephemeral", False):
+            clean_up_ephemeral(args)
+
         cache.update_report("finalize", "completed", cache.get_cache())
         logger.info("Finalize complete.")
         sys.exit(0)
     except Exception as e:
         print_exception(e)
         sys.exit(1)
+
+def clean_up_ephemeral(args: Namespace, cache: CacheManager):
+    """Clean up any ephemeral tables or resources created during the ephemeral step."""
+    try:
+        logger.info("Cleaning up ephemeral environment...")
+        ephemeral_map = cache.get_cache("ephemeral_map.json")
+        profile = get_profile(args)
+        threads = profile.get("threads", 5)
+        connector_type = profile["type"]
+        connector = get_connector(connector_type)
+        delete_function = connector.get("delete")
+
+        # Ensure delete function exists for the connector type
+        if delete_function is None:
+            logger.warning(f"No delete function found for connector type '{connector_type}'. Skipping ephemeral cleanup.")
+            return
+
+        if ephemeral_map is None:
+            logger.warning("No ephemeral map found in cache to clean up. Skipping ephemeral cleanup.")
+            return
+        
+        
+    except Exception as e:
+        logger.error(f"An error occurred during ephemeral cleanup: {str(e)}")
+        return

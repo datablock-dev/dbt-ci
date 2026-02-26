@@ -2,7 +2,7 @@
 import sys
 import logging
 from argparse import Namespace
-from typing import Any, Dict, Set, Tuple
+from typing import Any, Set
 import click
 from google.cloud import bigquery
 from src.schema import DeleteMapNode, EphemeralMapNode, MigrationMap
@@ -80,7 +80,8 @@ def bigquery_ephemeral_strategy(
     # For this implementation, we will materialize them as CTEs to avoid unnecessary storage costs.
     try:
         client = bigquery_client(args)
-        threads = args.target_config.get("threads", 5)
+        profile = get_profile(args)
+        threads = profile.get("threads", 5)
 
         datasets_to_create: Set[str] = set()
         # Stored as {node_name: {"ephemeral_table_id": str, "reference_table_id": str }}
@@ -209,7 +210,8 @@ def bigquery_delete_strategy(delete_map: dict[str, DeleteMapNode], args: Namespa
     # For BigQuery, we will delete tables directly using the BigQuery client.
     # This function can be expanded to handle any pre-deletion logic if needed.
     try:
-        threads = args.target_config.get("threads", 5)
+        profile = get_profile(args)
+        threads = profile.get("threads", 5) if profile else 5
         funct_list = [
             lambda node_id=node_id, node_info=node_info: _delete(
                 node_info["table_id"])

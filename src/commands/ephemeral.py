@@ -83,6 +83,9 @@ def ephemeral(args: Namespace):
             sys.exit(0)
 
         ephemeral_connector(ephemeral_map, args)
+        
+        # Store cache (ephemeral map) for use in finalize step
+        cache.write_cache(ephemeral_map, "ephemeral_map.json")
         cache.update_report("ephemeral", "completed", comment=str(list(ephemeral_map.keys())))
         logger.info("Ephemeral strategy completed successfully.")
         logger.info("Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies.")

@@ -1,8 +1,7 @@
 """Init file for connectors module."""
-from argparse import Namespace
 import sys
-from typing import Dict, Final, Tuple
-from src.schema import ConnectorConfig, SupportedConnectors, StorageConnector, StorageConnectorConfig, SupportedStorageConnectors
+from typing import Final
+from src.schema import ConnectorConfig, SupportedConnectors, StorageConnectorConfig, SupportedStorageConnectors
 from src.connectors.aws.storage import (
     aws_download_json,
     aws_storage_client,
