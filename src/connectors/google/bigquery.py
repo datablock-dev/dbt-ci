@@ -109,7 +109,6 @@ def bigquery_ephemeral_strategy(
     except Exception as e:
         raise RuntimeError(f"Error in BigQuery ephemeral strategy: {e}")
 
-
 def create_ephemeral_datasets(
     client: bigquery.Client,
     datasets_to_create: set[str],
@@ -135,6 +134,34 @@ def create_ephemeral_datasets(
         exit_on_exception=True
     )
 
+def bigquery_create_datasets(
+    client: bigquery.Client,
+    datasets_to_create: set[str],
+    dry_run: bool = False,
+    threads: int = 5
+) -> None:
+    """Create datasets in BigQuery."""
+    if len(datasets_to_create) == 0:
+        click.echo("No datasets to create. Exiting dataset creation step.")
+        return
+    click.echo("Creating datasets in BigQuery:")
+    for dataset_id in datasets_to_create:
+        click.echo(f"\n  - {dataset_id}")
+
+    if dry_run:
+        click.echo("\nDry run mode enabled - no datasets will actually be created.")
+        return
+
+    # Pass to multi_thread module
+    func_list = [
+        lambda dataset_id=dataset_id: create_dataset(client, dataset_id)
+        for dataset_id in datasets_to_create
+    ]
+    run_multithreaded(
+        func_list=func_list,
+        threads=threads,
+        exit_on_exception=True
+    )
 
 def create_dataset(client: bigquery.Client, dataset_id: str) -> None:
     """Create a BigQuery dataset if it does not already exist."""
@@ -149,6 +176,42 @@ def create_dataset(client: bigquery.Client, dataset_id: str) -> None:
     except Exception as e:
         raise RuntimeError(f"Failed to create dataset '{dataset_id}': {e}")
 
+def bigquery_delete_datasets(
+    client: bigquery.Client,
+    datasets_to_delete: set[str],
+    dry_run: bool = False,
+    threads: int = 5
+) -> None:
+    """Delete datasets in BigQuery."""
+    if len(datasets_to_delete) == 0:
+        click.echo("No datasets to delete. Exiting dataset deletion step.")
+        return
+    click.echo("Deleting datasets in BigQuery:")
+    for dataset_id in datasets_to_delete:
+        click.echo(f"\n  - {dataset_id}")
+
+    if dry_run:
+        click.echo("\nDry run mode enabled - no datasets will actually be deleted.")
+        return
+
+    # Pass to multi_thread module
+    func_list = [
+        lambda dataset_id=dataset_id: delete_dataset(client, dataset_id)
+        for dataset_id in datasets_to_delete
+    ]
+    run_multithreaded(
+        func_list=func_list,
+        threads=threads,
+        exit_on_exception=True
+    )
+
+def delete_dataset(client: bigquery.Client, dataset_id: str) -> None:
+    """Delete a BigQuery dataset."""
+    try:
+        client.delete_dataset(dataset_id, delete_contents=True, not_found_ok=True)
+        click.echo(f"Dataset '{dataset_id}' deleted successfully.")
+    except Exception as e:
+        raise RuntimeError(f"Failed to delete dataset '{dataset_id}': {e}")
 
 def clone_tables(
     client: bigquery.Client,
@@ -179,54 +242,52 @@ def clone_tables(
 
 def bigquery_delete_strategy(delete_map: dict[str, DeleteMapNode], args: Namespace) -> None:
     """Strategy for handling deletes towards BigQuery."""
-    client = bigquery_client(args)
-
-    def _delete(table_id: str) -> None:
-        """
-        Delete a single BigQuery table and its dbt temporary table.
-
-        Args:
-            table_id: Full table identifier (project.dataset.table)
-            args: Namespace with dbt configuration (used to get BigQuery client)
-
-        Returns:
-            None
-
-        Note:
-            This function is designed to be called in parallel via multithreading.
-            Each invocation deletes one table independently.
-        """
-        tmp_table_id = f"{table_id}__dbt_tmp"
-
-        try:
-            client.delete_table(table_id, not_found_ok=True)
-            client.delete_table(tmp_table_id, not_found_ok=True)
-            click.echo(f"Deleted {table_id} from BigQuery")
-        except Exception as e:
-            click.echo(
-                f"Error deleting {table_id} from BigQuery: {e}", err=True)
-            raise
-
     # For BigQuery, we will delete tables directly using the BigQuery client.
     # This function can be expanded to handle any pre-deletion logic if needed.
     try:
+        client = bigquery_client(args)
         profile = get_profile(args)
         threads = profile.get("threads", 5) if profile else 5
-        funct_list = [
-            lambda node_id=node_id, node_info=node_info: _delete(
-                node_info["table_id"])
-            for node_id, node_info in delete_map.items()
-        ]
+        tables_to_delete: set[str] = set()
 
-        run_multithreaded(
-            func_list=funct_list,
-            threads=threads,
-            exit_on_exception=True
-        )
+        for node_metadata in delete_map.values():
+            table_id = node_metadata.get("table_id")
+            if table_id:
+                tables_to_delete.add(table_id)
+                tables_to_delete.add(f"{table_id}__dbt_tmp")  # Also delete the dbt temporary table if it exists
+
+        bigquery_delete_tables(client, tables_to_delete, getattr(args, "dry_run", False), threads)
     except Exception as e:
         logger.error(f"Error in BigQuery delete strategy: {e}")
         sys.exit(1)
 
+def bigquery_delete_tables(
+    client: bigquery.Client,
+    tables_to_delete: set[str],
+    dry_run: bool = False,
+    threads: int = 5
+) -> None:
+    """Delete tables in BigQuery."""
+    if len(tables_to_delete) == 0:
+        click.echo("No tables to delete. Exiting table deletion step.")
+        return
+    click.echo("Deleting tables in BigQuery:")
+    for table_id in tables_to_delete:
+        click.echo(f"\n  - {table_id}")
+
+    if dry_run:
+        click.echo("\nDry run mode enabled - no tables will actually be deleted.")
+        return
+
+    func_list = [
+        lambda table_id=table_id: delete_table(client, table_id)
+        for table_id in tables_to_delete
+    ]
+    run_multithreaded(
+        func_list=func_list,
+        threads=threads,
+        exit_on_exception=True
+    )
 
 def delete_table(table_id: str, args: Namespace) -> None:
     """
@@ -382,3 +443,41 @@ def render_bigquery_partition_clause(partition_by: dict[str, Any]) -> str:
     except Exception as e:
         print(f"Error rendering BigQuery partition clause: {e}")
         sys.exit(1)
+
+def bigquery_create_tables(
+    client: bigquery.Client,
+    tables_to_create: set[str],
+    dry_run: bool = False,
+    threads: int = 5
+) -> None:
+    """Create tables in BigQuery."""
+    if len(tables_to_create) == 0:
+        click.echo("No tables to create. Exiting table creation step.")
+        return
+    click.echo("Creating tables in BigQuery:")
+    for table_id in tables_to_create:
+        click.echo(f"\n  - {table_id}")
+
+    if dry_run:
+        click.echo("\nDry run mode enabled - no tables will actually be created.")
+        return
+
+    func_list = [
+        lambda table_id=table_id: create_table(client, table_id)
+        for table_id in tables_to_create
+    ]
+    run_multithreaded(
+        func_list=func_list,
+        threads=threads,
+        exit_on_exception=True
+    )
+
+def create_table(client: bigquery.Client, table_id: str) -> None:
+    """Create a BigQuery table."""
+    # This function can be implemented to create a single table in BigQuery if needed for the create strategy.
+    try:
+        table = bigquery.Table(table_id)
+        client.create_table(table, exists_ok=True)
+        click.echo(f"Table '{table_id}' created successfully.")
+    except Exception as e:
+        raise RuntimeError(f"Failed to create table '{table_id}': {e}")

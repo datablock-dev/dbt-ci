@@ -424,13 +424,31 @@ type EphemeralConnectors = dict[
     Callable[[dict[str, EphemeralMapNode], Namespace], None]
 ]
 
-class ConnectorConfig(TypedDict):
-    """Configuration for supported connectors."""
-    client: Callable[..., Any]
+class ConnectorStrategiesConfig(TypedDict):
+    """Configuration for supported connector strategies."""
     ephemeral: Callable[[dict[str, EphemeralMapNode], Namespace], None]
     delete: Callable[[dict[str, DeleteMapNode], Namespace], None]
     migration: Callable[..., Any] # Fix
 
+class ConnectorMethodsConfig(TypedDict):
+    """Configuration for supported connector methods."""
+    # We need to standardize the return type for query.
+    # Ideally, it should return a structured result with success status, error messages, and any relevant metadata.
+    query: Callable[[Any, str], None]
+    # Dataset methods
+    create_datasets: Callable[..., None]
+    delete_datasets: Callable[..., None]
+    # Table methods
+    create_tables: Callable[..., None]
+    delete_tables: Callable[..., None]
+    # Schema methods?
+
+
+class ConnectorConfig(TypedDict):
+    """Configuration for supported connectors."""
+    client: Callable[..., Any]
+    strategies: ConnectorStrategiesConfig
+    methods: ConnectorMethodsConfig
 # Add better type definitions
 class MigrationMapNodeEntry(TypedDict):
     """Entry for a node in the migration map."""

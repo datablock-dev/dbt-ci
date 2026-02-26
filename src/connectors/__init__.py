@@ -14,17 +14,31 @@ from src.connectors.google.storage import (
 )
 from src.connectors.google.bigquery import (
     bigquery_client,
+    bigquery_create_datasets,
+    bigquery_create_tables,
+    bigquery_delete_datasets,
+    bigquery_delete_tables,
     bigquery_ephemeral_strategy,
     bigquery_delete_strategy,
-    bigquery_migration_strategy
+    bigquery_migration_strategy,
+    bigquery_query
 )
 
 DB_CONNECTORS: Final[dict[SupportedConnectors, ConnectorConfig]] = {
     "bigquery": {
         "client": bigquery_client,
-        "ephemeral": bigquery_ephemeral_strategy,
-        "delete": bigquery_delete_strategy,
-        "migration": bigquery_migration_strategy
+        "strategies": {
+            "ephemeral": bigquery_ephemeral_strategy,
+            "delete": bigquery_delete_strategy,
+            "migration": bigquery_migration_strategy
+        },
+        "methods": {
+            "query": bigquery_query,
+            "create_datasets": bigquery_create_datasets,
+            "delete_datasets": bigquery_delete_datasets,
+            "create_tables": bigquery_create_tables,  # Implement create_tables method
+            "delete_tables": bigquery_delete_tables
+        }
     }
 }
 
