@@ -343,7 +343,7 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
                 """
             )
 
-        if args.dry_run:
+        if getattr(args, "dry_run", False):
             click.echo("Dry run mode enabled - no changes will be applied.")
             sys.exit(0)
 

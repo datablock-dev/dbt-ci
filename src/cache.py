@@ -51,7 +51,7 @@ class CacheManager:
                     "status": "started",
                     "started_at": datetime.now().isoformat(),
                     "variables": {
-                        "runner": args.runner,
+                        "runner": getattr(args, "runner", None),
                         "target": getattr(args, "target", None),
                         "reference_target": getattr(args, "reference_target", None),
                     }
@@ -62,7 +62,7 @@ class CacheManager:
                 "status": "started",
                 "started_at": datetime.now().isoformat(),
                 "variables": {
-                    "runner": args.runner,
+                    "runner": getattr(args, "runner", None),
                     "target": getattr(args, "target", None),
                     "reference_target": getattr(args, "reference_target", None),
                 }

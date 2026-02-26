@@ -52,7 +52,7 @@ def init(args: Namespace):
         if resolved_storage is not None:
             local_state_dir = resolve_manifest_file_from_storage(resolved_storage, args)
             # Update reference_state to use the local path where manifest was downloaded
-            args.reference_state = str(local_state_dir)
+            setattr(args, "reference_state", str(local_state_dir))
             # Reload reference manifest file after downloading from storage
             args.reference_manifest_file = get_reference_manifest_file(args.reference_state)
             cache.write_cache(get_reference_manifest_file(args.reference_state), "reference_manifest.json")
@@ -61,7 +61,7 @@ def init(args: Namespace):
             logger.warning("No reference target specified, using current target as reference state for comparison.")
         else:
             command.extend(["--target", reference_target])
-            command.extend(["--vars", args.reference_vars]) if args.reference_vars else None
+            command.extend(["--vars", getattr(args, "reference_vars", None)]) if getattr(args, "reference_vars", None) else None
 
         run_dbt_command(
             command_args=resolve_dbt_commands(command, args, ["vars", "target"]),  # Don't pass vars or target when compiling reference manifest
@@ -69,7 +69,7 @@ def init(args: Namespace):
         )
 
         logger.info("DBT project compiled successfully. manifest.json generated.")
-        target_manifest_file = get_manifest_file(args.dbt_project_dir)
+        target_manifest_file = get_manifest_file(getattr(args, "dbt_project_dir", None))
         target_graph = DbtGraph(args)
         reference_graph = DbtGraph(args, is_production=True)
 

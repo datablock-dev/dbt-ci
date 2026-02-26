@@ -68,7 +68,7 @@ def clean_up_ephemeral(args: Namespace, cache: CacheManager):
         threads = profile.get("threads", 5)
         connector_type = profile["type"]
         connector = get_connector(connector_type)
-        delete_function = connector.get("delete")
+        delete_function = connector.get("methods", {}).get("delete_datasets")
 
         # Ensure delete function exists for the connector type
         if delete_function is None:

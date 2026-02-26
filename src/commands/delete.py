@@ -33,7 +33,7 @@ def delete(args: Namespace):
             logger.info(f"  • {node['table_id']}")
         logger.info("------------------------------------------------------\n")
 
-        if args.dry_run:
+        if getattr(args, "dry_run", False):
             logger.info("\nDry run complete - no nodes were actually deleted.")
             sys.exit(0)
 
@@ -49,7 +49,7 @@ def delete(args: Namespace):
 def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, DeleteMapNode]:
     reference_graph = DbtGraph(args, is_production=True)
 
-    if args.dry_run:
+    if getattr(args, "dry_run", False):
         logger.info("Dry run mode enabled - no actual deletions will be performed.")
 
     # Look for cache
