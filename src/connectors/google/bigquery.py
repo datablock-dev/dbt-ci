@@ -2,7 +2,7 @@
 import sys
 import logging
 from argparse import Namespace
-from typing import Any, Set
+from typing import Any
 import click
 from google.cloud import bigquery
 from src.schema import DeleteMapNode, EphemeralMapNode, MigrationMap
@@ -83,7 +83,7 @@ def bigquery_ephemeral_strategy(
         profile = get_profile(args)
         threads = profile.get("threads", 5)
 
-        datasets_to_create: Set[str] = set()
+        datasets_to_create: set[str] = set()
         # Stored as {node_name: {"ephemeral_table_id": str, "reference_table_id": str }}
         clone_map: dict[str, dict[str, str]] = {}
         for node_metadata in ephemeral_map.values():
@@ -112,7 +112,7 @@ def bigquery_ephemeral_strategy(
 
 def create_ephemeral_datasets(
     client: bigquery.Client,
-    datasets_to_create: Set[str],
+    datasets_to_create: set[str],
     threads: int = 5
 ) -> None:
     """Create ephemeral datasets in BigQuery if needed."""
