@@ -33,7 +33,7 @@ def migration(args: Namespace):
         cache = CacheManager()
         cache.start_report("migration", args)
         connector_type = get_profile(args)["type"]
-        migration_connector = get_connector(connector_type)["migration"]
+        migration_connector = get_connector(connector_type).get("strategies", {}).get("migration")
 
         if migration_connector is None:
             logger.error(f"Connector '{connector_type}' does not support migration strategy, which is required for migration command.")

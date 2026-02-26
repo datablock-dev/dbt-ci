@@ -24,7 +24,7 @@ def delete(args: Namespace):
         cache = CacheManager()
         cache.start_report("delete", args)
         connector_type = get_profile(args)["type"]
-        delete_connector = get_connector(connector_type)["delete"]
+        delete_connector = get_connector(connector_type).get("strategies", {}).get("delete")
         delete_map = generate_delete_map(args, cache)
 
         logger.info("\n------------------------------------------------------")

@@ -449,6 +449,7 @@ class ConnectorConfig(TypedDict):
     client: Callable[..., Any]
     strategies: ConnectorStrategiesConfig
     methods: ConnectorMethodsConfig
+
 # Add better type definitions
 class MigrationMapNodeEntry(TypedDict):
     """Entry for a node in the migration map."""

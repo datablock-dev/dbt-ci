@@ -124,7 +124,9 @@ def init(args: Namespace):
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
-        if args.skip_target_compile is False and reference_target is not None and reference_target != getattr(args, "target", None):
+        skip_target_compile = getattr(args, "skip_target_compile", False)
+        is_reference_target_same_as_current = reference_target is None or reference_target == getattr(args, "target", None)
+        if skip_target_compile is False and not is_reference_target_same_as_current:
             target_command = ["compile"]
             actual_target = getattr(args, "target", None)
             if actual_target and actual_target != "default":

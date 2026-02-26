@@ -61,7 +61,7 @@ def ephemeral(args: Namespace):
             logger.error(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
             sys.exit(1)
         
-        ephemeral_connector = get_connector(connector_type)["ephemeral"]
+        ephemeral_connector = get_connector(connector_type).get("strategies", {}).get("ephemeral")
         ephemeral_map = generate_ephemeral_map(args, cache)
 
         # Pass the ephemeral map and variables to the connector strategy which

@@ -79,13 +79,13 @@ def init_storage_connector(uri: str | None) -> tuple[StorageConnectorConfig, str
 
     return storage_connector, uri
 
-def get_connector(connector: SupportedConnectors) -> ConnectorConfig | dict[SupportedConnectors, ConnectorConfig]:
+def get_connector(connector: SupportedConnectors) -> ConnectorConfig:
     """Factory function to get the appropriate connector based on configuration."""
     if connector not in DB_CONNECTORS:
         print(f"Connector '{connector}' is not supported.")
         sys.exit(1)
 
-    return DB_CONNECTORS[connector]
+    return DB_CONNECTORS.get(connector)
 
 
 __init__ = [
