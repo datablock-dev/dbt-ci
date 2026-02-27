@@ -17,6 +17,7 @@ from src.connectors import DB_CONNECTORS, get_connector
 from src.dependency_graph import DbtGraph
 from src.logging import print_exception
 from src.schema import EphemeralMapNode
+from src.utilities.paths import get_profile
 from src.utilities.graph_utils import (
     filter_node_ids_by_multiple_types,
     filter_node_ids_by_type,
@@ -25,7 +26,6 @@ from src.utilities.graph_utils import (
     get_nodes,
     get_upstream_dependencies
 )
-from src.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
 

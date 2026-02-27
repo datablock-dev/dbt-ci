@@ -36,7 +36,7 @@ DB_CONNECTORS: Final[dict[SupportedConnectors, ConnectorConfig]] = {
             "query": bigquery_query,
             "create_datasets": bigquery_create_datasets,
             "delete_datasets": bigquery_delete_datasets,
-            "create_tables": bigquery_create_tables,  # Implement create_tables method
+            "create_tables": bigquery_create_tables,
             "delete_tables": bigquery_delete_tables
         }
     }

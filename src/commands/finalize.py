@@ -69,10 +69,11 @@ def clean_up_ephemeral(args: Namespace, cache: CacheManager):
         threads = profile.get("threads", 5)
         connector_type = profile["type"]
         connector = get_connector(connector_type)
-        delete_function = connector.get("methods", {}).get("delete_datasets")
+        client = connector.get("client")
+        delete_datasets_function = connector.get("methods", {}).get("delete_datasets")
 
         # Ensure delete function exists for the connector type
-        if delete_function is None:
+        if delete_datasets_function is None:
             logger.warning(f"No delete function found for connector type '{connector_type}'. Skipping ephemeral cleanup.")
             return
 
@@ -91,8 +92,8 @@ def clean_up_ephemeral(args: Namespace, cache: CacheManager):
             logger.info("No ephemeral datasets found to clean up.")
             return
         
-        
-        
+        logger.info(f"Found {len(datasets_to_delete)} ephemeral dataset(s) to clean up: {', '.join(datasets_to_delete)}")
+        delete_datasets_function(client, datasets_to_delete, args, threads)
     except Exception as e:
         logger.error(f"An error occurred during ephemeral cleanup: {str(e)}")
         return
