@@ -47,6 +47,7 @@ def delete(args: Namespace):
         sys.exit(1)
 
 def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, DeleteMapNode]:
+    """Generate a map of nodes to be deleted based on the cache and reference graph."""
     reference_graph = DbtGraph(args, is_production=True)
 
     if getattr(args, "dry_run", False):

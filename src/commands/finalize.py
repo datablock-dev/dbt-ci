@@ -7,6 +7,7 @@ import click
 from src.cache import CacheManager
 from src.connectors import DB_CONNECTORS, get_connector, init_storage_connector
 from src.logging import print_exception
+from src.schema import EphemeralMapNode
 from src.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,7 @@ def clean_up_ephemeral(args: Namespace, cache: CacheManager):
     """Clean up any ephemeral tables or resources created during the ephemeral step."""
     try:
         logger.info("Cleaning up ephemeral environment...")
-        ephemeral_map = cache.get_cache("ephemeral_map.json")
+        ephemeral_map: dict[str, EphemeralMapNode] = cache.get_cache("ephemeral_map.json")
         profile = get_profile(args)
         threads = profile.get("threads", 5)
         connector_type = profile["type"]
@@ -78,6 +79,18 @@ def clean_up_ephemeral(args: Namespace, cache: CacheManager):
         if ephemeral_map is None:
             logger.warning("No ephemeral map found in cache to clean up. Skipping ephemeral cleanup.")
             return
+        
+        # Get unique schemas/datasets to delete
+        datasets_to_delete = set()
+        for node_info in ephemeral_map.values():
+            ephemeral_schema = node_info.get("ephemeral_config").get("schema", None)
+            if ephemeral_schema is not None:
+                datasets_to_delete.add(ephemeral_schema)
+
+        if len(datasets_to_delete) == 0:
+            logger.info("No ephemeral datasets found to clean up.")
+            return
+        
         
         
     except Exception as e:
