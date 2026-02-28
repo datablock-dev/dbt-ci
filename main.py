@@ -178,6 +178,14 @@ def delete_cmd(**kwargs):
     type=str,
     help="S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., s3://my-bucket/dbt-artifacts/)"
 )
+@click.option(
+    "--clean-ephemeral",
+    "--destroy-ephemeral",
+    envvar=['DBT_CLEAN_EPHEMERAL', "DBT_DESTROY_EPHEMERAL"],
+    is_flag=True,
+    default=False,
+    help="Whether to clean up ephemeral environment after finalizing"
+)
 def finalize_cmd(**kwargs):
     """Finalize the state after running CI commands
     

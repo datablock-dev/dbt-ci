@@ -52,7 +52,7 @@ def init(args: Namespace):
         if resolved_storage is not None:
             local_state_dir = resolve_manifest_file_from_storage(resolved_storage, args)
             # Update reference_state to use the local path where manifest was downloaded
-            args.reference_state = str(local_state_dir)
+            setattr(args, "reference_state", str(local_state_dir))
             # Reload reference manifest file after downloading from storage
             args.reference_manifest_file = get_reference_manifest_file(args.reference_state)
             cache.write_cache(get_reference_manifest_file(args.reference_state), "reference_manifest.json")
@@ -61,7 +61,7 @@ def init(args: Namespace):
             logger.warning("No reference target specified, using current target as reference state for comparison.")
         else:
             command.extend(["--target", reference_target])
-            command.extend(["--vars", args.reference_vars]) if args.reference_vars else None
+            command.extend(["--vars", getattr(args, "reference_vars", None)]) if getattr(args, "reference_vars", None) else None
 
         run_dbt_command(
             command_args=resolve_dbt_commands(command, args, ["vars", "target"]),  # Don't pass vars or target when compiling reference manifest
@@ -69,7 +69,7 @@ def init(args: Namespace):
         )
 
         logger.info("DBT project compiled successfully. manifest.json generated.")
-        target_manifest_file = get_manifest_file(args.dbt_project_dir)
+        target_manifest_file = get_manifest_file(getattr(args, "dbt_project_dir", None))
         target_graph = DbtGraph(args)
         reference_graph = DbtGraph(args, is_production=True)
 
@@ -93,7 +93,7 @@ def init(args: Namespace):
 
         state_change_summary = {
             "modified_nodes": get_structured_modified_nodes(get_nodes(
-                dependency_graph=reference_graph_dict, 
+                dependency_graph=target_graph_dict, 
                 node_ids=modified_nodes
             )),
             "deleted_nodes": get_structured_modified_nodes(get_nodes(
@@ -124,7 +124,9 @@ def init(args: Namespace):
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
-        if args.skip_target_compile is False and reference_target is not None and reference_target != getattr(args, "target", None):
+        skip_target_compile = getattr(args, "skip_target_compile", False)
+        is_reference_target_same_as_current = reference_target is None or reference_target == getattr(args, "target", None)
+        if skip_target_compile is False and not is_reference_target_same_as_current:
             target_command = ["compile"]
             actual_target = getattr(args, "target", None)
             if actual_target and actual_target != "default":
@@ -157,7 +159,7 @@ def init_summary(
         2. Generate migration plan for modified nodes with partitioning changes
         3. Generate ephemeral plan for modified nodes with non-partitioning changes
     """
-    slack = SlackClient()
+    slack = SlackClient(args)
     migration_map = generate_migration_map(args, cache)
     ephemeral_map = generate_ephemeral_map(args, cache)
 
@@ -191,10 +193,10 @@ def init_summary(
         logger.info("No partitioning changes detected.")
     else:
         for node_id, node_info in migration_map["nodes"].items():
-            logger.info(f"Model: {node_id}")
-            logger.info(f"  - Table ID: {node_info['table_id']}")
-            logger.info(f"  - Old Partitioning: {node_info['old_partitioning']}")
-            logger.info(f"  - New Partitioning: {node_info['new_partitioning']}")
+            logger.info("Model: %s", node_id)
+            logger.info("  - Table ID: %s", node_info.get("table_id"))
+            logger.info("  - Old Partitioning: %s", node_info.get("old_partitioning"))
+            logger.info("  - New Partitioning: %s", node_info.get("new_partitioning"))
     logger.info("------------------------------------------------------\n")
 
     try:
@@ -228,22 +230,25 @@ def resolve_manifest_file_from_storage(
     logger.info(f"Using storage connector '{storage_connector.get('name', 'Unknown')}' for state management with URI: {state_uri}")
     reference_manifest = storage_connector["download"](state_uri)
     dbtstate_dir: Path | None = None
+    dbt_project_dir = getattr(args, "dbt_project_dir", None)
+    reference_state = getattr(args, "reference_state", None)
 
     # Write and download manifest to path
     # When using Docker, always use the local dbt_project_dir/.dbtstate path on host
-    if getattr(args, "runner", None) == "docker" or getattr(args, "reference_state", None) is None:
-        dbtstate_dir = cwd / getattr(args, "dbt_project_dir", None) / ".dbtstate" # Default
+    if getattr(args, "runner", None) == "docker" or reference_state is None:
+        dbtstate_dir = cwd / dbt_project_dir / ".dbtstate" # Default
     else:
-        dbtstate_dir = cwd / getattr(args, "reference_state", None)
+        dbtstate_dir = cwd / reference_state
+
     if dbtstate_dir is None:
         logger.error("No valid path found for downloading manifest file. Please specify a valid --state path or ensure your dbt_project_dir is correct.")
         sys.exit(1)
 
     Path(dbtstate_dir).mkdir(parents=True, exist_ok=True)
     manifest_path = dbtstate_dir / "manifest.json"
-            
+
     with open(manifest_path, "w", encoding="utf-8") as f:
         f.write(json.dumps(reference_manifest, indent=2))
     logger.info(f"Reference manifest successfully downloaded and saved to {manifest_path}")
-    
+
     return dbtstate_dir

@@ -83,7 +83,7 @@ def run(args: Namespace):
         logger.info("-------------------------------------------------------\n")
 
         run_with_mode(
-            mode=args.nodes,
+            mode=getattr(args, "nodes", "all"),
             args=args,
             target_graph=target_graph,
             changed_nodes_dict=changed_nodes_dict,

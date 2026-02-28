@@ -31,9 +31,9 @@ def migration(args: Namespace):
         click.secho("DBT CI Migration", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager()
-        cache.start_report("migration", args)
+        cache.start_report("migrate", args)
         connector_type = get_profile(args)["type"]
-        migration_connector = get_connector(connector_type)["migration"]
+        migration_connector = get_connector(connector_type).get("strategies", {}).get("migration")
 
         if migration_connector is None:
             logger.error(f"Connector '{connector_type}' does not support migration strategy, which is required for migration command.")
@@ -55,16 +55,16 @@ def migration(args: Namespace):
                 logger.info(f"  - New Partitioning: {node_info['new_partitioning']}")
             logger.info("------------------------------------------------------\n")
 
-        if args.dry_run:
+        if getattr(args, "dry_run", False):
             logger.info("Dry run mode enabled - no changes will be applied.")
             sys.exit(0)
         
         # Apply partitioning changes
         migration_connector(migration_map, args)
-        cache.update_report("migration", "completed", comment=str(list(migration_map["nodes"].keys())))
+        cache.update_report("migrate", "completed", comment=str(list(migration_map["nodes"].keys())))
         logger.info("Migration completed successfully.")
     except Exception as e:
-        cache.update_report("migration", "failed", comment=str(e))
+        cache.update_report("migrate", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
 

@@ -66,7 +66,7 @@ class TestMigrationCommand:
             "modified_nodes": {}
         }
         mock_cache.return_value = mock_cache_instance
-        mock_get_connector.return_value = {'migration': None}
+        mock_get_connector.return_value = {'strategies': {'migration': None}}
         
         # Run command
         args = Namespace(
@@ -111,7 +111,7 @@ class TestMigrationCommand:
             "modified_nodes": None
         }
         mock_cache.return_value = mock_cache_instance
-        mock_get_connector.return_value = {'migration': MagicMock()}
+        mock_get_connector.return_value = {'strategies': {'migration': MagicMock()}}
         mock_get_node_ids.return_value = []
         mock_filter.return_value = []
         
@@ -203,7 +203,7 @@ class TestMigrationCommand:
         mock_graph.return_value = mock_graph_instance
         
         mock_migration_func = MagicMock()
-        mock_get_connector.return_value = {'migration': mock_migration_func}
+        mock_get_connector.return_value = {'strategies': {'migration': mock_migration_func}}
         
         # Run command - migration should complete successfully without sys.exit()
         args = Namespace(
@@ -282,7 +282,7 @@ class TestMigrationCommand:
         mock_graph.return_value = mock_graph_instance
         
         mock_migration_func = MagicMock()
-        mock_get_connector.return_value = {'migration': mock_migration_func}
+        mock_get_connector.return_value = {'strategies': {'migration': mock_migration_func}}
         
         # Run command - expect SystemExit(0)
         args = Namespace(

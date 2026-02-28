@@ -24,7 +24,7 @@ def delete(args: Namespace):
         cache = CacheManager()
         cache.start_report("delete", args)
         connector_type = get_profile(args)["type"]
-        delete_connector = get_connector(connector_type)["delete"]
+        delete_connector = get_connector(connector_type).get("strategies", {}).get("delete")
         delete_map = generate_delete_map(args, cache)
 
         logger.info("\n------------------------------------------------------")
@@ -33,7 +33,7 @@ def delete(args: Namespace):
             logger.info(f"  • {node['table_id']}")
         logger.info("------------------------------------------------------\n")
 
-        if args.dry_run:
+        if getattr(args, "dry_run", False):
             logger.info("\nDry run complete - no nodes were actually deleted.")
             sys.exit(0)
 
@@ -47,9 +47,10 @@ def delete(args: Namespace):
         sys.exit(1)
 
 def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, DeleteMapNode]:
+    """Generate a map of nodes to be deleted based on the cache and reference graph."""
     reference_graph = DbtGraph(args, is_production=True)
 
-    if args.dry_run:
+    if getattr(args, "dry_run", False):
         logger.info("Dry run mode enabled - no actual deletions will be performed.")
 
     # Look for cache

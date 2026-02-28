@@ -1,6 +1,10 @@
-from argparse import Namespace
+"""
+    CacheManager class for handling caching of data in JSON files,
+    and managing the report.json for tracking command execution status and variables.
+"""
 import json
 import tempfile
+from argparse import Namespace
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -51,7 +55,7 @@ class CacheManager:
                     "status": "started",
                     "started_at": datetime.now().isoformat(),
                     "variables": {
-                        "runner": args.runner,
+                        "runner": getattr(args, "runner", None),
                         "target": getattr(args, "target", None),
                         "reference_target": getattr(args, "reference_target", None),
                     }
@@ -62,7 +66,7 @@ class CacheManager:
                 "status": "started",
                 "started_at": datetime.now().isoformat(),
                 "variables": {
-                    "runner": args.runner,
+                    "runner": getattr(args, "runner", None),
                     "target": getattr(args, "target", None),
                     "reference_target": getattr(args, "reference_target", None),
                 }

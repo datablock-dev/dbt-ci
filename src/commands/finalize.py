@@ -5,8 +5,10 @@ from argparse import Namespace
 import click
 
 from src.cache import CacheManager
-from src.connectors import init_storage_connector
+from src.connectors import DB_CONNECTORS, get_connector, init_storage_connector
 from src.logging import print_exception
+from src.schema import EphemeralMapNode
+from src.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -32,23 +34,66 @@ def finalize(args: Namespace):
             sys.exit(1)
 
         if getattr(args, "artifacts_uri", None):
-            resolved_storage = init_storage_connector(getattr(args, "artifacts_uri", None))
+            resolved_storage, _ = init_storage_connector(getattr(args, "artifacts_uri", None))
             if resolved_storage is None:
                 logger.warning("No valid storage connector found for artifact upload. Skipping artifact upload.")
 
-            resolved_storage["upload"]("manifest.json", manifest_file)
+            storage_function = resolved_storage.get("upload")
+            storage_function("manifest.json", manifest_file)
             logger.info(f"Uploading manifest.json to {getattr(args, 'artifacts_uri', None)}...")
             # Upload manifest file to storage if artifacts_uri is provided
             if report is not None:
                 logger.info(f"Uploading report.json to {getattr(args, 'artifacts_uri', None)}...")
-                resolved_storage["upload"]("report.json", report)
+                storage_function("report.json", report)
                 # Upload report file to storage if artifacts_uri is provided
         else:
             if report is not None:
                 logger.info(report)
+
+        if getattr(args, "clean_ephemeral", False):
+            clean_up_ephemeral(args)
+
         cache.update_report("finalize", "completed", cache.get_cache())
         logger.info("Finalize complete.")
         sys.exit(0)
     except Exception as e:
         print_exception(e)
         sys.exit(1)
+
+def clean_up_ephemeral(args: Namespace, cache: CacheManager):
+    """Clean up any ephemeral tables or resources created during the ephemeral step."""
+    try:
+        logger.info("Cleaning up ephemeral environment...")
+        ephemeral_map: dict[str, EphemeralMapNode] = cache.get_cache("ephemeral_map.json")
+        profile = get_profile(args)
+        threads = profile.get("threads", 5)
+        connector_type = profile["type"]
+        connector = get_connector(connector_type)
+        client = connector.get("client")
+        delete_datasets_function = connector.get("methods", {}).get("delete_datasets")
+
+        # Ensure delete function exists for the connector type
+        if delete_datasets_function is None:
+            logger.warning(f"No delete function found for connector type '{connector_type}'. Skipping ephemeral cleanup.")
+            return
+
+        if ephemeral_map is None:
+            logger.warning("No ephemeral map found in cache to clean up. Skipping ephemeral cleanup.")
+            return
+        
+        # Get unique schemas/datasets to delete
+        datasets_to_delete = set()
+        for node_info in ephemeral_map.values():
+            ephemeral_schema = node_info.get("ephemeral_config").get("schema", None)
+            if ephemeral_schema is not None:
+                datasets_to_delete.add(ephemeral_schema)
+
+        if len(datasets_to_delete) == 0:
+            logger.info("No ephemeral datasets found to clean up.")
+            return
+        
+        logger.info(f"Found {len(datasets_to_delete)} ephemeral dataset(s) to clean up: {', '.join(datasets_to_delete)}")
+        delete_datasets_function(client, datasets_to_delete, args, threads)
+    except Exception as e:
+        logger.error(f"An error occurred during ephemeral cleanup: {str(e)}")
+        return

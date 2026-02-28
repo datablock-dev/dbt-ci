@@ -41,7 +41,6 @@ class TestDeleteCommand:
             reference_state='/dbt/.dbtstate',
             dry_run=False,
             runner='local',
-            target_config={'type': 'bigquery'}
         )
         delete(args)
         
@@ -137,7 +136,7 @@ class TestDeleteCommand:
         mock_graph.return_value = mock_graph_instance
         
         mock_delete_func = MagicMock()
-        mock_get_connector.return_value = {'delete': mock_delete_func}
+        mock_get_connector.return_value = {'strategies': {'delete': mock_delete_func}}
         
         # Run command
         args = Namespace(
@@ -205,7 +204,7 @@ class TestDeleteCommand:
         mock_graph.return_value = mock_graph_instance
         
         mock_delete_func = MagicMock()
-        mock_get_connector.return_value = {'delete': mock_delete_func}
+        mock_get_connector.return_value = {'strategies': {'delete': mock_delete_func}}
         
         # Run command
         args = Namespace(
@@ -263,7 +262,7 @@ class TestDeleteCommand:
         mock_graph.return_value = mock_graph_instance
         
         mock_delete_func = MagicMock()
-        mock_get_connector.return_value = {'delete': mock_delete_func}
+        mock_get_connector.return_value = {'strategies': {'delete': mock_delete_func}}
         
         # Run command
         args = Namespace(

@@ -87,6 +87,10 @@ dbt-ci run \
 
 ## Commands
 
+All commands share a set of **common options** (listed in the [Common Options](#common-options) section below). Command-specific flags are listed under each command.
+
+---
+
 ### `init` - Initialize State
 
 Creates initial state from your dbt project. **Always run this first.** Downloads reference manifest from cloud storage (if specified) and creates a local cache for subsequent commands.
@@ -100,27 +104,36 @@ dbt-ci init \
   --state dbt/.dbtstate
 ```
 
-**Options:**
-- `--state`, `--reference-state`: Local path where state will be downloaded/stored
-- `--state-uri`: Remote URI for state manifest (e.g., `gs://bucket/manifest.json`, `s3://bucket/manifest.json`)
-- `--reference-target`: Target to use for production/reference manifest (optional)
-- `--dbt-version`: Specific dbt version to use (e.g., `1.10.13`)
-- `--adapter`, `-a`: Adapter to install (e.g., `dbt-duckdb=1.10.0`)
+**Flags:**
+
+| Flag | Aliases | Env Var(s) | Default | Description |
+|------|---------|-----------|---------|-------------|
+| `--reference-target` | `-ref-target` | `DBT_REFERENCE_TARGET` | `None` | dbt target for the production/reference manifest |
+| `--reference-state` | `--state` | `DBT_STATE`, `DBT_STATE_DIR`, `STATE_DIR` | `None` | Local path where reference state will be downloaded/stored |
+| `--reference-vars` | `--ref-vars` | `DBT_REFERENCE_VARS` | `None` | Variables to pass to dbt when compiling the reference manifest (YAML string or file path) |
+| `--state-uri` | | `DBT_STATE_URI`, `STATE_URI` | `None` | Remote URI for the state manifest (e.g. `gs://bucket/manifest.json`, `s3://bucket/manifest.json`) |
+| `--skip-target-compile` | | `DBT_SKIP_TARGET_COMPILE` | `false` | Skip the second compile pass against the actual target |
+
+> All [common options](#common-options) also apply.
+
+---
 
 ### `run` - Run Modified Models
 
-Detects and runs models that have changed. Uses cached state from `init` command.
+Detects and runs models that have changed. Uses cached state from `init`.
 
 ```bash
-# Run after init - uses cached state
-dbt-ci run \
-  --dbt-project-dir dbt \
-  --mode models
+dbt-ci run --dbt-project-dir dbt --mode models
 ```
 
-**Options:**
-- `--mode`, `-m`: What to run: `all`, `models`, `seeds`, `snapshots`, `tests` (default: `all`)
-- `--defer`: Use dbt's defer flag for production state
+**Flags:**
+
+| Flag | Aliases | Env Var(s) | Default | Description |
+|------|---------|-----------|---------|-------------|
+| `--mode` | `-m`, `--nodes`, `-n` | `DBT_NODES` | `all` | What to run: `all`, `models`, `seeds`, `snapshots`, `tests` |
+| `--filters` | `-f` | | `None` | Extra resource-type filters (repeatable). E.g. `-f snapshots` to scope test runs to snapshot dependencies |
+
+> All [common options](#common-options) also apply.
 
 **Examples:**
 ```bash
@@ -137,26 +150,57 @@ dbt-ci run --mode all
 dbt-ci run --runner docker --mode models
 ```
 
+---
+
 ### `ephemeral` - Ephemeral Environment
 
 Creates ephemeral environments for testing without affecting production. Uses cached state from `init`.
 
 ```bash
-# Run after init
 dbt-ci ephemeral --dbt-project-dir dbt
 ```
 
-**Options:**
-- `--keep-env`: Don't destroy ephemeral environment after run
+**Flags:**
+
+| Flag | Aliases | Env Var(s) | Default | Description |
+|------|---------|-----------|---------|-------------|
+| `--keep-env` | | `DBT_KEEP_ENV` | `false` | Don't destroy the ephemeral environment after the run (if supported by the runner) |
+
+> All [common options](#common-options) also apply.
+
+---
 
 ### `delete` - Delete Removed Models
 
 Detects and deletes models that have been removed from the project. Uses cached state from `init`.
 
 ```bash
-# Run after init
 dbt-ci delete --dbt-project-dir dbt
 ```
+
+**Flags:**
+
+> Only [common options](#common-options) apply — no command-specific flags.
+
+---
+
+### `finalize` - Finalize State
+
+Run after `run`, `delete`, or `ephemeral` to upload artifacts and clean up the local cache for the next CI run.
+
+```bash
+dbt-ci finalize
+dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
+```
+
+**Flags:**
+
+| Flag | Aliases | Env Var(s) | Default | Description |
+|------|---------|-----------|---------|-------------|
+| `--artifacts-uri` | | `DBT_ARTIFACTS_URI`, `ARTIFACTS_URI` | `None` | Object storage URI for uploading run artifacts such as the updated `manifest.json` (e.g. `s3://bucket/dbt-artifacts/`) |
+| `--clean-ephemeral` | | `DBT_CLEAN_EPHEMERAL` | `false` | Clean up the ephemeral environment as part of finalization |
+
+> All [common options](#common-options) also apply.
 
 ## Runners
 
@@ -255,52 +299,48 @@ dbt-ci run \
   --target prod
 ```
 
-## Global Options
+## Common Options
 
-These options apply to all commands:
+These flags are available on **every** command.
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--dbt-project-dir` | Path to dbt project directory | `.` |
-| `--profiles-dir` | Path to profiles.yml directory | Auto-detect |
-| `--reference-target` | dbt target for production/reference manifest (init only) | None |
-| `--target`, `-t` | dbt target to use | From profiles.yml |
-| `--vars`, `-v` | YAML string or file path with dbt variables | `""` |
-| `--defer` | Use dbt's defer flag for production state | `false` |
-| `--runner`, `-r` | Runner type: `local`, `docker`, `bash`, `dbt` | `dbt` |
-| `--entrypoint` | Command entrypoint for dbt | `dbt` |
-| `--dbt-version` | Specific dbt version to use | Current |
-| `--adapter`, `-a` | Adapter to install (format: `dbt-adapter=version`) | None |
-| `--dry-run` | Print commands without executing | `false` |
-| `--log-level` | Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL | `INFO` |
-| `--slack-webhook` | Slack webhook URL for notifications | None |
+### Core
 
-### Init-Specific Options
+| Flag | Aliases | Env Var(s) | Default | Description |
+|------|---------|-----------|---------|-------------|
+| `--dbt-project-dir` | | `DBT_PROJECT_DIR` | `.` | Path to the dbt project directory |
+| `--profiles-dir` | | `DBT_PROFILES_DIR` | Auto-detect | Path to the directory containing `profiles.yml` |
+| `--target` | `-t` | `DBT_TARGET` | From `profiles.yml` | dbt target to use |
+| `--vars` | `-v` | `DBT_VARS` | `""` | YAML string or path to a YAML file with dbt variables |
+| `--defer` | | `DBT_DEFER` | `false` | Pass dbt's `--defer` flag (defers unmodified nodes to the production state) |
+| `--runner` | `-r` | `DBT_RUNNER` | `dbt` | Runner to use: `dbt`, `local`, `docker`, `bash` |
+| `--entrypoint` | | `DBT_ENTRYPOINT` | `dbt` | Command entrypoint for dbt |
+| `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`) |
+| `--adapter` | `-a` | `DBT_ADAPTER` | `None` | dbt adapter to install (e.g. `dbt-bigquery`, `dbt-duckdb=1.10.0`) |
+| `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them |
+| `--log-level` | | `DBT_LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `--slack-webhook` | `--slack-webhook-url` | `SLACK_WEBHOOK`, `SLACK_WEBHOOK_URL` | `None` | Slack webhook URL for CI notifications |
 
-These options are only available for the `init` command:
+### Docker Runner
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--state`, `--reference-state` |Local path where reference state will be stored | None |
-| `--state-uri` | Remote URI for state manifest (e.g., `gs://bucket/manifest.json`, `s3://bucket/manifest.json`) | None |
+Only used when `--runner docker` is set.
 
-### Docker Options
+| Flag | Env Var(s) | Default | Description |
+|------|-----------|---------|-------------|
+| `--docker-image` | `DBT_DOCKER_IMAGE` | `ghcr.io/dbt-labs/dbt-core:latest` | Docker image to use |
+| `--docker-platform` | `DBT_DOCKER_PLATFORM` | Auto-detect | Platform override, e.g. `linux/amd64` or `linux/arm64` |
+| `--docker-volumes` | `DBT_DOCKER_VOLUMES` | `[]` | Volume mounts (repeatable): `host:container[:mode]` |
+| `--docker-env` | `DBT_DOCKER_ENV` | `[]` | Environment variables (repeatable): `KEY=VALUE` |
+| `--docker-network` | `DBT_DOCKER_NETWORK` | `host` | Docker network mode |
+| `--docker-user` | `DBT_DOCKER_USER` | Auto-detect | User to run as inside the container (`UID:GID`) |
+| `--docker-args` | `DBT_DOCKER_ARGS` | `""` | Extra arguments appended to `docker run` |
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--docker-image` | Docker image for dbt | `ghcr.io/dbt-labs/dbt-core:latest` |
-| `--docker-platform` | Platform (linux/amd64, linux/arm64) | Auto-detect |
-| `--docker-volumes` | Volume mounts (format: `host:container[:mode]`) | `[]` |
-| `--docker-env` | Environment variables (format: `KEY=VALUE`) | `[]` |
-| `--docker-network` | Docker network mode | `host` |
-| `--docker-user` | User to run as (UID:GID) | Auto-detect |
-| `--docker-args` | Additional docker run arguments | `""` |
+### Bash Runner
 
-### Bash Runner Options
+Only used when `--runner bash` is set.
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--shell-path`, `--bash-path` | Path to shell executable | `/bin/bash` |
+| Flag | Aliases | Env Var(s) | Default | Description |
+|------|---------|-----------|---------|-------------|
+| `--shell-path` | `--bash-path` | `DBT_SHELL_PATH`, `SHELL_PATH` | `/bin/bash` | Path to the shell executable |
 
 ## Cloud Storage Support
 
