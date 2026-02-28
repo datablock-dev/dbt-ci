@@ -1,6 +1,18 @@
 # CHANGELOG
 
 
+## v1.2.3 (2026-02-28)
+
+### Bug Fixes
+
+- Improve artifact upload handling in finalize function
+  ([`c9b6396`](https://github.com/datablock-dev/dbt-ci/commit/c9b6396cf1af03a693e48bd0437267fc478a5326))
+
+- Update dry run argument handling in clean_up_ephemeral function
+  ([#16](https://github.com/datablock-dev/dbt-ci/pull/16),
+  [`163cfec`](https://github.com/datablock-dev/dbt-ci/commit/163cfeca61fc33ecbe77445c56904b096e0c6f53))
+
+
 ## v1.2.2 (2026-02-25)
 
 ### Bug Fixes
@@ -16,6 +28,11 @@
 ---------
 
 Co-authored-by: Patrick Tannoury <patrick.tannoury@kivra.com>
+
+### Chores
+
+- **release**: 1.2.2 [skip ci]
+  ([`10425ce`](https://github.com/datablock-dev/dbt-ci/commit/10425ce6d9500876fd799b1afd2f8f9555d8d670))
 
 
 ## v1.2.1 (2026-02-24)
