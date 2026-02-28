@@ -159,7 +159,7 @@ def init_summary(
         2. Generate migration plan for modified nodes with partitioning changes
         3. Generate ephemeral plan for modified nodes with non-partitioning changes
     """
-    slack = SlackClient()
+    slack = SlackClient(args)
     migration_map = generate_migration_map(args, cache)
     ephemeral_map = generate_ephemeral_map(args, cache)
 
@@ -193,10 +193,10 @@ def init_summary(
         logger.info("No partitioning changes detected.")
     else:
         for node_id, node_info in migration_map["nodes"].items():
-            logger.info(f"Model: {node_id}")
-            logger.info(f"  - Table ID: {node_info['table_id']}")
-            logger.info(f"  - Old Partitioning: {node_info['old_partitioning']}")
-            logger.info(f"  - New Partitioning: {node_info['new_partitioning']}")
+            logger.info("Model: %s", node_id)
+            logger.info("  - Table ID: %s", node_info.get("table_id"))
+            logger.info("  - Old Partitioning: %s", node_info.get("old_partitioning"))
+            logger.info("  - New Partitioning: %s", node_info.get("new_partitioning"))
     logger.info("------------------------------------------------------\n")
 
     try:
@@ -230,13 +230,15 @@ def resolve_manifest_file_from_storage(
     logger.info(f"Using storage connector '{storage_connector.get('name', 'Unknown')}' for state management with URI: {state_uri}")
     reference_manifest = storage_connector["download"](state_uri)
     dbtstate_dir: Path | None = None
+    dbt_project_dir = getattr(args, "dbt_project_dir", None)
+    reference_state = getattr(args, "reference_state", None)
 
     # Write and download manifest to path
     # When using Docker, always use the local dbt_project_dir/.dbtstate path on host
-    if getattr(args, "runner", None) == "docker" or getattr(args, "reference_state", None) is None:
-        dbtstate_dir = cwd / getattr(args, "dbt_project_dir", None) / ".dbtstate" # Default
+    if getattr(args, "runner", None) == "docker" or reference_state is None:
+        dbtstate_dir = cwd / dbt_project_dir / ".dbtstate" # Default
     else:
-        dbtstate_dir = cwd / getattr(args, "reference_state", None)
+        dbtstate_dir = cwd / reference_state
     if dbtstate_dir is None:
         logger.error("No valid path found for downloading manifest file. Please specify a valid --state path or ensure your dbt_project_dir is correct.")
         sys.exit(1)
