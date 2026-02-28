@@ -2,7 +2,7 @@
 import sys
 import logging
 from argparse import Namespace
-from typing import Any
+from typing import Any, cast
 import click
 from google.cloud import bigquery
 from src.schema import DeleteMapNode, EphemeralMapNode, MigrationMap
@@ -13,20 +13,25 @@ logger = logging.getLogger(__name__)
 
 def bigquery_client(args: Namespace) -> bigquery.Client:
     """Create a BigQuery client using credentials from the dbt profiles.yml file."""
+    dbt_project_dir = getattr(args, "dbt_project_dir", None)
+    if dbt_project_dir is None:
+        print("dbt_project_dir argument is required to initialize BigQuery client.")
+        sys.exit(1)
+
     dbt_profile = get_profiles_file(
-        dbt_project_dir=getattr(args, "dbt_project_dir", None),
+        dbt_project_dir=dbt_project_dir,
         profiles_dir=getattr(args, "profiles_dir", None)
     )
     
     # Get the profile name from the project config
     profile_name = getattr(args, "project", {}).get("profile")
-    
+
     if not profile_name:
         raise ValueError(
             "No 'profile' key found in dbt_project.yml")
-    
+
     profile_config = dbt_profile.get(profile_name, {})
-    
+
     if not profile_config:
         raise ValueError(
             f"Profile '{profile_name}' not found in profiles.yml")
@@ -64,7 +69,6 @@ def bigquery_query(client: bigquery.Client, query: str):
     else:
         return results.job_id
 
-
 def bigquery_ephemeral_strategy(
     ephemeral_map: dict[str, EphemeralMapNode],
     args: Namespace
@@ -74,14 +78,14 @@ def bigquery_ephemeral_strategy(
         """Extract (database, schema, name) from a config dict."""
         if config is None:
             return None, None, None
-        return config.get("database"), config.get("schema"), config.get("name")
+        return config.get("database", None), config.get("schema", None), config.get("name", None)
 
     # In BigQuery, ephemeral models can be materialized as temporary tables or CTEs.
     # For this implementation, we will materialize them as CTEs to avoid unnecessary storage costs.
     try:
         client = bigquery_client(args)
         profile = get_profile(args)
-        threads = profile.get("threads", 5)
+        threads = cast(int, profile.get("threads", 5))
 
         datasets_to_create: set[str] = set()
         # Stored as {node_name: {"ephemeral_table_id": str, "reference_table_id": str }}
@@ -244,7 +248,6 @@ def clone_tables(
         exit_on_exception=True
     )
 
-
 def bigquery_delete_strategy(delete_map: dict[str, DeleteMapNode], args: Namespace) -> None:
     """Strategy for handling deletes towards BigQuery."""
     # For BigQuery, we will delete tables directly using the BigQuery client.
@@ -252,7 +255,7 @@ def bigquery_delete_strategy(delete_map: dict[str, DeleteMapNode], args: Namespa
     try:
         client = bigquery_client(args)
         profile = get_profile(args)
-        threads = profile.get("threads", 5) if profile else 5
+        threads = cast(int, profile.get("threads", 5) if profile else 5)
         tables_to_delete: set[str] = set()
 
         for node_metadata in delete_map.values():
@@ -294,13 +297,13 @@ def bigquery_delete_tables(
         exit_on_exception=True
     )
 
-def delete_table(table_id: str, args: Namespace) -> None:
+def delete_table(client: bigquery.Client, table_id: str, ) -> None:
     """
     Delete a single BigQuery table and its dbt temporary table.
 
     Args:
         table_id: Full table identifier (project.dataset.table)
-        args: Namespace with dbt configuration (used to get BigQuery client)
+        client: An initialized BigQuery client.
 
     Returns:
         None
@@ -309,7 +312,6 @@ def delete_table(table_id: str, args: Namespace) -> None:
         This function is designed to be called in parallel via multithreading.
         Each invocation deletes one table independently.
     """
-    client = bigquery_client(args)
 
     try:
         client.delete_table(table_id, not_found_ok=True)
@@ -328,7 +330,7 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
             print("No profile found for the specified target. Please check your profiles.yml configuration.")
             sys.exit(1)
 
-        threads: int = profile.get("threads", 5)
+        threads: int = cast(int, profile.get("threads", 5))
         nodes = migration_map["nodes"]
         queries = []
 
@@ -362,7 +364,6 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
             threads=threads,
             exit_on_exception=True
         )
-
     except Exception as e:
         print(e, "An error occurred while initializing BigQuery client or processing migration map")
         sys.exit(1)

@@ -436,11 +436,11 @@ class ConnectorMethodsConfig(TypedDict):
     # Ideally, it should return a structured result with success status, error messages, and any relevant metadata.
     query: Callable[[Any, str], None]
     # Dataset methods
-    create_datasets: Callable[[Any, set[str], Optional[bool], Optional[int]], None]
-    delete_datasets: Callable[[Any, set[str], Optional[bool], Optional[int]], None]
+    create_datasets: Callable[[Any, set[str], bool, int], None]
+    delete_datasets: Callable[[Any, set[str], bool, int], None]
     # Table methods
-    create_tables: Callable[[Any, str], None]
-    delete_tables: Callable[[Any, str], None]
+    create_tables: Callable[[Any, set[str], bool, int], None]
+    delete_tables: Callable[[Any, set[str], bool, int], None]
     # Schema methods?
 
 
