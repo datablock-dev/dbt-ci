@@ -31,7 +31,7 @@ def migration(args: Namespace):
         click.secho("DBT CI Migration", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager()
-        cache.start_report("migration", args)
+        cache.start_report("migrate", args)
         connector_type = get_profile(args)["type"]
         migration_connector = get_connector(connector_type).get("strategies", {}).get("migration")
 
@@ -61,10 +61,10 @@ def migration(args: Namespace):
         
         # Apply partitioning changes
         migration_connector(migration_map, args)
-        cache.update_report("migration", "completed", comment=str(list(migration_map["nodes"].keys())))
+        cache.update_report("migrate", "completed", comment=str(list(migration_map["nodes"].keys())))
         logger.info("Migration completed successfully.")
     except Exception as e:
-        cache.update_report("migration", "failed", comment=str(e))
+        cache.update_report("migrate", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
 

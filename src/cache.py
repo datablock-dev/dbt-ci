@@ -1,6 +1,10 @@
-from argparse import Namespace
+"""
+    CacheManager class for handling caching of data in JSON files,
+    and managing the report.json for tracking command execution status and variables.
+"""
 import json
 import tempfile
+from argparse import Namespace
 from datetime import datetime
 from pathlib import Path
 from typing import Optional

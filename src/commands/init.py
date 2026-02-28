@@ -239,15 +239,16 @@ def resolve_manifest_file_from_storage(
         dbtstate_dir = cwd / dbt_project_dir / ".dbtstate" # Default
     else:
         dbtstate_dir = cwd / reference_state
+
     if dbtstate_dir is None:
         logger.error("No valid path found for downloading manifest file. Please specify a valid --state path or ensure your dbt_project_dir is correct.")
         sys.exit(1)
 
     Path(dbtstate_dir).mkdir(parents=True, exist_ok=True)
     manifest_path = dbtstate_dir / "manifest.json"
-            
+
     with open(manifest_path, "w", encoding="utf-8") as f:
         f.write(json.dumps(reference_manifest, indent=2))
     logger.info(f"Reference manifest successfully downloaded and saved to {manifest_path}")
-    
+
     return dbtstate_dir
