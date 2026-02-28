@@ -93,7 +93,7 @@ def clean_up_ephemeral(args: Namespace, cache: CacheManager):
             return
         
         logger.info(f"Found {len(datasets_to_delete)} ephemeral dataset(s) to clean up: {', '.join(datasets_to_delete)}")
-        delete_datasets_function(client, datasets_to_delete, args, threads)
+        delete_datasets_function(client, datasets_to_delete, getattr(args, "dry_run", False), threads)
     except Exception as e:
         logger.error(f"An error occurred during ephemeral cleanup: {str(e)}")
         return
