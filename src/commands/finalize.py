@@ -37,8 +37,13 @@ def finalize(args: Namespace):
             resolved_storage, _ = init_storage_connector(getattr(args, "artifacts_uri", None))
             if resolved_storage is None:
                 logger.warning("No valid storage connector found for artifact upload. Skipping artifact upload.")
+                sys.exit(1)
 
             storage_function = resolved_storage.get("upload")
+            if storage_function is None:
+                logger.warning("No upload function found for resolved storage connector. Skipping artifact upload.")
+                sys.exit(1)
+
             storage_function("manifest.json", manifest_file)
             logger.info(f"Uploading manifest.json to {getattr(args, 'artifacts_uri', None)}...")
             # Upload manifest file to storage if artifacts_uri is provided
@@ -51,7 +56,7 @@ def finalize(args: Namespace):
                 logger.info(report)
 
         if getattr(args, "clean_ephemeral", False):
-            clean_up_ephemeral(args)
+            clean_up_ephemeral(args, cache)
 
         cache.update_report("finalize", "completed", cache.get_cache())
         logger.info("Finalize complete.")
