@@ -7,6 +7,7 @@ import sys
 import logging
 from pathlib import Path
 from argparse import Namespace
+from typing import cast
 import click
 from src.adapters.slack import SlackClient
 from src.commands.ephemeral import generate_ephemeral_map
@@ -110,12 +111,12 @@ def init(args: Namespace):
         cache.write_cache(state_change_summary)
         if reference_target is not None and reference_target != getattr(args, "target", None):
             # Different targets - will compile again later with actual target
-            cache.write_cache(target_manifest_file, "target_manifest.json")
+            cache.write_cache(cast(dict, target_manifest_file), "target_manifest.json")
         else:
             # Same target or no reference target specified - reference and target are the same
             logger.debug("Reference target is the same as current target, using the same manifest for both reference and target state.")
-            cache.write_cache(target_manifest_file, "reference_manifest.json")
-            cache.write_cache(target_manifest_file, "target_manifest.json")
+            cache.write_cache(cast(dict, target_manifest_file), "reference_manifest.json")
+            cache.write_cache(cast(dict, target_manifest_file), "target_manifest.json")
 
         # Will generate summary and output it in the logs. It also covers:
         # 1. Migration plan for partitioning changes
@@ -137,7 +138,7 @@ def init(args: Namespace):
                 runner_config=RunnerConfig(args.__dict__)
             )
             target_manifest_file = get_manifest_file(args.dbt_project_dir)
-            cache.write_cache(target_manifest_file, "target_manifest.json")
+            cache.write_cache(cast(dict, target_manifest_file), "target_manifest.json")
 
         cache.update_report(command="init", status="completed")
         logger.info("Initialization complete. Cache updated with current state(s).")
