@@ -4,13 +4,13 @@
 
 import sys
 import logging
-from typing import Dict
+from typing import cast
 from argparse import Namespace
 import click
 from src.cache import CacheManager
 from src.connectors import get_connector
 from src.dependency_graph import DbtGraph
-from src.schema import DeleteMapNode
+from src.schema import DeleteMapNode, SupportedConnectors
 from src.utilities.graph_utils import get_node_ids_from_structured_nodes, get_nodes
 from src.utilities.paths import get_profile
 
@@ -23,9 +23,15 @@ def delete(args: Namespace):
         logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager()
         cache.start_report("delete", args)
-        connector_type = get_profile(args)["type"]
-        delete_connector = get_connector(connector_type).get("strategies", {}).get("delete")
+        connector_type = cast(SupportedConnectors, get_profile(args)["type"])
+        delete_connector = get_connector(connector_type)
         delete_map = generate_delete_map(args, cache)
+
+        if delete_connector is None:
+            logger.error(f"Connector '{connector_type}' does not support delete strategy, which is required for delete command.")
+            sys.exit(1)
+
+        delete_function = delete_connector.get("strategies", {}).get("delete")
 
         logger.info("\n------------------------------------------------------")
         click.secho(f"Nodes to be deleted ({len(delete_map)})", fg="green", bold=True)
@@ -37,7 +43,7 @@ def delete(args: Namespace):
             logger.info("\nDry run complete - no nodes were actually deleted.")
             sys.exit(0)
 
-        delete_connector(delete_map, args)
+        delete_function(delete_map, args)
         cache.update_report("delete", "completed", comment=str(list(delete_map.keys())))
         logger.info("Delete process completed successfully.")
         sys.exit(0)

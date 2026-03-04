@@ -1,6 +1,6 @@
 """Init file for connectors module."""
 import sys
-from typing import Final
+from typing import Final, cast
 from src.schema import ConnectorConfig, SupportedConnectors, StorageConnectorConfig, SupportedStorageConnectors
 from src.connectors.aws.storage import (
     aws_download_json,
@@ -72,14 +72,14 @@ def init_storage_connector(uri: str | None) -> tuple[StorageConnectorConfig, str
         sys.exit(1)
 
     # Now get the configs
-    storage_connector = STORAGE_CONNECTORS.get(STORAGE_URI_PREFIXES[provider])
+    storage_connector = STORAGE_CONNECTORS.get(cast(SupportedStorageConnectors, STORAGE_URI_PREFIXES[provider]))
     if storage_connector is None:
         print(f"No storage connector found for provider '{provider}'.")
         sys.exit(1)
 
     return storage_connector, uri
 
-def get_connector(connector: SupportedConnectors) -> ConnectorConfig:
+def get_connector(connector: SupportedConnectors) -> ConnectorConfig | None:
     """Factory function to get the appropriate connector based on configuration."""
     if connector not in DB_CONNECTORS:
         print(f"Connector '{connector}' is not supported.")
