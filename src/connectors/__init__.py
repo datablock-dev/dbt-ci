@@ -2,11 +2,7 @@
 import sys
 from typing import Final, cast
 from src.schema import ConnectorConfig, SupportedConnectors, StorageConnectorConfig, SupportedStorageConnectors
-from src.connectors.aws.storage import (
-    aws_download_json,
-    aws_storage_client,
-    aws_upload_json
-)
+from src.connectors.aws import aws_storage_connector
 from src.connectors.google import bigquery_db_connector, bigquery_storage_connector
 
 DB_CONNECTORS: Final[dict[SupportedConnectors, ConnectorConfig]] = {
@@ -19,12 +15,7 @@ STORAGE_URI_PREFIXES: Final[dict[str, str]] = {
 }
 
 STORAGE_CONNECTORS: Final[dict[SupportedStorageConnectors, StorageConnectorConfig]] = {
-    "aws": {
-        "name": "AWS S3",
-        "client": aws_storage_client,
-        "upload": aws_upload_json,
-        "download": aws_download_json,
-    },
+    "aws": aws_storage_connector,
     "google": bigquery_storage_connector
 }
 
