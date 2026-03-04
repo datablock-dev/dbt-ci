@@ -7,6 +7,7 @@ import sys
 import logging
 from pathlib import Path
 from argparse import Namespace
+from typing import cast
 import click
 from src.adapters.slack import SlackClient
 from src.commands.ephemeral import generate_ephemeral_map
@@ -137,7 +138,7 @@ def init(args: Namespace):
                 runner_config=RunnerConfig(args.__dict__)
             )
             target_manifest_file = get_manifest_file(args.dbt_project_dir)
-            cache.write_cache(target_manifest_file, "target_manifest.json")
+            cache.write_cache(cast(dict[str, Any], target_manifest_file), "target_manifest.json")
 
         cache.update_report(command="init", status="completed")
         logger.info("Initialization complete. Cache updated with current state(s).")
@@ -151,7 +152,7 @@ def init_summary(
     state_change_summary: dict[str, dict[str, list[DependencyGraphNode]] | None],
     args: Namespace,
     cache: CacheManager
-):
+) -> None:
     """
         The following method will call the following steps to generate a summary of changes,
         but also migration, ephemeral:

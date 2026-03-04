@@ -4,7 +4,7 @@ import sys
 import venv
 from pathlib import Path
 from argparse import Namespace
-from typing import Callable, Dict, List
+from typing import Callable
 from src.schema import RunnerConfig, Runners
 from src.runners.dbt import dbt_runner
 from src.runners.local import local_runner

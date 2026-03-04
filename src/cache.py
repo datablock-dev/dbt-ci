@@ -7,7 +7,7 @@ import tempfile
 from argparse import Namespace
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from src.schema import Commands
 
@@ -21,7 +21,7 @@ class CacheManager:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.dir_path = Path(self.cache_dir).resolve()
 
-    def write_cache(self, data: dict, file_name: str = "cache.json"):
+    def write_cache(self, data: dict[str, Any], file_name: str = "cache.json"):
         """Write data to the cache file."""
         file_path = self.dir_path / file_name
         with open(file_path, 'w', encoding='utf-8') as f:
@@ -33,7 +33,7 @@ class CacheManager:
             )
             print(f"Cache written to {file_path.absolute()}")
 
-    def get_cache(self, file_name: str = "cache.json") -> dict | None:
+    def get_cache(self, file_name: str = "cache.json") -> dict[str, Any] | None:
         """Load cache data from the cache file. Returns None if the file doesn't exist."""
         file_path = self.dir_path / file_name
         if file_path.is_file():
@@ -73,7 +73,7 @@ class CacheManager:
             }
             self.write_cache(report_cache, "report.json")
 
-    def update_report(self, command: Commands, status: str, comment: dict | str | None = None):
+    def update_report(self, command: Commands, status: str, comment: dict[str, Any] | str | None = None):
         """Update report.json with status and timestamp"""
         report_cache = self.get_cache("report.json")
         if report_cache is not None and command in report_cache:

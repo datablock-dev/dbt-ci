@@ -58,9 +58,9 @@ def run(args: Namespace):
         logger.info("Cache successfully found - using cached state for comparison")
 
         changed_nodes_dict = {
-            "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
-            "new_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("new_nodes", None)) or [],
-            "deleted_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("deleted_nodes", None)) or []
+            "modified_nodes": get_node_ids_from_structured_nodes(prev_cache.get("modified_nodes", None)) or [],
+            "new_nodes": get_node_ids_from_structured_nodes(prev_cache.get("new_nodes", None)) or [],
+            "deleted_nodes": get_node_ids_from_structured_nodes(prev_cache.get("deleted_nodes", None)) or []
         }
         changed_nodes = [value for values in changed_nodes_dict.values() for value in values]
 
@@ -147,7 +147,7 @@ def run_with_mode(
                 else:
                     # When filters are provided in test mode, include upstream dependencies but only of types specified in filters
                     # Example: -f snapshots means include upstream snapshot dependencies of the changed tests
-                    nodes_to_run = test_additional_filter(
+                    nodes_to_run = run_test_with_additional_filter(
                         dependency_graph=target_graph.to_dict(),
                         node_type=node_type,
                         args=args,
@@ -199,7 +199,7 @@ def run_with_mode(
         print_exception(e)
         sys.exit(1)
 
-def test_additional_filter(
+def run_test_with_additional_filter(
     dependency_graph: DependencyGraph,
     node_type: DependencyGraphNodeType,
     args: Namespace,
