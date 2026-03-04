@@ -1,7 +1,7 @@
 """Module for parsing dbt manifest files and generating dependency graphs."""
 import sys
 import json
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Literal, Optional, Set, cast
 from src.schema import MANIFEST_KEY_MAPPING, DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 def skeleton_dependencies_structure():
@@ -37,7 +37,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
     }
 
     for key, downstream_dependencies in child_map.items():
-        node_type: DependencyGraphNodeType = key.split(".")[0]
+        node_type: DependencyGraphNodeType = cast(DependencyGraphNodeType, key.split(".")[0])
         manifest_key = MANIFEST_KEY_MAPPING.get(node_type)
         full_item = manifest_file.get(manifest_key, {}).get(key, None) if manifest_key else None
 
@@ -115,7 +115,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             manifest_file=manifest_file
         )
 
-    append_upstream_dependencies(dependency_graph, manifest_file)
+    append_upstream_dependencies(dependency_graph, cast(dict, manifest_file))
     append_indirect_dependencies(dependency_graph, "upstream")
     append_indirect_dependencies(dependency_graph, "downstream")
 
@@ -182,7 +182,12 @@ def find_node_by_id(dependency_graph: DependencyGraph, node_id: str) -> Optional
     return None
 
 
-def collect_dependencies_recursively(dependency_graph, node_data, visited: Set[str], direction="upstream"):
+def collect_dependencies_recursively(
+    dependency_graph: DependencyGraph, 
+    node_data: DependencyGraphNode, 
+    visited: set[str], 
+    direction: Literal["upstream", "downstream"] = "upstream"
+) -> None:
     """Recursively collect upstream or downstream dependencies"""
     dep_key = "upstream_dependencies" if direction == "upstream" else "downstream_dependencies"
     
@@ -194,7 +199,7 @@ def collect_dependencies_recursively(dependency_graph, node_data, visited: Set[s
                 collect_dependencies_recursively(dependency_graph, dep_node, visited, direction)
 
 
-def append_upstream_dependencies(dependency_graph, manifest_file):
+def append_upstream_dependencies(dependency_graph: DependencyGraph, manifest_file: dict) -> None:
     """Populate upstream dependencies by reversing downstream dependencies"""
     # Iterate through all nodes and their downstream dependencies
     parent_map = manifest_file.get("parent_map", {})
@@ -227,7 +232,7 @@ def append_upstream_dependencies(dependency_graph, manifest_file):
             dependency_graph[child_node_type][node]["upstream_dependencies"]["dependencies_by_type"][parent_node_type].add(name)
 
 
-def append_indirect_dependencies(dependency_graph, direction="upstream"):
+def append_indirect_dependencies(dependency_graph, direction: Literal["upstream", "downstream"] = "upstream"):
     """Populate indirect dependencies (transitive, excluding direct)
     
     Args:
