@@ -1,3 +1,4 @@
+from src.schema import ConnectorConfig, StorageConnectorConfig
 from src.connectors.google.storage import (
     google_storage_client,
     google_download_json,
@@ -14,7 +15,6 @@ from src.connectors.google.bigquery import (
     bigquery_migration_strategy,
     bigquery_query
 )
-from src.schema import ConnectorConfig, StorageConnectorConfig
 
 bigquery_storage_connector: StorageConnectorConfig = {
     "name": "Google Cloud Storage",

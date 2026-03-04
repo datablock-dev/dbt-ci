@@ -432,16 +432,13 @@ class ConnectorStrategiesConfig(TypedDict):
 
 class ConnectorMethodsConfig(TypedDict):
     """Configuration for supported connector methods."""
-    # We need to standardize the return type for query.
-    # Ideally, it should return a structured result with success status, error messages, and any relevant metadata.
-    query: Callable[[Any, str], None]
+    query: Callable[[Any, str], str | None]
     # Dataset methods
-    create_datasets: Callable[[Any, set[str], Optional[bool], Optional[int]], None]
-    delete_datasets: Callable[[Any, set[str], Optional[bool], Optional[int]], None]
+    create_datasets: Callable[[Any, set[str], bool, int], None]
+    delete_datasets: Callable[[Any, set[str], bool, int], None]
     # Table methods
-    create_tables: Callable[[Any, str], None]
-    delete_tables: Callable[[Any, str], None]
-    # Schema methods?
+    create_tables: Callable[[Any, set[str], bool, int], None]
+    delete_tables: Callable[[Any, set[str], bool, int], None]
 
 
 class ConnectorConfig(TypedDict):
