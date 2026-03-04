@@ -500,6 +500,20 @@ MANIFEST_KEY_MAPPING = {
 }
 
 ###################################################################
+#                    State Change Schemas                         #
+###################################################################
+
+# Nodes grouped by resource_type, then keyed by node_id.
+# e.g. {"model": {"model.pkg.foo": DependencyGraphNode}, "snapshot": {...}}
+StructuredNodes = dict[str, dict[str, DependencyGraphNode]]
+
+class StateChangeSummary(TypedDict):
+    """Top-level cache structure written by the init command."""
+    modified_nodes: StructuredNodes | None
+    deleted_nodes: StructuredNodes | None
+    new_nodes: StructuredNodes | None
+
+###################################################################
 #                   GitHub Actions Schemas                        #
 ###################################################################
 

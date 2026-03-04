@@ -14,7 +14,7 @@ from src.commands.ephemeral import generate_ephemeral_map
 from src.commands.migration import generate_migration_map
 from src.dependency_graph import DbtGraph
 from src.cache import CacheManager
-from src.schema import DependencyGraphNode, RunnerConfig, StorageConnectorConfig
+from src.schema import DependencyGraphNode, RunnerConfig, StateChangeSummary, StorageConnectorConfig
 from src.logging import print_exception
 from src.connectors import init_storage_connector
 from src.utilities.paths import get_manifest_file, get_reference_manifest_file
@@ -134,7 +134,7 @@ def get_state_change_summary(
     args: Namespace,
     target_graph: DbtGraph,
     reference_graph: DbtGraph,
-) -> dict[str, dict[str, list[DependencyGraphNode]] | None]:
+) -> StateChangeSummary:
     cache = CacheManager()
 
     commands = resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], args)
@@ -159,7 +159,7 @@ def get_state_change_summary(
     target_graph_dict = target_graph.to_dict()
     reference_graph_dict = reference_graph.to_dict()
 
-    state_change_summary = {
+    state_change_summary: StateChangeSummary = {
         "modified_nodes": get_structured_modified_nodes(get_nodes(
             dependency_graph=target_graph_dict, 
             node_ids=modified_nodes
@@ -180,7 +180,7 @@ def get_state_change_summary(
     return state_change_summary
 
 def init_summary(
-    state_change_summary: dict[str, dict[str, list[DependencyGraphNode]] | None],
+    state_change_summary: StateChangeSummary,
     args: Namespace,
     cache: CacheManager
 ) -> None:
