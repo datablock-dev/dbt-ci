@@ -71,7 +71,11 @@ def init(args: Namespace):
             command.extend(["--vars", reference_vars]) if reference_vars else None
 
         run_dbt_command(
-            command_args=resolve_dbt_commands(command, args, ["vars", "target"]),  # Don't pass vars or target when compiling reference manifest
+            command_args=resolve_dbt_commands(
+                command_args=command, 
+                args=args, 
+                ignore_keys=["vars", "target"] # Don't pass vars or target when compiling reference manifest
+            ),
             runner_config=RunnerConfig(args.__dict__),
         )
 
@@ -85,41 +89,8 @@ def init(args: Namespace):
         target_graph = DbtGraph(args)
         reference_graph = DbtGraph(args, is_production=True)
 
-        ls_output = run_dbt_command(
-            command_args=resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], args),
-            runner_config=RunnerConfig(args.__dict__)
-        )
+        state_change_summary = get_state_change_summary(args, target_graph, reference_graph)
 
-        if ls_output is None:
-            logger.info("No modified nodes found during initialization. Exiting...")
-            cache.write_cache({
-                "modified_nodes": None,
-                "deleted_nodes": None,
-                "new_nodes": None
-            })
-            sys.exit(0)
-
-        modified_nodes = ls_output.stdout.splitlines()
-        target_graph_dict = target_graph.to_dict()
-        reference_graph_dict = reference_graph.to_dict()
-
-        state_change_summary = {
-            "modified_nodes": get_structured_modified_nodes(get_nodes(
-                dependency_graph=target_graph_dict, 
-                node_ids=modified_nodes
-            )),
-            "deleted_nodes": get_structured_modified_nodes(get_nodes(
-                dependency_graph=reference_graph_dict, 
-                node_ids=get_deleted_nodes(reference_graph_dict, target_graph_dict)
-            )),
-            "new_nodes": get_structured_modified_nodes(get_nodes(
-                dependency_graph=target_graph_dict, 
-                node_ids=get_new_nodes(reference_graph_dict, target_graph_dict)
-            ))
-        }
-
-        # Write cache
-        cache.write_cache(state_change_summary)
         if reference_target is not None and reference_target != getattr(args, "target", None):
             # Different targets - will compile again later with actual target
             cache.write_cache(target_manifest_file, "target_manifest.json")
@@ -158,6 +129,55 @@ def init(args: Namespace):
         cache.update_report(command="init", status="failed")
         print_exception(e, "Error during initialization")
         sys.exit(1)
+
+def get_state_change_summary(
+    args: Namespace,
+    target_graph: DbtGraph,
+    reference_graph: DbtGraph,
+) -> dict[str, dict[str, list[DependencyGraphNode]] | None]:
+    cache = CacheManager()
+
+    commands = resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], args)
+    commands.extend(["--target", getattr(args, "reference_target")])
+    commands.extend(["--vars", getattr(args, "reference_vars")]) if getattr(args, "reference_vars", None) else None
+
+    ls_output = run_dbt_command(
+        command_args=commands,
+        runner_config=RunnerConfig(args.__dict__)
+    )
+
+    if ls_output is None:
+        logger.info("No modified nodes found during initialization. Exiting...")
+        cache.write_cache({
+            "modified_nodes": None,
+            "deleted_nodes": None,
+            "new_nodes": None
+        })
+        sys.exit(0)
+
+    modified_nodes = ls_output.stdout.splitlines()
+    target_graph_dict = target_graph.to_dict()
+    reference_graph_dict = reference_graph.to_dict()
+
+    state_change_summary = {
+        "modified_nodes": get_structured_modified_nodes(get_nodes(
+            dependency_graph=target_graph_dict, 
+            node_ids=modified_nodes
+        )),
+        "deleted_nodes": get_structured_modified_nodes(get_nodes(
+            dependency_graph=reference_graph_dict, 
+            node_ids=get_deleted_nodes(reference_graph_dict, target_graph_dict)
+        )),
+        "new_nodes": get_structured_modified_nodes(get_nodes(
+            dependency_graph=target_graph_dict, 
+            node_ids=get_new_nodes(reference_graph_dict, target_graph_dict)
+        ))
+    }
+
+    # Write cache
+    cache.write_cache(state_change_summary)
+
+    return state_change_summary
 
 def init_summary(
     state_change_summary: dict[str, dict[str, list[DependencyGraphNode]] | None],
