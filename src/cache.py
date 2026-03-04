@@ -41,16 +41,20 @@ class CacheManager:
                 return json.load(f)
         else:
             return None
-        
+
+    def _write_report(self, data: dict[str, Any]):
+        """Write data to the report.json file."""
+        self.write_cache(data, "report.json")        
+
     def start_report(self, command: Commands, args: Namespace):
         """Add information to report.json"""
         if command == "init":
             # Clear previous report on init
-            self.write_cache({}, "report.json")
+            self._write_report({})
         # Check if key exists in cache, if not create it
         report_cache = self.get_cache("report.json")
         if report_cache is None:
-            self.write_cache({
+            self._write_report({
                 command: {
                     "status": "started",
                     "started_at": datetime.now().isoformat(),
@@ -60,7 +64,7 @@ class CacheManager:
                         "reference_target": getattr(args, "reference_target", None),
                     }
                 }
-            }, "report.json")
+            })
         else:
             report_cache[command] = {
                 "status": "started",
@@ -71,7 +75,7 @@ class CacheManager:
                     "reference_target": getattr(args, "reference_target", None),
                 }
             }
-            self.write_cache(report_cache, "report.json")
+            self._write_report(report_cache)
 
     def update_report(self, command: Commands, status: str, comment: dict[str, Any] | str | None = None):
         """Update report.json with status and timestamp"""
@@ -85,4 +89,4 @@ class CacheManager:
                         report_cache[command][key] = value
                 else:
                     report_cache[command]["comment"] = comment
-            self.write_cache(report_cache, "report.json")
+            self._write_report(report_cache)

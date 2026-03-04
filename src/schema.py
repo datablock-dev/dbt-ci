@@ -498,3 +498,99 @@ MANIFEST_KEY_MAPPING = {
     "exposure": "exposures",
     "source": "sources"
 }
+
+###################################################################
+#                   GitHub Actions Schemas                        #
+###################################################################
+
+class GitHubContext(TypedDict):
+    """
+    Typed representation of the GitHub Actions `github` context object.
+
+    This context is available throughout any job or step in a workflow run.
+    Fields marked NotRequired are only populated for specific event types
+    or execution contexts (e.g. pull_request, composite actions, re-runs).
+
+    Reference: https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#github-context
+    """
+    # The GitHub Actions token for the current workflow run.
+    token: str
+    # The job_id of the current job (only set during job execution steps).
+    job: str
+    # The fully-formed ref that triggered the workflow run (e.g. refs/heads/main).
+    ref: str
+    # The commit SHA that triggered the workflow run.
+    sha: str
+    # The owner and repository name (e.g. octocat/hello-world).
+    repository: str
+    # The repository owner's username.
+    repository_owner: str
+    # The repository owner's account ID (numeric string).
+    repository_owner_id: str
+    # The ID of the repository (numeric string).
+    repository_id: str
+    # The Git URL to the repository (e.g. git://github.com/octocat/hello-world.git).
+    repositoryUrl: str
+    # A unique number for each workflow run within a repository (does not change on re-run).
+    run_id: str
+    # A unique number for each run of a particular workflow; increments with each new run.
+    run_number: str
+    # A unique number for each attempt of a particular workflow run; increments on re-run.
+    run_attempt: str
+    # Number of days that workflow run logs and artifacts are retained.
+    retention_days: str
+    # Username of the user that triggered the initial workflow run.
+    actor: str
+    # Account ID of the person or app that triggered the initial workflow run.
+    actor_id: str
+    # Username of the user that initiated the re-run (may differ from actor on re-runs).
+    triggering_actor: str
+    # The name of the event that triggered the workflow run (e.g. push, pull_request).
+    event_name: str
+    # The full event webhook payload object.
+    event: Dict[str, Any]
+    # Path on the runner to the file containing the full event webhook payload.
+    event_path: str
+    # The name of the workflow (or the full path if no name is specified).
+    workflow: str
+    # The ref path to the workflow file (e.g. octocat/hello-world/.github/workflows/ci.yml@refs/heads/main).
+    workflow_ref: str
+    # The commit SHA for the workflow file itself.
+    workflow_sha: str
+    # The name of the action currently running, or the step id for script steps.
+    action: str
+    # The short ref name of the branch or tag that triggered the run (e.g. main or v1.0.0).
+    ref_name: str
+    # The type of ref that triggered the run: "branch" or "tag".
+    ref_type: Literal["branch", "tag"]
+    # True if branch protections or rulesets are configured for the triggering ref.
+    ref_protected: bool
+    # The source of any secret used in the workflow: None, Actions, Codespaces, or Dependabot.
+    secret_source: Literal["None", "Actions", "Codespaces", "Dependabot"]
+    # The URL of the GitHub server (e.g. https://github.com).
+    server_url: str
+    # The URL of the GitHub REST API (e.g. https://api.github.com).
+    api_url: str
+    # The URL of the GitHub GraphQL API (e.g. https://api.github.com/graphql).
+    graphql_url: str
+    # Path on the runner to the file that sets environment variables from workflow commands.
+    env: str
+    # Path on the runner to the file that sets system PATH variables from workflow commands.
+    path: str
+    # The default working directory on the runner for steps.
+    workspace: str
+
+    # --- Fields only available in specific contexts ---
+
+    # The path where the current action is located (composite actions only).
+    action_path: NotRequired[str]
+    # The ref of the action being executed (e.g. v2); not available in run steps.
+    action_ref: NotRequired[str]
+    # The owner and repo name of the action being executed (e.g. actions/checkout); not available in run steps.
+    action_repository: NotRequired[str]
+    # The current result of a composite action step.
+    action_status: NotRequired[str]
+    # The head_ref (source branch) of the pull request; only set for pull_request / pull_request_target events.
+    head_ref: NotRequired[str]
+    # The base_ref (target branch) of the pull request; only set for pull_request / pull_request_target events.
+    base_ref: NotRequired[str]
