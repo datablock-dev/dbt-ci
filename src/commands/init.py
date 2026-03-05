@@ -9,6 +9,7 @@ from pathlib import Path
 from argparse import Namespace
 from typing import Any, cast
 import click
+from src import dependency_graph
 from src.adapters.slack import SlackClient
 from src.commands.ephemeral import generate_ephemeral_map
 from src.commands.migration import generate_migration_map
@@ -20,7 +21,9 @@ from src.connectors import init_storage_connector
 from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 from src.runners import resolve_dbt_commands, run_dbt_command
 from src.utilities.graph_utils import (
+    filter_node_ids_by_multiple_types,
     get_deleted_nodes,
+    get_downstream_dependencies,
     get_new_nodes,
     get_nodes,get_structured_modified_nodes
 )
@@ -104,6 +107,7 @@ def init(args: Namespace):
         # 1. Migration plan for partitioning changes
         # 2. Ephemeral plan
         init_summary(state_change_summary, args, cache)
+        detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
@@ -288,3 +292,33 @@ def resolve_manifest_file_from_storage(
     logger.info(f"Reference manifest successfully downloaded and saved to {manifest_path}")
 
     return dbtstate_dir
+
+def detect_deleted_models_with_downstream_dependencies(
+    state_change_summary: StateChangeSummary,
+    args: Namespace
+) -> None:
+    """Detect deleted models and their downstream dependencies to generate a delete map."""
+    deleted_nodes = state_change_summary.get("deleted_nodes", None)
+    reference_graph = DbtGraph(args, is_production=True)
+    
+    # If there are no deleted nodes, we can skip this step entirely
+    if deleted_nodes is None or len(deleted_nodes) == 0:
+        return
+    
+    # Deleted nodes detected, lets proceed and identify downstream dependencies
+    downstream_dependencies = get_downstream_dependencies(
+        dependency_graph=reference_graph.to_dict(),
+        node_ids=list(deleted_nodes.keys())
+    )
+
+    if downstream_dependencies is None or len(downstream_dependencies) == 0:
+        return
+    
+    logger.error("\n------------------------------------------------------")
+    click.secho("Deleted Nodes with Downstream Dependencies Detected:", fg="red", bold=True)
+    for node_id in downstream_dependencies:
+        logger.error(f"  • {node_id} ({deleted_nodes[node_id]['resource_type']}) depends on deleted node(s)")
+    logger.error("------------------------------------------------------\n")
+    logger.error("Please review the above nodes and consider deleting them or modifying them to remove dependencies on deleted nodes.")
+    logger.error("Exiting...")
+    sys.exit(1)
