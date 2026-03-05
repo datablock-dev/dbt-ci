@@ -6,7 +6,7 @@ import yaml
 import json
 from src.schema import DBTManifest, DBTProfile
 
-def get_dir_name_from_path(path: str) -> str:
+def get_dir_name_from_path(path: str) -> str | None:
     """Get the directory name from a given path."""
     if os.path.isdir(path):
         return os.path.basename(os.path.normpath(path))

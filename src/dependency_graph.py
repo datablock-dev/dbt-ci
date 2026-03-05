@@ -5,8 +5,9 @@ This module defines the DbtGraph class, which encapsulates the dependency graph 
 
 import json
 from argparse import Namespace
+from typing import cast
 from src.cache import CacheManager
-from src.schema import DependencyGraph
+from src.schema import DBTManifest, DependencyGraph
 from src.parser import generate_dependency_graph
 from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 
@@ -39,7 +40,7 @@ class DbtGraph:
             )
         else: # We retrive manifest file from cache
             manifest_file = cache.get_cache("target_manifest.json" if not self.is_production else "reference_manifest.json")
-            self.dependency_graph = generate_dependency_graph(manifest_file)
+            self.dependency_graph = generate_dependency_graph(cast(DBTManifest, manifest_file))
 
     def to_dict(self) -> DependencyGraph:
         """Convert the DependencyGraph instance to a dictionary."""

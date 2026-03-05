@@ -1,13 +1,7 @@
 """Getters for dependency graph nodes"""
-
-from argparse import Namespace
-import sys
-import os
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional, Set
-import yaml
-from src.schema import DBTProfile, DBTProfile, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
+from typing import Optional, Set, cast
+from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +35,7 @@ def get_diff_nodes(
     diff_nodes: list[str] = []
 
     for node_type, node_values in source_graph.items():
+        node_values = cast(dict, node_values)
         if node_type == "metadata":
             continue
 
