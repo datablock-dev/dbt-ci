@@ -14,7 +14,7 @@ from src.commands.ephemeral import generate_ephemeral_map
 from src.commands.migration import generate_migration_map
 from src.dependency_graph import DbtGraph
 from src.cache import CacheManager
-from src.schema import DependencyGraphNode, RunnerConfig, StateChangeSummary, StorageConnectorConfig
+from src.schema import RunnerConfig, StateChangeSummary, StorageConnectorConfig
 from src.logging import print_exception
 from src.connectors import init_storage_connector
 from src.utilities.paths import get_manifest_file, get_reference_manifest_file
@@ -159,23 +159,27 @@ def get_state_change_summary(
     target_graph_dict = target_graph.to_dict()
     reference_graph_dict = reference_graph.to_dict()
 
+    new_node_ids = set(get_new_nodes(reference_graph_dict, target_graph_dict) or [])
+    deleted_node_ids = set(get_deleted_nodes(reference_graph_dict, target_graph_dict) or [])
+    truly_modified_nodes = [n for n in modified_nodes if n not in new_node_ids and n not in deleted_node_ids]
+
     state_change_summary: StateChangeSummary = {
         "modified_nodes": get_structured_modified_nodes(get_nodes(
             dependency_graph=target_graph_dict, 
-            node_ids=modified_nodes
+            node_ids=truly_modified_nodes
         )),
         "deleted_nodes": get_structured_modified_nodes(get_nodes(
             dependency_graph=reference_graph_dict, 
-            node_ids=get_deleted_nodes(reference_graph_dict, target_graph_dict)
+            node_ids=list(deleted_node_ids)
         )),
         "new_nodes": get_structured_modified_nodes(get_nodes(
             dependency_graph=target_graph_dict, 
-            node_ids=get_new_nodes(reference_graph_dict, target_graph_dict)
+            node_ids=list(new_node_ids)
         ))
     }
 
     # Write cache
-    cache.write_cache(state_change_summary)
+    cache.write_cache(cast(dict, state_change_summary))
 
     return state_change_summary
 

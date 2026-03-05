@@ -13,8 +13,12 @@ logger = logging.getLogger(__name__)
 
 def bigquery_client(args: Namespace) -> bigquery.Client:
     """Create a BigQuery client using credentials from the dbt profiles.yml file."""
+    dbt_project_dir = getattr(args, "dbt_project_dir", None)
+    if dbt_project_dir is None:
+        raise ValueError("dbt_project_dir argument is required to initialize BigQuery client")
+
     dbt_profile = get_profiles_file(
-        dbt_project_dir=getattr(args, "dbt_project_dir", None),
+        dbt_project_dir=dbt_project_dir,
         profiles_dir=getattr(args, "profiles_dir", None)
     )
     

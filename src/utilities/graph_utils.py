@@ -51,16 +51,17 @@ def get_diff_nodes(
 
     return diff_nodes
 
-def get_structured_modified_nodes(nodes: dict[str, dict[str, DependencyGraphNode]] | None) -> dict[str, list[DependencyGraphNode]] | None:
+def get_structured_modified_nodes(nodes: dict[str, dict[str, DependencyGraphNode]] | None) -> dict[str, dict[str, DependencyGraphNode]] | None:
     """Get modified nodes, structured by type"""
     if nodes is None or len(nodes) == 0:
         return None
 
-    structured_nodes: dict[str, list[DependencyGraphNode]] = {}
+    structured_nodes: dict[str, dict[str, DependencyGraphNode]] = {}
     for node_name, node_value in nodes.items():
         node_type = node_value.get("resource_type", None)
-
-        if node_type not in structured_nodes:
+        if node_type is None:
+            continue
+        elif node_type not in structured_nodes:
             structured_nodes[node_type] = {}
 
         structured_nodes[node_type][node_name] = node_value

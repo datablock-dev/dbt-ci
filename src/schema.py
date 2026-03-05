@@ -505,7 +505,7 @@ MANIFEST_KEY_MAPPING = {
 
 # Nodes grouped by resource_type, then keyed by node_id.
 # e.g. {"model": {"model.pkg.foo": DependencyGraphNode}, "snapshot": {...}}
-StructuredNodes = dict[str, dict[str, DependencyGraphNode]]
+type StructuredNodes = dict[str, dict[str, DependencyGraphNode]]
 
 class StateChangeSummary(TypedDict):
     """Top-level cache structure written by the init command."""
@@ -562,7 +562,7 @@ class GitHubContext(TypedDict):
     # The name of the event that triggered the workflow run (e.g. push, pull_request).
     event_name: str
     # The full event webhook payload object.
-    event: Dict[str, Any]
+    event: dict[str, Any]
     # Path on the runner to the file containing the full event webhook payload.
     event_path: str
     # The name of the workflow (or the full path if no name is specified).

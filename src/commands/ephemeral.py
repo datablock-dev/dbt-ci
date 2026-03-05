@@ -20,7 +20,6 @@ from src.schema import EphemeralMapNode
 from src.utilities.paths import get_profile
 from src.utilities.graph_utils import (
     filter_node_ids_by_multiple_types,
-    filter_node_ids_by_type,
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes,
     get_nodes,
@@ -118,16 +117,18 @@ def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, Ep
 
     changed_nodes_dict = {
         "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
-        "deleted_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("deleted_nodes", None)) or []
+        "deleted_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("deleted_nodes", None)) or [],
+        "new_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("new_nodes", None)) or [],
     }
 
-    changed_nodes = list(chain(
+    changed_nodes = list(set(chain(
         changed_nodes_dict["modified_nodes"],
         changed_nodes_dict["deleted_nodes"],
-    ))
+        changed_nodes_dict["new_nodes"],
+    )))
 
     if len(changed_nodes) == 0:
-        logger.info("No modified or deleted nodes found in cache, skipping...")
+        logger.info("No modified, deleted, or new nodes found in cache, skipping...")
         sys.exit(0)
 
     # Ephemeral cloning strategy:
@@ -137,9 +138,18 @@ def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, Ep
     # 4. If a test changed, include its upstream dependencies (first level)
     # Note: New nodes are skipped - they should be created in the PR/merge, not cloned
         
-    # Get modified nodes by type
-    modified_snapshots = filter_node_ids_by_type(target_graph.to_dict(), changed_nodes_dict["modified_nodes"], "snapshot")
-    modified_tests = filter_node_ids_by_type(target_graph.to_dict(), changed_nodes_dict["modified_nodes"], "test")
+    # Get modified nodes of type that needs to have upstream dependencies included
+    # Snapshots & tests
+    nodes_with_upstream_deps = list(set(chain(
+        filter_node_ids_by_multiple_types(
+            dependency_graph=target_graph.to_dict(),
+            node_types=["snapshot", "test"],
+            node_ids=list(chain(
+                changed_nodes_dict["modified_nodes"],
+                changed_nodes_dict["new_nodes"],
+            ))
+        )
+    )))
         
     selected_nodes = filter_node_ids_by_multiple_types(
         dependency_graph=target_graph.to_dict(),
@@ -147,6 +157,7 @@ def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, Ep
         node_ids=list(chain(
             # 1. All modified nodes (models, snapshots)
             changed_nodes_dict["modified_nodes"],
+            changed_nodes_dict["new_nodes"],
             # 2. Upstream dependencies of modified models (first level, only models)
             get_upstream_dependencies(target_graph.to_dict(), changed_nodes, "model") or [],
             # 3. Get upstream dependencies of modified models downstream dependencies (full graph, all types)
@@ -156,10 +167,8 @@ def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, Ep
             ) or [],
             # 4. Indirect Downstream dependencies of modified & deleted nodes (all types)
             get_downstream_dependencies(target_graph.to_dict(), changed_nodes, None) or [],
-            # 5. Upstream dependencies of modified snapshots (first level, any type)
-            get_upstream_dependencies(target_graph.to_dict(), modified_snapshots, None) or [],
-            # 6. Upstream dependencies of modified tests (first level, any type)
-            get_upstream_dependencies(target_graph.to_dict(), modified_tests, None) or []
+            # 5. Upstream dependencies of modified snapshots & tests (first level, any type)
+            get_upstream_dependencies(target_graph.to_dict(), nodes_with_upstream_deps, None) or [],
         ))
     )
     # Lets get all metadata related to these downstream dependencies
