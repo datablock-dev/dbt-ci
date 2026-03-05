@@ -1,8 +1,8 @@
 """Module for parsing dbt manifest files and generating dependency graphs."""
 import sys
 import json
-from typing import Dict, List, Literal, Optional, Set, cast
-from src.schema import MANIFEST_KEY_MAPPING, DBTManifest, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
+from typing import Literal, Optional, cast
+from src.schema import MANIFEST_KEY_MAPPING, DBTManifest, DbtNode, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType, Macro, Node, Source
 
 def skeleton_dependencies_structure():
     """Helper function to create an empty dependencies structure."""
@@ -39,7 +39,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
     for key, downstream_dependencies in child_map.items():
         node_type: DependencyGraphNodeType = cast(DependencyGraphNodeType, key.split(".")[0])
         manifest_key = MANIFEST_KEY_MAPPING.get(node_type)
-        full_item = manifest_file.get(manifest_key, {}).get(key, None) if manifest_key else None
+        full_item: DbtNode | None  = manifest_file.get(manifest_key, {}).get(key, None) if manifest_key else None
 
         # Skip if the node type is not recognized (e.g., "analysis", "docs", etc.)
         if node_type not in dependency_graph.keys():
@@ -54,6 +54,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
         name = full_item.get("name", None)
         compiled_code = full_item.get("compiled_code", None)
         original_file_path = full_item.get("original_file_path", None)
+        config = full_item.get("config", {})
 
         node_type_map: dict[str, set] = {
             "model": set(),
@@ -85,10 +86,10 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             "original_file_path": original_file_path,
             "compiled_path": full_item.get("compiled_path", None),
             "compiled_code": compiled_code,
-            "config": full_item.get("config", {}),
+            "config": config,
             "columns": set(full_item.get("columns", {}).keys()),
-            "materialized": full_item.get("materialized", None),
-            "incremental_strategy": full_item.get("incremental_strategy", None),
+            "materialized": config.get("materialized", None),
+            "incremental_strategy": config.get("incremental_strategy", None),
             "downstream_dependencies": {
                 "node_dependencies": set(downstream_dependencies),
                 "dependencies_by_type": {

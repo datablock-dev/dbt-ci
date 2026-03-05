@@ -244,6 +244,7 @@ class Source(TypedDict, total=False):
     relation_name: str
     created_at: float
 
+type DbtNode = Node | Macro | Source
 
 class DBTManifest(TypedDict):
     """Complete dbt manifest.json structure."""
