@@ -12,9 +12,14 @@ def parse_multiple_option(ctx, param, value):
         --docker-env KEY1=val1 --docker-env KEY2=val2  -> ('KEY1=val1', 'KEY2=val2') (unchanged)
     """
     if not value:
+        print(value)
         return value
     if len(value) == 1 and (',' in value[0] or '\n' in value[0]):
-        return tuple(p.strip() for p in value[0].replace('\n', ',').split(',') if p.strip())
+        new_value = tuple(p.strip() for p in value[0].replace('\n', ',').split(',') if p.strip())
+        print(new_value)
+        return new_value
+    
+    print(value)
     return value
 
 
