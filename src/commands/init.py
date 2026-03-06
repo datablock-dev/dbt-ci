@@ -17,6 +17,7 @@ from src.cache import CacheManager
 from src.schema import RunnerConfig, StateChangeSummary, StorageConnectorConfig
 from src.logging import print_exception
 from src.connectors import init_storage_connector
+from src.utilities.git import GitAdapter
 from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 from src.runners import resolve_dbt_commands, run_dbt_command
 from src.graph.graph_utils import (
@@ -48,9 +49,7 @@ def init(args: Namespace):
         cache = CacheManager()
         cache.start_report("init", args)
         reference_target = getattr(args, "reference_target", None)
-        reference_vars = getattr(args, "reference_vars", None)
         reference_state_path: str | None = getattr(args, "reference_state", None)
-        command = ["compile"]
         resolved_storage = init_storage_connector(getattr(args, "state_uri", None))
 
         if resolved_storage is not None:
@@ -65,20 +64,8 @@ def init(args: Namespace):
             args.reference_manifest_file = get_reference_manifest_file(reference_state_path)
             cache.write_cache(get_reference_manifest_file(reference_state_path), "reference_manifest.json")
 
-        if reference_target is None:
-            logger.warning("No reference target specified, using current target as reference state for comparison.")
-        else:
-            command.extend(["--target", reference_target])
-            command.extend(["--vars", reference_vars]) if reference_vars else None
-
-        run_dbt_command(
-            command_args=resolve_dbt_commands(
-                command_args=command, 
-                args=args, 
-                ignore_keys=["vars", "target"] # Don't pass vars or target when compiling reference manifest
-            ),
-            runner_config=RunnerConfig(args.__dict__),
-        )
+        if not getattr(args, "skip_reference_compile", False):
+            reference_compile(args)
 
         logger.info("DBT project compiled successfully. manifest.json generated.")
         dbt_project_dir = getattr(args, "dbt_project_dir", None)
@@ -132,12 +119,43 @@ def init(args: Namespace):
         print_exception(e, "Error during initialization")
         sys.exit(1)
 
+def reference_compile(args) -> None: 
+    """Compile the DBT project towards the reference state (e.g., production) to generate the reference manifest.json for comparison."""
+    command = ["compile"]
+
+    try:
+        # This function can be called separately if users want to compile towards reference state independently, but by default it will be called during init if a different reference target is specified.
+        reference_target = getattr(args, "reference_target", None)
+        reference_vars = getattr(args, "reference_vars", None)
+        if reference_target is None:
+            logger.warning("No reference target specified, using current target as reference state for comparison.")
+        else:
+            command.extend(["--target", reference_target])
+            command.extend(["--vars", reference_vars]) if reference_vars else None
+
+        run_dbt_command(
+            command_args=resolve_dbt_commands(
+                command_args=command, 
+                args=args, 
+                ignore_keys=["vars", "target"] # Don't pass vars or target when compiling reference manifest
+            ),
+            runner_config=RunnerConfig(args.__dict__),
+        )
+
+        return
+    except Exception as e:
+        print_exception(e, "Error during reference compilation")
+        sys.exit(1)
+
 def get_state_change_summary(
     args: Namespace,
     target_graph: DbtGraph,
     reference_graph: DbtGraph,
 ) -> StateChangeSummary:
+    git = GitAdapter(args)
     cache = CacheManager()
+
+    changed_files = git.get_changed_files()
 
     commands = resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], args)
     commands.extend(["--target", getattr(args, "reference_target")])
@@ -164,6 +182,22 @@ def get_state_change_summary(
     new_node_ids = set(get_new_nodes(reference_graph_dict, target_graph_dict) or [])
     deleted_node_ids = set(get_deleted_nodes(reference_graph_dict, target_graph_dict) or [])
     truly_modified_nodes = [n for n in modified_nodes if n not in new_node_ids and n not in deleted_node_ids]
+
+    # Compare against git diff to determine what has been modified vs what is new
+    if getattr(args, "no_git", False) is False and len(changed_files.keys()) > 0:
+        temp_modified_nodes = get_nodes(
+            dependency_graph=target_graph_dict,
+            node_ids=truly_modified_nodes
+        )
+
+        # We now reference and check against git
+        complete_modified_nodes = set()
+        for node_id, node_info in temp_modified_nodes.items():
+            file_path = node_info['original_file_path']
+            if file_path in changed_files["modified"]:
+                complete_modified_nodes.add(node_id)
+
+        truly_modified_nodes = list(complete_modified_nodes)
 
     state_change_summary: StateChangeSummary = {
         "modified_nodes": get_structured_modified_nodes(get_nodes(

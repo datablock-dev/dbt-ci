@@ -56,6 +56,20 @@ def cli():
     default=False,
     help="Skip compiling towards target (or default)"
 )
+@click.option(
+    "--skip-reference-compile",
+    envvar=['DBT_SKIP_REFERENCE_COMPILE'],
+    is_flag=True,
+    default=False,
+    help="Skip compiling towards reference (production) state"
+)
+@click.option(
+    "--no-git",
+    envvar=['DBT_NO_GIT'],
+    is_flag=True,
+    default=False,
+    help="Whether to skip git comparison"
+)
 def init_cmd(**kwargs):
     """Initialize dbt CI state
     
