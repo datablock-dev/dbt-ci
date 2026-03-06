@@ -20,7 +20,7 @@ class GitAdapter:
     provider = os.getenv("GIT_PROVIDER", "github").lower()
 
     def __init__(self, args: Namespace):
-        self.args = args
+        self.args: Namespace = args
         head_branch = subprocess.run(
             ["git", "remote", "show", "origin"], 
             capture_output=True, 

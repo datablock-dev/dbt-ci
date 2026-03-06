@@ -37,7 +37,7 @@ def reference_compile(args: Namespace) -> None:
             runner_config=RunnerConfig(args.__dict__)
         )
 
-        return
+        logger.info("DBT project compiled successfully. manifest.json generated.")
     except Exception:
         logger.error("Error during reference compilation", exc_info=True)
         sys.exit(1)

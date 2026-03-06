@@ -65,9 +65,10 @@ def init(args: Namespace):
             args.reference_manifest_file = get_reference_manifest_file(reference_state_path)
             cache.write_cache(get_reference_manifest_file(reference_state_path), "reference_manifest.json")
 
+        # Generate reference manifest.json file
+        # if reference target is passed
         reference_compile(args)
 
-        logger.info("DBT project compiled successfully. manifest.json generated.")
         dbt_project_dir = getattr(args, "dbt_project_dir", None)
         if dbt_project_dir is None:
             logger.error("No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument.")
