@@ -1,24 +1,21 @@
 # Shared options for all commands
 import click
 
-
 def parse_multiple_option(ctx, param, value):
     """
     Parse multiple values that may arrive as a single string when set via env var.
-    Supports comma-separated or newline-separated values.
+    When a single string is received (e.g. from env var), splits on commas or newlines.
+    When multiple values are already provided (e.g. from repeated CLI flags), passes through unchanged.
 
     Examples:
-        DBT_DOCKER_ENV="KEY1=val1,KEY2=val2"
-        DBT_DOCKER_ENV=$'KEY1=val1\nKEY2=val2'
+        DBT_DOCKER_ENV="KEY1=val1,KEY2=val2"   -> ('KEY1=val1', 'KEY2=val2')
+        --docker-env KEY1=val1 --docker-env KEY2=val2  -> ('KEY1=val1', 'KEY2=val2') (unchanged)
     """
-    print(ctx, param, value)
     if not value:
         return value
-    result = []
-    for item in value:
-        parts = [p.strip() for p in item.replace('\n', ',').split(',') if p.strip()]
-        result.extend(parts)
-    return tuple(result)
+    if len(value) == 1 and (',' in value[0] or '\n' in value[0]):
+        return tuple(p.strip() for p in value[0].replace('\n', ',').split(',') if p.strip())
+    return value
 
 
 def common_options(f):
