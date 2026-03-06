@@ -174,7 +174,7 @@ def get_state_change_summary(args: Namespace) -> StateChangeSummary:
 
         return state_change_summary
     except Exception as e:
-        raise Exception(f"Error generating state change summary: {str(e)}") from e
+        raise Exception(f"Error generating state change summary: {str(e)}")
 
 def init_summary(
     state_change_summary: StateChangeSummary,

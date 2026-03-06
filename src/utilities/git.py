@@ -50,7 +50,7 @@ class GitAdapter:
         extensions: list[Literal[".sql", ".yml", ".yaml", ".py"]] | None = None
     ) -> dict[GitChangeType, list[str]]:
         """Return a list of changed files with their change types."""
-        dbt_project_dir: str | None = getattr(self.args, "dbt_project_path", None)
+        dbt_project_dir: str | None = getattr(self.args, "dbt_project_dir", None)
         if dbt_project_dir is None:
             raise ValueError("DBT project directory not specified in arguments.")
 
