@@ -12,14 +12,9 @@ def parse_multiple_option(ctx, param, value):
         --docker-env KEY1=val1 --docker-env KEY2=val2  -> ('KEY1=val1', 'KEY2=val2') (unchanged)
     """
     if not value:
-        print(value)
         return value
     if len(value) == 1 and (',' in value[0] or '\n' in value[0]):
-        new_value = tuple(p.strip() for p in value[0].replace('\n', ',').split(',') if p.strip())
-        print(new_value)
-        return new_value
-    
-    print(value)
+        return tuple(p.strip() for p in value[0].replace('\n', ',').split(',') if p.strip())
     return value
 
 
@@ -134,6 +129,7 @@ def common_options(f):
         '--docker-env',
         envvar=['DBT_DOCKER_ENV'],
         multiple=True,
+        callback=parse_multiple_option,
         help='Environment variables (format: KEY=VALUE). Repeat flag for multiple vars: --docker-env VAR1=val1 --docker-env VAR2=val2. Via env var, use comma or newline separation: DBT_DOCKER_ENV="KEY1=val1,KEY2=val2"'
     )(f)
     f = click.option(
