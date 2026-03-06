@@ -1,9 +1,9 @@
-from argparse import Namespace
 import os
-from pathlib import Path
 import sys
 import yaml
 import json
+from pathlib import Path
+from argparse import Namespace
 from src.schema import DBTManifest, DBTProfile
 
 def get_dir_name_from_path(path: str) -> str | None:

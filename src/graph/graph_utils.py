@@ -80,7 +80,10 @@ def get_node(dependency_graph: DependencyGraph, node_id: str) -> dict[str, Depen
         print(f"Error retrieving node: {e}")
         return None
 
-def get_nodes(dependency_graph: DependencyGraph, node_ids: list[str] | None) -> dict[str, dict[str, DependencyGraphNode]] | None:
+def get_nodes(
+    dependency_graph: DependencyGraph, 
+    node_ids: list[str] | None
+) -> dict[str, dict[str, DependencyGraphNode]] | None:
     """Get multiple nodes by ID, optionally filtered by type."""
     if node_ids is None or len(node_ids) == 0:
         return None
@@ -120,7 +123,7 @@ def get_downstream_dependencies(
     node_ids: list[str] | None,
     node_type: Optional[DependencyGraphNodeType] = None,
     levels: int | None = None # To be implemented in the future
-):
+) -> set[str] | None:
     """
         Get downstream dependencies for a list of node IDs, 
         optionally up to a certain number of levels. Defaults to indirect downstream dependencies 
@@ -155,12 +158,12 @@ def get_upstream_dependencies(
     node_type: Optional[DependencyGraphNodeType] = None,
     filters: Optional[list[DependencyGraphNodeType]] = None,
     levels: int | None = None # To be implemented in the future
-) -> Set[str] | None:
+) -> set[str] | None:
     """Get upstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
     if node_ids is None or len(node_ids) == 0:
         return None
 
-    upstream_dependencies: Set[str] = set()
+    upstream_dependencies: set[str] = set()
     for node_id in node_ids:
         node = get_node(dependency_graph, node_id)
         if node is None:

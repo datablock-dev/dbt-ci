@@ -2,7 +2,7 @@
 import sys
 import logging
 from argparse import Namespace
-from typing import Any
+from typing import Any, cast
 import click
 from google.cloud import bigquery
 from src.schema import DeleteMapNode, EphemeralMapNode, MigrationMap
@@ -332,41 +332,45 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
             print("No profile found for the specified target. Please check your profiles.yml configuration.")
             sys.exit(1)
 
-        threads: int = profile.get("threads", 5)
+        threads: int = cast(int, profile.get("threads", 5))
         nodes = migration_map["nodes"]
-        queries = []
+        
+        def migrate_table(node_data: dict) -> None:
+            """Migrate a single table's partitioning by recreating it. Steps must run sequentially."""
+            table_id: str = node_data["table_id"]
+            table_name: str = table_id.split(".")[-1]  # RENAME TO only accepts a bare table name, not a fully-qualified path
+            temp_table_id: str = f"{table_id}_temp_new_partition"
+            dbt_tmp_table_id: str = f"{table_id}__dbt_tmp"
+            partitioning_clause: str = render_bigquery_partition_clause(node_data["new_partitioning"])
+            steps: list[str] = [
+                # Step 1: Copy data into a new temp table with the new partitioning spec.
+                # Using a new table name avoids the "cannot replace with different partitioning spec" error.
+                f"CREATE OR REPLACE TABLE `{temp_table_id}` {partitioning_clause} AS SELECT * FROM `{table_id}`",
+                # Step 2: Drop the original table (with its old partition spec).
+                f"DROP TABLE IF EXISTS `{table_id}`",
+                # Step 3: Rename the temp table to the original table name.
+                # BigQuery RENAME TO only accepts a bare table name (no project/dataset prefix).
+                f"ALTER TABLE `{temp_table_id}` RENAME TO `{table_name}`",
+                # Step 4: Clean up any leftover dbt tmp table.
+                f"DROP TABLE IF EXISTS `{dbt_tmp_table_id}`",
+            ]
+            for step in steps:
+                client.query(step).result()
+            logger.info(f"Migrated partitioning for table '{table_id}'")
 
-        for node_data in nodes.values():
-            table_id = node_data["table_id"]
-            temp_table_id = f"{table_id}_temp_new_partition"
-            dbt_tmp_table_id = f"{table_id}__dbt_tmp"
-            partitioning_clause = render_bigquery_partition_clause(
-                node_data["new_partitioning"])
-            queries.append(f"""
-                DROP TABLE IF EXISTS `{dbt_tmp_table_id}`;
-            """)
-            queries.append(f"""
-                CREATE OR REPLACE TABLE `{temp_table_id}`
-                {partitioning_clause}
-                AS SELECT * FROM `{table_id}`
-                """
-            )
-
-        if getattr(args, "dry_run", False):
-            click.echo("Dry run mode enabled - no changes will be applied.")
+        if args.dry_run:
+            logger.info("Dry run mode enabled - no changes will be applied.")
             sys.exit(0)
 
-        # Run using multithreading to speed up the process if there are multiple tables
+        # Each table's steps must run sequentially, but different tables can run in parallel.
         run_multithreaded(
             func_list=[
-                # Execute the query and wait for it to finish
-                lambda query=query: client.query(query).result()
-                for query in queries
+                lambda node_data=node_data: migrate_table(node_data)
+                for node_data in nodes.values()
             ],
             threads=threads,
             exit_on_exception=True
         )
-
     except Exception as e:
         print(e, "An error occurred while initializing BigQuery client or processing migration map")
         sys.exit(1)

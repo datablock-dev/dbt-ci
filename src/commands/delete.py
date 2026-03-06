@@ -9,9 +9,9 @@ from argparse import Namespace
 import click
 from src.cache import CacheManager
 from src.connectors import get_connector
-from src.dependency_graph import DbtGraph
+from src.graph.dependency_graph import DbtGraph
 from src.schema import DeleteMapNode, SupportedConnectors
-from src.utilities.graph_utils import get_node_ids_from_structured_nodes, get_nodes
+from src.graph.graph_utils import get_node_ids_from_structured_nodes, get_nodes
 from src.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)

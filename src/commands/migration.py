@@ -4,11 +4,11 @@ import logging
 from argparse import Namespace
 import click
 from src.cache import CacheManager
-from src.dependency_graph import DbtGraph
+from src.graph.dependency_graph import DbtGraph
 from src.logging import print_exception
 from src.schema import MigrationMap
 from src.connectors import get_connector
-from src.utilities.graph_utils import (
+from src.graph.graph_utils import (
     filter_node_ids_by_type,
     get_node_ids_from_structured_nodes,
     get_nodes

@@ -6,7 +6,7 @@ from argparse import Namespace
 from itertools import chain
 from typing import Dict, List, Set
 import click
-from src.dependency_graph import DbtGraph
+from src.graph.dependency_graph import DbtGraph
 from src.cache import CacheManager
 from src.logging import print_exception
 from src.runners import run_dbt_command, append_dbt_variables_to_command
@@ -19,7 +19,7 @@ from src.schema import (
     NODE_TYPE_COMMAND_MAPPING, 
     REVERSE_MODE_MAPPING
 )
-from src.utilities.graph_utils import (
+from src.graph.graph_utils import (
     filter_node_ids_by_type,
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes,

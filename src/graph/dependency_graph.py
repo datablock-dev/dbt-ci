@@ -8,7 +8,7 @@ from argparse import Namespace
 from typing import cast
 from src.cache import CacheManager
 from src.schema import DBTManifest, DependencyGraph
-from src.parser import generate_dependency_graph
+from src.graph.parser import generate_dependency_graph
 from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 
 class DbtGraph:

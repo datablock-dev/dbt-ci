@@ -14,12 +14,12 @@ from typing import Optional
 import click
 from src.cache import CacheManager
 from src.connectors import DB_CONNECTORS, get_connector
-from src.dependency_graph import DbtGraph
+from src.graph.dependency_graph import DbtGraph
 from src.logging import print_exception
 from src.runners import resolve_dbt_commands, run_dbt_command
 from src.schema import EphemeralMapNode, RunnerConfig
 from src.utilities.paths import get_profile
-from src.utilities.graph_utils import (
+from src.graph.graph_utils import (
     filter_node_ids_by_multiple_types,
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes,
