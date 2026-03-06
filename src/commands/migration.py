@@ -74,7 +74,7 @@ def generate_migration_map(
 ) -> MigrationMap:
     """Compare partitioning configurations between target and reference nodes and return a migration map."""
     target_graph = DbtGraph(args)
-    reference_graph = DbtGraph(args, is_production=True)
+    reference_graph = DbtGraph(args, is_reference=True)
 
     # Look for cache
     prev_cache = cache.get_cache()

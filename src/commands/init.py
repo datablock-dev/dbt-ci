@@ -88,7 +88,7 @@ def init(args: Namespace):
         
         target_manifest_file = get_manifest_file(dbt_project_dir)
         target_graph = DbtGraph(args)
-        reference_graph = DbtGraph(args, is_production=True)
+        reference_graph = DbtGraph(args, is_reference=True)
 
         state_change_summary = get_state_change_summary(args, target_graph, reference_graph)
 
@@ -297,7 +297,7 @@ def detect_deleted_models_with_downstream_dependencies(
 ) -> None:
     """Detect deleted models and their downstream dependencies to generate a delete map."""
     deleted_nodes = state_change_summary.get("deleted_nodes", None)
-    reference_graph = DbtGraph(args, is_production=True)
+    reference_graph = DbtGraph(args, is_reference=True)
     
     # If there are no deleted nodes, we can skip this step entirely
     if deleted_nodes is None or len(deleted_nodes) == 0:

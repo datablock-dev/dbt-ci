@@ -99,7 +99,7 @@ def ephemeral(args: Namespace):
 def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, EphemeralMapNode]:
     """Generate a map of nodes to be included in the ephemeral environment based on the cache and dependency graph."""
     target_graph = DbtGraph(args)
-    reference_graph = DbtGraph(args, is_production=True)
+    reference_graph = DbtGraph(args, is_reference=True)
     connector_type = get_profile(args)["type"]
 
     # Validate connector before calling get_connector

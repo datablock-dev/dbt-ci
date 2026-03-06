@@ -24,10 +24,10 @@ class DbtGraph:
     Returns:
         DbtGraph: An instance of the DbtGraph class containing the dependency graph and related
     """
-    def __init__(self, args: Namespace, is_production: bool = False):
+    def __init__(self, args: Namespace, is_reference: bool = False):
         cache = CacheManager()
         self.args = args
-        self.is_production = is_production
+        self.is_reference = is_reference
         for key, value in self.args.__dict__.items():
             setattr(self, key, value)
         
@@ -35,11 +35,11 @@ class DbtGraph:
         if getattr(self.args, "command", None) == "init":
             self.dbt_project_dir = self.args.dbt_project_dir
             self.dependency_graph = generate_dependency_graph(
-                manifest_file=get_manifest_file(self.dbt_project_dir) if not self.is_production 
+                manifest_file=get_manifest_file(self.dbt_project_dir) if not self.is_reference 
                 else get_reference_manifest_file(self.args.reference_state),
             )
         else: # We retrive manifest file from cache
-            manifest_file = cache.get_cache("target_manifest.json" if not self.is_production else "reference_manifest.json")
+            manifest_file = cache.get_cache("target_manifest.json" if not self.is_reference else "reference_manifest.json")
             self.dependency_graph = generate_dependency_graph(cast(DBTManifest, manifest_file))
 
     def to_dict(self) -> DependencyGraph:
