@@ -11,6 +11,7 @@ def parse_multiple_option(ctx, param, value):
         DBT_DOCKER_ENV="KEY1=val1,KEY2=val2"
         DBT_DOCKER_ENV=$'KEY1=val1\nKEY2=val2'
     """
+    print(ctx, param, value)
     if not value:
         return value
     result = []
@@ -124,6 +125,7 @@ def common_options(f):
         '--docker-volumes',
         envvar=['DBT_DOCKER_VOLUMES'],
         multiple=True,
+        callback=parse_multiple_option,
         help='Additional volume mounts (format: host:container). Repeat flag for multiple volumes: --docker-volumes /path1:/path1 --docker-volumes /path2:/path2. Via env var, use comma or newline separation: DBT_DOCKER_VOLUMES="/p1:/p1,/p2:/p2"'
     )(f)
     f = click.option(
