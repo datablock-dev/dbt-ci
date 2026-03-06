@@ -124,14 +124,12 @@ def common_options(f):
         '--docker-volumes',
         envvar=['DBT_DOCKER_VOLUMES'],
         multiple=True,
-        callback=parse_multiple_option,
         help='Additional volume mounts (format: host:container). Repeat flag for multiple volumes: --docker-volumes /path1:/path1 --docker-volumes /path2:/path2. Via env var, use comma or newline separation: DBT_DOCKER_VOLUMES="/p1:/p1,/p2:/p2"'
     )(f)
     f = click.option(
         '--docker-env',
         envvar=['DBT_DOCKER_ENV'],
         multiple=True,
-        callback=parse_multiple_option,
         help='Environment variables (format: KEY=VALUE). Repeat flag for multiple vars: --docker-env VAR1=val1 --docker-env VAR2=val2. Via env var, use comma or newline separation: DBT_DOCKER_ENV="KEY1=val1,KEY2=val2"'
     )(f)
     f = click.option(

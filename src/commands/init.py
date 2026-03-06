@@ -111,72 +111,75 @@ def get_state_change_summary(
     target_graph: DbtGraph,
     reference_graph: DbtGraph,
 ) -> StateChangeSummary:
-    git = GitAdapter(args)
-    cache = CacheManager()
-
-    changed_files = git.get_changed_files()
-
-    commands = resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], args)
-    commands.extend(["--target", getattr(args, "reference_target")])
-    commands.extend(["--vars", getattr(args, "reference_vars")]) if getattr(args, "reference_vars", None) else None
-
-    ls_output = run_dbt_command(
-        command_args=commands,
-        runner_config=RunnerConfig(args.__dict__)
-    )
-
-    if ls_output is None:
-        logger.info("No modified nodes found during initialization. Exiting...")
-        cache.write_cache({
-            "modified_nodes": None,
-            "deleted_nodes": None,
-            "new_nodes": None
-        })
-        sys.exit(0)
-
-    modified_nodes = ls_output.stdout.splitlines()
-    target_graph_dict = target_graph.to_dict()
-    reference_graph_dict = reference_graph.to_dict()
-
-    new_node_ids = set(get_new_nodes(reference_graph_dict, target_graph_dict) or [])
-    deleted_node_ids = set(get_deleted_nodes(reference_graph_dict, target_graph_dict) or [])
-    truly_modified_nodes = [n for n in modified_nodes if n not in new_node_ids and n not in deleted_node_ids]
-
-    # Compare against git diff to determine what has been modified vs what is new
-    if getattr(args, "no_git", False) is False and len(changed_files.keys()) > 0:
-        temp_modified_nodes = get_nodes(
-            dependency_graph=target_graph_dict,
-            node_ids=truly_modified_nodes
+    try:
+        git = GitAdapter(args)
+        cache = CacheManager()
+    
+        changed_files = git.get_changed_files()
+    
+        commands = resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], args)
+        commands.extend(["--target", getattr(args, "reference_target")])
+        commands.extend(["--vars", getattr(args, "reference_vars")]) if getattr(args, "reference_vars", None) else None
+    
+        ls_output = run_dbt_command(
+            command_args=commands,
+            runner_config=RunnerConfig(args.__dict__)
         )
-
-        # We now reference and check against git
-        complete_modified_nodes = set()
-        for node_id, node_info in temp_modified_nodes.items():
-            file_path = node_info['original_file_path']
-            if file_path in changed_files["modified"]:
-                complete_modified_nodes.add(node_id)
-
-        truly_modified_nodes = list(complete_modified_nodes)
-
-    state_change_summary: StateChangeSummary = {
-        "modified_nodes": get_structured_modified_nodes(get_nodes(
-            dependency_graph=target_graph_dict, 
-            node_ids=truly_modified_nodes
-        )),
-        "deleted_nodes": get_structured_modified_nodes(get_nodes(
-            dependency_graph=reference_graph_dict, 
-            node_ids=list(deleted_node_ids)
-        )),
-        "new_nodes": get_structured_modified_nodes(get_nodes(
-            dependency_graph=target_graph_dict, 
-            node_ids=list(new_node_ids)
-        ))
-    }
-
-    # Write cache
-    cache.write_cache(cast(dict, state_change_summary))
-
-    return state_change_summary
+    
+        if ls_output is None:
+            logger.info("No modified nodes found during initialization. Exiting...")
+            cache.write_cache({
+                "modified_nodes": None,
+                "deleted_nodes": None,
+                "new_nodes": None
+            })
+            sys.exit(0)
+    
+        modified_nodes = ls_output.stdout.splitlines()
+        target_graph_dict = target_graph.to_dict()
+        reference_graph_dict = reference_graph.to_dict()
+    
+        new_node_ids = set(get_new_nodes(reference_graph_dict, target_graph_dict) or [])
+        deleted_node_ids = set(get_deleted_nodes(reference_graph_dict, target_graph_dict) or [])
+        truly_modified_nodes = [n for n in modified_nodes if n not in new_node_ids and n not in deleted_node_ids]
+    
+        # Compare against git diff to determine what has been modified vs what is new
+        if getattr(args, "no_git", False) is False and len(changed_files.keys()) > 0:
+            temp_modified_nodes = get_nodes(
+                dependency_graph=target_graph_dict,
+                node_ids=truly_modified_nodes
+            )
+    
+            # We now reference and check against git
+            complete_modified_nodes = set()
+            for node_id, node_info in temp_modified_nodes.items():
+                file_path = node_info['original_file_path']
+                if file_path in changed_files["modified"]:
+                    complete_modified_nodes.add(node_id)
+    
+            truly_modified_nodes = list(complete_modified_nodes)
+    
+        state_change_summary: StateChangeSummary = {
+            "modified_nodes": get_structured_modified_nodes(get_nodes(
+                dependency_graph=target_graph_dict, 
+                node_ids=truly_modified_nodes
+            )),
+            "deleted_nodes": get_structured_modified_nodes(get_nodes(
+                dependency_graph=reference_graph_dict, 
+                node_ids=list(deleted_node_ids)
+            )),
+            "new_nodes": get_structured_modified_nodes(get_nodes(
+                dependency_graph=target_graph_dict, 
+                node_ids=list(new_node_ids)
+            ))
+        }
+    
+        # Write cache
+        cache.write_cache(cast(dict, state_change_summary))
+    
+        return state_change_summary
+    except Exception as e:
+        raise Exception(f"Error generating state change summary: {str(e)}") from e
 
 def init_summary(
     state_change_summary: StateChangeSummary,
