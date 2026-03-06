@@ -7,11 +7,9 @@ import sys
 import logging
 from pathlib import Path
 from argparse import Namespace
-from typing import Any, cast
+from typing import cast
 import click
 from src.adapters.slack import SlackClient
-from src.commands.ephemeral import generate_ephemeral_map
-from src.commands.migration import generate_migration_map
 from src.graph.dependency_graph import DbtGraph
 from src.cache import CacheManager
 from src.schema import RunnerConfig, StateChangeSummary, StorageConnectorConfig
@@ -29,6 +27,7 @@ from src.graph.graph_utils import (
 )
 
 logger = logging.getLogger(__name__)
+cache = CacheManager()
 
 def init(args: Namespace):
     """
@@ -100,6 +99,7 @@ def init(args: Namespace):
         logger.info("Initialization complete. Cache updated with current state(s).")
         logger.info("You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state.")
     except Exception as e:
+        cache = CacheManager()
         cache.update_report(command="init", status="failed")
         print_exception(e, "Error during initialization")
         sys.exit(1)

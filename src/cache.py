@@ -4,12 +4,14 @@
 """
 import json
 import tempfile
+import logging
 from argparse import Namespace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
-
 from src.schema import Commands
+
+logger = logging.getLogger(__name__)
 
 class CacheManager:
     """
@@ -31,7 +33,7 @@ class CacheManager:
                 indent=4,
                 default=lambda o: list(o) if isinstance(o, set) else o
             )
-            print(f"Cache written to {file_path.absolute()}")
+            logger.debug(f"Cache written to {file_path.absolute()}")
 
     def get_cache(self, file_name: str = "cache.json") -> dict[str, Any] | None:
         """Load cache data from the cache file. Returns None if the file doesn't exist."""
