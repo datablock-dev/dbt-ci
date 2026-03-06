@@ -52,6 +52,7 @@ class GitAdapter:
         """Return a list of changed files with their change types."""
         dbt_project_dir: str | None = getattr(self.args, "dbt_project_dir", None)
         if dbt_project_dir is None:
+            print(f"ARGS: {self.args}")
             raise ValueError("DBT project directory not specified in arguments.")
 
         dbt_related_changes: dict[GitChangeType, list[str]] = {}
