@@ -190,8 +190,8 @@ def init_summary(
         3. Generate ephemeral plan for modified nodes with non-partitioning changes
     """
     slack = SlackClient(args)
-    migration_map = generate_migration_map(args, cache)
-    ephemeral_map = generate_ephemeral_map(args, cache)
+    #migration_map = generate_migration_map(args, cache)
+    #ephemeral_map = generate_ephemeral_map(args, cache)
 
     logger.info("\n------------------------------------------------------")
     logger.info("State Change Summary:")
@@ -206,28 +206,6 @@ def init_summary(
             for node in node_dict.values():
                 logger.info(f"  • {node['name']} ({node['resource_type']})")
     logger.info("\n------------------------------------------------------")
-    logger.info("Ephemeral Plan:")
-    if len(ephemeral_map) == 0:
-        logger.info("No non-partitioning changes detected that require an ephemeral environment.")
-    else:
-        for node_id, node_info in ephemeral_map.items():
-            target_table_id = f"{node_info['ephemeral_config']['database']}.{node_info['ephemeral_config']['schema']}.{node_info['ephemeral_config']['name']}" if node_info['ephemeral_config'] else "N/A"
-            reference_table_id = f"{node_info['reference_config']['database']}.{node_info['reference_config']['schema']}.{node_info['reference_config']['name']}" if node_info['reference_config'] else "N/A"
-
-            logger.info(f"Model: {node_id}")
-            logger.info(f"  - Ephemeral Target: {target_table_id}")
-            logger.info(f"  - Reference Target: {reference_table_id}")
-    logger.info("\n------------------------------------------------------")
-    logger.info("Migration Plan:")
-    if len(migration_map["nodes"]) == 0:
-        logger.info("No partitioning changes detected.")
-    else:
-        for node_id, node_info in migration_map["nodes"].items():
-            logger.info("Model: %s", node_id)
-            logger.info("  - Table ID: %s", node_info.get("table_id"))
-            logger.info("  - Old Partitioning: %s", node_info.get("old_partitioning"))
-            logger.info("  - New Partitioning: %s", node_info.get("new_partitioning"))
-    logger.info("------------------------------------------------------\n")
 
     try:
         header = "*DBT CI Initialization Summary:*\n\n"
@@ -235,13 +213,6 @@ def init_summary(
         message = "*State Change Summary:*\n"
         message += json.dumps(state_change_summary, indent=2)
         message += "\n\n"
-
-        message += "*Migration Plan:*\n"
-        message += json.dumps(migration_map, indent=2)
-        message += "\n\n"
-
-        message += "*Ephemeral Plan:*\n"
-        message += json.dumps(ephemeral_map, indent=2)
         slack.send_message(header, message)
     except Exception as e:
         logger.error(f"Failed to send Slack message: {e}")
