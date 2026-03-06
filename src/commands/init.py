@@ -9,7 +9,6 @@ from pathlib import Path
 from argparse import Namespace
 from typing import Any, cast
 import click
-from src import dependency_graph
 from src.adapters.slack import SlackClient
 from src.commands.ephemeral import generate_ephemeral_map
 from src.commands.migration import generate_migration_map
@@ -21,7 +20,6 @@ from src.connectors import init_storage_connector
 from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 from src.runners import resolve_dbt_commands, run_dbt_command
 from src.utilities.graph_utils import (
-    filter_node_ids_by_multiple_types,
     get_deleted_nodes,
     get_downstream_dependencies,
     get_new_nodes,

@@ -16,7 +16,8 @@ from src.cache import CacheManager
 from src.connectors import DB_CONNECTORS, get_connector
 from src.dependency_graph import DbtGraph
 from src.logging import print_exception
-from src.schema import EphemeralMapNode
+from src.runners import resolve_dbt_commands, run_dbt_command
+from src.schema import EphemeralMapNode, RunnerConfig
 from src.utilities.paths import get_profile
 from src.utilities.graph_utils import (
     filter_node_ids_by_multiple_types,
@@ -60,7 +61,7 @@ def ephemeral(args: Namespace):
             logger.error(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
             sys.exit(1)
         
-        ephemeral_connector = get_connector(connector_type).get("strategies", {}).get("ephemeral")
+        #ephemeral_connector = get_connector(connector_type).get("strategies", {}).get("ephemeral")
         ephemeral_map = generate_ephemeral_map(args, cache)
 
         # Pass the ephemeral map and variables to the connector strategy which
@@ -81,7 +82,8 @@ def ephemeral(args: Namespace):
             logger.info("No nodes found to create ephemeral environment for. Exiting...")
             sys.exit(0)
 
-        ephemeral_connector(ephemeral_map, args)
+        #ephemeral_connector(ephemeral_map, args)
+        dbt_clone_command(list(ephemeral_map.keys()), args)
         
         # Store cache (ephemeral map) for use in finalize step
         cache.write_cache(ephemeral_map, "ephemeral_map.json")
@@ -229,3 +231,26 @@ def full_config_or_none(
         "name": name,
         "alias": alias,
     }
+
+def dbt_clone_command(
+    selected_nodes: list[str],
+    args: Namespace
+) -> None:
+    """Helper function to run the dbt command that will create the ephemeral models based on the selected nodes."""
+    try:
+        profile = get_profile(args)
+        threads = profile.get("threads", 5)
+
+        command = resolve_dbt_commands(
+            command_args=["clone", "--select", *selected_nodes, "--threads", str(threads)],
+            args=args
+        )
+
+        run_dbt_command(
+            command_args=command,
+            runner_config=RunnerConfig(args.__dict__)
+        )
+    except Exception as e:
+        logger.error(f"Error running dbt clone command: {str(e)}")
+        print_exception(e)
+        sys.exit(1)
