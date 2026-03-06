@@ -17,6 +17,7 @@ from src.cache import CacheManager
 from src.schema import RunnerConfig, StateChangeSummary, StorageConnectorConfig
 from src.logging import print_exception
 from src.connectors import init_storage_connector
+from src.utilities.dbt_commands import reference_compile, target_compile
 from src.utilities.git import GitAdapter
 from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 from src.runners import resolve_dbt_commands, run_dbt_command
@@ -64,8 +65,7 @@ def init(args: Namespace):
             args.reference_manifest_file = get_reference_manifest_file(reference_state_path)
             cache.write_cache(get_reference_manifest_file(reference_state_path), "reference_manifest.json")
 
-        if not getattr(args, "skip_reference_compile", False):
-            reference_compile(args)
+        reference_compile(args)
 
         logger.info("DBT project compiled successfully. manifest.json generated.")
         dbt_project_dir = getattr(args, "dbt_project_dir", None)
@@ -96,20 +96,7 @@ def init(args: Namespace):
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
-        skip_target_compile = getattr(args, "skip_target_compile", False)
-        is_reference_target_same_as_current = reference_target is None or reference_target == getattr(args, "target", None)
-        if skip_target_compile is False and not is_reference_target_same_as_current:
-            target_command = ["compile"]
-            actual_target = getattr(args, "target", None)
-            if actual_target and actual_target != "default":
-                target_command.extend(["--target", actual_target])
-            # If no target specified, dbt will use the default from dbt_project.yml
-            run_dbt_command(
-                command_args=resolve_dbt_commands(target_command, args),
-                runner_config=RunnerConfig(args.__dict__)
-            )
-            target_manifest_file = get_manifest_file(args.dbt_project_dir)
-            cache.write_cache(cast(dict[str, Any], target_manifest_file), "target_manifest.json")
+        target_compile(args)
 
         cache.update_report(command="init", status="completed")
         logger.info("Initialization complete. Cache updated with current state(s).")
@@ -117,34 +104,6 @@ def init(args: Namespace):
     except Exception as e:
         cache.update_report(command="init", status="failed")
         print_exception(e, "Error during initialization")
-        sys.exit(1)
-
-def reference_compile(args) -> None: 
-    """Compile the DBT project towards the reference state (e.g., production) to generate the reference manifest.json for comparison."""
-    command = ["compile"]
-
-    try:
-        # This function can be called separately if users want to compile towards reference state independently, but by default it will be called during init if a different reference target is specified.
-        reference_target = getattr(args, "reference_target", None)
-        reference_vars = getattr(args, "reference_vars", None)
-        if reference_target is None:
-            logger.warning("No reference target specified, using current target as reference state for comparison.")
-        else:
-            command.extend(["--target", reference_target])
-            command.extend(["--vars", reference_vars]) if reference_vars else None
-
-        run_dbt_command(
-            command_args=resolve_dbt_commands(
-                command_args=command, 
-                args=args, 
-                ignore_keys=["vars", "target"] # Don't pass vars or target when compiling reference manifest
-            ),
-            runner_config=RunnerConfig(args.__dict__),
-        )
-
-        return
-    except Exception as e:
-        print_exception(e, "Error during reference compilation")
         sys.exit(1)
 
 def get_state_change_summary(
