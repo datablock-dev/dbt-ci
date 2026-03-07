@@ -5,7 +5,7 @@ from argparse import Namespace
 import click
 
 from src.cache import CacheManager
-from src.connectors import DB_CONNECTORS, get_connector, init_storage_connector
+from src.connectors import get_connector, init_storage_connector
 from src.logging import print_exception
 from src.schema import EphemeralMapNode
 from src.utilities.paths import get_profile

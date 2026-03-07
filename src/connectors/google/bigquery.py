@@ -256,7 +256,7 @@ def bigquery_delete_strategy(delete_map: dict[str, DeleteMapNode], args: Namespa
     try:
         client = bigquery_client(args)
         profile = get_profile(args)
-        threads = profile.get("threads", 5) if profile else 5
+        threads: int = cast(int, profile.get("threads", 5) if profile else 5)
         tables_to_delete: set[str] = set()
 
         for node_metadata in delete_map.values():
@@ -277,6 +277,15 @@ def bigquery_delete_tables(
     threads: int = 5
 ) -> None:
     """Delete tables in BigQuery."""
+    def _delete_table(table_id: str) -> None:
+        """Delete a single BigQuery table."""
+        try:
+            client.delete_table(table_id, not_found_ok=True)
+            click.echo(f"Deleted {table_id} from BigQuery")
+        except Exception as e:
+            click.echo(f"Error deleting {table_id} from BigQuery: {e}", err=True)
+            raise
+
     if len(tables_to_delete) == 0:
         click.echo("No tables to delete. Exiting table deletion step.")
         return
@@ -289,7 +298,7 @@ def bigquery_delete_tables(
         return
 
     func_list = [
-        lambda table_id=table_id: delete_table(client, table_id)
+        lambda table_id=table_id: _delete_table(table_id)
         for table_id in tables_to_delete
     ]
     run_multithreaded(
