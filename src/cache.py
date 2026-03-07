@@ -26,23 +26,20 @@ class CacheManager:
 
     def write_cache(self, data: StateChangeSummary | None = None) -> None:
         """Write data to the cache file."""
-        final_data = {
-            "modified_nodes": None,
-            "new_nodes": None,
-            "deleted_nodes": None,
-        } if data is None else data
-
-        final_data["reference"] = {
-            "target": getattr(self.args, "reference_target", None),
-            "variables": getattr(self.args, "reference_vars", None),
+        payload: dict[str, Any] = {
+            "modified_nodes": data.get("modified_nodes") if data else None,
+            "new_nodes": data.get("new_nodes") if data else None,
+            "deleted_nodes": data.get("deleted_nodes") if data else None,
+            "reference": {
+                "target": getattr(self.args, "reference_target", None),
+                "variables": getattr(self.args, "reference_vars", None),
+            },
+            "target": {
+                "target": getattr(self.args, "target", None),
+                "variables": getattr(self.args, "vars", None),
+            },
         }
-
-        final_data["target"] = {
-            "target": getattr(self.args, "target", None),
-            "variables": getattr(self.args, "vars", None),
-        }
-
-        self._write(cast(dict, final_data), "cache.json")
+        self._write(payload, "cache.json")
 
     def _write(self, data: dict[str, Any], file_name: str):
         """Write data to the cache file."""
