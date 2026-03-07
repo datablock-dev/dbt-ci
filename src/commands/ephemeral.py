@@ -66,7 +66,7 @@ def ephemeral(args: Namespace):
 
         # Pass the ephemeral map and variables to the connector strategy which
         # will handle the ephemeral execution logic based on the connector type
-        if getattr(args, "dry_run", False):
+        if getattr(args, "dry_run", False) and getattr(args, "quiet", False):
             logger.info("Dry run mode enabled - no actual ephemeral environment will be created.")
             logger.info("\n------------------------------------------------------")
             for node_id, node_info in ephemeral_map.items():

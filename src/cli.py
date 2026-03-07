@@ -158,5 +158,12 @@ def common_options(f):
         default='/bin/bash',
         help='Path to shell executable for bash runner'
     )(f)
+    f = click.option(
+        "--quite", "-q",
+        envvar=['DBT_QUIET'],
+        is_flag=True,
+        default=False,
+        help="Run in quiet mode with minimal output"
+    )(f)
 
     return f
