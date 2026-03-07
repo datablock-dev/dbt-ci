@@ -12,7 +12,6 @@ from src.connectors import get_connector
 from src.utilities.paths import get_profile
 from src.graph.graph_utils import (
     filter_node_ids_by_multiple_types,
-    filter_node_ids_by_type,
     get_node_ids_from_structured_nodes,
     get_nodes
 )
