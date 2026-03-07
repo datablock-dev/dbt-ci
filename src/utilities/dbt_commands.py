@@ -151,9 +151,6 @@ def dbt_command_state_modified(args: Namespace):
             ))
         }
 
-        # Write cache
-        cache.write_cache(cast(dict, state_change_summary))
-
         return state_change_summary
     except Exception as e:
         raise Exception(f"Error generating state change summary: {str(e)}")

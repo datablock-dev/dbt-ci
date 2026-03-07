@@ -12,19 +12,12 @@ import click
 from src.adapters.slack import SlackClient
 from src.graph.dependency_graph import DbtGraph
 from src.cache import CacheManager
-from src.schema import RunnerConfig, StateChangeSummary, StorageConnectorConfig
+from src.schema import StateChangeSummary, StorageConnectorConfig
 from src.logging import print_exception
 from src.connectors import init_storage_connector
-from src.utilities.dbt_commands import dbt_command_reference_compile, dbt_command_target_compile
-from src.utilities.git import GitAdapter
+from src.utilities.dbt_commands import dbt_command_reference_compile, dbt_command_target_compile, dbt_command_state_modified
 from src.utilities.paths import get_manifest_file, get_reference_manifest_file
-from src.runners import resolve_dbt_commands, run_dbt_command
-from src.graph.graph_utils import (
-    get_deleted_nodes,
-    get_downstream_dependencies,
-    get_new_nodes,
-    get_nodes,get_structured_modified_nodes
-)
+from src.graph.graph_utils import get_downstream_dependencies
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +66,7 @@ def init(args: Namespace):
             sys.exit(1)
         
         target_manifest_file = get_manifest_file(dbt_project_dir)
-        state_change_summary = get_state_change_summary(args)
+        state_change_summary = dbt_command_state_modified(args)
         cache.write_cache(cast(dict, state_change_summary))
 
         if reference_target is not None and reference_target != getattr(args, "target", None):
@@ -88,7 +81,7 @@ def init(args: Namespace):
         # Will generate summary and output it in the logs. It also covers:
         # 1. Migration plan for partitioning changes
         # 2. Ephemeral plan
-        init_summary(state_change_summary, args, cache)
+        init_summary(state_change_summary, args)
         detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
 
         # Compile with the actual target (not reference target)
@@ -104,81 +97,7 @@ def init(args: Namespace):
         print_exception(e, "Error during initialization")
         sys.exit(1)
 
-def get_state_change_summary(args: Namespace) -> StateChangeSummary:
-    try:
-        git = GitAdapter(args)
-        cache = CacheManager()
-        target_graph = DbtGraph(args)
-        reference_graph = DbtGraph(args, is_reference=True)
-
-        changed_files = git.get_changed_files()
-
-        commands = resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], args)
-        commands.extend(["--target", getattr(args, "reference_target")])
-        commands.extend(["--vars", getattr(args, "reference_vars")]) if getattr(args, "reference_vars", None) else None
-
-        ls_output = run_dbt_command(
-            command_args=commands,
-            runner_config=RunnerConfig(args.__dict__)
-        )
-
-        if ls_output is None:
-            logger.info("No modified nodes found during initialization. Exiting...")
-            cache.write_cache({
-                "modified_nodes": None,
-                "deleted_nodes": None,
-                "new_nodes": None
-            })
-            sys.exit(0)
-
-        modified_nodes = ls_output.stdout.splitlines()
-        target_graph_dict = target_graph.to_dict()
-        reference_graph_dict = reference_graph.to_dict()
-
-        new_node_ids = set(get_new_nodes(reference_graph_dict, target_graph_dict) or [])
-        deleted_node_ids = set(get_deleted_nodes(reference_graph_dict, target_graph_dict) or [])
-        truly_modified_nodes = [n for n in modified_nodes if n not in new_node_ids and n not in deleted_node_ids]
-
-        # Compare against git diff to determine what has been modified vs what is new
-        if getattr(args, "no_git", False) is False and len(changed_files.keys()) > 0:
-            temp_modified_nodes = get_nodes(
-                dependency_graph=target_graph_dict,
-                node_ids=truly_modified_nodes
-            )
-
-            # We now reference and check against git
-            complete_modified_nodes = set()
-            for node_id, node_info in temp_modified_nodes.items():
-                file_path = node_info['original_file_path']
-                if file_path in changed_files["modified"]:
-                    complete_modified_nodes.add(node_id)
-
-            truly_modified_nodes = list(complete_modified_nodes)
-
-        state_change_summary: StateChangeSummary = {
-            "modified_nodes": get_structured_modified_nodes(get_nodes(
-                dependency_graph=target_graph_dict, 
-                node_ids=truly_modified_nodes
-            )),
-            "deleted_nodes": get_structured_modified_nodes(get_nodes(
-                dependency_graph=reference_graph_dict, 
-                node_ids=list(deleted_node_ids)
-            )),
-            "new_nodes": get_structured_modified_nodes(get_nodes(
-                dependency_graph=target_graph_dict, 
-                node_ids=list(new_node_ids)
-            ))
-        }
-
-        return state_change_summary
-    except Exception as e:
-        raise Exception(f"Error generating state change summary: {str(e)}")
-
-def init_summary(
-    state_change_summary: StateChangeSummary,
-    args: Namespace,
-    cache: CacheManager
-) -> None:
+def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> None:
     """
         The following method will call the following steps to generate a summary of changes,
         but also migration, ephemeral:
