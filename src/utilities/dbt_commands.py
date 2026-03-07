@@ -4,12 +4,12 @@ import logging
 from argparse import Namespace
 from src.cache import CacheManager
 from src.graph.dependency_graph import DbtGraph
-from src.graph.graph_utils import get_deleted_nodes, get_new_nodes, get_nodes, get_structured_modified_nodes
-from src.logging import print_exception
-from src.runners import resolve_dbt_commands, run_dbt_command
-from src.schema import RunnerConfig, StateChangeSummary
 from src.utilities.git import GitAdapter
+from src.logging import print_exception
+from src.schema import RunnerConfig, StateChangeSummary
+from src.runners import resolve_dbt_commands, run_dbt_command
 from src.utilities.paths import get_manifest_file, get_profile
+from src.graph.graph_utils import get_deleted_nodes, get_new_nodes, get_nodes, get_structured_modified_nodes
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,9 @@ def dbt_command_state_modified(args: Namespace):
     try:
         git = GitAdapter(args)
         cache = CacheManager(args)
+        target_graph = DbtGraph(args)
         reference_graph = DbtGraph(args, is_reference=True)
+
         changed_files = git.get_changed_files()
 
         commands = resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], args)
@@ -108,13 +110,8 @@ def dbt_command_state_modified(args: Namespace):
             sys.exit(0)
 
         modified_nodes = ls_output.stdout.splitlines()
-        reference_graph_dict = reference_graph.to_dict()
-
-        # Compile with the actual target (not reference target)
-        # Use the user-specified target, or let dbt use the default from dbt_project.yml
-        dbt_command_target_compile(args)
-        target_graph = DbtGraph(args)    
         target_graph_dict = target_graph.to_dict()
+        reference_graph_dict = reference_graph.to_dict()
 
         new_node_ids = set(get_new_nodes(reference_graph_dict, target_graph_dict) or [])
         deleted_node_ids = set(get_deleted_nodes(reference_graph_dict, target_graph_dict) or [])

@@ -11,6 +11,7 @@ from src.schema import MigrationMap, SupportedConnectors
 from src.connectors import get_connector
 from src.utilities.paths import get_profile
 from src.graph.graph_utils import (
+    filter_node_ids_by_multiple_types,
     filter_node_ids_by_type,
     get_node_ids_from_structured_nodes,
     get_nodes
@@ -95,7 +96,11 @@ def generate_migration_map(
         "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
     }
 
-    selected_nodes = filter_node_ids_by_type(target_graph.to_dict(), modified_nodes_dict["modified_nodes"], ["model"])
+    selected_nodes = filter_node_ids_by_multiple_types(
+        dependency_graph=target_graph.to_dict(), 
+        node_ids=modified_nodes_dict["modified_nodes"], 
+        node_types=["model"]
+    )
     if len(selected_nodes) == 0:
         logger.info("No modified models found in cache, skipping...")
         sys.exit(0)
