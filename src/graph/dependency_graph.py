@@ -25,7 +25,7 @@ class DbtGraph:
         DbtGraph: An instance of the DbtGraph class containing the dependency graph and related
     """
     def __init__(self, args: Namespace, is_reference: bool = False):
-        cache = CacheManager()
+        cache = CacheManager(args)
         self.args = args
         self.is_reference = is_reference
         for key, value in self.args.__dict__.items():

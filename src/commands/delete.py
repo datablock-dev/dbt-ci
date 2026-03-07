@@ -21,7 +21,7 @@ def delete(args: Namespace):
     try:
         click.secho("DBT CI Delete", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
-        cache = CacheManager()
+        cache = CacheManager(args)
         cache.start_report("delete", args)
         connector_type = cast(SupportedConnectors, get_profile(args)["type"])
         delete_connector = get_connector(connector_type)

@@ -49,7 +49,7 @@ def ephemeral(args: Namespace):
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Ephemeral", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
-        cache = CacheManager()
+        cache = CacheManager(args)
         cache.start_report("ephemeral", args)
         connector_type = get_profile(args)["type"]
         
@@ -86,7 +86,7 @@ def ephemeral(args: Namespace):
         clone_command(list(ephemeral_map.keys()), args)
         
         # Store cache (ephemeral map) for use in finalize step
-        cache.write_cache(ephemeral_map, "ephemeral_map.json")
+        cache.write_ephemeral(ephemeral_map)
         cache.update_report("ephemeral", "completed", comment=str(list(ephemeral_map.keys())))
         logger.info("Ephemeral strategy completed successfully.")
         logger.info("Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies.")

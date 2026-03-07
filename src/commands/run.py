@@ -46,7 +46,7 @@ def run(args: Namespace):
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Run", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
-        cache = CacheManager()
+        cache = CacheManager(args)
         cache.start_report("run", args)
         target_graph = DbtGraph(args)
                 

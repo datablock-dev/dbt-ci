@@ -30,7 +30,7 @@ def migration(args: Namespace):
     try:
         click.secho("DBT CI Migration", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
-        cache = CacheManager()
+        cache = CacheManager(args)
         cache.start_report("migrate", args)
         connector_type = get_profile(args)["type"]
         migration_connector = get_connector(connector_type).get("strategies", {}).get("migration")

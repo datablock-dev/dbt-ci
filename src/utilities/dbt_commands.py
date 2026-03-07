@@ -49,7 +49,7 @@ def dbt_command_reference_compile(args: Namespace) -> None:
 def dbt_command_target_compile(args: Namespace, store_cache: bool = True) -> None:
     """Compile the target DBT project to generate the manifest.json."""
     try:
-        cache = CacheManager()
+        cache = CacheManager(args)
         dbt_project_dir = getattr(args, "dbt_project_dir", None)
         target_command = ["compile"]
         target = getattr(args, "target", None)
@@ -78,7 +78,7 @@ def dbt_command_target_compile(args: Namespace, store_cache: bool = True) -> Non
 
         if store_cache:
             target_manifest_file = get_manifest_file(dbt_project_dir)
-            cache.write_cache(cast(dict[str, Any], target_manifest_file), "target_manifest.json")
+            cache.write_target_manifest(target_manifest_file)
 
     except Exception:
         logger.error("Error during target compilation", exc_info=True)
@@ -88,7 +88,7 @@ def dbt_command_state_modified(args: Namespace):
     """Compile the DBT project and return a list of modified nodes compared to the reference state."""
     try:
         git = GitAdapter(args)
-        cache = CacheManager()
+        cache = CacheManager(args)
         target_graph = DbtGraph(args)
         reference_graph = DbtGraph(args, is_reference=True)
 
@@ -105,11 +105,7 @@ def dbt_command_state_modified(args: Namespace):
 
         if ls_output is None:
             logger.info("No modified nodes found during initialization. Exiting...")
-            cache.write_cache({
-                "modified_nodes": None,
-                "deleted_nodes": None,
-                "new_nodes": None
-            })
+            cache.write_cache()
             sys.exit(0)
 
         modified_nodes = ls_output.stdout.splitlines()

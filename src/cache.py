@@ -8,8 +8,8 @@ import logging
 from argparse import Namespace
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
-from src.schema import Commands
+from typing import Any, Optional, cast
+from src.schema import Commands, DBTManifest, EphemeralMapNode, StateChangeSummary
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +18,33 @@ class CacheManager:
         Simple cache manager for storing and retrieving data in a JSON file, 
         using tempfile for cache directory by default.
     """
-    def __init__(self, cache_dir: Optional[Path] = None):
+    def __init__(self, args: Namespace, cache_dir: Optional[Path] = None):
+        self.args = args
         self.cache_dir = cache_dir or Path(tempfile.gettempdir()) / "dbt_ci_cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.dir_path = Path(self.cache_dir).resolve()
 
-    def write_cache(self, data: dict[str, Any], file_name: str = "cache.json"):
+    def write_cache(self, data: StateChangeSummary | None = None) -> None:
+        """Write data to the cache file."""
+        final_data = {
+            "modified_nodes": None,
+            "new_nodes": None,
+            "deleted_nodes": None,
+        } if data is None else data
+
+        final_data["reference"] = {
+            "target": getattr(self.args, "reference_target", None),
+            "variables": getattr(self.args, "reference_vars", None),
+        }
+
+        final_data["target"] = {
+            "target": getattr(self.args, "target", None),
+            "variables": getattr(self.args, "vars", None),
+        }
+
+        self._write(cast(dict, final_data), "cache.json")
+
+    def _write(self, data: dict[str, Any], file_name: str):
         """Write data to the cache file."""
         file_path = self.dir_path / file_name
         with open(file_path, 'w', encoding='utf-8') as f:
@@ -34,6 +55,18 @@ class CacheManager:
                 default=lambda o: list(o) if isinstance(o, set) else o
             )
             logger.debug(f"Cache written to {file_path.absolute()}")
+
+    def write_ephemeral(self, data: dict[str, EphemeralMapNode]) -> None:
+        """Write ephemeral map data to a JSON file in the cache directory."""
+        self._write(cast(dict, data), "ephemeral_map.json")
+
+    def write_reference_manifest(self, manifest_data: DBTManifest):
+        """Write reference manifest data to a JSON file in the cache directory."""
+        self._write(cast(dict, manifest_data), "reference_manifest.json")
+
+    def write_target_manifest(self, manifest_data: DBTManifest) -> None:
+        """Write manifest data to a JSON file in the cache directory."""
+        self._write(cast(dict, manifest_data), "target_manifest.json")
 
     def get_cache(self, file_name: str = "cache.json") -> dict[str, Any] | None:
         """Load cache data from the cache file. Returns None if the file doesn't exist."""
@@ -46,7 +79,7 @@ class CacheManager:
 
     def _write_report(self, data: dict[str, Any]):
         """Write data to the report.json file."""
-        self.write_cache(data, "report.json")        
+        self._write(data, "report.json")        
 
     def start_report(self, command: Commands, args: Namespace):
         """Add information to report.json"""

@@ -38,7 +38,7 @@ def init(args: Namespace):
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Initialization", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
-        cache = CacheManager()
+        cache = CacheManager(args)
         cache.start_report("init", args)
         reference_target = getattr(args, "reference_target", None)
         reference_state_path: str | None = getattr(args, "reference_state", None)
@@ -54,7 +54,7 @@ def init(args: Namespace):
             setattr(args, "reference_state", str(local_state_dir))
             # Reload reference manifest file after downloading from storage
             args.reference_manifest_file = get_reference_manifest_file(reference_state_path)
-            cache.write_cache(get_reference_manifest_file(reference_state_path), "reference_manifest.json")
+            cache.write_reference_manifest(get_reference_manifest_file(reference_state_path))
 
         # Generate reference manifest.json file
         # if reference target is passed
@@ -67,16 +67,16 @@ def init(args: Namespace):
         
         target_manifest_file = get_manifest_file(dbt_project_dir)
         state_change_summary = dbt_command_state_modified(args)
-        cache.write_cache(cast(dict, state_change_summary))
+        cache.write_cache(state_change_summary)
 
         if reference_target is not None and reference_target != getattr(args, "target", None):
             # Different targets - will compile again later with actual target
-            cache.write_cache(target_manifest_file, "target_manifest.json")
+            cache.write_target_manifest(target_manifest_file)
         else:
             # Same target or no reference target specified - reference and target are the same
             logger.debug("Reference target is the same as current target, using the same manifest for both reference and target state.")
-            cache.write_cache(target_manifest_file, "reference_manifest.json")
-            cache.write_cache(target_manifest_file, "target_manifest.json")
+            cache.write_reference_manifest(target_manifest_file)
+            cache.write_target_manifest(target_manifest_file)
 
         # Will generate summary and output it in the logs. It also covers:
         # 1. Migration plan for partitioning changes
@@ -92,7 +92,7 @@ def init(args: Namespace):
         logger.info("Initialization complete. Cache updated with current state(s).")
         logger.info("You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state.")
     except Exception as e:
-        cache = CacheManager()
+        cache = CacheManager(args)
         cache.update_report(command="init", status="failed")
         print_exception(e, "Error during initialization")
         sys.exit(1)
