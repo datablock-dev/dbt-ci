@@ -1,5 +1,46 @@
 # Shared options for all commands
+import yaml
+import os
 import click
+
+
+def _load_config_callback(ctx, param, value):
+    """
+    Eager callback that reads the dbt-ci YAML config file and injects its values
+    into os.environ before Click resolves the remaining options.
+
+    Keys in the config file should match Click envvar names (e.g. DBT_RUNNER).
+    Actual shell environment variables always take precedence (setdefault).
+
+    Values of the form ${VAR_NAME} are resolved from the current environment.
+
+    Example config (dbt-ci.config.yaml):
+        DBT_RUNNER: docker
+        DBT_DOCKER_IMAGE: europe-west1-docker.pkg.dev/my-project/dbt
+        DBT_PROJECT_DIR: dbt
+        DBT_DOCKER_ENV: "DBT_PROFILES_DIR=/dbt,GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}"
+    """
+    import re
+
+    def _resolve(val: str) -> str:
+        """Replace ${VAR} references with their current environment values."""
+        def replacer(match):
+            var_name = match.group(1)
+            return os.environ.get(var_name, match.group(0))  # keep original if not found
+        return re.sub(r'\$\{([^}]+)\}', replacer, val)
+
+    if not value:
+        return value
+    try:
+        if os.path.exists(value):
+            with open(value, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f) or {}
+            for key, val in config.items():
+                if val is not None:
+                    os.environ.setdefault(str(key), _resolve(str(val)))
+    except Exception:
+        pass  # Config file issues should not crash the CLI
+    return value
 
 @click.group()
 @click.version_option(version='0.1.0', prog_name='dbt-ci')
@@ -31,11 +72,15 @@ def parse_multiple_option(ctx, param, value):
 def common_options(f):
     """Decorator to add common options to all commands"""
     # Dynamic package options
+    # Config file — loaded eagerly so its env var values are injected before
+    # Click resolves the remaining options
     f = click.option(
         "--config", "-c",
         envvar=['DBT_CONFIG'],
         default="dbt-ci.config.yaml",
-        help="Path to dbt-ci configuration file (YAML)"
+        is_eager=True,
+        callback=_load_config_callback,
+        help="Path to dbt-ci configuration file (YAML). Keys must be env var names (e.g. DBT_RUNNER). Shell env vars always take precedence."
     )(f)
     f = click.option(
         "--dbt-version",
