@@ -2,7 +2,6 @@
 import sys
 import logging
 from argparse import Namespace
-from typing import Any, cast
 from src.cache import CacheManager
 from src.graph.dependency_graph import DbtGraph
 from src.graph.graph_utils import get_deleted_nodes, get_new_nodes, get_nodes, get_structured_modified_nodes
@@ -97,6 +96,8 @@ def dbt_command_state_modified(args: Namespace):
         commands = resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], args)
         commands.extend(["--target", getattr(args, "reference_target")])
         commands.extend(["--vars", getattr(args, "reference_vars")]) if getattr(args, "reference_vars", None) else None
+
+        logger.debug(f"Running dbt ls command with arguments: {commands}")
 
         ls_output = run_dbt_command(
             command_args=commands,
