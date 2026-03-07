@@ -153,7 +153,7 @@ def get_container_paths(runner_config: RunnerConfig) -> dict:
         container_path_map["profiles_dir"] = env_dict["DBT_PROFILES_DIR"]
     
     # For reference_state: use DBT_STATE env or derive from volume mapping
-    if "DBT_STATE" in env_dict:
+    if env_dict.get("DBT_STATE"):
         container_path_map["reference_state"] = env_dict["DBT_STATE"]
     else:
         # Try to derive from volume mapping if state is within a mounted volume
