@@ -42,7 +42,7 @@ def migration(args: Namespace):
             sys.exit(1)
 
         # Setup migraiton connector
-        migration_connector = connector.get("strategies", {}).get("migrate")
+        migration_connector = connector.get("strategies").get("migration", None)
         if migration_connector is None:
             logger.error(f"Connector '{connector_type}' does not have a migration strategy implemented, which is required for migration command.")
             sys.exit(1)
