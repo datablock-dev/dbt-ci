@@ -2,17 +2,17 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from argparse import Namespace
-from src.commands.migration import migration
+from src.commands.migration.index import migration as index
 
 
 class TestMigrationCommand:
     """Test the migration command."""
     
-    @patch('src.commands.migration.get_profile')
-    @patch('src.commands.migration.DbtGraph')
-    @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.logger')
-    @patch('src.commands.migration.click.secho')
+    @patch('src.commands.migration.index.get_profile')
+    @patch('src.commands.migration.index.DbtGraph')
+    @patch('src.commands.migration.index.CacheManager')
+    @patch('src.commands.migration.index.logger')
+    @patch('src.commands.migration.index.click.secho')
     def test_migration_no_cache(
         self,
         mock_secho,
@@ -37,17 +37,17 @@ class TestMigrationCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            migration(args)
+            index(args)
         
         assert exc_info.value.code == 1
     
-    @patch('src.commands.migration.get_profile')
-    @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.DbtGraph')
-    @patch('src.commands.migration.get_connector')
-    @patch('src.commands.migration.logger')
-    @patch('src.commands.migration.click.secho')
-    @patch('src.commands.migration.sys.exit')
+    @patch('src.commands.migration.index.get_profile')
+    @patch('src.commands.migration.index.CacheManager')
+    @patch('src.commands.migration.index.DbtGraph')
+    @patch('src.commands.migration.index.get_connector')
+    @patch('src.commands.migration.index.logger')
+    @patch('src.commands.migration.index.click.secho')
+    @patch('src.commands.migration.index.sys.exit')
     def test_migration_unsupported_connector(
         self,
         mock_exit,
@@ -73,24 +73,24 @@ class TestMigrationCommand:
             dbt_project_dir='/dbt',
             dry_run=False
         )
-        migration(args)
+        index(args)
         
         # Verify error was logged
         mock_logger.error.assert_called_once()
-        assert 'does not support migration strategy' in str(mock_logger.error.call_args)
+        assert 'does not have a migration strategy' in str(mock_logger.error.call_args)
         
         # Verify exit with error
         mock_exit.assert_called_with(1)
     
-    @patch('src.commands.migration.get_profile')
-    @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.DbtGraph')
-    @patch('src.commands.migration.get_connector')
-    @patch('src.commands.migration.get_node_ids_from_structured_nodes')
-    @patch('src.commands.migration.filter_node_ids_by_type')
-    @patch('src.commands.migration.logger')
-    @patch('src.commands.migration.click.secho')
-    @patch('src.commands.migration.click.echo')
+    @patch('src.commands.migration.index.get_profile')
+    @patch('src.commands.migration.index.CacheManager')
+    @patch('src.commands.migration.index.DbtGraph')
+    @patch('src.commands.migration.index.get_connector')
+    @patch('src.commands.migration.index.get_node_ids_from_structured_nodes')
+    @patch('src.commands.migration.index.filter_node_ids_by_multiple_types')
+    @patch('src.commands.migration.index.logger')
+    @patch('src.commands.migration.index.click.secho')
+    @patch('src.commands.migration.index.click.echo')
     def test_migration_no_modified_models(
         self,
         mock_echo,
@@ -125,20 +125,20 @@ class TestMigrationCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            migration(args)
+            index(args)
         
         assert exc_info.value.code == 0
     
-    @patch('src.commands.migration.get_profile')
-    @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.DbtGraph')
-    @patch('src.commands.migration.get_connector')
-    @patch('src.commands.migration.get_node_ids_from_structured_nodes')
-    @patch('src.commands.migration.filter_node_ids_by_type')
-    @patch('src.commands.migration.get_nodes')
-    @patch('src.commands.migration.logger')
-    @patch('src.commands.migration.click.secho')
-    @patch('src.commands.migration.click.echo')
+    @patch('src.commands.migration.index.get_profile')
+    @patch('src.commands.migration.index.CacheManager')
+    @patch('src.commands.migration.index.DbtGraph')
+    @patch('src.commands.migration.index.get_connector')
+    @patch('src.commands.migration.index.get_node_ids_from_structured_nodes')
+    @patch('src.commands.migration.index.filter_node_ids_by_multiple_types')
+    @patch('src.commands.migration.index.get_nodes')
+    @patch('src.commands.migration.index.logger')
+    @patch('src.commands.migration.index.click.secho')
+    @patch('src.commands.migration.index.click.echo')
     def test_migration_with_modified_models(
         self,
         mock_echo,
@@ -211,7 +211,7 @@ class TestMigrationCommand:
             reference_state='/dbt/.dbtstate',
             dry_run=False
         )
-        migration(args)
+        index(args)
         
         # Verify migration function was called with correct migration map
         mock_migration_func.assert_called_once()
@@ -225,16 +225,16 @@ class TestMigrationCommand:
         assert migration_map['nodes']['model.project.model1']['old_partitioning'] == {'field': 'old_date', 'data_type': 'date'}
         assert migration_map['nodes']['model.project.model1']['new_partitioning'] == {'field': 'new_date', 'data_type': 'date'}
     
-    @patch('src.commands.migration.get_profile')
-    @patch('src.commands.migration.CacheManager')
-    @patch('src.commands.migration.DbtGraph')
-    @patch('src.commands.migration.get_connector')
-    @patch('src.commands.migration.get_node_ids_from_structured_nodes')
-    @patch('src.commands.migration.filter_node_ids_by_type')
-    @patch('src.commands.migration.get_nodes')
-    @patch('src.commands.migration.logger')
-    @patch('src.commands.migration.click.secho')
-    @patch('src.commands.migration.click.echo')
+    @patch('src.commands.migration.index.get_profile')
+    @patch('src.commands.migration.index.CacheManager')
+    @patch('src.commands.migration.index.DbtGraph')
+    @patch('src.commands.migration.index.get_connector')
+    @patch('src.commands.migration.index.get_node_ids_from_structured_nodes')
+    @patch('src.commands.migration.index.filter_node_ids_by_multiple_types')
+    @patch('src.commands.migration.index.get_nodes')
+    @patch('src.commands.migration.index.logger')
+    @patch('src.commands.migration.index.click.secho')
+    @patch('src.commands.migration.index.click.echo')
     def test_migration_no_partitioning_changes(
         self,
         mock_echo,
@@ -291,6 +291,6 @@ class TestMigrationCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            migration(args)
+            index(args)
         
         assert exc_info.value.code == 0

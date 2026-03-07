@@ -4,14 +4,14 @@
 
 import sys
 import logging
-from typing import Dict
+from typing import cast
 from argparse import Namespace
 import click
 from src.cache import CacheManager
 from src.connectors import get_connector
-from src.dependency_graph import DbtGraph
-from src.schema import DeleteMapNode
-from src.utilities.graph_utils import get_node_ids_from_structured_nodes, get_nodes
+from src.graph.dependency_graph import DbtGraph
+from src.schema import DeleteMapNode, SupportedConnectors
+from src.graph.graph_utils import get_node_ids_from_structured_nodes, get_nodes
 from src.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
@@ -21,11 +21,24 @@ def delete(args: Namespace):
     try:
         click.secho("DBT CI Delete", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
-        cache = CacheManager()
+        cache = CacheManager(args)
         cache.start_report("delete", args)
-        connector_type = get_profile(args)["type"]
-        delete_connector = get_connector(connector_type).get("strategies", {}).get("delete")
+        connector_type = cast(SupportedConnectors, get_profile(args)["type"])
+        delete_connector = get_connector(connector_type)
         delete_map = generate_delete_map(args, cache)
+
+        if delete_connector is None:
+            logger.error(f"Connector '{connector_type}' does not support delete strategy, which is required for delete command.")
+            sys.exit(1)
+
+        delete_function = delete_connector.get("strategies", {}).get("delete", None)
+        if delete_function is None:
+            logger.error(f"Connector '{connector_type}' does not have a delete strategy implemented, which is required for delete command.")
+            sys.exit(1)
+
+        if len(delete_map) == 0:
+            logger.info("No nodes to delete. Exiting...")
+            sys.exit(0)
 
         logger.info("\n------------------------------------------------------")
         click.secho(f"Nodes to be deleted ({len(delete_map)})", fg="green", bold=True)
@@ -37,18 +50,19 @@ def delete(args: Namespace):
             logger.info("\nDry run complete - no nodes were actually deleted.")
             sys.exit(0)
 
-        delete_connector(delete_map, args)
+        delete_function(delete_map, args)
         cache.update_report("delete", "completed", comment=str(list(delete_map.keys())))
         logger.info("Delete process completed successfully.")
         sys.exit(0)
     except Exception as e:
+        cache = CacheManager(args)
         cache.update_report("delete", "failed", comment=str(e))
         logger.error(f"An error occurred during the delete process: {str(e)}")
         sys.exit(1)
 
 def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, DeleteMapNode]:
     """Generate a map of nodes to be deleted based on the cache and reference graph."""
-    reference_graph = DbtGraph(args, is_production=True)
+    reference_graph = DbtGraph(args, is_reference=True)
 
     if getattr(args, "dry_run", False):
         logger.info("Dry run mode enabled - no actual deletions will be performed.")
@@ -57,13 +71,13 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
     prev_cache = cache.get_cache()
     if prev_cache is None: # Should we exit here instead of compiling?
         logger.info("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
-        return
+        return {}
     logger.info("Cache successfully found - using cached state for comparison")
 
     deleted_nodes = get_node_ids_from_structured_nodes(prev_cache.get("deleted_nodes", None)) or []
     if len(deleted_nodes) == 0:
         logger.info("No deleted nodes found in cache, skipping...")
-        return
+        return {}
 
     logger.info("\n------------------------------------------------------")
     click.secho("State Change Summary:", fg="green", bold=True)

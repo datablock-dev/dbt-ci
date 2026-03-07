@@ -3,9 +3,8 @@ import sys
 import logging
 from argparse import Namespace
 import click
-
 from src.cache import CacheManager
-from src.connectors import DB_CONNECTORS, get_connector, init_storage_connector
+from src.connectors import get_connector, init_storage_connector
 from src.logging import print_exception
 from src.schema import EphemeralMapNode
 from src.utilities.paths import get_profile
@@ -24,7 +23,7 @@ def finalize(args: Namespace):
     try:
         click.secho("DBT CI Finalize", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
-        cache = CacheManager()
+        cache = CacheManager(args)
         logger.info("Finalizing ci/cd process by uploading manifest.json and cleaning up cache...")
         manifest_file = cache.get_cache("target_manifest.json") or cache.get_cache("reference_manifest.json")
         cache.start_report("finalize", args)

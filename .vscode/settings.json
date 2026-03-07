@@ -1,4 +1,6 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:pipenv",
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "python.analysis.typeCheckingMode": "standard",
+    "python.analysis.autoImportCompletions": true
 }

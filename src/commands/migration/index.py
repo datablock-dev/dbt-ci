@@ -2,18 +2,19 @@
 import sys
 import logging
 from argparse import Namespace
+from typing import cast
 import click
 from src.cache import CacheManager
-from src.dependency_graph import DbtGraph
+from src.graph.dependency_graph import DbtGraph
 from src.logging import print_exception
-from src.schema import MigrationMap
+from src.schema import MigrationMap, SupportedConnectors
 from src.connectors import get_connector
-from src.utilities.graph_utils import (
-    filter_node_ids_by_type,
+from src.utilities.paths import get_profile
+from src.graph.graph_utils import (
+    filter_node_ids_by_multiple_types,
     get_node_ids_from_structured_nodes,
     get_nodes
 )
-from src.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +31,19 @@ def migration(args: Namespace):
     try:
         click.secho("DBT CI Migration", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
-        cache = CacheManager()
+        cache = CacheManager(args)
         cache.start_report("migrate", args)
-        connector_type = get_profile(args)["type"]
-        migration_connector = get_connector(connector_type).get("strategies", {}).get("migration")
+        connector_type = cast(SupportedConnectors, get_profile(args)["type"])
+        connector = get_connector(connector_type)
 
-        if migration_connector is None:
+        if connector is None:
             logger.error(f"Connector '{connector_type}' does not support migration strategy, which is required for migration command.")
+            sys.exit(1)
+
+        # Setup migraiton connector
+        migration_connector = connector.get("strategies").get("migration", None)
+        if migration_connector is None:
+            logger.error(f"Connector '{connector_type}' does not have a migration strategy implemented, which is required for migration command.")
             sys.exit(1)
 
         # Determine if there has been a change in clustering or partitioning configuration
@@ -64,6 +71,7 @@ def migration(args: Namespace):
         cache.update_report("migrate", "completed", comment=str(list(migration_map["nodes"].keys())))
         logger.info("Migration completed successfully.")
     except Exception as e:
+        cache = CacheManager(args)
         cache.update_report("migrate", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
@@ -74,7 +82,7 @@ def generate_migration_map(
 ) -> MigrationMap:
     """Compare partitioning configurations between target and reference nodes and return a migration map."""
     target_graph = DbtGraph(args)
-    reference_graph = DbtGraph(args, is_production=True)
+    reference_graph = DbtGraph(args, is_reference=True)
 
     # Look for cache
     prev_cache = cache.get_cache()
@@ -87,7 +95,11 @@ def generate_migration_map(
         "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
     }
 
-    selected_nodes = filter_node_ids_by_type(target_graph.to_dict(), modified_nodes_dict["modified_nodes"], ["model"])
+    selected_nodes = filter_node_ids_by_multiple_types(
+        dependency_graph=target_graph.to_dict(), 
+        node_ids=modified_nodes_dict["modified_nodes"], 
+        node_types=["model"]
+    )
     if len(selected_nodes) == 0:
         logger.info("No modified models found in cache, skipping...")
         sys.exit(0)

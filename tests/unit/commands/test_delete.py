@@ -2,19 +2,19 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from argparse import Namespace
-from src.commands.delete import delete
+from src.commands.delete.index import delete as index
 
 
 class TestDeleteCommand:
     """Test the delete command."""
     
-    @patch('src.commands.delete.get_profile')
-    @patch('src.commands.delete.DbtGraph')
-    @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.click.secho')
-    @patch('src.commands.delete.sys.exit')
-    @patch('src.commands.delete.logger')
-    @patch('src.commands.delete.click.echo')
+    @patch('src.commands.delete.index.get_profile')
+    @patch('src.commands.delete.index.DbtGraph')
+    @patch('src.commands.delete.index.CacheManager')
+    @patch('src.commands.delete.index.click.secho')
+    @patch('src.commands.delete.index.sys.exit')
+    @patch('src.commands.delete.index.logger')
+    @patch('src.commands.delete.index.click.echo')
     def test_delete_no_cache(
         self,
         mock_echo,
@@ -42,22 +42,22 @@ class TestDeleteCommand:
             dry_run=False,
             runner='local',
         )
-        delete(args)
+        index(args)
         
         # Verify message was shown
         mock_logger.info.assert_any_call(
             "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
         )
     
-    @patch('src.commands.delete.get_profile')
-    @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.DbtGraph')
-    @patch('src.commands.delete.get_connector')
-    @patch('src.commands.delete.get_node_ids_from_structured_nodes')
-    @patch('src.commands.delete.click.secho')
-    @patch('src.commands.delete.sys.exit')
-    @patch('src.commands.delete.logger')
-    @patch('src.commands.delete.click.echo')
+    @patch('src.commands.delete.index.get_profile')
+    @patch('src.commands.delete.index.CacheManager')
+    @patch('src.commands.delete.index.DbtGraph')
+    @patch('src.commands.delete.index.get_connector')
+    @patch('src.commands.delete.index.get_node_ids_from_structured_nodes')
+    @patch('src.commands.delete.index.click.secho')
+    @patch('src.commands.delete.index.sys.exit')
+    @patch('src.commands.delete.index.logger')
+    @patch('src.commands.delete.index.click.echo')
     def test_delete_no_deleted_nodes(
         self,
         mock_echo,
@@ -85,20 +85,20 @@ class TestDeleteCommand:
             dbt_project_dir='/dbt',
             dry_run=False
         )
-        delete(args)
+        index(args)
         
         # Verify appropriate message was shown
         mock_logger.info.assert_any_call("No deleted nodes found in cache, skipping...")
     
-    @patch('src.commands.delete.get_profile')
-    @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.DbtGraph')
-    @patch('src.commands.delete.get_connector')
-    @patch('src.commands.delete.get_node_ids_from_structured_nodes')
-    @patch('src.commands.delete.get_nodes')
-    @patch('src.commands.delete.click.secho')
-    @patch('src.commands.delete.click.echo')
-    @patch('src.commands.delete.sys.exit')
+    @patch('src.commands.delete.index.get_profile')
+    @patch('src.commands.delete.index.CacheManager')
+    @patch('src.commands.delete.index.DbtGraph')
+    @patch('src.commands.delete.index.get_connector')
+    @patch('src.commands.delete.index.get_node_ids_from_structured_nodes')
+    @patch('src.commands.delete.index.get_nodes')
+    @patch('src.commands.delete.index.click.secho')
+    @patch('src.commands.delete.index.click.echo')
+    @patch('src.commands.delete.index.sys.exit')
     def test_delete_with_deleted_nodes(
         self,
         mock_exit,
@@ -143,7 +143,7 @@ class TestDeleteCommand:
             dbt_project_dir='/dbt',
             dry_run=False
         )
-        delete(args)
+        index(args)
         
         # Verify delete connector was called
         mock_delete_func.assert_called_once()
@@ -157,16 +157,16 @@ class TestDeleteCommand:
         # Verify success exit
         mock_exit.assert_called_with(0)
     
-    @patch('src.commands.delete.get_profile')
-    @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.DbtGraph')
-    @patch('src.commands.delete.get_connector')
-    @patch('src.commands.delete.get_node_ids_from_structured_nodes')
-    @patch('src.commands.delete.get_nodes')
-    @patch('src.commands.delete.click.secho')
-    @patch('src.commands.delete.click.echo')
-    @patch('src.commands.delete.sys.exit')
-    @patch('src.commands.delete.logger')
+    @patch('src.commands.delete.index.get_profile')
+    @patch('src.commands.delete.index.CacheManager')
+    @patch('src.commands.delete.index.DbtGraph')
+    @patch('src.commands.delete.index.get_connector')
+    @patch('src.commands.delete.index.get_node_ids_from_structured_nodes')
+    @patch('src.commands.delete.index.get_nodes')
+    @patch('src.commands.delete.index.click.secho')
+    @patch('src.commands.delete.index.click.echo')
+    @patch('src.commands.delete.index.sys.exit')
+    @patch('src.commands.delete.index.logger')
     def test_delete_dry_run(
         self,
         mock_logger,
@@ -211,20 +211,20 @@ class TestDeleteCommand:
             dbt_project_dir='/dbt',
             dry_run=True
         )
-        delete(args)
+        index(args)
         
         # Verify dry run message was shown
         mock_logger.info.assert_any_call("Dry run mode enabled - no actual deletions will be performed.")
     
-    @patch('src.commands.delete.get_profile')
-    @patch('src.commands.delete.CacheManager')
-    @patch('src.commands.delete.DbtGraph')
-    @patch('src.commands.delete.get_connector')
-    @patch('src.commands.delete.get_node_ids_from_structured_nodes')
-    @patch('src.commands.delete.get_nodes')
-    @patch('src.commands.delete.logger')
-    @patch('src.commands.delete.click.secho')
-    @patch('src.commands.delete.sys.exit')
+    @patch('src.commands.delete.index.get_profile')
+    @patch('src.commands.delete.index.CacheManager')
+    @patch('src.commands.delete.index.DbtGraph')
+    @patch('src.commands.delete.index.get_connector')
+    @patch('src.commands.delete.index.get_node_ids_from_structured_nodes')
+    @patch('src.commands.delete.index.get_nodes')
+    @patch('src.commands.delete.index.logger')
+    @patch('src.commands.delete.index.click.secho')
+    @patch('src.commands.delete.index.sys.exit')
     def test_delete_skips_incomplete_nodes(
         self,
         mock_exit,
@@ -269,7 +269,7 @@ class TestDeleteCommand:
             dbt_project_dir='/dbt',
             dry_run=False
         )
-        delete(args)
+        index(args)
         
         # Verify warning was logged
         mock_logger.warning.assert_called_once()

@@ -4,9 +4,9 @@ import sys
 import logging
 from argparse import Namespace
 from itertools import chain
-from typing import Dict, List, Set
+from typing import cast
 import click
-from src.dependency_graph import DbtGraph
+from src.graph.dependency_graph import DbtGraph
 from src.cache import CacheManager
 from src.logging import print_exception
 from src.runners import run_dbt_command, append_dbt_variables_to_command
@@ -19,7 +19,7 @@ from src.schema import (
     NODE_TYPE_COMMAND_MAPPING, 
     REVERSE_MODE_MAPPING
 )
-from src.utilities.graph_utils import (
+from src.graph.graph_utils import (
     filter_node_ids_by_type,
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes,
@@ -46,7 +46,7 @@ def run(args: Namespace):
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Run", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
-        cache = CacheManager()
+        cache = CacheManager(args)
         cache.start_report("run", args)
         target_graph = DbtGraph(args)
                 
@@ -58,9 +58,9 @@ def run(args: Namespace):
         logger.info("Cache successfully found - using cached state for comparison")
 
         changed_nodes_dict = {
-            "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
-            "new_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("new_nodes", None)) or [],
-            "deleted_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("deleted_nodes", None)) or []
+            "modified_nodes": get_node_ids_from_structured_nodes(prev_cache.get("modified_nodes", None)) or [],
+            "new_nodes": get_node_ids_from_structured_nodes(prev_cache.get("new_nodes", None)) or [],
+            "deleted_nodes": get_node_ids_from_structured_nodes(prev_cache.get("deleted_nodes", None)) or []
         }
         changed_nodes = [value for values in changed_nodes_dict.values() for value in values]
 
@@ -93,6 +93,7 @@ def run(args: Namespace):
         cache.update_report("run", "completed")
         logger.info("\nAll done!")
     except Exception as e:
+        cache = CacheManager(args)
         cache.update_report("run", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
@@ -106,7 +107,6 @@ def run_with_mode(
 ):
     """Run modified nodes with specific dbt command based on mode"""
     try:
-        runner_config = RunnerConfig(args.__dict__)
         run_order = ["seed", "run", "test", "snapshot"]
         if mode != "all":
             run_order = [MODE_MAPPING[mode]]
@@ -147,7 +147,7 @@ def run_with_mode(
                 else:
                     # When filters are provided in test mode, include upstream dependencies but only of types specified in filters
                     # Example: -f snapshots means include upstream snapshot dependencies of the changed tests
-                    nodes_to_run = test_additional_filter(
+                    nodes_to_run = run_test_with_additional_filter(
                         dependency_graph=target_graph.to_dict(),
                         node_type=node_type,
                         args=args,
@@ -158,7 +158,7 @@ def run_with_mode(
                         )))
                     )
 
-            if len(nodes_to_run) == 0:
+            if nodes_to_run is None or len(nodes_to_run) == 0:
                 logger.info(f"No {REVERSE_MODE_MAPPING[command]} to run")
                 continue
 
@@ -181,13 +181,13 @@ def run_with_mode(
             logger.info("-------------------------------------------------------\n")
 
             logger.info(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
-            if runner_config.get("dry_run", False):
+            if getattr(args, "dry_run", False):
                 logger.info("DRY RUN: Command would be executed")
                 continue
 
             result = run_dbt_command(
-                command_args=append_dbt_variables_to_command([command, "--select", " ".join(nodes_to_run)], args),
-                runner_config=runner_config
+                command_args=append_dbt_variables_to_command([cast(str, command), "--select", " ".join(nodes_to_run)], args),
+                runner_config=RunnerConfig(args.__dict__)
             )
 
             if result and result.returncode == 0:
@@ -199,7 +199,7 @@ def run_with_mode(
         print_exception(e)
         sys.exit(1)
 
-def test_additional_filter(
+def run_test_with_additional_filter(
     dependency_graph: DependencyGraph,
     node_type: DependencyGraphNodeType,
     args: Namespace,
@@ -207,7 +207,7 @@ def test_additional_filter(
 ) -> list[str] | None:
     """Apply additional filters to the list of node IDs based on user input."""
     converted_filter = [NODE_TYPE_COMMAND_MAPPING[f] for f in getattr(args, "filters", [])]
-    final_nodes: Set[str] = set()
+    final_nodes: set[str] = set()
     filtered_nodes = filter_node_ids_by_type(
         dependency_graph=dependency_graph,
         node_type=node_type,

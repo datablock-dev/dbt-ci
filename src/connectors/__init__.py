@@ -1,45 +1,12 @@
 """Init file for connectors module."""
 import sys
-from typing import Final
+from typing import Final, cast
 from src.schema import ConnectorConfig, SupportedConnectors, StorageConnectorConfig, SupportedStorageConnectors
-from src.connectors.aws.storage import (
-    aws_download_json,
-    aws_storage_client,
-    aws_upload_json
-)
-from src.connectors.google.storage import (
-    google_storage_client,
-    google_download_json,
-    google_upload_json
-)
-from src.connectors.google.bigquery import (
-    bigquery_client,
-    bigquery_create_datasets,
-    bigquery_create_tables,
-    bigquery_delete_datasets,
-    bigquery_delete_tables,
-    bigquery_ephemeral_strategy,
-    bigquery_delete_strategy,
-    bigquery_migration_strategy,
-    bigquery_query
-)
+from src.connectors.aws import aws_storage_connector
+from src.connectors.google import bigquery_db_connector, bigquery_storage_connector
 
 DB_CONNECTORS: Final[dict[SupportedConnectors, ConnectorConfig]] = {
-    "bigquery": {
-        "client": bigquery_client,
-        "strategies": {
-            "ephemeral": bigquery_ephemeral_strategy,
-            "delete": bigquery_delete_strategy,
-            "migration": bigquery_migration_strategy
-        },
-        "methods": {
-            "query": bigquery_query,
-            "create_datasets": bigquery_create_datasets,
-            "delete_datasets": bigquery_delete_datasets,
-            "create_tables": bigquery_create_tables,
-            "delete_tables": bigquery_delete_tables
-        }
-    }
+    "bigquery": bigquery_db_connector
 }
 
 STORAGE_URI_PREFIXES: Final[dict[str, str]] = {
@@ -48,18 +15,8 @@ STORAGE_URI_PREFIXES: Final[dict[str, str]] = {
 }
 
 STORAGE_CONNECTORS: Final[dict[SupportedStorageConnectors, StorageConnectorConfig]] = {
-    "aws": {
-        "name": "AWS S3",
-        "client": aws_storage_client,
-        "upload": aws_upload_json,
-        "download": aws_download_json,
-    },
-    "google": {
-        "name": "Google Cloud Storage",
-        "client": google_storage_client,
-        "upload": google_upload_json,
-        "download": google_download_json,
-    }
+    "aws": aws_storage_connector,
+    "google": bigquery_storage_connector
 }
 
 def init_storage_connector(uri: str | None) -> tuple[StorageConnectorConfig, str] | None:
@@ -72,14 +29,14 @@ def init_storage_connector(uri: str | None) -> tuple[StorageConnectorConfig, str
         sys.exit(1)
 
     # Now get the configs
-    storage_connector = STORAGE_CONNECTORS.get(STORAGE_URI_PREFIXES[provider])
+    storage_connector = STORAGE_CONNECTORS.get(cast(SupportedStorageConnectors, STORAGE_URI_PREFIXES[provider]))
     if storage_connector is None:
         print(f"No storage connector found for provider '{provider}'.")
         sys.exit(1)
 
     return storage_connector, uri
 
-def get_connector(connector: SupportedConnectors) -> ConnectorConfig:
+def get_connector(connector: SupportedConnectors) -> ConnectorConfig | None:
     """Factory function to get the appropriate connector based on configuration."""
     if connector not in DB_CONNECTORS:
         print(f"Connector '{connector}' is not supported.")

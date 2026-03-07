@@ -2,26 +2,28 @@
 import pytest
 from unittest.mock import MagicMock, patch, call
 from argparse import Namespace
-from src.commands.init import init
+from src.commands.init.index import init as index
 
 
 class TestInitCommand:
     """Test the init command."""
     
-    @patch('src.commands.init.CacheManager')
-    @patch('src.commands.init.init_storage_connector')
-    @patch('src.commands.init.resolve_dbt_commands')
-    @patch('src.commands.init.run_dbt_command')
-    @patch('src.commands.init.DbtGraph')
-    @patch('src.commands.init.get_manifest_file')
-    @patch('src.commands.init.click.secho')
+    @patch('src.commands.init.index.CacheManager')
+    @patch('src.commands.init.index.init_storage_connector')
+    @patch('src.commands.init.index.dbt_command_reference_compile')
+    @patch('src.commands.init.index.dbt_command_state_modified')
+    @patch('src.commands.init.index.dbt_command_target_compile')
+    @patch('src.commands.init.index.DbtGraph')
+    @patch('src.commands.init.index.get_manifest_file')
+    @patch('src.commands.init.index.click.secho')
     def test_init_success_no_modified_nodes(
         self,
         mock_secho,
         mock_get_manifest,
         mock_graph,
-        mock_run_cmd,
-        mock_resolve_cmds,
+        mock_target_compile,
+        mock_dbt_state,
+        mock_ref_compile,
         mock_storage,
         mock_cache
     ):
@@ -31,11 +33,8 @@ class TestInitCommand:
         mock_cache.return_value = mock_cache_instance
         mock_storage.return_value = None
         
-        # Mock resolve_dbt_commands to return a list of command args
-        mock_resolve_cmds.return_value = ['compile', '--project-dir', '/dbt']
-        
-        # Mock run_dbt_command to return None (no modified nodes)
-        mock_run_cmd.return_value = None
+        # Simulate dbt_command_state_modified finding no modified nodes and exiting
+        mock_dbt_state.side_effect = SystemExit(0)
         
         # Mock DbtGraph
         mock_graph_instance = MagicMock()
@@ -53,38 +52,32 @@ class TestInitCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            init(args)
+            index(args)
         
-        # Verify cache was written with no modified nodes
-        mock_cache_instance.write_cache.assert_called()
+        # Verify reference compile was called before state check
+        mock_ref_compile.assert_called_once()
         
         # Verify exit code
         assert exc_info.value.code == 0
     
-    @patch('src.commands.init.CacheManager')
-    @patch('src.commands.init.init_storage_connector')
-    @patch('src.commands.init.resolve_dbt_commands')
-    @patch('src.commands.init.run_dbt_command')
-    @patch('src.commands.init.DbtGraph')
-    @patch('src.commands.init.get_manifest_file')
-    @patch('src.commands.init.get_structured_modified_nodes')
-    @patch('src.commands.init.get_nodes')
-    @patch('src.commands.init.get_deleted_nodes')
-    @patch('src.commands.init.get_new_nodes')
-    @patch('src.commands.init.click.secho')
-    @patch('src.commands.init.init_summary')
+    @patch('src.commands.init.index.CacheManager')
+    @patch('src.commands.init.index.init_storage_connector')
+    @patch('src.commands.init.index.dbt_command_reference_compile')
+    @patch('src.commands.init.index.dbt_command_state_modified')
+    @patch('src.commands.init.index.dbt_command_target_compile')
+    @patch('src.commands.init.index.DbtGraph')
+    @patch('src.commands.init.index.get_manifest_file')
+    @patch('src.commands.init.index.click.secho')
+    @patch('src.commands.init.index.init_summary')
     def test_init_success_with_modified_nodes(
         self,
         mock_init_summary,
         mock_secho,
-        mock_get_new,
-        mock_get_deleted,
-        mock_get_nodes,
-        mock_structured,
         mock_get_manifest,
         mock_graph,
-        mock_run_cmd,
-        mock_resolve_cmds,
+        mock_target_compile,
+        mock_dbt_state,
+        mock_ref_compile,
         mock_storage,
         mock_cache
     ):
@@ -94,13 +87,12 @@ class TestInitCommand:
         mock_cache.return_value = mock_cache_instance
         mock_storage.return_value = None
         
-        # Mock resolve_dbt_commands to return command args
-        mock_resolve_cmds.return_value = ['compile', '--project-dir', '/dbt']
-        
-        # Mock run_dbt_command to return modified node IDs (as CompletedProcess-like object)
-        mock_result = MagicMock()
-        mock_result.stdout = "model.project.model1\nmodel.project.model2"
-        mock_run_cmd.return_value = mock_result
+        # Mock dbt_command_state_modified to return a StateChangeSummary
+        mock_dbt_state.return_value = {
+            "modified_nodes": {"model": {"model.project.model1": {"name": "model1", "resource_type": "model"}}},
+            "deleted_nodes": {},
+            "new_nodes": {}
+        }
         
         # Mock graph structure
         mock_graph_instance = MagicMock()
@@ -110,19 +102,6 @@ class TestInitCommand:
             }
         }
         mock_graph.return_value = mock_graph_instance
-        
-        mock_get_nodes.return_value = {
-            "model.project.model1": {"name": "model1", "resource_type": "model"}
-        }
-        
-        mock_structured.return_value = {
-            "model": {
-                "model.project.model1": {"name": "model1", "resource_type": "model"}
-            }
-        }
-        
-        mock_get_deleted.return_value = []
-        mock_get_new.return_value = []
         
         mock_get_manifest.return_value = {"metadata": {}}
         
@@ -135,16 +114,19 @@ class TestInitCommand:
             skip_target_compile=False,
             dry_run=False
         )
-        init(args)
+        index(args)
         
         # Verify cache was written
-        assert mock_cache_instance.write_cache.call_count >= 2
+        assert mock_cache_instance.write_cache.call_count >= 1
         
-        # Verify resolve_dbt_commands was called
-        assert mock_resolve_cmds.call_count >= 1
+        # Verify dbt_command_reference_compile was called
+        mock_ref_compile.assert_called_once()
+        
+        # Verify state modified was called
+        mock_dbt_state.assert_called_once()
     
-    @patch('src.commands.init.CacheManager')
-    @patch('src.commands.init.click.secho')
+    @patch('src.commands.init.index.CacheManager')
+    @patch('src.commands.init.index.click.secho')
     def test_init_error_handling(
         self,
         mock_secho,
@@ -164,25 +146,27 @@ class TestInitCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            init(args)
+            index(args)
         
         # Verify exit was called with error code
         assert exc_info.value.code == 1
     
-    @patch('src.commands.init.CacheManager')
-    @patch('src.commands.init.init_storage_connector')
-    @patch('src.commands.init.resolve_dbt_commands')
-    @patch('src.commands.init.run_dbt_command')
-    @patch('src.commands.init.DbtGraph')
-    @patch('src.commands.init.get_manifest_file')
-    @patch('src.commands.init.click.secho')
+    @patch('src.commands.init.index.CacheManager')
+    @patch('src.commands.init.index.init_storage_connector')
+    @patch('src.commands.init.index.dbt_command_reference_compile')
+    @patch('src.commands.init.index.dbt_command_state_modified')
+    @patch('src.commands.init.index.dbt_command_target_compile')
+    @patch('src.commands.init.index.DbtGraph')
+    @patch('src.commands.init.index.get_manifest_file')
+    @patch('src.commands.init.index.click.secho')
     def test_init_with_reference_target(
         self,
         mock_secho,
         mock_get_manifest,
         mock_graph,
-        mock_run_cmd,
-        mock_resolve_cmds,
+        mock_target_compile,
+        mock_dbt_state,
+        mock_ref_compile,
         mock_storage,
         mock_cache
     ):
@@ -192,11 +176,8 @@ class TestInitCommand:
         mock_cache.return_value = mock_cache_instance
         mock_storage.return_value = None
         
-        # Mock resolve_dbt_commands to return command args
-        mock_resolve_cmds.return_value = ['compile', '--project-dir', '/dbt', '--target', 'prod']
-        
-        # Mock run_dbt_command to return None (no modified nodes)
-        mock_run_cmd.return_value = None
+        # Simulate dbt_command_state_modified finding no modified nodes and exiting
+        mock_dbt_state.side_effect = SystemExit(0)
         
         # Mock DbtGraph
         mock_graph_instance = MagicMock()
@@ -216,10 +197,10 @@ class TestInitCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            init(args)
+            index(args)
         
-        # Verify resolve_dbt_commands was called - it should use reference target internally
-        mock_resolve_cmds.assert_called()
+        # Verify reference compile was called with reference target internally
+        mock_ref_compile.assert_called_once()
         
         # Verify exit code
         assert exc_info.value.code == 0
@@ -228,11 +209,11 @@ class TestInitCommand:
 class TestResolveManifestFromStorage:
     """Test the resolve_manifest_file_from_storage helper function."""
     
-    @patch('src.commands.init.Path')
-    @patch('src.commands.init.logger')
+    @patch('src.commands.init.index.Path')
+    @patch('src.commands.init.index.logger')
     def test_resolve_manifest_creates_directory(self, mock_logger, mock_path):
         """Test that the function creates the necessary directory."""
-        from src.commands.init import resolve_manifest_file_from_storage
+        from src.commands.init.index import resolve_manifest_file_from_storage
         
         # Setup mocks
         storage_connector = {

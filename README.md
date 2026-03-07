@@ -108,11 +108,12 @@ dbt-ci init \
 
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
-| `--reference-target` | `-ref-target` | `DBT_REFERENCE_TARGET` | `None` | dbt target for the production/reference manifest |
-| `--reference-state` | `--state` | `DBT_STATE`, `DBT_STATE_DIR`, `STATE_DIR` | `None` | Local path where reference state will be downloaded/stored |
+| `--reference-target` | `--ref-target` | `DBT_REFERENCE_TARGET` | `None` | dbt target for the production/reference manifest |
 | `--reference-vars` | `--ref-vars` | `DBT_REFERENCE_VARS` | `None` | Variables to pass to dbt when compiling the reference manifest (YAML string or file path) |
 | `--state-uri` | | `DBT_STATE_URI`, `STATE_URI` | `None` | Remote URI for the state manifest (e.g. `gs://bucket/manifest.json`, `s3://bucket/manifest.json`) |
 | `--skip-target-compile` | | `DBT_SKIP_TARGET_COMPILE` | `false` | Skip the second compile pass against the actual target |
+| `--skip-reference-compile` | | `DBT_SKIP_REFERENCE_COMPILE` | `false` | Skip the compile pass against the reference/production state |
+| `--no-git` | | `DBT_NO_GIT` | `false` | Skip git-based file change comparison |
 
 > All [common options](#common-options) also apply.
 
@@ -131,7 +132,7 @@ dbt-ci run --dbt-project-dir dbt --mode models
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
 | `--mode` | `-m`, `--nodes`, `-n` | `DBT_NODES` | `all` | What to run: `all`, `models`, `seeds`, `snapshots`, `tests` |
-| `--filters` | `-f` | | `None` | Extra resource-type filters (repeatable). E.g. `-f snapshots` to scope test runs to snapshot dependencies |
+| `--filters` | `-f` | | `None` | Extra resource-type filter (repeatable, choices: `models`, `seeds`, `snapshots`, `tests`). E.g. `--mode tests -f snapshots` to run only tests that have a snapshot dependency |
 
 > All [common options](#common-options) also apply.
 
@@ -154,11 +155,21 @@ dbt-ci run --runner docker --mode models
 
 ### `ephemeral` - Ephemeral Environment
 
-Creates ephemeral environments for testing without affecting production. Uses cached state from `init`.
+Clones changed models and their downstream dependencies into an isolated target schema using **`dbt clone`**, allowing integration testing without affecting production. Uses cached state from `init`.
+
+> **Important:** `--target` and `--vars` must match the environment you want to clone into. The clone operation reads your `profiles.yml` to determine the target database/schema — if these are wrong, models will be cloned to the wrong location or the command will fail.
 
 ```bash
-dbt-ci ephemeral --dbt-project-dir dbt
+dbt-ci ephemeral \
+  --target my-pr-env \
+  --vars '{"use_production_data":"false"}'
 ```
+
+**How it works:**
+1. Reads the cached change set from `init`
+2. Builds a selection of all affected models and their downstream dependencies
+3. Runs `dbt clone --select <nodes>` targeting the specified environment
+4. The cloned tables/views can then be used as the base for subsequent `dbt run` commands in the PR environment
 
 **Flags:**
 
@@ -175,7 +186,8 @@ dbt-ci ephemeral --dbt-project-dir dbt
 Detects and deletes models that have been removed from the project. Uses cached state from `init`.
 
 ```bash
-dbt-ci delete --dbt-project-dir dbt
+dbt-ci delete --dry-run  # preview what will be deleted
+dbt-ci delete            # execute deletions
 ```
 
 **Flags:**
@@ -198,7 +210,7 @@ dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
 | `--artifacts-uri` | | `DBT_ARTIFACTS_URI`, `ARTIFACTS_URI` | `None` | Object storage URI for uploading run artifacts such as the updated `manifest.json` (e.g. `s3://bucket/dbt-artifacts/`) |
-| `--clean-ephemeral` | | `DBT_CLEAN_EPHEMERAL` | `false` | Clean up the ephemeral environment as part of finalization |
+| `--clean-ephemeral` | `--destroy-ephemeral` | `DBT_CLEAN_EPHEMERAL`, `DBT_DESTROY_EPHEMERAL` | `false` | Clean up the ephemeral environment as part of finalization |
 
 > All [common options](#common-options) also apply.
 
@@ -309,6 +321,7 @@ These flags are available on **every** command.
 |------|---------|-----------|---------|-------------|
 | `--dbt-project-dir` | | `DBT_PROJECT_DIR` | `.` | Path to the dbt project directory |
 | `--profiles-dir` | | `DBT_PROFILES_DIR` | Auto-detect | Path to the directory containing `profiles.yml` |
+| `--reference-state` | `--state` | `DBT_STATE` | `None` | Local path to the reference state directory (where `manifest.json` is stored) |
 | `--target` | `-t` | `DBT_TARGET` | From `profiles.yml` | dbt target to use |
 | `--vars` | `-v` | `DBT_VARS` | `""` | YAML string or path to a YAML file with dbt variables |
 | `--defer` | | `DBT_DEFER` | `false` | Pass dbt's `--defer` flag (defers unmodified nodes to the production state) |
@@ -316,7 +329,9 @@ These flags are available on **every** command.
 | `--entrypoint` | | `DBT_ENTRYPOINT` | `dbt` | Command entrypoint for dbt |
 | `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`) |
 | `--adapter` | `-a` | `DBT_ADAPTER` | `None` | dbt adapter to install (e.g. `dbt-bigquery`, `dbt-duckdb=1.10.0`) |
+| `--config` | `-c` | `DBT_CONFIG` | `dbt-ci.config.yaml` | Path to a dbt-ci YAML configuration file |
 | `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them |
+| `--quiet` | `-q` | `DBT_QUIET` | `false` | Run in quiet mode with minimal output |
 | `--log-level` | | `DBT_LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `--slack-webhook` | `--slack-webhook-url` | `SLACK_WEBHOOK`, `SLACK_WEBHOOK_URL` | `None` | Slack webhook URL for CI notifications |
 
@@ -340,7 +355,7 @@ Only used when `--runner bash` is set.
 
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
-| `--shell-path` | `--bash-path` | `DBT_SHELL_PATH`, `SHELL_PATH` | `/bin/bash` | Path to the shell executable |
+| `--shell-path` | `--bash-path` | `DBT_SHELL_PATH` | `/bin/bash` | Path to the shell executable |
 
 ## Cloud Storage Support
 

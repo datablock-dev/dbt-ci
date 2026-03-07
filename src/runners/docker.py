@@ -4,7 +4,6 @@ import sys
 from subprocess import CompletedProcess
 import docker
 from docker import errors
-from typing import List
 from src.schema import RunnerConfig
 from src.utilities.paths import get_absolute_path
 
@@ -152,23 +151,20 @@ def get_container_paths(runner_config: RunnerConfig) -> dict:
     if "DBT_PROFILES_DIR" in env_dict:
         container_path_map["profiles_dir"] = env_dict["DBT_PROFILES_DIR"]
     
-    # For reference_state: use DBT_STATE env or derive from volume mapping
-    if "DBT_STATE" in env_dict:
-        container_path_map["reference_state"] = env_dict["DBT_STATE"]
-    else:
-        # Try to derive from volume mapping if state is within a mounted volume
-        reference_state_host = runner_config.get("reference_state")
-        if reference_state_host:
-            reference_state_abs = get_absolute_path(reference_state_host)
-            # Check if state path is within any mounted volume
-            for host_mount, container_mount in volume_map.items():
-                host_mount_abs = get_absolute_path(host_mount)
-                # Check if reference_state is within this mounted volume
-                if reference_state_abs.startswith(host_mount_abs):
-                    # Replace host mount prefix with container mount prefix
-                    relative_path = reference_state_abs[len(host_mount_abs):].lstrip('/')
-                    container_path_map["reference_state"] = f"{container_mount}/{relative_path}" if relative_path else container_mount
-                    break
+    # For reference_state: use DBT_STATE env (translated through volume map) or derive from volume mapping
+    reference_state_host = env_dict.get("DBT_STATE") or runner_config.get("reference_state")
+    if reference_state_host:
+        reference_state_abs = get_absolute_path(reference_state_host)
+        # Translate host path to container path via volume map
+        for host_mount, container_mount in volume_map.items():
+            host_mount_abs = get_absolute_path(host_mount)
+            if reference_state_abs.startswith(host_mount_abs):
+                relative_path = reference_state_abs[len(host_mount_abs):].lstrip('/')
+                container_path_map["reference_state"] = f"{container_mount}/{relative_path}" if relative_path else container_mount
+                break
+        else:
+            # No volume match — use as-is (e.g. already an absolute container path)
+            container_path_map["reference_state"] = reference_state_host
     
     return container_path_map
 

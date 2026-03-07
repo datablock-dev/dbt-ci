@@ -1,13 +1,7 @@
 """Getters for dependency graph nodes"""
-
-from argparse import Namespace
-import sys
-import os
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional, Set
-import yaml
-from src.schema import DBTProfile, DBTProfile, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
+from typing import Optional, Set, cast
+from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +35,7 @@ def get_diff_nodes(
     diff_nodes: list[str] = []
 
     for node_type, node_values in source_graph.items():
+        node_values = cast(dict, node_values)
         if node_type == "metadata":
             continue
 
@@ -51,16 +46,17 @@ def get_diff_nodes(
 
     return diff_nodes
 
-def get_structured_modified_nodes(nodes: dict[str, dict[str, DependencyGraphNode]] | None) -> dict[str, list[DependencyGraphNode]] | None:
+def get_structured_modified_nodes(nodes: dict[str, dict[str, DependencyGraphNode]] | None) -> dict[str, dict[str, DependencyGraphNode]] | None:
     """Get modified nodes, structured by type"""
     if nodes is None or len(nodes) == 0:
         return None
 
-    structured_nodes: dict[str, list[DependencyGraphNode]] = {}
+    structured_nodes: dict[str, dict[str, DependencyGraphNode]] = {}
     for node_name, node_value in nodes.items():
         node_type = node_value.get("resource_type", None)
-
-        if node_type not in structured_nodes:
+        if node_type is None:
+            continue
+        elif node_type not in structured_nodes:
             structured_nodes[node_type] = {}
 
         structured_nodes[node_type][node_name] = node_value
@@ -84,7 +80,10 @@ def get_node(dependency_graph: DependencyGraph, node_id: str) -> dict[str, Depen
         print(f"Error retrieving node: {e}")
         return None
 
-def get_nodes(dependency_graph: DependencyGraph, node_ids: list[str] | None) -> dict[str, dict[str, DependencyGraphNode]] | None:
+def get_nodes(
+    dependency_graph: DependencyGraph, 
+    node_ids: list[str] | None
+) -> dict[str, dict[str, DependencyGraphNode]] | None:
     """Get multiple nodes by ID, optionally filtered by type."""
     if node_ids is None or len(node_ids) == 0:
         return None
@@ -124,7 +123,7 @@ def get_downstream_dependencies(
     node_ids: list[str] | None,
     node_type: Optional[DependencyGraphNodeType] = None,
     levels: int | None = None # To be implemented in the future
-):
+) -> set[str] | None:
     """
         Get downstream dependencies for a list of node IDs, 
         optionally up to a certain number of levels. Defaults to indirect downstream dependencies 
@@ -159,12 +158,12 @@ def get_upstream_dependencies(
     node_type: Optional[DependencyGraphNodeType] = None,
     filters: Optional[list[DependencyGraphNodeType]] = None,
     levels: int | None = None # To be implemented in the future
-) -> Set[str] | None:
+) -> set[str] | None:
     """Get upstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
     if node_ids is None or len(node_ids) == 0:
         return None
 
-    upstream_dependencies: Set[str] = set()
+    upstream_dependencies: set[str] = set()
     for node_id in node_ids:
         node = get_node(dependency_graph, node_id)
         if node is None:
