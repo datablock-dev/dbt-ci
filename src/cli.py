@@ -32,6 +32,12 @@ def common_options(f):
     """Decorator to add common options to all commands"""
     # Dynamic package options
     f = click.option(
+        "--config", "-c",
+        envvar=['DBT_CONFIG'],
+        default="dbt-ci.config.yaml",
+        help="Path to dbt-ci configuration file (YAML)"
+    )(f)
+    f = click.option(
         "--dbt-version",
         envvar=['DBT_VERSION'],
         default=None,
