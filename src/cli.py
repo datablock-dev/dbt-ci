@@ -28,7 +28,6 @@ def parse_multiple_option(ctx, param, value):
         return tuple(p.strip() for p in value[0].replace('\n', ',').split(',') if p.strip())
     return value
 
-
 def common_options(f):
     """Decorator to add common options to all commands"""
     # Dynamic package options
@@ -57,6 +56,13 @@ def common_options(f):
         envvar=['DBT_PROFILES_DIR'],
         default=None,
         help='Path to the directory containing the dbt profiles.yml file'
+    )(f)
+    f = click.option(
+        '--reference-state', '--state',
+        envvar=['DBT_STATE', 'DBT_STATE_DIR', 'STATE_DIR'],
+        default=None,
+        type=str,
+        help='Path to the reference manifest.json directory (local path where state will be downloaded)'
     )(f)
     f = click.option(
         '--target', 

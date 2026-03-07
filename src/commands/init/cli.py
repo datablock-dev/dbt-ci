@@ -7,17 +7,10 @@ from src.commands.init.index import init
 @cli.command(name="init")
 @common_options
 @click.option(
-    "--reference-target", "-ref-target",
+    "--reference-target", "--ref-target",
     envvar=['DBT_REFERENCE_TARGET'],
     default=None,
     help="The dbt target to use for production/reference manifest (defaults to default)"
-)
-@click.option(
-    '--reference-state', '--state',
-    envvar=['DBT_STATE', 'DBT_STATE_DIR', 'STATE_DIR'],
-    default=None,
-    type=str,
-    help='Path to the reference manifest.json directory (local path where state will be downloaded)'
 )
 @click.option(
     "--reference-vars", "--ref-vars",
