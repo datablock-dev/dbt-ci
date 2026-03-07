@@ -178,3 +178,11 @@ def common_options(f):
     )(f)
 
     return f
+
+# Import command modules to register them with the cli group
+import src.commands.init.cli       # noqa: E402, F401
+import src.commands.run.cli        # noqa: E402, F401
+import src.commands.ephemeral.cli  # noqa: E402, F401
+import src.commands.delete.cli     # noqa: E402, F401
+import src.commands.migration.cli  # noqa: E402, F401
+import src.commands.finalize.cli   # noqa: E402, F401
