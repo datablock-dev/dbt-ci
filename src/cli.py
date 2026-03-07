@@ -37,6 +37,8 @@ def _load_config_callback(ctx, param, value):
         if os.path.exists(value) is False:
             return value
 
+        logger.info(f"Configuration file found. Loading configuration from {value}")
+
         with open(value, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
         for key, val in config.items():
