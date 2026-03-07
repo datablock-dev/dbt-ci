@@ -121,7 +121,7 @@ def common_options(f):
     )(f)
     f = click.option(
         '--reference-state', '--state',
-        envvar=['DBT_STATE', 'DBT_STATE_DIR', 'STATE_DIR'],
+        envvar=['DBT_STATE'],
         default=None,
         type=str,
         help='Path to the reference manifest.json directory (local path where state will be downloaded)'
@@ -233,7 +233,7 @@ def common_options(f):
     f = click.option(
         '--shell-path', 
         '--bash-path',
-        envvar=['DBT_SHELL_PATH', 'SHELL_PATH'],
+        envvar=['DBT_SHELL_PATH'],
         default='/bin/bash',
         help='Path to shell executable for bash runner'
     )(f)
