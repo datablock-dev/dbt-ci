@@ -321,7 +321,7 @@ These flags are available on **every** command.
 |------|---------|-----------|---------|-------------|
 | `--dbt-project-dir` | | `DBT_PROJECT_DIR` | `.` | Path to the dbt project directory |
 | `--profiles-dir` | | `DBT_PROFILES_DIR` | Auto-detect | Path to the directory containing `profiles.yml` |
-| `--reference-state` | `--state` | `DBT_STATE`, `DBT_STATE_DIR`, `STATE_DIR` | `None` | Local path to the reference state directory (where `manifest.json` is stored) |
+| `--reference-state` | `--state` | `DBT_STATE` | `None` | Local path to the reference state directory (where `manifest.json` is stored) |
 | `--target` | `-t` | `DBT_TARGET` | From `profiles.yml` | dbt target to use |
 | `--vars` | `-v` | `DBT_VARS` | `""` | YAML string or path to a YAML file with dbt variables |
 | `--defer` | | `DBT_DEFER` | `false` | Pass dbt's `--defer` flag (defers unmodified nodes to the production state) |
@@ -355,7 +355,7 @@ Only used when `--runner bash` is set.
 
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
-| `--shell-path` | `--bash-path` | `DBT_SHELL_PATH`, `SHELL_PATH` | `/bin/bash` | Path to the shell executable |
+| `--shell-path` | `--bash-path` | `DBT_SHELL_PATH` | `/bin/bash` | Path to the shell executable |
 
 ## Cloud Storage Support
 
