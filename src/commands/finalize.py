@@ -3,7 +3,6 @@ import sys
 import logging
 from argparse import Namespace
 import click
-
 from src.cache import CacheManager
 from src.connectors import get_connector, init_storage_connector
 from src.logging import print_exception

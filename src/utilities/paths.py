@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import yaml
@@ -6,6 +7,8 @@ from pathlib import Path
 from argparse import Namespace
 from src.schema import DBTManifest, DBTProfile
 
+logger = logging.getLogger(__name__)
+
 def get_dir_name_from_path(path: str) -> str | None:
     """Get the directory name from a given path."""
     if os.path.isdir(path):
@@ -13,7 +16,7 @@ def get_dir_name_from_path(path: str) -> str | None:
     elif os.path.isfile(path):
         return os.path.basename(os.path.dirname(path))
     elif not os.path.exists(path):
-        print(f"Path '{path}' does not exist.")
+        logger.error(f"Path '{path}' does not exist.")
         sys.exit(1)
 
 def get_manifest_file(dbt_project_dir: str) -> DBTManifest:
@@ -103,11 +106,11 @@ def get_dbt_project_config(dbt_root_path: str) -> dict:
     """
     dbt_project_path = get_dbt_project_path(dbt_root_path)
     if dbt_project_path is None:
-        print("DBT project path could not be resolved.")
+        logger.error("DBT project path could not be resolved.")
         sys.exit(1)
     dbt_project_path_yaml_path = os.path.join(dbt_project_path, "dbt_project.yml")
     if not os.path.exists(dbt_project_path_yaml_path):
-        print(f"dbt_project.yml not found at {dbt_project_path_yaml_path}")
+        logger.error(f"dbt_project.yml not found at {dbt_project_path_yaml_path}")
         sys.exit(1)
     with open(dbt_project_path_yaml_path, 'r', encoding='utf-8') as file:
         project_config = yaml.safe_load(file)
@@ -125,7 +128,7 @@ def get_dbt_project_path(dbt_project_path: str) -> Path:
         Path: Absolute path to DBT project directory
     """
     if not dbt_project_path:
-        print("DBT project path not provided.")
+        logger.error("DBT project path not provided.")
         return sys.exit(1)
 
     project_path = Path(dbt_project_path)
@@ -136,16 +139,16 @@ def get_dbt_project_path(dbt_project_path: str) -> Path:
 
     return project_path.resolve()
 
-def get_dbt_profiles_config(dbt_root_path: str):
+def get_dbt_profiles_config(dbt_root_path: str) -> dict:
     """Get the DBT profiles configuration from the profiles.yml file."""
     dbt_project_path = get_dbt_project_path(dbt_root_path)
     if dbt_project_path is None:
-        print("DBT project path could not be resolved.")
+        logger.error("DBT project path could not be resolved.")
         sys.exit(1)
 
     profiles_path = os.path.join(dbt_project_path, "profiles.yml")
     if not os.path.exists(profiles_path):
-        print(f"profiles.yml not found at {profiles_path}")
+        logger.error(f"profiles.yml not found at {profiles_path}")
         sys.exit(1)
 
     with open(profiles_path, 'r', encoding='utf-8') as file:
@@ -157,7 +160,7 @@ def get_profile(args: Namespace) -> DBTProfile:
     """Get the DBT profile output configuration based on the provided arguments."""
     dbt_root_path = getattr(args, "dbt_project_dir", None)
     if dbt_root_path is None:
-        print("DBT project path not specified in arguments. Please pass the path using --dbt-project-dir <path>.")
+        logger.error("DBT project path not specified in arguments. Please pass the path using --dbt-project-dir <path>.")
         sys.exit(1)
 
     dbt_project_file = get_dbt_project_config(dbt_root_path)
@@ -165,23 +168,21 @@ def get_profile(args: Namespace) -> DBTProfile:
     dbt_profile = dbt_project_file.get("profile", None)
     target = getattr(args, "target", None) or profiles.get(dbt_profile, {}).get("target", None)
     profile_name = getattr(args, "profile", "default")
-    print(target)
 
     if target is None:
-        print("Target environment not specified in arguments.")
-        print("Defaulting to ")
+        logger.error("Target environment not specified in arguments. Please pass the target using --target <target>.")
         sys.exit(1)
     
     # Get the default profile (assuming 'default' is the profile name)
     if profile_name not in profiles:
-        print(f"Profile '{profile_name}' not found in profiles.yml")
+        logger.error(f"Profile '{profile_name}' not found in profiles.yml")
         sys.exit(1)
     
     profile = profiles[profile_name]
     
     # Get the output configuration for the target
     if "outputs" not in profile or target not in profile["outputs"]:
-        print(f"Target '{target}' not found in profile '{profile_name}'")
+        logger.error(f"Target '{target}' not found in profile '{profile_name}'")
         sys.exit(1)
     
     output_config: DBTProfile = profile["outputs"][target]

@@ -64,6 +64,7 @@ def migration(args: Namespace):
         cache.update_report("migrate", "completed", comment=str(list(migration_map["nodes"].keys())))
         logger.info("Migration completed successfully.")
     except Exception as e:
+        cache = CacheManager(args)
         cache.update_report("migrate", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
