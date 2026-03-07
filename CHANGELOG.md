@@ -1,6 +1,161 @@
 # CHANGELOG
 
 
+## v1.2.4 (2026-03-07)
+
+### Bug Fixes
+
+- Loggin & refactoring & testing ([#18](https://github.com/datablock-dev/dbt-ci/pull/18),
+  [`41f236b`](https://github.com/datablock-dev/dbt-ci/commit/41f236befcf9cc56db0d3cbf4a374d8294dbc443))
+
+* fix: enhance type hinting and cache handling in various modules
+
+* fix: enhance type hinting and error handling in delete command and connector initialization
+
+* fix: refactor Google Cloud connectors to separate storage and BigQuery configurations
+
+* fix: add AWS S3 storage connector and improve Google Cloud connector imports
+
+* fix: simplify AWS storage connector integration by consolidating configuration
+
+* fix: enhance CacheManager report handling and add GitHub Actions context schema
+
+* fix: refactor init command to streamline state change summary generation and improve cache
+  handling
+
+* fix: enhance state change summary structure and introduce StateChangeSummary type
+
+* fix: enhance type hinting for dependency graph functions and improve type casting
+
+* fix: enhance ephemeral map generation to include new nodes and improve state change summary
+  structure
+
+* fix: enhance type hinting across multiple modules for improved clarity and type safety
+
+* fix: add detection of deleted models and their downstream dependencies in init command
+
+* fix: enhance type definitions for DbtNode and improve dependency graph handling
+
+* fix: enhance ephemeral command to include dbt clone functionality and improve error handling
+
+* Refactor dependency graph implementation and utilities
+
+- Moved DbtGraph class to src/graph/dependency_graph.py for better organization. - Refactored parser
+  functions into src/graph/parser.py to separate concerns. - Created new graph utilities in
+  src/graph/graph_utils.py for managing dependency nodes. - Introduced GitAdapter class in
+  src/utilities/git.py for Git-related operations. - Updated paths in utilities to improve structure
+  and maintainability. - Removed deprecated files from src/parser.py, src/dependency_graph.py, and
+  src/utilities/graph_utils.py.
+
+* fix: update DbtGraph initialization to use is_reference flag for improved clarity in dependency
+  handling
+
+* feat: enhance GitAdapter to include changed files retrieval and add __init__.py for graph module
+
+* feat: add options to skip reference compilation and git comparison in init command
+
+* feat: refactor init command to utilize separate reference and target compilation functions
+
+* feat: enhance docker options to support parsing of multiple values from env vars
+
+* feat: refactor common_options to remove callback for docker options and improve error handling in
+  get_state_change_summary
+
+* feat: add docker volumes option with support for multiple values and custom parsing
+
+* feat: simplify state change summary generation by removing unnecessary graph parameters
+
+* fix: correct argument name for dbt project directory in GitAdapter
+
+* feat: add debug print for args in get_changed_files method
+
+* feat: enhance logging for reference compilation and improve type hinting in GitAdapter
+
+* feat: remove ephemeral and migration plan logging from init_summary function
+
+* feat: enhance logging in CacheManager and init command for better debugging
+
+* feat: improve parse_multiple_option function for better handling of environment variable inputs
+
+* feat: enhance parse_multiple_option function with additional debug prints for improved value
+  handling
+
+* feat: enhance parse_multiple_option function and integrate with docker-env option for improved
+  value parsing
+
+* feat: enhance logging and refactor dbt command handling for improved error management
+
+* feat: refactor dbt command imports and enhance state change summary handling in dbt_commands
+
+* feat: refactor init command to use dbt_command_state_modified and remove unused state change
+  summary generation
+
+* feat: enhance CacheManager to accept args and improve cache writing methods for better data
+  handling
+
+* feat: refactor write_cache method to streamline data handling and improve readability
+
+* feat: refine BigQuery connector by casting thread count and adding error handling for table
+  deletion
+
+* feat: enhance logging in run and runner command execution for better error tracking
+
+* feat: add migration command to check for breaking changes and validate state before production
+  merge
+
+* feat: improve error handling and logging in finalize and migration commands; add __init__.py for
+  notifications module
+
+* feat: add quiet mode option to common options and update ephemeral command for dry run handling
+
+* feat: initialize CacheManager in ephemeral command for improved error reporting
+
+* feat: add debug logging for dbt clone command execution
+
+* feat: Add ephemeral command for CI checks
+
+- Implemented `ephemeral` command to run CI check workflows using cached state from `dbt-ci init`. -
+  Created `index.py` for handling ephemeral logic, including generating ephemeral maps and managing
+  dependencies. - Added CLI options for keeping the environment and logging setup. - Introduced
+  `finalize` command to clean up ephemeral environments and upload artifacts. - Developed
+  `migration` command to detect breaking changes and validate migrations before merging. - Added
+  `run` command to execute modified dbt models based on cached state. - Created utility function to
+  convert kwargs to `argparse.Namespace` for better compatibility. - Enhanced logging and error
+  handling throughout the commands.
+
+* feat: Import command modules to register them with the CLI group
+
+* feat: Add reference state option to common options for improved CLI functionality
+
+* feat: Add debug logging for dbt ls command execution
+
+* feat: Add config option for dbt-ci configuration file
+
+* feat: Enhance namespace utility with config file validation and YAML support
+
+* feat: Add YAML configuration support and enhance command-line options
+
+* feat: Enhance config loading with list support and improved error handling
+
+* feat: Simplify reference state handling in Docker runner by consolidating environment variable
+  checks
+
+* feat: Add logging for configuration file loading in CLI
+
+* feat: Refactor migration command to improve connector handling and add migration strategy
+  validation
+
+* feat: Enhance init and migration commands with improved target compilation and node filtering
+
+* fix: Correct migration strategy key in migration connector setup
+
+* feat: Enhance delete command with improved error handling and logging for empty delete maps
+
+* refactor: Update import paths in unit tests to improve module structure
+
+* chore: Comment out Docker build and push job in CI workflow
+
+
 ## v1.2.3 (2026-02-28)
 
 ### Bug Fixes
@@ -11,6 +166,11 @@
 - Update dry run argument handling in clean_up_ephemeral function
   ([#16](https://github.com/datablock-dev/dbt-ci/pull/16),
   [`163cfec`](https://github.com/datablock-dev/dbt-ci/commit/163cfeca61fc33ecbe77445c56904b096e0c6f53))
+
+### Chores
+
+- **release**: 1.2.3 [skip ci]
+  ([`c9614ab`](https://github.com/datablock-dev/dbt-ci/commit/c9614ab8c710772c32c8b52fd075842a8537dc74))
 
 
 ## v1.2.2 (2026-02-25)
