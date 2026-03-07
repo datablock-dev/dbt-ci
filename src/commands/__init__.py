@@ -9,5 +9,6 @@ from src.commands.ephemeral import ephemeral
 from src.commands.init import init
 from src.commands.delete import delete
 from src.commands.finalize import finalize
+from src.commands.migration import migration
 
-__all__ = ['run', 'ephemeral', 'init', 'delete', "finalize"]
+__all__ = ['run', 'ephemeral', 'init', 'delete', "finalize", "migration"]

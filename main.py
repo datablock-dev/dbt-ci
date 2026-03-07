@@ -8,6 +8,7 @@ from src.commands import (
     run,
     ephemeral,
     init,
+    migration,
     finalize
 )
 
@@ -116,12 +117,6 @@ def init_cmd(**kwargs):
     default=None,
     help="Extra filters to apply for tests, dbt-lineage run -m tests -f snapshots to run tests that has a snapshot dependency"
 )
-#@click.option( # Not yet implemented
-#    "--levels",
-#    type=int,
-#    default=None,
-#    help="Number of dependency levels to include (default: all)"
-#)
 def run_cmd(**kwargs):
     """Run modified dbt models
     
@@ -137,7 +132,6 @@ def run_cmd(**kwargs):
     """
     setup_logging(to_namespace(kwargs).log_level)
     return run(to_namespace(kwargs, command="run"))
-
 
 @cli.command(name='ephemeral')
 @common_options
@@ -164,6 +158,22 @@ def ephemeral_cmd(**kwargs):
     """
     setup_logging(to_namespace(kwargs).log_level)
     return ephemeral(to_namespace(kwargs, command="ephemeral"))
+
+@cli.command(name="migration")
+@common_options
+def migration_cmd(**kwargs):
+    """Run migration check workflow
+    
+    Uses cached state from 'dbt-ci init' to detect breaking changes and run migration checks.
+    Useful for validating changes before merging to production.
+    
+    Examples:
+        # Run after init
+        dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
+        dbt-ci migration --runner docker
+    """
+    setup_logging(to_namespace(kwargs).log_level)
+    return migration(to_namespace(kwargs, command="migration"))
 
 @cli.command(name='delete')
 @common_options
