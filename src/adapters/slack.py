@@ -1,6 +1,9 @@
 """Slack adapter for dbt CI notifications."""
+import logging
 from argparse import Namespace
 from slack_sdk.webhook import WebhookClient
+
+logger = logging.getLogger(__name__)
 
 class SlackClient:
     """Wrapper around Slack WebhookClient for sending notifications."""
@@ -10,7 +13,7 @@ class SlackClient:
         self.slack_webhook_url = getattr(args, 'slack_webhook', None)
         
         if not self.slack_webhook_url:
-            print("Slack webhook URL not provided in args or environment variables.")
+            logger.debug("Slack webhook URL not provided in args or environment variables.")
             self.webhook_client = None
         else:
             self.webhook_client = WebhookClient(self.slack_webhook_url)

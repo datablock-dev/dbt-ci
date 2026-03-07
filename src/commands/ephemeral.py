@@ -13,11 +13,11 @@ from argparse import Namespace
 from typing import Optional
 import click
 from src.cache import CacheManager
-from src.connectors import DB_CONNECTORS, get_connector
+from src.connectors import DB_CONNECTORS
 from src.graph.dependency_graph import DbtGraph
 from src.logging import print_exception
-from src.runners import resolve_dbt_commands, run_dbt_command
-from src.schema import EphemeralMapNode, RunnerConfig
+from src.schema import EphemeralMapNode
+from src.utilities.dbt_commands import clone_command
 from src.utilities.paths import get_profile
 from src.graph.graph_utils import (
     filter_node_ids_by_multiple_types,
@@ -83,7 +83,7 @@ def ephemeral(args: Namespace):
             sys.exit(0)
 
         #ephemeral_connector(ephemeral_map, args)
-        dbt_clone_command(list(ephemeral_map.keys()), args)
+        clone_command(list(ephemeral_map.keys()), args)
         
         # Store cache (ephemeral map) for use in finalize step
         cache.write_cache(ephemeral_map, "ephemeral_map.json")
@@ -100,15 +100,6 @@ def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, Ep
     """Generate a map of nodes to be included in the ephemeral environment based on the cache and dependency graph."""
     target_graph = DbtGraph(args)
     reference_graph = DbtGraph(args, is_reference=True)
-    connector_type = get_profile(args)["type"]
-
-    # Validate connector before calling get_connector
-    if connector_type is None:
-        logger.error(f"Missing connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
-        sys.exit(1)
-    elif connector_type not in DB_CONNECTORS:
-        logger.error(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
-        sys.exit(1)
 
     # Look for cache
     prev_cache = cache.get_cache()
@@ -231,26 +222,3 @@ def full_config_or_none(
         "name": name,
         "alias": alias,
     }
-
-def dbt_clone_command(
-    selected_nodes: list[str],
-    args: Namespace
-) -> None:
-    """Helper function to run the dbt command that will create the ephemeral models based on the selected nodes."""
-    try:
-        profile = get_profile(args)
-        threads = profile.get("threads", 5)
-
-        command = resolve_dbt_commands(
-            command_args=["clone", "--select", *selected_nodes, "--threads", str(threads)],
-            args=args
-        )
-
-        run_dbt_command(
-            command_args=command,
-            runner_config=RunnerConfig(args.__dict__)
-        )
-    except Exception as e:
-        logger.error(f"Error running dbt clone command: {str(e)}")
-        print_exception(e)
-        sys.exit(1)

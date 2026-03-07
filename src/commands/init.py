@@ -27,7 +27,6 @@ from src.graph.graph_utils import (
 )
 
 logger = logging.getLogger(__name__)
-cache = CacheManager()
 
 def init(args: Namespace):
     """

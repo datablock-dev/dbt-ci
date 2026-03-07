@@ -4,9 +4,10 @@ import logging
 from argparse import Namespace
 from typing import Any, cast
 from src.cache import CacheManager
+from src.logging import print_exception
 from src.runners import resolve_dbt_commands, run_dbt_command
 from src.schema import RunnerConfig
-from src.utilities.paths import get_manifest_file
+from src.utilities.paths import get_manifest_file, get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -78,4 +79,27 @@ def target_compile(args: Namespace, store_cache: bool = True) -> None:
 
     except Exception:
         logger.error("Error during target compilation", exc_info=True)
+        sys.exit(1)
+
+def clone_command(
+    selected_nodes: list[str],
+    args: Namespace
+) -> None:
+    """Helper function to run the dbt command that will create the ephemeral models based on the selected nodes."""
+    try:
+        profile = get_profile(args)
+        threads = profile.get("threads", 5)
+
+        command = resolve_dbt_commands(
+            command_args=["clone", "--select", *selected_nodes, "--threads", str(threads)],
+            args=args
+        )
+
+        run_dbt_command(
+            command_args=command,
+            runner_config=RunnerConfig(args.__dict__)
+        )
+    except Exception as e:
+        logger.error(f"Error running dbt clone command: {str(e)}")
+        print_exception(e)
         sys.exit(1)
