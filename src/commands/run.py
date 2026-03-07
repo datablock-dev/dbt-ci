@@ -4,7 +4,7 @@ import sys
 import logging
 from argparse import Namespace
 from itertools import chain
-from typing import Dict, List, Set
+from typing import cast
 import click
 from src.graph.dependency_graph import DbtGraph
 from src.cache import CacheManager
@@ -93,6 +93,7 @@ def run(args: Namespace):
         cache.update_report("run", "completed")
         logger.info("\nAll done!")
     except Exception as e:
+        cache = CacheManager(args)
         cache.update_report("run", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
@@ -106,7 +107,6 @@ def run_with_mode(
 ):
     """Run modified nodes with specific dbt command based on mode"""
     try:
-        runner_config = RunnerConfig(args.__dict__)
         run_order = ["seed", "run", "test", "snapshot"]
         if mode != "all":
             run_order = [MODE_MAPPING[mode]]
@@ -158,7 +158,7 @@ def run_with_mode(
                         )))
                     )
 
-            if len(nodes_to_run) == 0:
+            if nodes_to_run is None or len(nodes_to_run) == 0:
                 logger.info(f"No {REVERSE_MODE_MAPPING[command]} to run")
                 continue
 
@@ -181,13 +181,13 @@ def run_with_mode(
             logger.info("-------------------------------------------------------\n")
 
             logger.info(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
-            if runner_config.get("dry_run", False):
+            if getattr(args, "dry_run", False):
                 logger.info("DRY RUN: Command would be executed")
                 continue
 
             result = run_dbt_command(
-                command_args=append_dbt_variables_to_command([command, "--select", " ".join(nodes_to_run)], args),
-                runner_config=runner_config
+                command_args=append_dbt_variables_to_command([cast(str, command), "--select", " ".join(nodes_to_run)], args),
+                runner_config=RunnerConfig(args.__dict__)
             )
 
             if result and result.returncode == 0:
@@ -207,7 +207,7 @@ def run_test_with_additional_filter(
 ) -> list[str] | None:
     """Apply additional filters to the list of node IDs based on user input."""
     converted_filter = [NODE_TYPE_COMMAND_MAPPING[f] for f in getattr(args, "filters", [])]
-    final_nodes: Set[str] = set()
+    final_nodes: set[str] = set()
     filtered_nodes = filter_node_ids_by_type(
         dependency_graph=dependency_graph,
         node_type=node_type,

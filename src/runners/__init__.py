@@ -2,6 +2,7 @@
 import subprocess
 import sys
 import venv
+import logging
 from pathlib import Path
 from argparse import Namespace
 from typing import Callable
@@ -11,6 +12,8 @@ from src.runners.local import local_runner
 from src.runners.docker import docker_runner
 from src.runners.bash import bash_runner
 from src.utilities.paths import get_absolute_path
+
+logger = logging.getLogger(__name__)
 
 RUNNERS: dict[Runners, Callable[[list[str], RunnerConfig], subprocess.CompletedProcess | None]] = {
     "local": local_runner,
@@ -49,16 +52,16 @@ def run_dbt_command(
     runner = runner_config['runner']
     if runner in RUNNERS:
         if runner == "dbt" and not dbt_version_exists(runner_config.get('dbt_version')):
-            print(f"dbt version {runner_config.get('dbt_version')} not found. Installing...")
+            logger.info(f"dbt version {runner_config.get('dbt_version')} not found. Installing...")
             run_with_dbt_version(runner_config.get('dbt_version'))
         
         if runner_config.get("adapter") and not adapter_exists(runner_config.get("adapter")):
-            print(f"Adapter {runner_config.get('adapter')} not found. Installing...")
+            logger.info(f"Adapter {runner_config.get('adapter')} not found. Installing...")
             install_adapter(runner_config.get("adapter"))
 
         return RUNNERS[runner](command_args, runner_config)
 
-    print(f"Unsupported runner: {runner}")
+    logger.error(f"Unsupported runner: {runner}")
     sys.exit(1)
 
 def run_with_dbt_version(version: str):
@@ -92,18 +95,18 @@ def install_adapter(adapter: str):
     adapter_version = adapter_list[-1].strip()
 
     if adapter_name is None or adapter_version is None:
-        print(f"Invalid adapter format: {adapter}. Expected format 'adapter=version' (e.g., 'postgres=1.0.0')")
+        logger.error(f"Invalid adapter format: {adapter}. Expected format 'adapter=version' (e.g., 'postgres=1.0.0')")
         sys.exit(1)
 
     venv_path = Path.home() / ".cache" / "dbt-ci" / "venvs" / f"{adapter_name}-{adapter_version}"
     
     if not venv_path.exists():
-        print(f"Installing adapter {adapter_name} version {adapter_version}...")
+        logger.info(f"Installing adapter {adapter_name} version {adapter_version}...")
         venv.create(venv_path, with_pip=True, clear=True)
         pip = venv_path / "bin" / "pip"
         subprocess.run([str(pip), "install", f"{adapter_name}=={adapter_version}"], check=True)
     else:
-        print(f"Adapter {adapter_name} version {adapter_version} already installed.")
+        logger.info(f"Adapter {adapter_name} version {adapter_version} already installed.")
 
 def adapter_exists(adapter: str) -> bool:
     """Check if the specified dbt adapter is installed."""
@@ -118,7 +121,7 @@ def adapter_exists(adapter: str) -> bool:
         venv_path = Path.home() / ".cache" / "dbt-ci" / "venvs" / f"{adapter_name}-{adapter_version}"
         return venv_path.exists()
     except Exception as e:
-        print(f"Error checking adapter existence: {e}")
+        logger.error(f"Error checking adapter existence: {e}")
         return False
 
 def append_dbt_variables_to_command(
