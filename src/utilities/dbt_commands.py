@@ -165,6 +165,8 @@ def clone_command(
             args=args
         )
 
+        logger.debug(f"Running dbt clone command with arguments: {command}")
+
         run_dbt_command(
             command_args=command,
             runner_config=RunnerConfig(args.__dict__)
