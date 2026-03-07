@@ -2,7 +2,7 @@
 import pytest
 from unittest.mock import MagicMock, patch, call
 from argparse import Namespace
-from src.commands.run import run, run_with_mode
+from src.commands.run import index, run_with_mode
 
 
 class TestRunCommand:
@@ -29,7 +29,7 @@ class TestRunCommand:
             dbt_project_dir='/dbt',
             dry_run=False
         )
-        run(args)
+        index(args)
         
         # Verify message was logged
         mock_logger_error.assert_called_with(
@@ -68,7 +68,7 @@ class TestRunCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            run(args)
+            index(args)
         
         # Verify it exited with code 0
         assert exc_info.value.code == 0
@@ -116,7 +116,7 @@ class TestRunCommand:
             nodes='models',
             dry_run=False
         )
-        run(args)
+        index(args)
         
         # Verify run_with_mode was called
         mock_run_mode.assert_called_once()
@@ -136,7 +136,7 @@ class TestRunCommand:
             dbt_project_dir='/dbt',
             dry_run=False
         )
-        run(args)
+        index(args)
         
         # Verify error was handled
         mock_exit.assert_called_once_with(1)

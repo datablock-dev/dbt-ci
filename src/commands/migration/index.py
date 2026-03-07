@@ -8,12 +8,12 @@ from src.graph.dependency_graph import DbtGraph
 from src.logging import print_exception
 from src.schema import MigrationMap
 from src.connectors import get_connector
+from src.utilities.paths import get_profile
 from src.graph.graph_utils import (
     filter_node_ids_by_type,
     get_node_ids_from_structured_nodes,
     get_nodes
 )
-from src.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
 

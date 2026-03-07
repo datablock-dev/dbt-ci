@@ -7,7 +7,6 @@ import sys
 import logging
 from pathlib import Path
 from argparse import Namespace
-from typing import cast
 import click
 from src.adapters.slack import SlackClient
 from src.graph.dependency_graph import DbtGraph

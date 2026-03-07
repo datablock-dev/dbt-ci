@@ -2,7 +2,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from argparse import Namespace
-from src.commands.delete import delete
+from src.commands.delete import index
 
 
 class TestDeleteCommand:
@@ -42,7 +42,7 @@ class TestDeleteCommand:
             dry_run=False,
             runner='local',
         )
-        delete(args)
+        index(args)
         
         # Verify message was shown
         mock_logger.info.assert_any_call(
@@ -85,7 +85,7 @@ class TestDeleteCommand:
             dbt_project_dir='/dbt',
             dry_run=False
         )
-        delete(args)
+        index(args)
         
         # Verify appropriate message was shown
         mock_logger.info.assert_any_call("No deleted nodes found in cache, skipping...")
@@ -143,7 +143,7 @@ class TestDeleteCommand:
             dbt_project_dir='/dbt',
             dry_run=False
         )
-        delete(args)
+        index(args)
         
         # Verify delete connector was called
         mock_delete_func.assert_called_once()
@@ -211,7 +211,7 @@ class TestDeleteCommand:
             dbt_project_dir='/dbt',
             dry_run=True
         )
-        delete(args)
+        index(args)
         
         # Verify dry run message was shown
         mock_logger.info.assert_any_call("Dry run mode enabled - no actual deletions will be performed.")
@@ -269,7 +269,7 @@ class TestDeleteCommand:
             dbt_project_dir='/dbt',
             dry_run=False
         )
-        delete(args)
+        index(args)
         
         # Verify warning was logged
         mock_logger.warning.assert_called_once()

@@ -2,7 +2,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from argparse import Namespace
-from src.commands.migration import migration
+from src.commands.migration import index
 
 
 class TestMigrationCommand:
@@ -37,7 +37,7 @@ class TestMigrationCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            migration(args)
+            index(args)
         
         assert exc_info.value.code == 1
     
@@ -73,7 +73,7 @@ class TestMigrationCommand:
             dbt_project_dir='/dbt',
             dry_run=False
         )
-        migration(args)
+        index(args)
         
         # Verify error was logged
         mock_logger.error.assert_called_once()
@@ -125,7 +125,7 @@ class TestMigrationCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            migration(args)
+            index(args)
         
         assert exc_info.value.code == 0
     
@@ -211,7 +211,7 @@ class TestMigrationCommand:
             reference_state='/dbt/.dbtstate',
             dry_run=False
         )
-        migration(args)
+        index(args)
         
         # Verify migration function was called with correct migration map
         mock_migration_func.assert_called_once()
@@ -291,6 +291,6 @@ class TestMigrationCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            migration(args)
+            index(args)
         
         assert exc_info.value.code == 0

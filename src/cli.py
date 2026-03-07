@@ -1,6 +1,17 @@
 # Shared options for all commands
 import click
 
+@click.group()
+@click.version_option(version='0.1.0', prog_name='dbt-ci')
+def cli():
+    """dbt CI Tool - Intelligent CI for dbt projects
+    
+    Detect, run, and test only what changed based on state comparison.
+    
+    Visit https://datablock.dev for more information.
+    """
+    pass
+
 def parse_multiple_option(ctx, param, value):
     """
     Parse multiple values that may arrive as a single string when set via env var.

@@ -2,7 +2,7 @@
 import pytest
 from unittest.mock import MagicMock, patch, call
 from argparse import Namespace
-from src.commands.init import init
+from src.commands.init import index
 
 
 class TestInitCommand:
@@ -53,7 +53,7 @@ class TestInitCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            init(args)
+            index(args)
         
         # Verify cache was written with no modified nodes
         mock_cache_instance.write_cache.assert_called()
@@ -135,7 +135,7 @@ class TestInitCommand:
             skip_target_compile=False,
             dry_run=False
         )
-        init(args)
+        index(args)
         
         # Verify cache was written
         assert mock_cache_instance.write_cache.call_count >= 2
@@ -164,7 +164,7 @@ class TestInitCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            init(args)
+            index(args)
         
         # Verify exit was called with error code
         assert exc_info.value.code == 1
@@ -216,7 +216,7 @@ class TestInitCommand:
             dry_run=False
         )
         with pytest.raises(SystemExit) as exc_info:
-            init(args)
+            index(args)
         
         # Verify resolve_dbt_commands was called - it should use reference target internally
         mock_resolve_cmds.assert_called()
