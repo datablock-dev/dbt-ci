@@ -83,10 +83,6 @@ def init(args: Namespace):
         init_summary(state_change_summary, args)
         detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
 
-        # Compile with the actual target (not reference target)
-        # Use the user-specified target, or let dbt use the default from dbt_project.yml
-        dbt_command_target_compile(args)
-
         cache.update_report(command="init", status="completed")
         logger.info("Initialization complete. Cache updated with current state(s).")
         logger.info("You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state.")

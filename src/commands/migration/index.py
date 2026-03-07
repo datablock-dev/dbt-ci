@@ -2,11 +2,12 @@
 import sys
 import logging
 from argparse import Namespace
+from typing import cast
 import click
 from src.cache import CacheManager
 from src.graph.dependency_graph import DbtGraph
 from src.logging import print_exception
-from src.schema import MigrationMap
+from src.schema import MigrationMap, SupportedConnectors
 from src.connectors import get_connector
 from src.utilities.paths import get_profile
 from src.graph.graph_utils import (
@@ -32,11 +33,17 @@ def migration(args: Namespace):
         logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager(args)
         cache.start_report("migrate", args)
-        connector_type = get_profile(args)["type"]
-        migration_connector = get_connector(connector_type).get("strategies", {}).get("migration")
+        connector_type = cast(SupportedConnectors, get_profile(args)["type"])
+        connector = get_connector(connector_type)
 
-        if migration_connector is None:
+        if connector is None:
             logger.error(f"Connector '{connector_type}' does not support migration strategy, which is required for migration command.")
+            sys.exit(1)
+
+        # Setup migraiton connector
+        migration_connector = connector.get("strategies", {}).get("migrate")
+        if migration_connector is None:
+            logger.error(f"Connector '{connector_type}' does not have a migration strategy implemented, which is required for migration command.")
             sys.exit(1)
 
         # Determine if there has been a change in clustering or partitioning configuration
