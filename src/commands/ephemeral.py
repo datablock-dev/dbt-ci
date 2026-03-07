@@ -92,6 +92,7 @@ def ephemeral(args: Namespace):
         logger.info("Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies.")
         sys.exit(0)
     except Exception as e:
+        cache = CacheManager(args)
         cache.update_report("ephemeral", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
