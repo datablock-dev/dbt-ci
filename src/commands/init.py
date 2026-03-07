@@ -15,7 +15,7 @@ from src.cache import CacheManager
 from src.schema import RunnerConfig, StateChangeSummary, StorageConnectorConfig
 from src.logging import print_exception
 from src.connectors import init_storage_connector
-from src.utilities.dbt_commands import reference_compile, target_compile
+from src.utilities.dbt_commands import dbt_command_reference_compile, dbt_command_target_compile
 from src.utilities.git import GitAdapter
 from src.utilities.paths import get_manifest_file, get_reference_manifest_file
 from src.runners import resolve_dbt_commands, run_dbt_command
@@ -65,7 +65,7 @@ def init(args: Namespace):
 
         # Generate reference manifest.json file
         # if reference target is passed
-        reference_compile(args)
+        dbt_command_reference_compile(args)
 
         dbt_project_dir = getattr(args, "dbt_project_dir", None)
         if dbt_project_dir is None:
@@ -74,6 +74,7 @@ def init(args: Namespace):
         
         target_manifest_file = get_manifest_file(dbt_project_dir)
         state_change_summary = get_state_change_summary(args)
+        cache.write_cache(cast(dict, state_change_summary))
 
         if reference_target is not None and reference_target != getattr(args, "target", None):
             # Different targets - will compile again later with actual target
@@ -92,7 +93,7 @@ def init(args: Namespace):
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
-        target_compile(args)
+        dbt_command_target_compile(args)
 
         cache.update_report(command="init", status="completed")
         logger.info("Initialization complete. Cache updated with current state(s).")
@@ -168,9 +169,6 @@ def get_state_change_summary(args: Namespace) -> StateChangeSummary:
                 node_ids=list(new_node_ids)
             ))
         }
-
-        # Write cache
-        cache.write_cache(cast(dict, state_change_summary))
 
         return state_change_summary
     except Exception as e:

@@ -164,6 +164,7 @@ def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, Ep
             get_upstream_dependencies(target_graph.to_dict(), nodes_with_upstream_deps, None) or [],
         ))
     )
+
     # Lets get all metadata related to these downstream dependencies
     #print(downstream_dependencies)
     target_nodes = get_nodes(target_graph.to_dict(), selected_nodes)
