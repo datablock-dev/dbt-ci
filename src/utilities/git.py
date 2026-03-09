@@ -22,20 +22,19 @@ class GitAdapter:
     def __init__(self, args: Namespace):
         self.args: Namespace = args
         head_branch = subprocess.run(
-            ["git", "remote", "show", "origin"], 
+            ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"], 
             capture_output=True, 
             text=True, 
             check=True
         )
-        head_branch = head_branch.stdout.splitlines()
-        head_branch = [line for line in head_branch if "HEAD branch" in line][0].split(":")[-1].strip()
-        self.head_branch = head_branch
+        head_branch = head_branch.stdout.strip()
+        self.head_branch = head_branch.split("/")[-1]  # Extract the branch name from 'origin/main' -> 'main'
 
-        subprocess.run(["git", "fetch", "origin", head_branch], check=True)
+        subprocess.run(["git", "fetch", "origin", self.head_branch], check=True, capture_output=False)
 
         # Get the difference between the head branch and the current branch
         result = subprocess.run(
-            ["git", "diff", "--name-status", f"origin/{head_branch}", "HEAD"],
+            ["git", "diff", "--name-status", f"origin/{self.head_branch}", "HEAD"],
             capture_output=True,
             text=True,
             check=True
