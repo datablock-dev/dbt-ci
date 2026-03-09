@@ -21,7 +21,7 @@ class CacheManager:
     """
     def __init__(self, args: Namespace, cache_dir: Optional[Path] = None):
         self.args = args
-        self.cache_dir = cache_dir or Path(tempfile.gettempdir()) / "dbt_ci_cache"
+        self.cache_dir = cache_dir or Path(tempfile.gettempdir()) / "dbt_ci"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.dir_path = Path(self.cache_dir).resolve()
 
