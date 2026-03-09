@@ -2,8 +2,8 @@
 import pytest
 import os
 from pathlib import Path
-from src.runners.docker import get_docker_env, get_docker_volumes
-from src.utilities.paths import get_absolute_path
+from dbt_ci.runners.docker import get_docker_env, get_docker_volumes
+from dbt_ci.utilities.paths import get_absolute_path
 
 
 class TestGetDockerEnv:

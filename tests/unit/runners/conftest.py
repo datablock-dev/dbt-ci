@@ -1,6 +1,6 @@
 import pytest
 from typing import cast
-from src.schema import RunnerConfig
+from dbt_ci.schema import RunnerConfig
 
 
 @pytest.fixture

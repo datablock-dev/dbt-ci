@@ -44,14 +44,14 @@ dev = [
 ]
 
 [project.scripts]
-dbt-ci = "main:cli"
+dbt-ci = "dbt_ci.main:cli"
 
-[tool.setuptools]
-py-modules = ["main"]
-packages = ["src"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dbt_ci*"]
 
 [tool.setuptools.package-data]
-src = ["py.typed"]
+dbt_ci = ["py.typed"]
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]

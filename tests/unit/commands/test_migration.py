@@ -2,17 +2,17 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from argparse import Namespace
-from src.commands.migration.index import migration as index
+from dbt_ci.commands.migration.index import migration as index
 
 
 class TestMigrationCommand:
     """Test the migration command."""
     
-    @patch('src.commands.migration.index.get_profile')
-    @patch('src.commands.migration.index.DbtGraph')
-    @patch('src.commands.migration.index.CacheManager')
-    @patch('src.commands.migration.index.logger')
-    @patch('src.commands.migration.index.click.secho')
+    @patch('dbt_ci.commands.migration.index.get_profile')
+    @patch('dbt_ci.commands.migration.index.DbtGraph')
+    @patch('dbt_ci.commands.migration.index.CacheManager')
+    @patch('dbt_ci.commands.migration.index.logger')
+    @patch('dbt_ci.commands.migration.index.click.secho')
     def test_migration_no_cache(
         self,
         mock_secho,
@@ -41,13 +41,13 @@ class TestMigrationCommand:
         
         assert exc_info.value.code == 1
     
-    @patch('src.commands.migration.index.get_profile')
-    @patch('src.commands.migration.index.CacheManager')
-    @patch('src.commands.migration.index.DbtGraph')
-    @patch('src.commands.migration.index.get_connector')
-    @patch('src.commands.migration.index.logger')
-    @patch('src.commands.migration.index.click.secho')
-    @patch('src.commands.migration.index.sys.exit')
+    @patch('dbt_ci.commands.migration.index.get_profile')
+    @patch('dbt_ci.commands.migration.index.CacheManager')
+    @patch('dbt_ci.commands.migration.index.DbtGraph')
+    @patch('dbt_ci.commands.migration.index.get_connector')
+    @patch('dbt_ci.commands.migration.index.logger')
+    @patch('dbt_ci.commands.migration.index.click.secho')
+    @patch('dbt_ci.commands.migration.index.sys.exit')
     def test_migration_unsupported_connector(
         self,
         mock_exit,
@@ -82,15 +82,15 @@ class TestMigrationCommand:
         # Verify exit with error
         mock_exit.assert_called_with(1)
     
-    @patch('src.commands.migration.index.get_profile')
-    @patch('src.commands.migration.index.CacheManager')
-    @patch('src.commands.migration.index.DbtGraph')
-    @patch('src.commands.migration.index.get_connector')
-    @patch('src.commands.migration.index.get_node_ids_from_structured_nodes')
-    @patch('src.commands.migration.index.filter_node_ids_by_multiple_types')
-    @patch('src.commands.migration.index.logger')
-    @patch('src.commands.migration.index.click.secho')
-    @patch('src.commands.migration.index.click.echo')
+    @patch('dbt_ci.commands.migration.index.get_profile')
+    @patch('dbt_ci.commands.migration.index.CacheManager')
+    @patch('dbt_ci.commands.migration.index.DbtGraph')
+    @patch('dbt_ci.commands.migration.index.get_connector')
+    @patch('dbt_ci.commands.migration.index.get_node_ids_from_structured_nodes')
+    @patch('dbt_ci.commands.migration.index.filter_node_ids_by_multiple_types')
+    @patch('dbt_ci.commands.migration.index.logger')
+    @patch('dbt_ci.commands.migration.index.click.secho')
+    @patch('dbt_ci.commands.migration.index.click.echo')
     def test_migration_no_modified_models(
         self,
         mock_echo,
@@ -129,16 +129,16 @@ class TestMigrationCommand:
         
         assert exc_info.value.code == 0
     
-    @patch('src.commands.migration.index.get_profile')
-    @patch('src.commands.migration.index.CacheManager')
-    @patch('src.commands.migration.index.DbtGraph')
-    @patch('src.commands.migration.index.get_connector')
-    @patch('src.commands.migration.index.get_node_ids_from_structured_nodes')
-    @patch('src.commands.migration.index.filter_node_ids_by_multiple_types')
-    @patch('src.commands.migration.index.get_nodes')
-    @patch('src.commands.migration.index.logger')
-    @patch('src.commands.migration.index.click.secho')
-    @patch('src.commands.migration.index.click.echo')
+    @patch('dbt_ci.commands.migration.index.get_profile')
+    @patch('dbt_ci.commands.migration.index.CacheManager')
+    @patch('dbt_ci.commands.migration.index.DbtGraph')
+    @patch('dbt_ci.commands.migration.index.get_connector')
+    @patch('dbt_ci.commands.migration.index.get_node_ids_from_structured_nodes')
+    @patch('dbt_ci.commands.migration.index.filter_node_ids_by_multiple_types')
+    @patch('dbt_ci.commands.migration.index.get_nodes')
+    @patch('dbt_ci.commands.migration.index.logger')
+    @patch('dbt_ci.commands.migration.index.click.secho')
+    @patch('dbt_ci.commands.migration.index.click.echo')
     def test_migration_with_modified_models(
         self,
         mock_echo,
@@ -225,16 +225,16 @@ class TestMigrationCommand:
         assert migration_map['nodes']['model.project.model1']['old_partitioning'] == {'field': 'old_date', 'data_type': 'date'}
         assert migration_map['nodes']['model.project.model1']['new_partitioning'] == {'field': 'new_date', 'data_type': 'date'}
     
-    @patch('src.commands.migration.index.get_profile')
-    @patch('src.commands.migration.index.CacheManager')
-    @patch('src.commands.migration.index.DbtGraph')
-    @patch('src.commands.migration.index.get_connector')
-    @patch('src.commands.migration.index.get_node_ids_from_structured_nodes')
-    @patch('src.commands.migration.index.filter_node_ids_by_multiple_types')
-    @patch('src.commands.migration.index.get_nodes')
-    @patch('src.commands.migration.index.logger')
-    @patch('src.commands.migration.index.click.secho')
-    @patch('src.commands.migration.index.click.echo')
+    @patch('dbt_ci.commands.migration.index.get_profile')
+    @patch('dbt_ci.commands.migration.index.CacheManager')
+    @patch('dbt_ci.commands.migration.index.DbtGraph')
+    @patch('dbt_ci.commands.migration.index.get_connector')
+    @patch('dbt_ci.commands.migration.index.get_node_ids_from_structured_nodes')
+    @patch('dbt_ci.commands.migration.index.filter_node_ids_by_multiple_types')
+    @patch('dbt_ci.commands.migration.index.get_nodes')
+    @patch('dbt_ci.commands.migration.index.logger')
+    @patch('dbt_ci.commands.migration.index.click.secho')
+    @patch('dbt_ci.commands.migration.index.click.echo')
     def test_migration_no_partitioning_changes(
         self,
         mock_echo,

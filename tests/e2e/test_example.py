@@ -24,9 +24,9 @@ class TestInitWorkflow:
         """Test successful init command execution."""
         # TODO: Implement once init command structure is finalized
         # When implementing, use patches like:
-        # @patch('src.commands.init.run_dbt_command')
-        # @patch('src.commands.init.DbtGraph')
-        # @patch('src.commands.init.CacheManager')
+        # @patch('dbt_ci.commands.init.run_dbt_command')
+        # @patch('dbt_ci.commands.init.DbtGraph')
+        # @patch('dbt_ci.commands.init.CacheManager')
         pytest.skip("Placeholder test - to be implemented")
     
     def test_init_missing_required_args(self):
