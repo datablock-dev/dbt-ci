@@ -128,3 +128,10 @@ class CacheManager:
                 else:
                     report_cache[command]["comment"] = comment
             self._write_report(report_cache)
+
+    def clear_cache(self) -> None:
+        """Clear the cache by deleting the files in the folder"""
+        if self.dir_path.is_dir():
+            for file in self.dir_path.iterdir():
+                file.unlink()
+            print(f"Cache cleared from {self.dir_path.absolute()}")

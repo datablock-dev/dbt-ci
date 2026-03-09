@@ -58,6 +58,8 @@ def finalize(args: Namespace):
             clean_up_ephemeral(args, cache)
 
         cache.update_report("finalize", "completed", cache.get_cache())
+        
+        cache.clear_cache()
         logger.info("Finalize complete.")
         sys.exit(0)
     except Exception as e:
