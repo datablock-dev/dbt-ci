@@ -247,14 +247,14 @@ def append_indirect_dependencies(dependency_graph, direction: Literal["upstream"
         if node_type == "metadata":  # Skip metadata
             continue
         for node_data in nodes.values():
-            # Collect all transitive dependencies
+            # Collect full transitive closure: direct deps + all their descendants
             all_indirect = set()
             for direct_dep_id in node_data[direct_key]["node_dependencies"]:
+                all_indirect.add(direct_dep_id)
                 dep_node = find_node_by_id(dependency_graph, direct_dep_id)
                 if dep_node:
                     collect_dependencies_recursively(dependency_graph, dep_node, all_indirect, direction)
             
-            # Store indirect dependencies (excluding direct)
             node_data[indirect_key]["node_dependencies"] = all_indirect
             
             # Populate by type
