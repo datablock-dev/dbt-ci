@@ -1,6 +1,6 @@
 """Getters for dependency graph nodes"""
 import logging
-from typing import Optional, Set, cast
+from typing import cast
 from src.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 logger = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ def get_node_ids_from_structured_nodes(structured_nodes: dict[str, DependencyGra
     if structured_nodes is None or len(structured_nodes.keys()) == 0:
         return None
 
-    node_ids: Set[str] = set()
+    node_ids: set[str] = set()
     for nodes in structured_nodes.values():
         for node_name in nodes.keys():
             node_ids.add(node_name)
@@ -121,7 +121,7 @@ def get_node_ids_from_structured_nodes(structured_nodes: dict[str, DependencyGra
 def get_downstream_dependencies(
     dependency_graph: DependencyGraph,
     node_ids: list[str] | None,
-    node_type: Optional[DependencyGraphNodeType] = None,
+    node_type: DependencyGraphNodeType | None = None,
     levels: int | None = None # To be implemented in the future
 ) -> set[str] | None:
     """
@@ -135,10 +135,11 @@ def get_downstream_dependencies(
     if levels is not None:
         key = f"downstream_dependencies_level_{levels}"
 
-    downstream_dependencies: Set[str] = set()
+    downstream_dependencies: set[str] = set()
     for node_id in node_ids:
         node = get_node(dependency_graph, node_id)
         if node is None:
+            logger.warning(f"Node ID '{node_id}' not found in dependency graph when attempting to get downstream dependencies.")
             continue
 
         dependency_by_type: dict[DependencyGraphNodeType, list[str]] = node[key]["dependencies_by_type"]
@@ -155,8 +156,8 @@ def get_downstream_dependencies(
 def get_upstream_dependencies(
     dependency_graph: DependencyGraph,
     node_ids: list[str] | None,
-    node_type: Optional[DependencyGraphNodeType] = None,
-    filters: Optional[list[DependencyGraphNodeType]] = None,
+    node_type: DependencyGraphNodeType | None = None,
+    filters: list[DependencyGraphNodeType] | None = None,
     levels: int | None = None # To be implemented in the future
 ) -> set[str] | None:
     """Get upstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
@@ -184,7 +185,7 @@ def get_upstream_dependencies(
 
 def get_downstream_dependencies_from_cache(
     cache: dict[str, DependencyGraph] | None,
-    node_type: Optional[DependencyGraphNodeType] = None,
+    node_type: DependencyGraphNodeType | None = None,
     levels: int | None = None # To be implemented in the future
 ) -> list[str] | None:
     """Get downstream dependencies for modified nodes from cache."""
@@ -194,7 +195,7 @@ def get_downstream_dependencies_from_cache(
     if levels is not None:
         key = f"downstream_dependencies_level_{levels}"
 
-    downstream_dependencies: Set[str] = set()
+    downstream_dependencies: set[str] = set()
     for node_values in cache.values():
         for item_values in node_values.values():
             dependencies_by_type = item_values.get(key).get("dependencies_by_type", None)
