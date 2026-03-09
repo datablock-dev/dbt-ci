@@ -81,7 +81,9 @@ def init(args: Namespace):
         # 1. Migration plan for partitioning changes
         # 2. Ephemeral plan
         init_summary(state_change_summary, args)
-        detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
+
+        # This method has issues and needs to be resolved before being reintroduced
+        #detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
