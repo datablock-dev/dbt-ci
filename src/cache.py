@@ -9,7 +9,8 @@ from argparse import Namespace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, cast
-from src.schema import Commands, DBTManifest, EphemeralMapNode, StateChangeSummary
+from src.schema import Commands, DBTManifest, DbtCiManifest, EphemeralMapNode, StateChangeSummary, SupportedConnectors
+from src.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -26,20 +27,25 @@ class CacheManager:
 
     def write_cache(self, data: StateChangeSummary | None = None) -> None:
         """Write data to the cache file."""
-        payload: dict[str, Any] = {
+        connector_type = cast(SupportedConnectors, get_profile(self.args)["type"])
+
+        payload: DbtCiManifest = {
             "modified_nodes": data.get("modified_nodes") if data else None,
             "new_nodes": data.get("new_nodes") if data else None,
             "deleted_nodes": data.get("deleted_nodes") if data else None,
-            "reference": {
-                "target": getattr(self.args, "reference_target", None),
-                "variables": getattr(self.args, "reference_vars", None),
-            },
-            "target": {
-                "target": getattr(self.args, "target", None),
-                "variables": getattr(self.args, "vars", None),
-            },
+            "config": {
+                "connector": connector_type,
+                "reference": {
+                    "target": getattr(self.args, "reference_target", None),
+                    "vars": getattr(self.args, "reference_vars", None),
+                },
+                "target": {
+                    "target": getattr(self.args, "target", None),
+                    "vars": getattr(self.args, "vars", None),
+                }
+            }
         }
-        self._write(payload, "cache.json")
+        self._write(cast(dict, payload), "cache.json")
 
     def _write(self, data: dict[str, Any], file_name: str):
         """Write data to the cache file."""

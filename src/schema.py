@@ -501,7 +501,7 @@ MANIFEST_KEY_MAPPING = {
 }
 
 ###################################################################
-#                    State Change Schemas                         #
+#                    Dbt CI State Schemas                         #
 ###################################################################
 
 # Nodes grouped by resource_type, then keyed by node_id.
@@ -510,6 +510,23 @@ type StructuredNodes = dict[str, dict[str, DependencyGraphNode]]
 
 class StateChangeSummary(TypedDict):
     """Top-level cache structure written by the init command."""
+    modified_nodes: StructuredNodes | None
+    deleted_nodes: StructuredNodes | None
+    new_nodes: StructuredNodes | None
+
+class DbtCompileOptions(TypedDict):
+    target: str | None
+    vars: str | None
+
+class DbtCiConfig(TypedDict):
+    """Configuration for the DBT CI Tool, including CLI arguments and connector configurations."""
+    connector: SupportedConnectors
+    reference: DbtCompileOptions
+    target: DbtCompileOptions
+
+class DbtCiManifest(TypedDict):
+    """Structure of the cache.json files written to storage by the reference and target states."""
+    config: DbtCiConfig
     modified_nodes: StructuredNodes | None
     deleted_nodes: StructuredNodes | None
     new_nodes: StructuredNodes | None
