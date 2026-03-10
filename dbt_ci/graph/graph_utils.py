@@ -156,7 +156,7 @@ def get_downstream_dependencies(
 def get_upstream_dependencies(
     dependency_graph: DependencyGraph,
     node_ids: list[str] | None,
-    node_type: DependencyGraphNodeType | None = None,
+    node_type: list[DependencyGraphNodeType] | None = None,
     filters: list[DependencyGraphNodeType] | None = None,
     levels: int | None = None # To be implemented in the future
 ) -> set[str] | None:
@@ -172,7 +172,7 @@ def get_upstream_dependencies(
 
         dependency_by_type: dict[DependencyGraphNodeType, list[str]] = node["upstream_dependencies"]["dependencies_by_type"]
         for dep_type, dep_names in dependency_by_type.items():
-            if node_type and dep_type != node_type:
+            if node_type and dep_type not in node_type:
                 continue
             if filters and dep_type not in filters:
                 continue
@@ -210,13 +210,13 @@ def get_downstream_dependencies_from_cache(
 def filter_node_ids_by_type(
     dependency_graph: DependencyGraph,
     node_ids: list[str],
-    node_type: DependencyGraphNodeType
+    node_type: list[DependencyGraphNodeType]
 ) -> list[str]:
     """Filter a list of node IDs by type."""
     filtered_node_ids = []
     for node_id in node_ids:
         node = get_node(dependency_graph, node_id)
-        if node and node.get("resource_type") == node_type:
+        if node and node.get("resource_type") in node_type:
             filtered_node_ids.append(node_id)
     return filtered_node_ids
 

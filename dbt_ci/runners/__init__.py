@@ -9,7 +9,7 @@ from typing import Callable
 from dbt_ci.schema import RunnerConfig, Runners
 from dbt_ci.runners.dbt import dbt_runner
 from dbt_ci.runners.local import local_runner
-from dbt_ci.runners.docker import docker_runner
+from dbt_ci.runners.docker import docker_runner, get_container_paths
 from dbt_ci.runners.bash import bash_runner
 from dbt_ci.utilities.paths import get_absolute_path
 
@@ -188,8 +188,6 @@ def resolve_dbt_commands(
     
     # Docker runner needs container paths from docker-env
     elif runner == "docker":
-        from dbt_ci.runners.docker import get_container_paths
-        
         # Use the shared function to get container path mappings
         container_path_map = get_container_paths(args.__dict__)
         
