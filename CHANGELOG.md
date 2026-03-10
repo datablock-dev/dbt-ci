@@ -1,6 +1,56 @@
 # CHANGELOG
 
 
+## v1.2.5 (2026-03-10)
+
+### Bug Fixes
+
+- Project-stucture & caching ([#20](https://github.com/datablock-dev/dbt-ci/pull/20),
+  [`e7f0863`](https://github.com/datablock-dev/dbt-ci/commit/e7f086329222a88bf3e2f11338d75476ce071c9c))
+
+* fix: streamline head branch retrieval in GitAdapter
+
+* fix: enhance cache management with DbtCiManifest and improved payload structure
+
+* fix: temporarily disable downstream dependency detection in init function
+
+* fix: standardize type hints for sets and optional parameters in graph utility functions
+
+* feat: add cache clearing functionality to CacheManager and invoke it in finalize command
+
+* Implement local runner and schema definitions for dbt CI tool
+
+- Added local runner implementation in `local.py` for executing dbt commands directly on the host
+  machine. - Introduced `schema.py` containing TypedDict definitions for dbt manifest structure and
+  CLI arguments. - Created utility functions in `dbt_commands.py` for compiling reference and target
+  DBT projects, and managing state changes. - Developed Git-related utilities in `git.py` for
+  handling repository changes and file management. - Implemented multithreading support in
+  `multi_threading.py` for concurrent execution of functions. - Added utility functions for path
+  management in `paths.py`, including methods for retrieving project and profile configurations. -
+  Introduced a namespace conversion utility in `namespace.py` for easier access to command-line
+  arguments.
+
+* feat: add type hinting support with new py.typed file
+
+* fix: correct cache directory name in CacheManager initialization
+
+* Fix/indirect dependencies (#19)
+
+* fix: enhance indirect dependency collection to include full transitive closure
+
+* fix: add get_target and get_vars functions to enhance Namespace utility
+
+---------
+
+Co-authored-by: Patrick Tannoury <patrick.tannoury@kivra.com>
+
+* fix: reload reference manifest file after downloading from storage
+
+---------
+
+Co-authored-by: Patrick Tannoury <patrick.tannoury@kivra.com>
+
+
 ## v1.2.4 (2026-03-07)
 
 ### Bug Fixes
@@ -154,6 +204,11 @@
 * refactor: Update import paths in unit tests to improve module structure
 
 * chore: Comment out Docker build and push job in CI workflow
+
+### Chores
+
+- **release**: 1.2.4 [skip ci]
+  ([`8631e38`](https://github.com/datablock-dev/dbt-ci/commit/8631e38678f56cfc83d8df775c8017fc87dc5421))
 
 
 ## v1.2.3 (2026-02-28)
