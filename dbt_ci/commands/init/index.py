@@ -51,8 +51,8 @@ def init(args: Namespace):
             local_state_dir = resolve_manifest_file_from_storage(resolved_storage, args)
             # Update reference_state to use the local path where manifest was downloaded
             setattr(args, "reference_state", str(local_state_dir))
+            
             # Reload reference manifest file after downloading from storage
-            args.reference_manifest_file = get_reference_manifest_file(reference_state_path)
             cache.write_reference_manifest(get_reference_manifest_file(reference_state_path))
 
         # Generate reference manifest.json file
