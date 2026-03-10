@@ -1,6 +1,6 @@
 """Example unit tests for dbt-ci utilities."""
 import pytest
-from src.utilities.paths import get_manifest_file, get_reference_manifest_file
+from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 
 
 class TestPathUtilities:

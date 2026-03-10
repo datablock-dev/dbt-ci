@@ -2,17 +2,17 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from argparse import Namespace
-from src.commands.ephemeral.index import ephemeral
+from dbt_ci.commands.ephemeral.index import ephemeral
 
 
 class TestEphemeralCommand:
     """Test the ephemeral command."""
     
-    @patch('src.commands.ephemeral.index.get_profile')
-    @patch('src.commands.ephemeral.index.DbtGraph')
-    @patch('src.commands.ephemeral.index.CacheManager')
-    @patch('src.commands.ephemeral.index.click.secho')
-    @patch('src.commands.ephemeral.index.click.echo')
+    @patch('dbt_ci.commands.ephemeral.index.get_profile')
+    @patch('dbt_ci.commands.ephemeral.index.DbtGraph')
+    @patch('dbt_ci.commands.ephemeral.index.CacheManager')
+    @patch('dbt_ci.commands.ephemeral.index.click.secho')
+    @patch('dbt_ci.commands.ephemeral.index.click.echo')
     def test_ephemeral_no_cache(
         self,
         mock_echo,
@@ -41,12 +41,12 @@ class TestEphemeralCommand:
         
         assert exc_info.value.code == 1
     
-    @patch('src.commands.ephemeral.index.get_profile')
-    @patch('src.commands.ephemeral.index.DbtGraph')
-    @patch('src.commands.ephemeral.index.CacheManager')
-    @patch('src.commands.ephemeral.index.get_node_ids_from_structured_nodes')
-    @patch('src.commands.ephemeral.index.click.secho')
-    @patch('src.commands.ephemeral.index.click.echo')
+    @patch('dbt_ci.commands.ephemeral.index.get_profile')
+    @patch('dbt_ci.commands.ephemeral.index.DbtGraph')
+    @patch('dbt_ci.commands.ephemeral.index.CacheManager')
+    @patch('dbt_ci.commands.ephemeral.index.get_node_ids_from_structured_nodes')
+    @patch('dbt_ci.commands.ephemeral.index.click.secho')
+    @patch('dbt_ci.commands.ephemeral.index.click.echo')
     def test_ephemeral_no_modified_nodes(
         self,
         mock_echo,
@@ -81,18 +81,18 @@ class TestEphemeralCommand:
         
         assert exc_info.value.code == 0
     
-    @patch('src.commands.ephemeral.index.get_profile')
-    @patch('src.commands.ephemeral.index.CacheManager')
-    @patch('src.commands.ephemeral.index.DbtGraph')
-    @patch('src.commands.ephemeral.index.DB_CONNECTORS', {'bigquery': 'bigquery'})
-    @patch('src.commands.ephemeral.index.clone_command')
-    @patch('src.commands.ephemeral.index.get_node_ids_from_structured_nodes')
-    @patch('src.commands.ephemeral.index.get_nodes')
-    @patch('src.commands.ephemeral.index.get_upstream_dependencies')
-    @patch('src.commands.ephemeral.index.get_downstream_dependencies')
-    @patch('src.commands.ephemeral.index.click.secho')
-    @patch('src.commands.ephemeral.index.click.echo')
-    @patch('src.commands.ephemeral.index.sys.exit')
+    @patch('dbt_ci.commands.ephemeral.index.get_profile')
+    @patch('dbt_ci.commands.ephemeral.index.CacheManager')
+    @patch('dbt_ci.commands.ephemeral.index.DbtGraph')
+    @patch('dbt_ci.commands.ephemeral.index.DB_CONNECTORS', {'bigquery': 'bigquery'})
+    @patch('dbt_ci.commands.ephemeral.index.clone_command')
+    @patch('dbt_ci.commands.ephemeral.index.get_node_ids_from_structured_nodes')
+    @patch('dbt_ci.commands.ephemeral.index.get_nodes')
+    @patch('dbt_ci.commands.ephemeral.index.get_upstream_dependencies')
+    @patch('dbt_ci.commands.ephemeral.index.get_downstream_dependencies')
+    @patch('dbt_ci.commands.ephemeral.index.click.secho')
+    @patch('dbt_ci.commands.ephemeral.index.click.echo')
+    @patch('dbt_ci.commands.ephemeral.index.sys.exit')
     def test_ephemeral_with_modified_nodes(
         self,
         mock_exit,
@@ -154,14 +154,14 @@ class TestEphemeralCommand:
         # Verify success exit
         mock_exit.assert_called_with(0)
     
-    @patch('src.commands.ephemeral.index.get_profile')
-    @patch('src.commands.ephemeral.index.CacheManager')
-    @patch('src.commands.ephemeral.index.DbtGraph')
-    @patch('src.commands.ephemeral.index.DB_CONNECTORS', {})
-    @patch('src.commands.ephemeral.index.get_node_ids_from_structured_nodes')
-    @patch('src.commands.ephemeral.index.logger')
-    @patch('src.commands.ephemeral.index.click.secho')
-    @patch('src.commands.ephemeral.index.sys.exit')
+    @patch('dbt_ci.commands.ephemeral.index.get_profile')
+    @patch('dbt_ci.commands.ephemeral.index.CacheManager')
+    @patch('dbt_ci.commands.ephemeral.index.DbtGraph')
+    @patch('dbt_ci.commands.ephemeral.index.DB_CONNECTORS', {})
+    @patch('dbt_ci.commands.ephemeral.index.get_node_ids_from_structured_nodes')
+    @patch('dbt_ci.commands.ephemeral.index.logger')
+    @patch('dbt_ci.commands.ephemeral.index.click.secho')
+    @patch('dbt_ci.commands.ephemeral.index.sys.exit')
     def test_ephemeral_unsupported_connector(
         self,
         mock_exit,
@@ -197,17 +197,17 @@ class TestEphemeralCommand:
         # Verify exit with error
         mock_exit.assert_called_with(1)
     
-    @patch('src.commands.ephemeral.index.get_profile')
-    @patch('src.commands.ephemeral.index.CacheManager')
-    @patch('src.commands.ephemeral.index.DbtGraph')
-    @patch('src.commands.ephemeral.index.DB_CONNECTORS', {'bigquery': 'bigquery'})
-    @patch('src.commands.ephemeral.index.clone_command')
-    @patch('src.commands.ephemeral.index.get_node_ids_from_structured_nodes')
-    @patch('src.commands.ephemeral.index.get_nodes')
-    @patch('src.commands.ephemeral.index.get_upstream_dependencies')
-    @patch('src.commands.ephemeral.index.get_downstream_dependencies')
-    @patch('src.commands.ephemeral.index.click.secho')
-    @patch('src.commands.ephemeral.index.click.echo')
+    @patch('dbt_ci.commands.ephemeral.index.get_profile')
+    @patch('dbt_ci.commands.ephemeral.index.CacheManager')
+    @patch('dbt_ci.commands.ephemeral.index.DbtGraph')
+    @patch('dbt_ci.commands.ephemeral.index.DB_CONNECTORS', {'bigquery': 'bigquery'})
+    @patch('dbt_ci.commands.ephemeral.index.clone_command')
+    @patch('dbt_ci.commands.ephemeral.index.get_node_ids_from_structured_nodes')
+    @patch('dbt_ci.commands.ephemeral.index.get_nodes')
+    @patch('dbt_ci.commands.ephemeral.index.get_upstream_dependencies')
+    @patch('dbt_ci.commands.ephemeral.index.get_downstream_dependencies')
+    @patch('dbt_ci.commands.ephemeral.index.click.secho')
+    @patch('dbt_ci.commands.ephemeral.index.click.echo')
     def test_ephemeral_dry_run(
         self,
         mock_echo,

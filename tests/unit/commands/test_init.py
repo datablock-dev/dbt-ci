@@ -2,20 +2,20 @@
 import pytest
 from unittest.mock import MagicMock, patch, call
 from argparse import Namespace
-from src.commands.init.index import init as index
+from dbt_ci.commands.init.index import init as index
 
 
 class TestInitCommand:
     """Test the init command."""
     
-    @patch('src.commands.init.index.CacheManager')
-    @patch('src.commands.init.index.init_storage_connector')
-    @patch('src.commands.init.index.dbt_command_reference_compile')
-    @patch('src.commands.init.index.dbt_command_state_modified')
-    @patch('src.commands.init.index.dbt_command_target_compile')
-    @patch('src.commands.init.index.DbtGraph')
-    @patch('src.commands.init.index.get_manifest_file')
-    @patch('src.commands.init.index.click.secho')
+    @patch('dbt_ci.commands.init.index.CacheManager')
+    @patch('dbt_ci.commands.init.index.init_storage_connector')
+    @patch('dbt_ci.commands.init.index.dbt_command_reference_compile')
+    @patch('dbt_ci.commands.init.index.dbt_command_state_modified')
+    @patch('dbt_ci.commands.init.index.dbt_command_target_compile')
+    @patch('dbt_ci.commands.init.index.DbtGraph')
+    @patch('dbt_ci.commands.init.index.get_manifest_file')
+    @patch('dbt_ci.commands.init.index.click.secho')
     def test_init_success_no_modified_nodes(
         self,
         mock_secho,
@@ -60,15 +60,15 @@ class TestInitCommand:
         # Verify exit code
         assert exc_info.value.code == 0
     
-    @patch('src.commands.init.index.CacheManager')
-    @patch('src.commands.init.index.init_storage_connector')
-    @patch('src.commands.init.index.dbt_command_reference_compile')
-    @patch('src.commands.init.index.dbt_command_state_modified')
-    @patch('src.commands.init.index.dbt_command_target_compile')
-    @patch('src.commands.init.index.DbtGraph')
-    @patch('src.commands.init.index.get_manifest_file')
-    @patch('src.commands.init.index.click.secho')
-    @patch('src.commands.init.index.init_summary')
+    @patch('dbt_ci.commands.init.index.CacheManager')
+    @patch('dbt_ci.commands.init.index.init_storage_connector')
+    @patch('dbt_ci.commands.init.index.dbt_command_reference_compile')
+    @patch('dbt_ci.commands.init.index.dbt_command_state_modified')
+    @patch('dbt_ci.commands.init.index.dbt_command_target_compile')
+    @patch('dbt_ci.commands.init.index.DbtGraph')
+    @patch('dbt_ci.commands.init.index.get_manifest_file')
+    @patch('dbt_ci.commands.init.index.click.secho')
+    @patch('dbt_ci.commands.init.index.init_summary')
     def test_init_success_with_modified_nodes(
         self,
         mock_init_summary,
@@ -125,8 +125,8 @@ class TestInitCommand:
         # Verify state modified was called
         mock_dbt_state.assert_called_once()
     
-    @patch('src.commands.init.index.CacheManager')
-    @patch('src.commands.init.index.click.secho')
+    @patch('dbt_ci.commands.init.index.CacheManager')
+    @patch('dbt_ci.commands.init.index.click.secho')
     def test_init_error_handling(
         self,
         mock_secho,
@@ -151,14 +151,14 @@ class TestInitCommand:
         # Verify exit was called with error code
         assert exc_info.value.code == 1
     
-    @patch('src.commands.init.index.CacheManager')
-    @patch('src.commands.init.index.init_storage_connector')
-    @patch('src.commands.init.index.dbt_command_reference_compile')
-    @patch('src.commands.init.index.dbt_command_state_modified')
-    @patch('src.commands.init.index.dbt_command_target_compile')
-    @patch('src.commands.init.index.DbtGraph')
-    @patch('src.commands.init.index.get_manifest_file')
-    @patch('src.commands.init.index.click.secho')
+    @patch('dbt_ci.commands.init.index.CacheManager')
+    @patch('dbt_ci.commands.init.index.init_storage_connector')
+    @patch('dbt_ci.commands.init.index.dbt_command_reference_compile')
+    @patch('dbt_ci.commands.init.index.dbt_command_state_modified')
+    @patch('dbt_ci.commands.init.index.dbt_command_target_compile')
+    @patch('dbt_ci.commands.init.index.DbtGraph')
+    @patch('dbt_ci.commands.init.index.get_manifest_file')
+    @patch('dbt_ci.commands.init.index.click.secho')
     def test_init_with_reference_target(
         self,
         mock_secho,
@@ -209,11 +209,11 @@ class TestInitCommand:
 class TestResolveManifestFromStorage:
     """Test the resolve_manifest_file_from_storage helper function."""
     
-    @patch('src.commands.init.index.Path')
-    @patch('src.commands.init.index.logger')
+    @patch('dbt_ci.commands.init.index.Path')
+    @patch('dbt_ci.commands.init.index.logger')
     def test_resolve_manifest_creates_directory(self, mock_logger, mock_path):
         """Test that the function creates the necessary directory."""
-        from src.commands.init.index import resolve_manifest_file_from_storage
+        from dbt_ci.commands.init.index import resolve_manifest_file_from_storage
         
         # Setup mocks
         storage_connector = {

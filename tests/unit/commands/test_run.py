@@ -2,16 +2,16 @@
 import pytest
 from unittest.mock import MagicMock, patch, call
 from argparse import Namespace
-from src.commands.run.index import run as index, run_with_mode
+from dbt_ci.commands.run.index import run as index, run_with_mode
 
 
 class TestRunCommand:
     """Test the run command."""
     
-    @patch('src.commands.run.index.CacheManager')
-    @patch('src.commands.run.index.DbtGraph')
-    @patch('src.commands.run.index.logger.error')
-    @patch('src.commands.run.index.click.secho')
+    @patch('dbt_ci.commands.run.index.CacheManager')
+    @patch('dbt_ci.commands.run.index.DbtGraph')
+    @patch('dbt_ci.commands.run.index.logger.error')
+    @patch('dbt_ci.commands.run.index.click.secho')
     def test_run_no_cache(
         self,
         mock_secho,
@@ -36,12 +36,12 @@ class TestRunCommand:
             "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
         )
     
-    @patch('src.commands.run.index.CacheManager')
-    @patch('src.commands.run.index.DbtGraph')
-    @patch('src.commands.run.index.get_node_ids_from_structured_nodes')
-    @patch('src.commands.run.index.run_with_mode')
-    @patch('src.commands.run.index.logger.info')
-    @patch('src.commands.run.index.click.secho')
+    @patch('dbt_ci.commands.run.index.CacheManager')
+    @patch('dbt_ci.commands.run.index.DbtGraph')
+    @patch('dbt_ci.commands.run.index.get_node_ids_from_structured_nodes')
+    @patch('dbt_ci.commands.run.index.run_with_mode')
+    @patch('dbt_ci.commands.run.index.logger.info')
+    @patch('dbt_ci.commands.run.index.click.secho')
     def test_run_no_modified_nodes(
         self,
         mock_secho,
@@ -76,12 +76,12 @@ class TestRunCommand:
         # Verify appropriate message was logged
         mock_logger_info.assert_any_call("No modified, new, or deleted nodes found in cache, skipping...")
     
-    @patch('src.commands.run.index.CacheManager')
-    @patch('src.commands.run.index.DbtGraph')
-    @patch('src.commands.run.index.get_node_ids_from_structured_nodes')
-    @patch('src.commands.run.index.run_with_mode')
-    @patch('src.commands.run.index.click.secho')
-    @patch('src.commands.run.index.click.echo')
+    @patch('dbt_ci.commands.run.index.CacheManager')
+    @patch('dbt_ci.commands.run.index.DbtGraph')
+    @patch('dbt_ci.commands.run.index.get_node_ids_from_structured_nodes')
+    @patch('dbt_ci.commands.run.index.run_with_mode')
+    @patch('dbt_ci.commands.run.index.click.secho')
+    @patch('dbt_ci.commands.run.index.click.echo')
     def test_run_with_modified_nodes(
         self,
         mock_echo,
@@ -123,8 +123,8 @@ class TestRunCommand:
         call_args = mock_run_mode.call_args
         assert call_args[1]['mode'] == 'models'
     
-    @patch('src.commands.run.index.click.echo')
-    @patch('src.commands.run.index.sys.exit')
+    @patch('dbt_ci.commands.run.index.click.echo')
+    @patch('dbt_ci.commands.run.index.sys.exit')
     def test_run_error_handling(
         self,
         mock_exit,
@@ -145,10 +145,10 @@ class TestRunCommand:
 class TestRunWithMode:
     """Test the run_with_mode helper function."""
     
-    @patch('src.commands.run.index.run_dbt_command')
-    @patch('src.commands.run.index.get_downstream_dependencies')
-    @patch('src.commands.run.index.filter_node_ids_by_type')
-    @patch('src.commands.run.index.click.echo')
+    @patch('dbt_ci.commands.run.index.run_dbt_command')
+    @patch('dbt_ci.commands.run.index.get_downstream_dependencies')
+    @patch('dbt_ci.commands.run.index.filter_node_ids_by_type')
+    @patch('dbt_ci.commands.run.index.click.echo')
     def test_run_with_mode_all(
         self,
         mock_echo,
@@ -188,10 +188,10 @@ class TestRunWithMode:
         # Should run: seed, run, test, snapshot
         assert mock_run_cmd.call_count >= 1
     
-    @patch('src.commands.run.index.run_dbt_command')
-    @patch('src.commands.run.index.get_downstream_dependencies')
-    @patch('src.commands.run.index.filter_node_ids_by_type')
-    @patch('src.commands.run.index.click.echo')
+    @patch('dbt_ci.commands.run.index.run_dbt_command')
+    @patch('dbt_ci.commands.run.index.get_downstream_dependencies')
+    @patch('dbt_ci.commands.run.index.filter_node_ids_by_type')
+    @patch('dbt_ci.commands.run.index.click.echo')
     def test_run_with_mode_models_only(
         self,
         mock_echo,
@@ -225,9 +225,9 @@ class TestRunWithMode:
         # Verify run command was called
         mock_run_cmd.assert_called_once()
     
-    @patch('src.commands.run.index.get_downstream_dependencies')
-    @patch('src.commands.run.index.filter_node_ids_by_type')
-    @patch('src.commands.run.index.logger.info')
+    @patch('dbt_ci.commands.run.index.get_downstream_dependencies')
+    @patch('dbt_ci.commands.run.index.filter_node_ids_by_type')
+    @patch('dbt_ci.commands.run.index.logger.info')
     def test_run_with_mode_no_nodes(
         self,
         mock_logger_info,
@@ -256,10 +256,10 @@ class TestRunWithMode:
         # Verify no models message was logged
         mock_logger_info.assert_any_call("No models to run")
     
-    @patch('src.commands.run.index.run_dbt_command')
-    @patch('src.commands.run.index.get_downstream_dependencies')
-    @patch('src.commands.run.index.filter_node_ids_by_type')
-    @patch('src.commands.run.index.logger.info')
+    @patch('dbt_ci.commands.run.index.run_dbt_command')
+    @patch('dbt_ci.commands.run.index.get_downstream_dependencies')
+    @patch('dbt_ci.commands.run.index.filter_node_ids_by_type')
+    @patch('dbt_ci.commands.run.index.logger.info')
     def test_run_with_mode_dry_run(
         self,
         mock_logger_info,
