@@ -218,7 +218,8 @@ def generate_ephemeral_map(
 def ephemeral_mapping(
     args: Namespace,
     cache: CacheManager
-) -> tuple[]
+) -> tuple[]:
+    
 
 def full_config_or_none(
     database: Optional[str],

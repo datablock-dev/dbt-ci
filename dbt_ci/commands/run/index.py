@@ -69,7 +69,7 @@ def run(args: Namespace):
             sys.exit(0)
         
         logger.info("\n-------------------------------------------------------")
-        logger.info(f"Found {len(changed_nodes)} modified model(s):")
+        logger.info(f"Found {len(changed_nodes)} modified node(s):")
         for node in changed_nodes:
             string = f"  • {node.split('.')[-1]}"
             if node in changed_nodes_dict["deleted_nodes"]:
