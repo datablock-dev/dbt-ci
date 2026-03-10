@@ -100,7 +100,10 @@ def ephemeral(args: Namespace):
         print_exception(e)
         sys.exit(1)
 
-def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, EphemeralMapNode]:
+def generate_ephemeral_map(
+    args: Namespace, 
+    cache: CacheManager
+) -> dict[str, EphemeralMapNode]:
     """Generate a map of nodes to be included in the ephemeral environment based on the cache and dependency graph."""
     target_graph = DbtGraph(args)
     reference_graph = DbtGraph(args, is_reference=True)
@@ -212,6 +215,11 @@ def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, Ep
 
     return ephemeral_map
     
+def ephemeral_mapping(
+    args: Namespace,
+    cache: CacheManager
+) -> tuple[]
+
 def full_config_or_none(
     database: Optional[str],
     schema: Optional[str],
