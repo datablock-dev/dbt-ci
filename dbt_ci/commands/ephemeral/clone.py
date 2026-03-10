@@ -16,7 +16,12 @@ def clone_command(
     changed_nodes_dict: dict[str, list[str]],
     args: Namespace
 ) -> None:
-    """Helper function to run the dbt command that will create the ephemeral models based on the selected nodes."""
+    """
+        Helper function to run the dbt command that will create the ephemeral models based on the selected nodes.
+        
+        Please observe that we only clone models and snapshots, even if tests are modified.
+        This is because Dbt only creates ephemeral versions of models and snapshots.
+    """
     def _filter_models_and_snapshots(target_graph: DbtGraph, node_ids: list[str]) -> list[str]:
         return filter_node_ids_by_type(
             dependency_graph=target_graph.to_dict(),
@@ -35,26 +40,24 @@ def clone_command(
             changed_nodes_dict["new_nodes"]
         )))
 
-        dependent_nodes = filter_node_ids_by_type(
-            dependency_graph=target_graph.to_dict(),
-            node_type=["model", "snapshot"],
-            node_ids=list(chain(
-                # 1. All downstream dependencies of any changed node (models, snapshots, tests, etc.)
-                #    These need to be re-run to verify nothing downstream breaks.
-                get_downstream_dependencies(target_graph.to_dict(), changed_nodes) or set(),
-                # 2. Upstream models/snapshots of any changed test or snapshot.
-                #    Tests reference models/snapshots upstream — those references must be available.
-                #    Changed snapshots similarly need their upstream models/snapshots present.
-                get_upstream_dependencies(
-                    dependency_graph=target_graph.to_dict(), 
-                    node_ids=filter_node_ids_by_type(target_graph.to_dict(), changed_nodes, ["test", "snapshot"]), 
-                    node_type=["model", "snapshot"]
-                ) or set(),
-                # 3. Upstream models/snapshots of all changed nodes.
-                #    Changed models need their own parents present to execute correctly.
-                get_upstream_dependencies(target_graph.to_dict(), changed_nodes, ["model", "snapshot"]) or set()
-            ))
-        )
+        descendants = list(get_downstream_dependencies(target_graph.to_dict(), changed_nodes) or set())
+
+        dependent_nodes = list(set(chain(
+            # 1. 1st level ancestors of all descendants of changed nodes.
+            #    Descendants need their direct parents cloned to execute correctly.
+            get_upstream_dependencies(
+                dependency_graph=target_graph.to_dict(),
+                node_ids=descendants,
+                node_type=["model", "snapshot"]
+            ) or set(),
+            # 2. 1st level ancestors of any tests or snapshots in changed nodes.
+            #    Tests/snapshots reference their direct parents which must be available.
+            get_upstream_dependencies(
+                dependency_graph=target_graph.to_dict(),
+                node_ids=filter_node_ids_by_type(target_graph.to_dict(), changed_nodes, ["test", "snapshot"]),
+                node_type=["model", "snapshot"]
+            ) or set()
+        )))
 
         ephemeral_nodes = list(set(chain(
             changed_nodes_dict["modified_nodes"],
