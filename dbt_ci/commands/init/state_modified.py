@@ -4,7 +4,7 @@ from argparse import Namespace, ArgumentParser
 from typing import TypedDict, cast
 from dbt_ci.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
-from dbt_ci.graph.graph_utils import get_deleted_nodes, get_new_nodes, get_nodes, get_structured_modified_nodes
+from dbt_ci.graph.graph_utils import get_deleted_nodes, get_new_nodes, get_node_from_path, get_nodes, get_structured_modified_nodes
 from dbt_ci.logging import print_exception
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
 from dbt_ci.schema import RunnerConfig, StateChangeSummary
@@ -49,24 +49,13 @@ def git_strategy(args: Namespace) -> StateChangeSummary:
         print(changed_files)
 
         # Get modified nodes based on git diff
-        for key, node_values in target_dict.items():
-            # Skip metadata nodes as they do not correspond to actual dbt models, snapshots, or tests 
-            # and can be modified without changes to the underlying files.
-            if key == "metadata":
-                continue
-
-            for node_id, node_info in node_values.items():
-                file_path = node_info.get('original_file_path', None)
-                if file_path is None:
-                    logger.warning(f"Node {node_id} does not have an original_file_path. Skipping git comparison for this node.")
-                    continue
-                
-                if file_path in changed_files["modified"]:
-                    git_modified_nodes["modified"].add(node_id)
-                elif file_path in changed_files["added"]:
-                    git_modified_nodes["added"].add(node_id)
-                elif file_path in changed_files["deleted"]:
-                    git_modified_nodes["deleted"].add(node_id) 
+        for change_type, files in changed_files.items():
+            for file in files:
+                node_info = get_node_from_path(target_dict, file) or get_node_from_path(reference_dict, file)
+                if node_info:
+                    node_id = node_info.get("unique_id")
+                    if node_id:
+                        git_modified_nodes[change_type].add(node_id)
 
         return {
             "modified_nodes": get_structured_modified_nodes(get_nodes(
