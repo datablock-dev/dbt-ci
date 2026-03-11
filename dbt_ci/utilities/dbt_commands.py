@@ -56,15 +56,17 @@ def dbt_command_target_compile(args: Namespace, store_cache: bool = True) -> Non
         is_reference_target_same_as_current = reference_target is None or reference_target == getattr(args, "target", None)
         
         if not getattr(args, "target_compile", False):
-            logger.info("Skipping target compilation as per configuration.")
+            # Removed now that skipping target compilation is the default behavior 
+            # and users have to explicitly opt-in to compile towards target state by setting 
+            # --target-compile flag to true.
+            #logger.info("Skipping target compilation as per configuration.")
             return
-        else:
-            logger.info("Compiling towards target to generate manifest.json for target state.")
+
+        logger.info("Compiling towards target to generate manifest.json for target state.")
 
         if dbt_project_dir is None:
             logger.error("dbt_project_dir argument is required for target compilation.")
             sys.exit(1)
-
         
         if is_reference_target_same_as_current:
             logger.info("Reference target is the same as current target, skipping separate compilation for target state.")
