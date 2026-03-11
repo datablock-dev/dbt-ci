@@ -54,7 +54,6 @@ def git_state_modified(args: Namespace) -> StateChangeSummary:
                 elif file_path in changed_files["deleted"]:
                     git_modified_nodes["deleted"].add(node_id) 
 
-        
         return {
             "modified_nodes": get_structured_modified_nodes(get_nodes(
                 dependency_graph=target_dict, 
@@ -71,6 +70,7 @@ def git_state_modified(args: Namespace) -> StateChangeSummary:
         }
     except Exception as e:
         print_exception(e, "Error generating state change summary using git strategy")
+        sys.exit(1)
 
 
 def hybrid_state_modified(args: Namespace):
