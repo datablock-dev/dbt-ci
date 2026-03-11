@@ -7,11 +7,12 @@ import sys
 import logging
 from pathlib import Path
 from argparse import Namespace
+from typing import cast
 import click
-from dbt_ci.adapters.slack import SlackClient
+from dbt_ci.notifications.slack import SlackClient
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.cache import CacheManager
-from dbt_ci.schema import StateChangeSummary, StorageConnectorConfig
+from dbt_ci.schema import DependencyGraphNode, StateChangeSummary, StorageConnectorConfig
 from dbt_ci.logging import print_exception
 from dbt_ci.connectors import init_storage_connector
 from dbt_ci.utilities.dbt_commands import dbt_command_reference_compile, dbt_command_target_compile, dbt_command_state_modified
@@ -55,8 +56,7 @@ def init(args: Namespace):
             # Reload reference manifest file after downloading from storage
             cache.write_reference_manifest(get_reference_manifest_file(reference_state_path))
 
-        # Generate reference manifest.json file
-        # if reference target is passed
+        # Compile dbt and generate reference manifest.json file
         dbt_command_reference_compile(args)
 
         dbt_project_dir = getattr(args, "dbt_project_dir", None)
@@ -106,13 +106,14 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
         2. Generate migration plan for modified nodes with partitioning changes
         3. Generate ephemeral plan for modified nodes with non-partitioning changes
     """
-    slack = SlackClient(args)
+    #slack = SlackClient(args)
     #migration_map = generate_migration_map(args, cache)
     #ephemeral_map = generate_ephemeral_map(args, cache)
 
     logger.info("\n------------------------------------------------------")
     logger.info("State Change Summary:")
     for change_type, values in state_change_summary.items():
+        values = cast(dict[str, DependencyGraphNode], values)
         if values is None or len(values) == 0:
             logger.info(f"\n{change_type.replace('_', ' ').title()}: 0")
             continue
@@ -121,6 +122,7 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
         logger.info(f"\n{change_type.replace('_', ' ').title()}: {total_count}")
         for node_dict in values.values():
             for node in node_dict.values():
+                node = cast(DependencyGraphNode, node)
                 logger.info(f"  • {node['name']} ({node['resource_type']})")
     logger.info("\n------------------------------------------------------")
 
@@ -130,7 +132,7 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
         message = "*State Change Summary:*\n"
         message += json.dumps(state_change_summary, indent=2)
         message += "\n\n"
-        slack.send_message(header, message)
+        #slack.send_message(header, message)
     except Exception as e:
         logger.error(f"Failed to send Slack message: {e}")
 
@@ -150,6 +152,10 @@ def resolve_manifest_file_from_storage(
     dbtstate_dir: Path | None = None
     dbt_project_dir = getattr(args, "dbt_project_dir", None)
     reference_state = getattr(args, "reference_state", None)
+
+    if dbt_project_dir is None:
+        logger.error("No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument.")
+        sys.exit(1)
 
     # Write and download manifest to path
     # When using Docker, always use the local dbt_project_dir/.dbtstate path on host
