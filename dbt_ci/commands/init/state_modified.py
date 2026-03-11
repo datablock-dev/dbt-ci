@@ -53,7 +53,8 @@ def git_strategy(args: Namespace) -> StateChangeSummary:
             for file_path in files:
                 node_info = get_node_from_path(target_dict, file_path) or get_node_from_path(reference_dict, file_path)
                 if node_info:
-                    node_id = node_info.get("unique_id")
+                    node_id = node_info.get("name")
+                    print(node_info)
                     if node_id:
                         git_modified_nodes[change_type].add(node_id)
                 else:
