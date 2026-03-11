@@ -40,9 +40,15 @@ def init(args: Namespace):
         logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager(args)
         cache.start_report("init", args)
+        dbt_project_dir = getattr(args, "dbt_project_dir", None)
         reference_target = getattr(args, "reference_target", None)
         reference_state_path: str | None = getattr(args, "reference_state", None)
         resolved_storage = init_storage_connector(getattr(args, "state_uri", None))
+
+        # Exit if dbt_project_dir is not provided
+        if dbt_project_dir is None:
+            logger.error("No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument.")
+            sys.exit(1)
 
         if resolved_storage is not None:
             if reference_state_path is None:
@@ -55,14 +61,9 @@ def init(args: Namespace):
             
             # Reload reference manifest file after downloading from storage
             cache.write_reference_manifest(get_reference_manifest_file(reference_state_path))
-
+        
         # Compile dbt and generate reference manifest.json file
         dbt_command_reference_compile(args)
-
-        dbt_project_dir = getattr(args, "dbt_project_dir", None)
-        if dbt_project_dir is None:
-            logger.error("No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument.")
-            sys.exit(1)
         
         target_manifest_file = get_manifest_file(dbt_project_dir)
         state_change_summary = get_state_modified(args)
@@ -73,7 +74,8 @@ def init(args: Namespace):
             cache.write_target_manifest(target_manifest_file)
         else:
             # Same target or no reference target specified - reference and target are the same
-            logger.debug("Reference target is the same as current target, using the same manifest for both reference and target state.")
+            logger.debug("Reference target is the same as current target!")
+            logger.debug("Using the same manifest for both reference and target state.")
             cache.write_reference_manifest(target_manifest_file)
             cache.write_target_manifest(target_manifest_file)
 
@@ -83,7 +85,7 @@ def init(args: Namespace):
         init_summary(state_change_summary, args)
 
         # This method has issues and needs to be resolved before being reintroduced
-        #detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
+        detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
