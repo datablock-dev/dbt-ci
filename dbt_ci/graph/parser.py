@@ -1,8 +1,11 @@
 """Module for parsing dbt manifest files and generating dependency graphs."""
 import sys
 import json
+import logging
 from typing import Literal, Optional, cast
 from dbt_ci.schema import MANIFEST_KEY_MAPPING, DBTManifest, DbtNode, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType, Macro, Node, Source
+
+logger = logging.getLogger(__name__)
 
 def skeleton_dependencies_structure():
     """Helper function to create an empty dependencies structure."""
@@ -116,7 +119,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             manifest_file=manifest_file
         )
 
-    append_upstream_dependencies(dependency_graph, cast(dict, manifest_file))
+    append_upstream_dependencies(dependency_graph, manifest_file)
     append_indirect_dependencies(dependency_graph, "upstream")
     append_indirect_dependencies(dependency_graph, "downstream")
 
@@ -200,7 +203,7 @@ def collect_dependencies_recursively(
                 collect_dependencies_recursively(dependency_graph, dep_node, visited, direction)
 
 
-def append_upstream_dependencies(dependency_graph: DependencyGraph, manifest_file: dict) -> None:
+def append_upstream_dependencies(dependency_graph: DependencyGraph, manifest_file: DBTManifest) -> None:
     """Populate upstream dependencies by reversing downstream dependencies"""
     # Iterate through all nodes and their downstream dependencies
     parent_map = manifest_file.get("parent_map", {})
@@ -211,7 +214,11 @@ def append_upstream_dependencies(dependency_graph: DependencyGraph, manifest_fil
 
         child_node_type = child_id.split(".")[0]
         manifest_key = MANIFEST_KEY_MAPPING.get(child_node_type)
-        node = manifest_file.get(manifest_key, {}).get(child_id, None).get("name", None)
+        if manifest_key is None:
+            logger.error(f"Unknown node type '{child_node_type}' found in manifest file. Skipping.")
+            sys.exit(1)
+        
+        node = manifest_file.get(manifest_key, {}).get(child_id, {}).get("name", None)
 
         if node is None:
             print(f"Node with ID '{child_id}' not found in manifest file under '{manifest_key}'. Skipping.")

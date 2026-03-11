@@ -43,7 +43,8 @@ def docker_runner(commands: list[str], runner_config: RunnerConfig) -> Completed
         output_logs = []
         for log in container.logs(stream=True):
             decoded = log.decode("utf-8")
-            print(decoded, end="")
+            sys.stdout.write(decoded)
+            sys.stdout.flush()
             output_logs.append(decoded)
         
         exit_status = container.wait()

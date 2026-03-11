@@ -10,14 +10,14 @@ import sys
 import logging
 from itertools import chain
 from argparse import Namespace
-from typing import Optional
+from typing import Optional, cast
 import click
 from dbt_ci.cache import CacheManager
 from dbt_ci.connectors import DB_CONNECTORS
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.logging import print_exception
-from dbt_ci.schema import EphemeralMapNode
-from dbt_ci.utilities.dbt_commands import clone_command
+from dbt_ci.schema import EphemeralMapNode, StateChangeSummary
+from dbt_ci.commands.ephemeral.clone import clone_command
 from dbt_ci.utilities.paths import get_profile
 from dbt_ci.graph.graph_utils import (
     filter_node_ids_by_multiple_types,
@@ -51,46 +51,25 @@ def ephemeral(args: Namespace):
         logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager(args)
         cache.start_report("ephemeral", args)
-        connector_type = get_profile(args)["type"]
+        cache_dict: StateChangeSummary = cast(StateChangeSummary, cache.get_cache())
         
-        # Validate connector before calling get_connector
-        if connector_type is None:
-            logger.error(f"Missing connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
+        if cache_dict is None:
+            logger.error("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
             sys.exit(1)
-        elif connector_type not in DB_CONNECTORS:
-            logger.error(f"Unsupported connector type for ephemeral mode: {connector_type}. Supported connectors: {list(DB_CONNECTORS.keys())}")
-            sys.exit(1)
-        
-        #ephemeral_connector = get_connector(connector_type).get("strategies", {}).get("ephemeral")
-        ephemeral_map = generate_ephemeral_map(args, cache)
 
-        # Pass the ephemeral map and variables to the connector strategy which
-        # will handle the ephemeral execution logic based on the connector type
-        if getattr(args, "dry_run", False):
-            if getattr(args, "quiet", False):
-                sys.exit(0)
-            
-            logger.info("Dry run mode enabled - no actual ephemeral environment will be created.")
-            logger.info("\n------------------------------------------------------")
-            for node_id, node_info in ephemeral_map.items():
-                target_table_id = f"{node_info['ephemeral_config']['database']}.{node_info['ephemeral_config']['schema']}.{node_info['ephemeral_config']['name']}" if node_info['ephemeral_config'] else "N/A"
-                reference_table_id = f"{node_info['reference_config']['database']}.{node_info['reference_config']['schema']}.{node_info['reference_config']['name']}" if node_info['reference_config'] else "N/A"
-
-                logger.info(f"Model: {node_id}")
-                logger.info(f"  - Ephemeral Target: {target_table_id}")
-                logger.info(f"  - Reference Target: {reference_table_id}") 
-            logger.info("------------------------------------------------------\n")
-            sys.exit(0)
-        elif len(ephemeral_map) == 0:
-            logger.info("No nodes found to create ephemeral environment for. Exiting...")
-            sys.exit(0)
+        logger.info("Cache successfully found - using cached state for comparison")
+        changed_nodes_dict = {
+            "modified_nodes": get_node_ids_from_structured_nodes(cache_dict.get("modified_nodes", None)) or [],
+            "deleted_nodes": get_node_ids_from_structured_nodes(cache_dict.get("deleted_nodes", None)) or [],
+            "new_nodes": get_node_ids_from_structured_nodes(cache_dict.get("new_nodes", None)) or [],
+        }
 
         #ephemeral_connector(ephemeral_map, args)
-        clone_command(list(ephemeral_map.keys()), args)
+        clone_command(changed_nodes_dict, args)
         
         # Store cache (ephemeral map) for use in finalize step
-        cache.write_ephemeral(ephemeral_map)
-        cache.update_report("ephemeral", "completed", comment=str(list(ephemeral_map.keys())))
+        #cache.write_ephemeral(ephemeral_map)
+        #cache.update_report("ephemeral", "completed", comment=str(list(ephemeral_map.keys())))
         logger.info("Ephemeral strategy completed successfully.")
         logger.info("Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies.")
         sys.exit(0)
@@ -100,7 +79,12 @@ def ephemeral(args: Namespace):
         print_exception(e)
         sys.exit(1)
 
-def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, EphemeralMapNode]:
+# Not currently used (might need deprecation)
+# DBT Clone command is not utilised for better support
+def generate_ephemeral_map(
+    args: Namespace, 
+    cache: CacheManager
+) -> dict[str, EphemeralMapNode]:
     """Generate a map of nodes to be included in the ephemeral environment based on the cache and dependency graph."""
     target_graph = DbtGraph(args)
     reference_graph = DbtGraph(args, is_reference=True)
@@ -156,7 +140,7 @@ def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, Ep
             changed_nodes_dict["modified_nodes"],
             changed_nodes_dict["new_nodes"],
             # 2. Upstream dependencies of modified models (first level, only models)
-            get_upstream_dependencies(target_graph.to_dict(), changed_nodes, "model") or [],
+            get_upstream_dependencies(target_graph.to_dict(), changed_nodes, ["model"]) or [],
             # 3. Get upstream dependencies of modified models downstream dependencies (full graph, all types)
             get_upstream_dependencies(
                 dependency_graph=target_graph.to_dict(), 
@@ -211,7 +195,7 @@ def generate_ephemeral_map(args: Namespace, cache: CacheManager) -> dict[str, Ep
         }
 
     return ephemeral_map
-    
+
 def full_config_or_none(
     database: Optional[str],
     schema: Optional[str],

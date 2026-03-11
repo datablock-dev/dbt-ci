@@ -111,7 +111,7 @@ dbt-ci init \
 | `--reference-target` | `--ref-target` | `DBT_REFERENCE_TARGET` | `None` | dbt target for the production/reference manifest |
 | `--reference-vars` | `--ref-vars` | `DBT_REFERENCE_VARS` | `None` | Variables to pass to dbt when compiling the reference manifest (YAML string or file path) |
 | `--state-uri` | | `DBT_STATE_URI`, `STATE_URI` | `None` | Remote URI for the state manifest (e.g. `gs://bucket/manifest.json`, `s3://bucket/manifest.json`) |
-| `--skip-target-compile` | | `DBT_SKIP_TARGET_COMPILE` | `false` | Skip the second compile pass against the actual target |
+| `--target-compile` | | `DBT_TARGET_COMPILE` | `false` | Run the second compile pass against the actual target |
 | `--skip-reference-compile` | | `DBT_SKIP_REFERENCE_COMPILE` | `false` | Skip the compile pass against the reference/production state |
 | `--no-git` | | `DBT_NO_GIT` | `false` | Skip git-based file change comparison |
 

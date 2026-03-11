@@ -25,11 +25,11 @@ from dbt_ci.commands.init.index import init
     help="Remote URI for the state manifest.json file (e.g., gs://my-bucket/dbt-state/manifest.json or s3://my-bucket/dbt-state/manifest.json)"
 )
 @click.option(
-    "--skip-target-compile",
-    envvar=['DBT_SKIP_TARGET_COMPILE'],
+    "--target-compile",
+    envvar=['DBT_TARGET_COMPILE'],
     is_flag=True,
     default=False,
-    help="Skip compiling towards target (or default)"
+    help="Compile towards target (or default)"
 )
 @click.option(
     "--skip-reference-compile",

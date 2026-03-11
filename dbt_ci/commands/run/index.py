@@ -69,7 +69,7 @@ def run(args: Namespace):
             sys.exit(0)
         
         logger.info("\n-------------------------------------------------------")
-        logger.info(f"Found {len(changed_nodes)} modified model(s):")
+        logger.info(f"Found {len(changed_nodes)} modified node(s):")
         for node in changed_nodes:
             string = f"  • {node.split('.')[-1]}"
             if node in changed_nodes_dict["deleted_nodes"]:
@@ -129,7 +129,7 @@ def run_with_mode(
             # to make sure they function without the deleted node
             nodes_to_run = filter_node_ids_by_type(
                 dependency_graph=target_graph.to_dict(),
-                node_type=node_type, # seeds, models, snapshots, tests
+                node_type=[node_type], # seeds, models, snapshots, tests
                 node_ids=list(set(chain(
                     changed_nodes_dict.get("modified_nodes", []),
                     changed_nodes_dict.get("new_nodes", []),
@@ -187,7 +187,7 @@ def run_with_mode(
 
             result = run_dbt_command(
                 command_args=append_dbt_variables_to_command([cast(str, command), "--select", " ".join(nodes_to_run)], args),
-                runner_config=RunnerConfig(args.__dict__)
+                runner_config=cast(RunnerConfig, args.__dict__)
             )
 
             if result and result.returncode == 0:

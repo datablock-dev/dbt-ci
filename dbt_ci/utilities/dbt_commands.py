@@ -2,13 +2,13 @@
 import sys
 import logging
 from argparse import Namespace
+from typing import cast
 from dbt_ci.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.utilities.git import GitAdapter
-from dbt_ci.logging import print_exception
 from dbt_ci.schema import RunnerConfig, StateChangeSummary
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
-from dbt_ci.utilities.paths import get_manifest_file, get_profile
+from dbt_ci.utilities.paths import get_manifest_file
 from dbt_ci.graph.graph_utils import get_deleted_nodes, get_new_nodes, get_nodes, get_structured_modified_nodes
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ def dbt_command_reference_compile(args: Namespace) -> None:
                 args=args, 
                 ignore_keys=["vars", "target"] # Don't pass vars or target when compiling reference manifest
             ),
-            runner_config=RunnerConfig(args.__dict__)
+            runner_config=cast(RunnerConfig, args.__dict__)
         )
 
         logger.info("DBT project compiled successfully. manifest.json generated.")
@@ -54,14 +54,17 @@ def dbt_command_target_compile(args: Namespace, store_cache: bool = True) -> Non
         target = getattr(args, "target", None)
         reference_target = getattr(args, "reference_target", None)
         is_reference_target_same_as_current = reference_target is None or reference_target == getattr(args, "target", None)
+        
+        if not getattr(args, "target_compile", False):
+            logger.info("Skipping target compilation as per configuration.")
+            return
+        else:
+            logger.info("Compiling towards target to generate manifest.json for target state.")
 
         if dbt_project_dir is None:
             logger.error("dbt_project_dir argument is required for target compilation.")
             sys.exit(1)
 
-        if getattr(args, "skip_target_compile", False) is True:
-            logger.info("Skipping target compilation as per configuration.")
-            return
         
         if is_reference_target_same_as_current:
             logger.info("Reference target is the same as current target, skipping separate compilation for target state.")
@@ -72,7 +75,7 @@ def dbt_command_target_compile(args: Namespace, store_cache: bool = True) -> Non
 
         run_dbt_command(
             command_args=resolve_dbt_commands(target_command, args),
-            runner_config=RunnerConfig(args.__dict__)
+            runner_config=cast(RunnerConfig, args.__dict__)
         )
 
         if store_cache:
@@ -101,7 +104,7 @@ def dbt_command_state_modified(args: Namespace):
 
         ls_output = run_dbt_command(
             command_args=commands,
-            runner_config=RunnerConfig(args.__dict__)
+            runner_config=cast(RunnerConfig, args.__dict__)
         )
 
         if ls_output is None:
@@ -151,28 +154,3 @@ def dbt_command_state_modified(args: Namespace):
         return state_change_summary
     except Exception as e:
         raise Exception(f"Error generating state change summary: {str(e)}")
-
-def clone_command(
-    selected_nodes: list[str],
-    args: Namespace
-) -> None:
-    """Helper function to run the dbt command that will create the ephemeral models based on the selected nodes."""
-    try:
-        profile = get_profile(args)
-        threads = profile.get("threads", 5)
-
-        command = resolve_dbt_commands(
-            command_args=["clone", "--select", *selected_nodes, "--threads", str(threads)],
-            args=args
-        )
-
-        logger.debug(f"Running dbt clone command with arguments: {command}")
-
-        run_dbt_command(
-            command_args=command,
-            runner_config=RunnerConfig(args.__dict__)
-        )
-    except Exception as e:
-        logger.error(f"Error running dbt clone command: {str(e)}")
-        print_exception(e)
-        sys.exit(1)
