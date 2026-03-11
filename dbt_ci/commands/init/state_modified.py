@@ -50,12 +50,14 @@ def git_strategy(args: Namespace) -> StateChangeSummary:
 
         # Get modified nodes based on git diff
         for change_type, files in changed_files.items():
-            for file in files:
-                node_info = get_node_from_path(target_dict, file) or get_node_from_path(reference_dict, file)
+            for file_path in files:
+                node_info = get_node_from_path(target_dict, file_path) or get_node_from_path(reference_dict, file_path)
                 if node_info:
                     node_id = node_info.get("unique_id")
                     if node_id:
                         git_modified_nodes[change_type].add(node_id)
+                else:
+                    logger.warning(f"File {file_path} changed according to git but no corresponding node found in either target or reference graph.")
 
         return {
             "modified_nodes": get_structured_modified_nodes(get_nodes(

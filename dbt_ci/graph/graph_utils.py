@@ -238,7 +238,7 @@ def get_node_from_path(dependency_graph: DependencyGraph, path: str) -> dict[str
     for node_type, node_values in dependency_graph.items():
         if node_type == "metadata":
             continue
-        for node_info in node_values.values():
+        for node_info in cast(dict, node_values).values():
             if node_info.get("original_file_path", None) == path:
                 return node_info
     return None
