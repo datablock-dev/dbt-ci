@@ -1,3 +1,5 @@
+from operator import mul
+
 import click
 from dbt_ci.cli import common_options, cli
 from dbt_ci.utilities.namespace import to_namespace
@@ -38,6 +40,15 @@ from dbt_ci.commands.init.index import init
     default=False,
     help="Skip compiling towards reference (production) state"
 )
+@click.option(
+    "--comparison-strategy", "--comparison",
+    envvar=['DBT_COMPARISON_STRATEGY'],
+    default="dbt",
+    type=click.Choice(["dbt", "git", "hybrid"], case_sensitive=False),
+    multiple=False,
+    help="Strategy to use for state comparison (default: dbt). Available options: dbt, git, hybrid"
+)
+# To be deprecated
 @click.option(
     "--no-git",
     envvar=['DBT_NO_GIT'],
