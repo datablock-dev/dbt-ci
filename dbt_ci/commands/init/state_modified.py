@@ -3,6 +3,7 @@ import logging
 from argparse import Namespace, ArgumentParser
 from dbt_ci.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
+from dbt_ci.graph.graph_utils import get_nodes, get_structured_modified_nodes
 from dbt_ci.logging import print_exception
 from dbt_ci.schema import StateChangeSummary
 from dbt_ci.utilities.git import GitAdapter
@@ -13,15 +14,16 @@ def get_state_modified(args: Namespace) -> StateChangeSummary:
     """Determines the modified, new, and deleted nodes compared to the reference state based on the specified comparison strategy."""
     strategy = getattr(args, "comparison_strategy", "dbt")
     
-    if strategy == "git":
-        return git_state_modified(args)
-    elif strategy == "hybrid":
-        return hybrid_state_modified(args)
-    elif strategy == "dbt":
-        return dbt_state_modified(args)
-    else:
-        logger.error(f"Invalid comparison strategy specified: {strategy}. Supported strategies are 'git', 'dbt', and 'hybrid'.")
-        sys.exit(1)
+    match strategy:
+        case "git":
+            return git_state_modified(args)
+        case "hybrid":            
+            return hybrid_state_modified(args)
+        case "dbt":            
+            return dbt_state_modified(args)
+        case _:
+            logger.error(f"Invalid comparison strategy specified: {strategy}. Supported strategies are 'git', 'dbt', and 'hybrid'.")
+            sys.exit(1)
 
 def git_state_modified(args: Namespace) -> StateChangeSummary:
     try:
@@ -53,6 +55,20 @@ def git_state_modified(args: Namespace) -> StateChangeSummary:
                     git_modified_nodes["deleted"].add(node_id) 
 
         
+        return {
+            "modified_nodes": get_structured_modified_nodes(get_nodes(
+                dependency_graph=target_dict, 
+                node_ids=list(git_modified_nodes["modified"])
+            )),
+            "deleted_nodes": get_structured_modified_nodes(get_nodes(
+                dependency_graph=reference_dict, 
+                node_ids=list(git_modified_nodes["deleted"])
+            )),
+            "new_nodes": get_structured_modified_nodes(get_nodes(
+                dependency_graph=target_dict, 
+                node_ids=list(git_modified_nodes["added"])
+            ))
+        }
     except Exception as e:
         print_exception(e, "Error generating state change summary using git strategy")
 
@@ -129,3 +145,27 @@ def dbt_state_modified(args: Namespace) -> StateChangeSummary:
         return state_change_summary
     except Exception as e:
         raise Exception(f"Error generating state change summary: {str(e)}")
+    
+
+if __name__ == "__main__":
+    parser = ArgumentParser(description="Determine modified nodes compared to reference state using git strategy.")
+    parser.add_argument(
+        "--comparison-strategy", 
+        choices=["git", "dbt", "hybrid"], 
+        default="dbt", 
+        help="Strategy to determine modified nodes. 'git' uses git diff, 'dbt' uses dbt's state:modified, and 'hybrid' uses a combination of both."
+    )
+    parser.add_argument(
+        "--dbt-project-dir",
+        type=str,
+        help="Path to the DBT project directory.",
+        default="data-models/dbt"
+    )
+    # Add other necessary arguments here (e.g. dbt_project_dir, reference_target, etc.)
+    args = parser.parse_args()
+
+    try:
+        state_change_summary = get_state_modified(args)
+        print(state_change_summary)
+    except Exception as e:
+        print_exception(e, "Error determining modified nodes")
