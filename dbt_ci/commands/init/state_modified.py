@@ -19,18 +19,17 @@ class CommonStateChangeSummary(TypedDict):
 
 def get_state_modified(args: Namespace) -> StateChangeSummary:
     """Determines the modified, new, and deleted nodes compared to the reference state based on the specified comparison strategy."""
-    strategy = getattr(args, "comparison_strategy", "dbt")
+    strategy = getattr(args, "comparison_strategy")
     
-    match strategy:
-        case "git":
-            return git_strategy(args)
-        case "hybrid":            
-            return hybrid_strategy(args)
-        case "dbt":            
-            return dbt_strategy(args)
-        case _:
-            logger.error(f"Invalid comparison strategy specified: {strategy}. Supported strategies are 'git', 'dbt', and 'hybrid'.")
-            sys.exit(1)
+    if strategy == "git":
+        return git_strategy(args)
+    elif strategy == "hybrid":
+        return hybrid_strategy(args)
+    elif strategy == "dbt":
+        return dbt_strategy(args)
+    else:
+        logger.error(f"Invalid comparison strategy specified: {strategy}. Supported strategies are 'git', 'dbt', and 'hybrid'.")
+        sys.exit(1)
 
 def git_strategy(args: Namespace) -> StateChangeSummary:
     try:
