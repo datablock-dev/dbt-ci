@@ -1,5 +1,6 @@
+import sys
 import logging
-from argparse import Namespace
+from argparse import Namespace, ArgumentParser
 from dbt_ci.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.logging import print_exception
@@ -8,34 +9,57 @@ from dbt_ci.utilities.git import GitAdapter
 
 logger = logging.getLogger(__name__)
 
+def get_state_modified(args: Namespace) -> StateChangeSummary:
+    """Determines the modified, new, and deleted nodes compared to the reference state based on the specified comparison strategy."""
+    strategy = getattr(args, "comparison_strategy", "dbt")
+    
+    if strategy == "git":
+        return git_state_modified(args)
+    elif strategy == "hybrid":
+        return hybrid_state_modified(args)
+    elif strategy == "dbt":
+        return dbt_state_modified(args)
+    else:
+        logger.error(f"Invalid comparison strategy specified: {strategy}. Supported strategies are 'git', 'dbt', and 'hybrid'.")
+        sys.exit(1)
+
 def git_state_modified(args: Namespace) -> StateChangeSummary:
     try:
         git = GitAdapter(args)
         cache = CacheManager(args)
         target_graph = DbtGraph(args)
+        target_dict = target_graph.to_dict()
         reference_graph = DbtGraph(args, is_reference=True)
+        reference_dict = reference_graph.to_dict()
         changed_files = git.get_changed_files()
-        modified_nodes = set()
+        
+        git_modified_nodes = {
+            "modified": set(),
+            "added": set(),
+            "deleted": set()
+        }
+
+        print(changed_files)
 
         # Get modified nodes based on git diff
-        for node_type, node_values in target_graph.to_dict().items():
+        for node_values in target_dict.values():
             for node_id, node_info in node_values.items():
                 file_path = node_info['original_file_path']
                 if file_path in changed_files["modified"]:
-                    modified_nodes.add(node_id)
-                elif 
+                    git_modified_nodes["modified"].add(node_id)
+                elif file_path in changed_files["added"]:
+                    git_modified_nodes["added"].add(node_id)
+                elif file_path in changed_files["deleted"]:
+                    git_modified_nodes["deleted"].add(node_id) 
 
-        return StateChangeSummary(
-            modified_nodes=list(modified_nodes),
-            deleted_nodes=[],
-            new_nodes=[]
-        )
+        
     except Exception as e:
         print_exception(e, "Error generating state change summary using git strategy")
 
 
 def hybrid_state_modified(args: Namespace):
-
+    """Determines modified nodes using dbt state:modified and then cross-references with git diff to filter out nodes that are not actually modified based on file changes."""
+    pass
 
 def dbt_state_modified(args: Namespace) -> StateChangeSummary:
     """Compile the DBT project and return a list of modified nodes compared to the reference state."""
