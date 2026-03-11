@@ -1,4 +1,8 @@
-from dbt_ci.schema import DependencyGraphNodeType
+from argparse import Namespace
+from typing import Literal, cast
+
+from dbt_ci.cache import CacheManager
+from dbt_ci.schema import DbtCiManifest, DependencyGraphNodeType
 
 dependency_graph_node_type: list[DependencyGraphNodeType] = [
     "model", 
@@ -33,3 +37,19 @@ def exclude_flag(include: list[DependencyGraphNodeType] | None) -> list[str]:
                 exclude_flags.add(default_list[node_type])
     
     return list(exclude_flags)
+
+def get_target(args: Namespace, target: Literal["target", "reference_target"]) -> str | None:
+    """Get the target from the Namespace, checking both 'target' and 'reference_target' keys."""
+    cache = CacheManager(args)
+    cache_manifest = cast(DbtCiManifest, cache.get_cache())
+    
+    cache_target = cache_manifest.get("config", {}).get(target, {}).get("target", None)
+    return getattr(args, target, cache_target)
+
+def get_vars(args: Namespace, target: Literal["vars", "reference_vars"]) -> dict | None:
+    """Get the vars from the Namespace, checking both 'vars' and 'reference_vars' keys."""
+    cache = CacheManager(args)
+    cache_manifest = cast(DbtCiManifest, cache.get_cache())
+    
+    cache_vars = cache_manifest.get("config", {}).get(target, {}).get("vars", None)
+    return getattr(args, target, cache_vars)

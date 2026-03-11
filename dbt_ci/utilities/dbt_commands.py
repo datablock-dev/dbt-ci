@@ -6,10 +6,9 @@ from typing import cast
 from dbt_ci.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.utilities.git import GitAdapter
-from dbt_ci.logging import print_exception
 from dbt_ci.schema import RunnerConfig, StateChangeSummary
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
-from dbt_ci.utilities.paths import get_manifest_file, get_profile
+from dbt_ci.utilities.paths import get_manifest_file
 from dbt_ci.graph.graph_utils import get_deleted_nodes, get_new_nodes, get_nodes, get_structured_modified_nodes
 
 logger = logging.getLogger(__name__)
@@ -55,14 +54,17 @@ def dbt_command_target_compile(args: Namespace, store_cache: bool = True) -> Non
         target = getattr(args, "target", None)
         reference_target = getattr(args, "reference_target", None)
         is_reference_target_same_as_current = reference_target is None or reference_target == getattr(args, "target", None)
+        
+        if not getattr(args, "target_compile", False):
+            logger.info("Skipping target compilation as per configuration.")
+            return
+        else:
+            logger.info("Compiling towards target to generate manifest.json for target state.")
 
         if dbt_project_dir is None:
             logger.error("dbt_project_dir argument is required for target compilation.")
             sys.exit(1)
 
-        if getattr(args, "skip_target_compile", False) is True:
-            logger.info("Skipping target compilation as per configuration.")
-            return
         
         if is_reference_target_same_as_current:
             logger.info("Reference target is the same as current target, skipping separate compilation for target state.")
