@@ -49,9 +49,18 @@ def git_strategy(args: Namespace) -> StateChangeSummary:
         print(changed_files)
 
         # Get modified nodes based on git diff
-        for node_values in target_dict.values():
+        for key, node_values in target_dict.items():
+            # Skip metadata nodes as they do not correspond to actual dbt models, snapshots, or tests 
+            # and can be modified without changes to the underlying files.
+            if key == "metadata":
+                continue
+
             for node_id, node_info in node_values.items():
-                file_path = node_info['original_file_path']
+                file_path = node_info.get('original_file_path', None)
+                if file_path is None:
+                    logger.warning(f"Node {node_id} does not have an original_file_path. Skipping git comparison for this node.")
+                    continue
+                
                 if file_path in changed_files["modified"]:
                     git_modified_nodes["modified"].add(node_id)
                 elif file_path in changed_files["added"]:
@@ -89,7 +98,6 @@ def hybrid_strategy(args: Namespace):
         modified_node_ids = data["modified_node_ids"]
         deleted_node_ids = data["deleted_node_ids"]
         new_node_ids = data["new_node_ids"]
-
 
         # Compare against git diff to determine what has been modified vs what is new
         temp_modified_nodes = get_nodes(
