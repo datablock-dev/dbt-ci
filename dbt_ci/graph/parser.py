@@ -119,6 +119,30 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             manifest_file=manifest_file
         )
 
+    # Macros don't appear as keys in child_map, so populate them directly from
+    # the manifest's macros section so path-based lookups can find them.
+    for macro_id, macro_item in manifest_file.get("macros", {}).items():
+        macro_name = macro_item.get("name")
+        if macro_name and macro_name not in dependency_graph["macro"]:
+            dependency_graph["macro"][macro_name] = {
+                "name": macro_name,
+                "id": macro_id,
+                "database": None,
+                "schema": None,
+                "resource_type": "macro",
+                "original_file_path": macro_item.get("original_file_path"),
+                "compiled_path": None,
+                "compiled_code": None,
+                "config": {},
+                "columns": set(),
+                "materialized": None,
+                "incremental_strategy": None,
+                "downstream_dependencies": skeleton_dependencies_structure(),
+                "upstream_dependencies": skeleton_dependencies_structure(),
+                "indirect_upstream_dependencies": skeleton_dependencies_structure(),
+                "indirect_downstream_dependencies": skeleton_dependencies_structure(),
+            }
+
     append_upstream_dependencies(dependency_graph, manifest_file)
     append_indirect_dependencies(dependency_graph, "upstream")
     append_indirect_dependencies(dependency_graph, "downstream")

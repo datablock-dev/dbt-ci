@@ -55,7 +55,7 @@ def git_strategy(args: Namespace) -> StateChangeSummary:
                     if node_id:
                         git_modified_nodes[change_type].add(node_id)
                 else:
-                    logger.warning(f"File {file_path} changed according to git but no corresponding node found in either target or reference graph.")
+                    logger.debug(f"File {file_path} changed according to git but no corresponding node found in either target or reference graph (e.g. macro, schema YAML, or non-dbt file).")
 
         return {
             "modified_nodes": get_structured_modified_nodes(get_nodes(
