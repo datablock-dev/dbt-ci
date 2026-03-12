@@ -212,3 +212,5 @@ dbt
 dependency_graph.json
 logs
 dbt.duckdb
+
+dbt-ci.config.yaml
