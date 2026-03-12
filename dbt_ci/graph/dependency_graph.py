@@ -38,7 +38,11 @@ class DbtGraph:
                 manifest_file=get_manifest_file(self.dbt_project_dir) if not self.is_reference 
                 else get_reference_manifest_file(self.args.reference_state),
             )
-        else: # We retrive manifest file from cache
+        # We retrive manifest file from cache
+        # Potential improvements would be to only store the dependency graph in cache
+        # to avoid having to read and parse the entire manifest file each time this class is 
+        # initialized, which can be costly for large projects.
+        else:
             manifest_file = cache.get_cache("target_manifest.json" if not self.is_reference else "reference_manifest.json")
             self.dependency_graph = generate_dependency_graph(cast(DBTManifest, manifest_file))
 
