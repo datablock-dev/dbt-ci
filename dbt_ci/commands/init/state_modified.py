@@ -46,8 +46,6 @@ def git_strategy(args: Namespace) -> StateChangeSummary:
             "deleted": set()
         }
 
-        print(changed_files)
-
         # Get modified nodes based on git diff
         for change_type, files in changed_files.items():
             for file_path in files:
