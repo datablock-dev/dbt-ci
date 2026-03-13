@@ -39,6 +39,7 @@ def init(args: Namespace):
         click.secho("DBT CI Initialization", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager(args)
+        state_modified = StateModified(args)
         cache.start_report("init", args)
         dbt_project_dir = getattr(args, "dbt_project_dir", None)
         reference_target = getattr(args, "reference_target", None)
@@ -64,13 +65,12 @@ def init(args: Namespace):
         
         # Compile dbt and generate reference manifest.json file
         dbt_command_reference_compile(args)
-        state_modified = StateModified(args)
 
         target_manifest_file = get_manifest_file(dbt_project_dir)
         state_change_summary = state_modified.get_state_modified()
         cache.write_cache(state_change_summary)
 
-        if reference_target is not None and reference_target != getattr(args, "target", None):
+        if reference_target and reference_target != getattr(args, "target", None):
             # Different targets - will compile again later with actual target
             cache.write_target_manifest(target_manifest_file)
         else:

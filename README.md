@@ -315,6 +315,35 @@ dbt-ci run \
 
 These flags are available on **every** command.
 
+### Configuration File
+
+dbt-ci supports a `dbt-ci.config.yaml` file as an alternative to passing every flag on the command line. It is loaded before any other options so that CLI flags and shell environment variables always take precedence.
+
+**Default location:** `dbt-ci.config.yaml` in the current working directory (override with `--config` / `DBT_CONFIG`).
+
+Keys in the file correspond to the environment variable names of each flag:
+
+```yaml
+# dbt-ci.config.yaml
+DBT_RUNNER: docker
+DBT_DOCKER_IMAGE: docker.pkg.dev/my-project/dbt:latest
+DBT_PROJECT_DIR: dbt
+DBT_STATE: dbt/state
+DBT_REFERENCE_TARGET: prod
+DBT_DOCKER_VOLUMES: "$(pwd)/dbt:/dbt"
+DBT_DOCKER_ENV: "DBT_PROFILES_DIR=/dbt,GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}"
+```
+
+**Precedence (highest → lowest):**
+1. Shell environment variables
+2. CLI flags
+3. `dbt-ci.config.yaml`
+4. Built-in defaults
+
+`${VAR_NAME}` references inside the config file are resolved from the shell environment at load time.
+
+> **Note:** `dbt-ci.config.yaml` is ignored by git by default (it is listed in `.gitignore`). Use it for local developer overrides and commit a `.example` variant for your team.
+
 ### Core
 
 | Flag | Aliases | Env Var(s) | Default | Description |
