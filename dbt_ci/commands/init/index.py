@@ -14,7 +14,7 @@ from dbt_ci.cache import CacheManager
 from dbt_ci.logging import print_exception
 from dbt_ci.connectors import init_storage_connector
 from dbt_ci.graph.graph_utils import get_downstream_dependencies
-from dbt_ci.commands.init.state_modified import get_state_modified
+from dbt_ci.commands.init.state_modified import StateModified, get_state_modified
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 from dbt_ci.schema import DependencyGraphNode, StateChangeSummary, StorageConnectorConfig
 from dbt_ci.utilities.dbt_commands import dbt_command_reference_compile, dbt_command_target_compile
@@ -64,9 +64,10 @@ def init(args: Namespace):
         
         # Compile dbt and generate reference manifest.json file
         dbt_command_reference_compile(args)
-        
+        state_modified = StateModified(args)
+
         target_manifest_file = get_manifest_file(dbt_project_dir)
-        state_change_summary = get_state_modified(args)
+        state_change_summary = state_modified.get_state_modified()
         cache.write_cache(state_change_summary)
 
         if reference_target is not None and reference_target != getattr(args, "target", None):
