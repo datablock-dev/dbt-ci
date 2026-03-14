@@ -10,7 +10,6 @@ from dbt_ci.connectors.google.bigquery import (
     bigquery_create_tables,
     bigquery_delete_datasets,
     bigquery_delete_tables,
-    bigquery_ephemeral_strategy,
     bigquery_delete_strategy,
     bigquery_migration_strategy,
     bigquery_query
@@ -26,7 +25,7 @@ bigquery_storage_connector: StorageConnectorConfig = {
 bigquery_db_connector: ConnectorConfig = {
     "client": bigquery_client,
     "strategies": {
-        "ephemeral": bigquery_ephemeral_strategy,
+        #"ephemeral": bigquery_ephemeral_strategy,
         "delete": bigquery_delete_strategy,
         "migration": bigquery_migration_strategy
     },

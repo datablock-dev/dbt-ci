@@ -1,11 +1,9 @@
 """Generic SQLAlchemy-based SQL connector for dbt CI."""
 import logging
-import click
 from sqlalchemy import Engine, text
 from sqlalchemy.schema import CreateSchema, DropSchema
 
 logger = logging.getLogger(__name__)
-
 
 class SqlConnector:
     """
@@ -28,33 +26,33 @@ class SqlConnector:
     def create_datasets(self, schemas: set[str], dry_run: bool = False) -> None:
         """Create schemas (datasets) if they do not already exist."""
         if not schemas:
-            click.echo("No schemas to create.")
+            logger.info("No schemas to create.")
             return
-        click.echo("Creating schemas:")
+        logger.info("Creating schemas:")
         for schema in schemas:
-            click.echo(f"  - {schema}")
+            logger.info(f"  - {schema}")
         if dry_run:
-            click.echo("Dry run mode — no schemas will be created.")
+            logger.info("Dry run mode — no schemas will be created.")
             return
         with self.engine.connect() as conn:
             for schema in schemas:
                 try:
                     conn.execute(CreateSchema(schema, if_not_exists=True))
                     conn.commit()
-                    click.echo(f"Schema '{schema}' created.")
+                    logger.info(f"Schema '{schema}' created.")
                 except Exception as e:
                     raise RuntimeError(f"Failed to create schema '{schema}': {e}")
 
     def delete_datasets(self, schemas: set[str], dry_run: bool = False) -> None:
         """Drop schemas (datasets), including all their contents."""
         if not schemas:
-            click.echo("No schemas to delete.")
+            logger.info("No schemas to delete.")
             return
-        click.echo("Deleting schemas:")
+        logger.info("Deleting schemas:")
         for schema in schemas:
-            click.echo(f"  - {schema}")
+            logger.info(f"  - {schema}")
         if dry_run:
-            click.echo("Dry run mode — no schemas will be deleted.")
+            logger.info("Dry run mode — no schemas will be deleted.")
             return
         # MySQL does not support CASCADE on DROP SCHEMA
         cascade = self.engine.dialect.name != "mysql"
@@ -63,7 +61,7 @@ class SqlConnector:
                 try:
                     conn.execute(DropSchema(schema, cascade=cascade, if_exists=True))
                     conn.commit()
-                    click.echo(f"Schema '{schema}' deleted.")
+                    logger.info(f"Schema '{schema}' deleted.")
                 except Exception as e:
                     raise RuntimeError(f"Failed to delete schema '{schema}': {e}")
 
@@ -76,33 +74,33 @@ class SqlConnector:
             dry_run: If True, log what would be created without executing.
         """
         if not table_sqls:
-            click.echo("No tables to create.")
+            logger.info("No tables to create.")
             return
-        click.echo("Creating tables:")
+        logger.info("Creating tables:")
         for table_id in table_sqls:
-            click.echo(f"  - {table_id}")
+            logger.info(f"  - {table_id}")
         if dry_run:
-            click.echo("Dry run mode — no tables will be created.")
+            logger.info("Dry run mode — no tables will be created.")
             return
         with self.engine.connect() as conn:
             for table_id, sql in table_sqls.items():
                 try:
                     conn.execute(text(sql))
                     conn.commit()
-                    click.echo(f"Table '{table_id}' created.")
+                    logger.info(f"Table '{table_id}' created.")
                 except Exception as e:
                     raise RuntimeError(f"Failed to create table '{table_id}': {e}")
 
     def delete_tables(self, table_ids: set[str], dry_run: bool = False) -> None:
         """Drop tables if they exist."""
         if not table_ids:
-            click.echo("No tables to delete.")
+            logger.info("No tables to delete.")
             return
-        click.echo("Deleting tables:")
+        logger.info("Deleting tables:")
         for table_id in table_ids:
-            click.echo(f"  - {table_id}")
+            logger.info(f"  - {table_id}")
         if dry_run:
-            click.echo("Dry run mode — no tables will be deleted.")
+            logger.info("Dry run mode — no tables will be deleted.")
             return
         prep = self.engine.dialect.identifier_preparer
         with self.engine.connect() as conn:
@@ -113,6 +111,6 @@ class SqlConnector:
                 try:
                     conn.execute(text(f"DROP TABLE IF EXISTS {quoted}"))
                     conn.commit()
-                    click.echo(f"Table '{table_id}' deleted.")
+                    logger.info(f"Table '{table_id}' deleted.")
                 except Exception as e:
                     raise RuntimeError(f"Failed to delete table '{table_id}': {e}")

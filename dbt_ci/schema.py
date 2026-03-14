@@ -427,7 +427,6 @@ type EphemeralConnectors = dict[
 
 class ConnectorStrategiesConfig(TypedDict):
     """Configuration for supported connector strategies."""
-    ephemeral: Callable[[dict[str, EphemeralMapNode], Namespace], None] # To be deprecated
     delete: Callable[[dict[str, DeleteMapNode], Namespace], None]
     migration: Callable[..., Any] # Fix
 
