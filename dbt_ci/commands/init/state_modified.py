@@ -133,12 +133,8 @@ class StateModified:
                     exclude_node_ids=list(git_modified_nodes["added"])
                 ))
             }
-            import json
 
-            with open("debug_modified_nodes_dbt.json", "w") as f:
-                json.dump(structured_modified_nodes_dbt, f, indent=2)
-            with open("debug_modified_nodes_git.json", "w") as f:
-                json.dump({
+            no_filter_structured_modified_nodes_dbt: StateChangeSummary = {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(
                     dependency_graph=target_graph, 
                     node_ids=list(modified_nodes_dbt["modified_node_ids"]),
@@ -154,7 +150,18 @@ class StateModified:
                     node_ids=list(modified_nodes_dbt["new_node_ids"]),
                     #exclude_node_ids=list(git_modified_nodes["added"])
                 ))
-            }, f, indent=2)
+            }
+            
+            print("Without filter")
+            for keys, data in no_filter_structured_modified_nodes_dbt.items():
+                data = cast(dict, data)
+                print(data.keys())
+
+            print("with filter:")
+            for keys, data in no_filter_structured_modified_nodes_dbt.items():
+                data = cast(dict, data)
+                print(data.keys())
+
             # Now we resolve the ones that are unmatched
             print("Unmatched nodes from git diff that were not found in dbt state:modified output:")
             for change_type, files in unmatched_nodes.items():
