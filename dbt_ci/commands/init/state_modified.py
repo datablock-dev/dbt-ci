@@ -4,11 +4,17 @@ from argparse import Namespace
 from typing import Literal, TypedDict, cast
 from dbt_ci.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
-from dbt_ci.graph.graph_utils import get_deleted_nodes, get_new_nodes, get_node_from_path, get_nodes, get_structured_modified_nodes
 from dbt_ci.logging import print_exception
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
 from dbt_ci.schema import RunnerConfig, StateChangeSummary, StateChangeSummaryKeys
 from dbt_ci.utilities.git import GitAdapter, GitChangeType
+from dbt_ci.graph.graph_utils import (
+    get_deleted_nodes,
+    get_new_nodes,
+    get_node_from_path,
+    get_nodes,
+    get_structured_modified_nodes
+)
 
 logger = logging.getLogger(__name__)
 
