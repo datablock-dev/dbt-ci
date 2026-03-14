@@ -16,13 +16,13 @@ logger = logging.getLogger(__name__)
 def dbt_command_reference_compile(args: Namespace) -> None:
     """Compile the reference DBT project to generate the manifest.json."""
     try:
-        command = ["compile"]
 
-        if getattr(args, "skip_reference_compile", False) is True:
+        if getattr(args, "skip_reference_compile", False):
             logger.info("Skipping reference compilation as per configuration.")
             return
 
         # This function can be called separately if users want to compile towards reference state independently, but by default it will be called during init if a different reference target is specified.
+        command = ["compile"]
         reference_target = getattr(args, "reference_target", None)
         reference_vars = getattr(args, "reference_vars", None)
         if reference_target is None:
@@ -56,15 +56,17 @@ def dbt_command_target_compile(args: Namespace, store_cache: bool = True) -> Non
         is_reference_target_same_as_current = reference_target is None or reference_target == getattr(args, "target", None)
         
         if not getattr(args, "target_compile", False):
-            logger.info("Skipping target compilation as per configuration.")
+            # Removed now that skipping target compilation is the default behavior 
+            # and users have to explicitly opt-in to compile towards target state by setting 
+            # --target-compile flag to true.
+            #logger.info("Skipping target compilation as per configuration.")
             return
-        else:
-            logger.info("Compiling towards target to generate manifest.json for target state.")
+
+        logger.info("Compiling towards target to generate manifest.json for target state.")
 
         if dbt_project_dir is None:
             logger.error("dbt_project_dir argument is required for target compilation.")
             sys.exit(1)
-
         
         if is_reference_target_same_as_current:
             logger.info("Reference target is the same as current target, skipping separate compilation for target state.")
@@ -86,6 +88,11 @@ def dbt_command_target_compile(args: Namespace, store_cache: bool = True) -> Non
         logger.error("Error during target compilation", exc_info=True)
         sys.exit(1)
 
+"""
+    To be deprecated and replaced by state_modified.py in commands/init/state_modified.py 
+    which will be more comprehensive and accepts --comparison-strategy argument to 
+    determine how to compare state (e.g. git diff vs dbt ls state:modified)
+"""
 def dbt_command_state_modified(args: Namespace):
     """Compile the DBT project and return a list of modified nodes compared to the reference state."""
     try:
@@ -121,7 +128,7 @@ def dbt_command_state_modified(args: Namespace):
         truly_modified_nodes = [n for n in modified_nodes if n not in new_node_ids and n not in deleted_node_ids]
 
         # Compare against git diff to determine what has been modified vs what is new
-        if getattr(args, "no_git", False) is False and len(changed_files.keys()) > 0:
+        if getattr(args, "comparison_strategy") in ("git", "hybrid") and len(changed_files.keys()) > 0:
             temp_modified_nodes = get_nodes(
                 dependency_graph=target_graph_dict,
                 node_ids=truly_modified_nodes

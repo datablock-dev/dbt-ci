@@ -11,7 +11,7 @@ class TestInitCommand:
     @patch('dbt_ci.commands.init.index.CacheManager')
     @patch('dbt_ci.commands.init.index.init_storage_connector')
     @patch('dbt_ci.commands.init.index.dbt_command_reference_compile')
-    @patch('dbt_ci.commands.init.index.dbt_command_state_modified')
+    @patch('dbt_ci.commands.init.index.StateModified')
     @patch('dbt_ci.commands.init.index.dbt_command_target_compile')
     @patch('dbt_ci.commands.init.index.DbtGraph')
     @patch('dbt_ci.commands.init.index.get_manifest_file')
@@ -33,8 +33,8 @@ class TestInitCommand:
         mock_cache.return_value = mock_cache_instance
         mock_storage.return_value = None
         
-        # Simulate dbt_command_state_modified finding no modified nodes and exiting
-        mock_dbt_state.side_effect = SystemExit(0)
+        # Simulate StateModified.get_state_modified finding no modified nodes and exiting
+        mock_dbt_state.return_value.get_state_modified.side_effect = SystemExit(0)
         
         # Mock DbtGraph
         mock_graph_instance = MagicMock()
@@ -63,7 +63,7 @@ class TestInitCommand:
     @patch('dbt_ci.commands.init.index.CacheManager')
     @patch('dbt_ci.commands.init.index.init_storage_connector')
     @patch('dbt_ci.commands.init.index.dbt_command_reference_compile')
-    @patch('dbt_ci.commands.init.index.dbt_command_state_modified')
+    @patch('dbt_ci.commands.init.index.StateModified')
     @patch('dbt_ci.commands.init.index.dbt_command_target_compile')
     @patch('dbt_ci.commands.init.index.DbtGraph')
     @patch('dbt_ci.commands.init.index.get_manifest_file')
@@ -87,8 +87,8 @@ class TestInitCommand:
         mock_cache.return_value = mock_cache_instance
         mock_storage.return_value = None
         
-        # Mock dbt_command_state_modified to return a StateChangeSummary
-        mock_dbt_state.return_value = {
+        # Mock StateModified.get_state_modified to return a StateChangeSummary
+        mock_dbt_state.return_value.get_state_modified.return_value = {
             "modified_nodes": {"model": {"model.project.model1": {"name": "model1", "resource_type": "model"}}},
             "deleted_nodes": {},
             "new_nodes": {}
@@ -123,7 +123,7 @@ class TestInitCommand:
         mock_ref_compile.assert_called_once()
         
         # Verify state modified was called
-        mock_dbt_state.assert_called_once()
+        mock_dbt_state.return_value.get_state_modified.assert_called_once()
     
     @patch('dbt_ci.commands.init.index.CacheManager')
     @patch('dbt_ci.commands.init.index.click.secho')
@@ -154,7 +154,7 @@ class TestInitCommand:
     @patch('dbt_ci.commands.init.index.CacheManager')
     @patch('dbt_ci.commands.init.index.init_storage_connector')
     @patch('dbt_ci.commands.init.index.dbt_command_reference_compile')
-    @patch('dbt_ci.commands.init.index.dbt_command_state_modified')
+    @patch('dbt_ci.commands.init.index.StateModified')
     @patch('dbt_ci.commands.init.index.dbt_command_target_compile')
     @patch('dbt_ci.commands.init.index.DbtGraph')
     @patch('dbt_ci.commands.init.index.get_manifest_file')
@@ -176,8 +176,8 @@ class TestInitCommand:
         mock_cache.return_value = mock_cache_instance
         mock_storage.return_value = None
         
-        # Simulate dbt_command_state_modified finding no modified nodes and exiting
-        mock_dbt_state.side_effect = SystemExit(0)
+        # Simulate StateModified.get_state_modified finding no modified nodes and exiting
+        mock_dbt_state.return_value.get_state_modified.side_effect = SystemExit(0)
         
         # Mock DbtGraph
         mock_graph_instance = MagicMock()
@@ -209,11 +209,11 @@ class TestInitCommand:
 class TestResolveManifestFromStorage:
     """Test the resolve_manifest_file_from_storage helper function."""
     
-    @patch('dbt_ci.commands.init.index.Path')
-    @patch('dbt_ci.commands.init.index.logger')
+    @patch('dbt_ci.commands.init.resolve_manifest.Path')
+    @patch('dbt_ci.commands.init.resolve_manifest.logger')
     def test_resolve_manifest_creates_directory(self, mock_logger, mock_path):
         """Test that the function creates the necessary directory."""
-        from dbt_ci.commands.init.index import resolve_manifest_file_from_storage
+        from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
         
         # Setup mocks
         storage_connector = {

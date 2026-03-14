@@ -5,18 +5,19 @@ This module contains the implementation of the `init` command for the dbt CI too
 import json
 import sys
 import logging
-from pathlib import Path
 from argparse import Namespace
+from typing import cast
 import click
-from dbt_ci.adapters.slack import SlackClient
+from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.cache import CacheManager
-from dbt_ci.schema import StateChangeSummary, StorageConnectorConfig
 from dbt_ci.logging import print_exception
 from dbt_ci.connectors import init_storage_connector
-from dbt_ci.utilities.dbt_commands import dbt_command_reference_compile, dbt_command_target_compile, dbt_command_state_modified
-from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 from dbt_ci.graph.graph_utils import get_downstream_dependencies
+from dbt_ci.commands.init.state_modified import StateModified
+from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
+from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
+from dbt_ci.utilities.dbt_commands import dbt_command_reference_compile, dbt_command_target_compile
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +39,17 @@ def init(args: Namespace):
         click.secho("DBT CI Initialization", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
         cache = CacheManager(args)
+        state_modified = StateModified(args)
         cache.start_report("init", args)
+        dbt_project_dir = getattr(args, "dbt_project_dir", None)
         reference_target = getattr(args, "reference_target", None)
         reference_state_path: str | None = getattr(args, "reference_state", None)
         resolved_storage = init_storage_connector(getattr(args, "state_uri", None))
+
+        # Exit if dbt_project_dir is not provided
+        if dbt_project_dir is None:
+            logger.error("No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument.")
+            sys.exit(1)
 
         if resolved_storage is not None:
             if reference_state_path is None:
@@ -54,26 +62,21 @@ def init(args: Namespace):
             
             # Reload reference manifest file after downloading from storage
             cache.write_reference_manifest(get_reference_manifest_file(reference_state_path))
-
-        # Generate reference manifest.json file
-        # if reference target is passed
+        
+        # Compile dbt and generate reference manifest.json file
         dbt_command_reference_compile(args)
 
-        dbt_project_dir = getattr(args, "dbt_project_dir", None)
-        if dbt_project_dir is None:
-            logger.error("No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument.")
-            sys.exit(1)
-        
         target_manifest_file = get_manifest_file(dbt_project_dir)
-        state_change_summary = dbt_command_state_modified(args)
+        state_change_summary = state_modified.get_state_modified()
         cache.write_cache(state_change_summary)
 
-        if reference_target is not None and reference_target != getattr(args, "target", None):
+        if reference_target and reference_target != getattr(args, "target", None):
             # Different targets - will compile again later with actual target
             cache.write_target_manifest(target_manifest_file)
         else:
             # Same target or no reference target specified - reference and target are the same
-            logger.debug("Reference target is the same as current target, using the same manifest for both reference and target state.")
+            logger.debug("Reference target is the same as current target!")
+            logger.debug("Using the same manifest for both reference and target state.")
             cache.write_reference_manifest(target_manifest_file)
             cache.write_target_manifest(target_manifest_file)
 
@@ -83,7 +86,7 @@ def init(args: Namespace):
         init_summary(state_change_summary, args)
 
         # This method has issues and needs to be resolved before being reintroduced
-        #detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
+        detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
@@ -106,13 +109,14 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
         2. Generate migration plan for modified nodes with partitioning changes
         3. Generate ephemeral plan for modified nodes with non-partitioning changes
     """
-    slack = SlackClient(args)
+    #slack = SlackClient(args)
     #migration_map = generate_migration_map(args, cache)
     #ephemeral_map = generate_ephemeral_map(args, cache)
 
     logger.info("\n------------------------------------------------------")
     logger.info("State Change Summary:")
     for change_type, values in state_change_summary.items():
+        values = cast(dict[str, DependencyGraphNode], values)
         if values is None or len(values) == 0:
             logger.info(f"\n{change_type.replace('_', ' ').title()}: 0")
             continue
@@ -121,6 +125,7 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
         logger.info(f"\n{change_type.replace('_', ' ').title()}: {total_count}")
         for node_dict in values.values():
             for node in node_dict.values():
+                node = cast(DependencyGraphNode, node)
                 logger.info(f"  • {node['name']} ({node['resource_type']})")
     logger.info("\n------------------------------------------------------")
 
@@ -130,46 +135,9 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
         message = "*State Change Summary:*\n"
         message += json.dumps(state_change_summary, indent=2)
         message += "\n\n"
-        slack.send_message(header, message)
+        #slack.send_message(header, message)
     except Exception as e:
         logger.error(f"Failed to send Slack message: {e}")
-
-def resolve_manifest_file_from_storage(
-    resolved_storage: tuple[StorageConnectorConfig, str],
-    args: Namespace
-) -> Path:
-    """Download manifest file from storage and save to local path for graph generation.
-    
-    Returns:
-        Path: The local directory path where the manifest was saved
-    """
-    cwd = Path.cwd()
-    storage_connector, state_uri = resolved_storage
-    logger.info(f"Using storage connector '{storage_connector.get('name', 'Unknown')}' for state management with URI: {state_uri}")
-    reference_manifest = storage_connector["download"](state_uri)
-    dbtstate_dir: Path | None = None
-    dbt_project_dir = getattr(args, "dbt_project_dir", None)
-    reference_state = getattr(args, "reference_state", None)
-
-    # Write and download manifest to path
-    # When using Docker, always use the local dbt_project_dir/.dbtstate path on host
-    if getattr(args, "runner", None) == "docker" or reference_state is None:
-        dbtstate_dir = cwd / dbt_project_dir / ".dbtstate" # Default
-    else:
-        dbtstate_dir = cwd / reference_state
-
-    if dbtstate_dir is None:
-        logger.error("No valid path found for downloading manifest file. Please specify a valid --state path or ensure your dbt_project_dir is correct.")
-        sys.exit(1)
-
-    Path(dbtstate_dir).mkdir(parents=True, exist_ok=True)
-    manifest_path = dbtstate_dir / "manifest.json"
-
-    with open(manifest_path, "w", encoding="utf-8") as f:
-        f.write(json.dumps(reference_manifest, indent=2))
-    logger.info(f"Reference manifest successfully downloaded and saved to {manifest_path}")
-
-    return dbtstate_dir
 
 def detect_deleted_models_with_downstream_dependencies(
     state_change_summary: StateChangeSummary,

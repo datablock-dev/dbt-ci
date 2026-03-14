@@ -1,5 +1,7 @@
+from operator import mul
+
 import click
-from dbt_ci.cli import common_options, cli
+from dbt_ci.main import common_options, cli
 from dbt_ci.utilities.namespace import to_namespace
 from dbt_ci.logging import setup_logging
 from dbt_ci.commands.init.index import init
@@ -39,11 +41,12 @@ from dbt_ci.commands.init.index import init
     help="Skip compiling towards reference (production) state"
 )
 @click.option(
-    "--no-git",
-    envvar=['DBT_NO_GIT'],
-    is_flag=True,
-    default=False,
-    help="Whether to skip git comparison"
+    "--comparison-strategy", "--comparison",
+    envvar=['DBT_COMPARISON_STRATEGY'],
+    default="hybrid",
+    type=click.Choice(["dbt", "git", "hybrid"], case_sensitive=False),
+    multiple=False,
+    help="Strategy to use for state comparison (default: hybrid). Available options: dbt, git, hybrid"
 )
 def init_cmd(**kwargs):
     """Initialize dbt CI state
