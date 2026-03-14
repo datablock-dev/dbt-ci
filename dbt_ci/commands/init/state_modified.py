@@ -87,6 +87,8 @@ class StateModified:
             modified_nodes_dbt = self.common_state_change()
             changed_files = git.get_changed_files()
 
+            new_nodes = get_new_nodes(reference_graph, target_graph)
+
             git_modified_nodes = {
                 "modified": set(),
                 "added": set(),
@@ -164,6 +166,10 @@ class StateModified:
             for change_type, files in unmatched_nodes.items():
                 if len(files) > 0:
                     logger.debug(f"Unmatched files for change type '{change_type}': {files}")
+
+            # For debugging, lets remove it later
+            print("****************** NEW NODES ******************")
+            print(new_nodes)
 
             return {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(

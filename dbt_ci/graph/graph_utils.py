@@ -12,7 +12,7 @@ def get_deleted_nodes(
     """Get deleted nodes by comparing target and reference dependency graphs."""
     return get_diff_nodes(
         source_graph=target_dependency_graph,
-        compare_graph=reference_dependency_graph
+        reference_graph=reference_dependency_graph
     )
 
 def get_new_nodes(
@@ -22,15 +22,15 @@ def get_new_nodes(
     """Get new nodes by comparing target and reference dependency graphs."""
     return get_diff_nodes(
         source_graph=reference_dependency_graph,
-        compare_graph=target_dependency_graph
+        reference_graph=target_dependency_graph
     )
 
 def get_diff_nodes(
     source_graph: DependencyGraph,
-    compare_graph: DependencyGraph,
+    reference_graph: DependencyGraph,
 ) -> list[str]:
     """
-    Return node names that exist in source_graph but not in compare_graph.
+    Return node names that exist in source_graph but not in reference_graph.
     """
     diff_nodes: list[str] = []
 
@@ -40,7 +40,7 @@ def get_diff_nodes(
             continue
 
         for node_name in node_values.keys():
-            exists = compare_graph.get(node_type, {}).get(node_name)
+            exists = reference_graph.get(node_type, {}).get(node_name)
             if not exists:
                 diff_nodes.append(node_name)
 
