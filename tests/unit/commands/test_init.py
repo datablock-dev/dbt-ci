@@ -209,11 +209,11 @@ class TestInitCommand:
 class TestResolveManifestFromStorage:
     """Test the resolve_manifest_file_from_storage helper function."""
     
-    @patch('dbt_ci.commands.init.index.Path')
-    @patch('dbt_ci.commands.init.index.logger')
+    @patch('dbt_ci.commands.init.resolve_manifest.Path')
+    @patch('dbt_ci.commands.init.resolve_manifest.logger')
     def test_resolve_manifest_creates_directory(self, mock_logger, mock_path):
         """Test that the function creates the necessary directory."""
-        from dbt_ci.commands.init.index import resolve_manifest_file_from_storage
+        from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
         
         # Setup mocks
         storage_connector = {

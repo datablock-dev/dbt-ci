@@ -5,10 +5,10 @@ This module contains the implementation of the `init` command for the dbt CI too
 import json
 import sys
 import logging
-from pathlib import Path
 from argparse import Namespace
 from typing import cast
 import click
+from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.cache import CacheManager
 from dbt_ci.logging import print_exception
@@ -16,7 +16,7 @@ from dbt_ci.connectors import init_storage_connector
 from dbt_ci.graph.graph_utils import get_downstream_dependencies
 from dbt_ci.commands.init.state_modified import StateModified
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
-from dbt_ci.schema import DependencyGraphNode, StateChangeSummary, StorageConnectorConfig
+from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
 from dbt_ci.utilities.dbt_commands import dbt_command_reference_compile, dbt_command_target_compile
 
 logger = logging.getLogger(__name__)
@@ -138,47 +138,6 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
         #slack.send_message(header, message)
     except Exception as e:
         logger.error(f"Failed to send Slack message: {e}")
-
-def resolve_manifest_file_from_storage(
-    resolved_storage: tuple[StorageConnectorConfig, str],
-    args: Namespace
-) -> Path:
-    """Download manifest file from storage and save to local path for graph generation.
-    
-    Returns:
-        Path: The local directory path where the manifest was saved
-    """
-    cwd = Path.cwd()
-    storage_connector, state_uri = resolved_storage
-    logger.info(f"Using storage connector '{storage_connector.get('name', 'Unknown')}' for state management with URI: {state_uri}")
-    reference_manifest = storage_connector["download"](state_uri)
-    dbtstate_dir: Path | None = None
-    dbt_project_dir = getattr(args, "dbt_project_dir", None)
-    reference_state = getattr(args, "reference_state", None)
-
-    if dbt_project_dir is None:
-        logger.error("No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument.")
-        sys.exit(1)
-
-    # Write and download manifest to path
-    # When using Docker, always use the local dbt_project_dir/.dbtstate path on host
-    if getattr(args, "runner", None) == "docker" or reference_state is None:
-        dbtstate_dir = cwd / dbt_project_dir / ".dbtstate" # Default
-    else:
-        dbtstate_dir = cwd / reference_state
-
-    if dbtstate_dir is None:
-        logger.error("No valid path found for downloading manifest file. Please specify a valid --state path or ensure your dbt_project_dir is correct.")
-        sys.exit(1)
-
-    Path(dbtstate_dir).mkdir(parents=True, exist_ok=True)
-    manifest_path = dbtstate_dir / "manifest.json"
-
-    with open(manifest_path, "w", encoding="utf-8") as f:
-        f.write(json.dumps(reference_manifest, indent=2))
-    logger.info(f"Reference manifest successfully downloaded and saved to {manifest_path}")
-
-    return dbtstate_dir
 
 def detect_deleted_models_with_downstream_dependencies(
     state_change_summary: StateChangeSummary,

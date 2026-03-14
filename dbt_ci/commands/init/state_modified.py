@@ -78,20 +78,22 @@ class StateModified:
             print_exception(e, "Error generating state change summary using git strategy")
             sys.exit(1)
 
-
     def hybrid_strategy(self) -> StateChangeSummary:
         """Determines modified nodes using dbt state:modified and then cross-references with git diff to filter out nodes that are not actually modified based on file changes."""
         try:
             git = GitAdapter(self.args)
             target_graph = DbtGraph(self.args).to_dict()
             reference_graph = DbtGraph(self.args, is_reference=True).to_dict()
-            data = self.common_state_change()
+            modified_nodes_dbt = self.common_state_change()
             changed_files = git.get_changed_files()
-            modified_node_ids = data["modified_node_ids"]
-            deleted_node_ids = data["deleted_node_ids"]
-            new_node_ids = data["new_node_ids"]
 
             git_modified_nodes = {
+                "modified": set(),
+                "added": set(),
+                "deleted": set()
+            }
+
+            unmatched_nodes = {
                 "modified": set(),
                 "added": set(),
                 "deleted": set()
@@ -105,26 +107,52 @@ class StateModified:
                         node_id = node_info.get("name")
                         if node_id:
                             git_modified_nodes[change_type].add(node_id)
+                    # Here we look into the nodes changed according to dbt
+                    # And see if the changed node in dbt has the same path
+                    # as the changed file in git. If yes, we consider it truly modified.
                     else:
-                        continue
-                        # We double check now if the 
+                        unmatched_nodes[change_type].add(file_path)
 
-            state_change_summary: StateChangeSummary = {
+            # Structure the nodes from the output of Dbt
+            # We want to filter out the nodes that already exists in 
+            # git_modified_nodes from the dbt modified nodes
+            structured_modified_nodes_dbt: StateChangeSummary = {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(
                     dependency_graph=target_graph, 
-                    node_ids=list(modified_node_ids)
+                    node_ids=list(modified_nodes_dbt["modified_node_ids"]),
+                    exclude_node_ids=list(git_modified_nodes["modified"])
                 )),
                 "deleted_nodes": get_structured_modified_nodes(get_nodes(
                     dependency_graph=reference_graph, 
-                    node_ids=list(deleted_node_ids)
+                    node_ids=list(modified_nodes_dbt["deleted_node_ids"]),
+                    exclude_node_ids=list(git_modified_nodes["deleted"])
                 )),
                 "new_nodes": get_structured_modified_nodes(get_nodes(
                     dependency_graph=target_graph, 
-                    node_ids=list(new_node_ids)
+                    node_ids=list(modified_nodes_dbt["new_node_ids"]),
+                    exclude_node_ids=list(git_modified_nodes["added"])
                 ))
             }
 
-            return state_change_summary
+            print("Without filter:")
+            print(get_structured_modified_nodes(get_nodes(target_graph, list(modified_nodes_dbt["modified_node_ids"]))).keys())
+            print(structured_modified_nodes_dbt["modified_nodes"].keys())
+            # Now we resolve the ones that are unmatched
+
+            return {
+                "modified_nodes": get_structured_modified_nodes(get_nodes(
+                    dependency_graph=target_graph, 
+                    node_ids=list(git_modified_nodes["modified"])
+                )),
+                "deleted_nodes": get_structured_modified_nodes(get_nodes(
+                    dependency_graph=reference_graph, 
+                    node_ids=list(git_modified_nodes["deleted"])
+                )),
+                "new_nodes": get_structured_modified_nodes(get_nodes(
+                    dependency_graph=target_graph, 
+                    node_ids=list(git_modified_nodes["added"])
+                ))
+            }
         except Exception as e:
             print_exception(e, "Error generating state change summary using hybrid strategy")
             sys.exit(1)

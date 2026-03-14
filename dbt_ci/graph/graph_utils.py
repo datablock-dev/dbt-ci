@@ -82,7 +82,8 @@ def get_node(dependency_graph: DependencyGraph, node_id: str) -> dict[str, Depen
 
 def get_nodes(
     dependency_graph: DependencyGraph, 
-    node_ids: list[str] | None
+    node_ids: list[str] | None,
+    exclude_node_ids: list[str] | None = None
 ) -> dict[str, dict[str, DependencyGraphNode]] | None:
     """Get multiple nodes by ID, optionally filtered by type."""
     if node_ids is None or len(node_ids) == 0:
@@ -95,6 +96,8 @@ def get_nodes(
                 continue
             for node_id in node_ids:
                 if node_id in dependency_graph[node_type]:
+                    if exclude_node_ids and node_id in exclude_node_ids:
+                        continue
                     nodes[node_id] = dependency_graph[node_type][node_id]
         if len(nodes.keys()) == 0:
             return None
