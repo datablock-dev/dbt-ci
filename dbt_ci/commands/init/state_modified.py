@@ -107,7 +107,10 @@ class StateModified:
                     if node_info:
                         node_id = node_info.get("name")
                         if node_id:
-                            git_modified_nodes[change_type].add(node_id)
+                            if new_nodes and node_id in new_nodes:
+                                git_modified_nodes["added"].add(node_id)
+                            else:
+                                git_modified_nodes[change_type].add(node_id)
                     # Here we look into the nodes changed according to dbt
                     # And see if the changed node in dbt has the same path
                     # as the changed file in git. If yes, we consider it truly modified.
