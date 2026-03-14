@@ -137,20 +137,28 @@ class StateModified:
             # Now we resolve the ones that are unmatched by looking into 
             # the output from dbt state:modified
             # We seek to see what was actually changed. For example, if a schema.yml file
-            # has been modified, we want to identify the actual test that was changed.
+            # has been modified, we want to identify the actual nodes that were changed.
+            # A single schema.yml modification can produce new tests, modified tests, or
+            # deleted tests — so we search all dbt buckets and classify nodes by where
+            # dbt put them, not by the git change type of the file.
+            dbt_key_to_git_key: dict[StateChangeSummaryKeys, GitChangeType] = {
+                "modified_nodes": "modified",
+                "new_nodes": "added",
+                "deleted_nodes": "deleted",
+            }
             for change_type, files in unmatched_nodes.items():
-                state_change_summary_key = self._convert_git_key_to_state_change_summary_key(cast(GitChangeType, change_type))
-                current_state_summary_data = structured_modified_nodes_dbt[state_change_summary_key]
-                if not current_state_summary_data:
-                    continue
-
-                for file_path in files:
-                    for node_id, node_info in current_state_summary_data.items():
-                        original_file_path = node_info.get("original_file_path")
-                        if original_file_path == file_path:
-                            git_modified_nodes[change_type].add(node_id)
-                            unmatched_nodes[change_type].remove(file_path)
-                            break # Break the inner loop to avoid unnecessary iterations once a match is found
+                for file_path in list(files):  # copy — we mutate the set inside
+                    found = False
+                    for dbt_key, target_git_key in dbt_key_to_git_key.items():
+                        current_data = structured_modified_nodes_dbt.get(dbt_key) or {}
+                        for node_id, node_info in current_data.items():
+                            if node_info.get("original_file_path") == file_path:
+                                # Use dbt's classification, not the git change type
+                                git_modified_nodes[target_git_key].add(node_id)
+                                found = True
+                                # Don't break — multiple nodes can share one file (schema.yml)
+                    if found:
+                        unmatched_nodes[change_type].discard(file_path)
 
             # Now lets see if there are any unmatched nodes left
             for change_type, files in unmatched_nodes.items():
