@@ -170,6 +170,10 @@ class StateModified:
                 if len(files) > 0:
                     logger.debug(f"Unmatched files for change type '{change_type}': {files}")
 
+            # Debugging
+            print("****************** NEW NODES ******************")
+            print(new_nodes)
+
             return {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(
                     dependency_graph=target_graph, 
