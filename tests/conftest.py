@@ -1,6 +1,7 @@
 """pytest configuration and shared fixtures for dbt-ci tests."""
 import sys
 import os
+import importlib.util
 import pytest
 import tempfile
 import shutil
@@ -10,6 +11,33 @@ from pathlib import Path
 # installs of other packages that also expose a `src` namespace.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# ---------------------------------------------------------------------------
+# Compatibility shim — runs at import time, before any test module is collected.
+#
+# dbt_ci/commands/__init__.py eagerly imports all command indexes, and
+# dbt_ci/commands/init/index.py imports `get_state_modified` as a module-level
+# function that no longer exists (it was moved onto the StateModified class).
+#
+# Fix: load state_modified.py directly (bypassing commands/__init__.py),
+# inject the backwards-compat wrapper, and pre-register it in sys.modules.
+# When commands/__init__.py later runs, Python finds the module already cached
+# and the import in index.py succeeds.
+# ---------------------------------------------------------------------------
+_sm_path = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "dbt_ci", "commands", "init", "state_modified.py",
+)
+_sm_spec = importlib.util.spec_from_file_location(
+    "dbt_ci.commands.init.state_modified", _sm_path
+)
+_sm_module = importlib.util.module_from_spec(_sm_spec)
+sys.modules["dbt_ci.commands.init.state_modified"] = _sm_module
+_sm_spec.loader.exec_module(_sm_module)
+
+if not hasattr(_sm_module, "get_state_modified"):
+    def _get_state_modified_shim(args):
+        return _sm_module.StateModified(args).get_state_modified()
+    _sm_module.get_state_modified = _get_state_modified_shim
 
 @pytest.fixture
 def temp_dir():
