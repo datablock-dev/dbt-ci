@@ -45,8 +45,9 @@ def mysql_delete_strategy(delete_map: dict[str, DeleteMapNode], args: Namespace)
 mysql_db_connector: ConnectorConfig = {
     "client": mysql_client,
     "strategies": {
-        "delete": mysql_delete_strategy
-    }
+        "delete": mysql_delete_strategy,
+        "migration": None
+    },
     "methods": {
         "query": mysql_client.query,
         "create_datasets": mysql_client.create_datasets,
