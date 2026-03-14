@@ -1,7 +1,6 @@
 """Storage connector for AWS S3 interactions."""
 import json
 import boto3
-
 from dbt_ci.schema import DBTManifest
 
 def aws_storage_client():

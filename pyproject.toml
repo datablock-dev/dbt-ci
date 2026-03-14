@@ -29,9 +29,12 @@ dependencies = [
     "boto3==1.35.0",
     "google-cloud-bigquery==3.27.0",
     "google-cloud-storage==2.19.0",
+    "sqlalchemy>=2.0.0",
 ]
 
 [project.optional-dependencies]
+postgres = ["psycopg2-binary>=2.9.0"]
+mysql = ["pymysql>=1.0.0"]
 dev = [
     "pytest==8.3.5",
     "black==24.10.0",
