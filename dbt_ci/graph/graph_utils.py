@@ -234,6 +234,13 @@ def filter_node_ids_by_multiple_types(
             filtered_node_ids.append(node_id)
     return filtered_node_ids
 
+def filter_node_ids_by_list_of_node_ids(
+    node_ids: list[str],
+    exclude_filter: list[str]
+) -> list[str]:
+    """Filter out node ids if they exist in exclude_filter"""
+    return [node_id for node_id in node_ids if node_id not in exclude_filter]
+
 def get_node_from_path(dependency_graph: DependencyGraph, path: str) -> dict[str, DependencyGraphNode] | None:
     """Get a node from the dependency graph based on its path."""
     for node_type, node_values in dependency_graph.items():

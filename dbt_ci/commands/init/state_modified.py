@@ -86,7 +86,6 @@ class StateModified:
             reference_graph = DbtGraph(self.args, is_reference=True).to_dict()
             modified_nodes_dbt = self.common_state_change()
             changed_files = git.get_changed_files()
-
             new_nodes = get_new_nodes(reference_graph, target_graph)
 
             git_modified_nodes = {
@@ -155,8 +154,12 @@ class StateModified:
                         current_data = structured_modified_nodes_dbt.get(dbt_key) or {}
                         for node_id, node_info in current_data.items():
                             if node_info.get("original_file_path") == file_path:
-                                # Use dbt's classification, not the git change type
-                                git_modified_nodes[target_git_key].add(node_id)
+                                if new_nodes and node_id in new_nodes:
+                                    # If the node is new according to dbt, we classify it as added, even if the file was modified according to git
+                                    git_modified_nodes["added"].add(node_id)
+                                else:
+                                    # Use dbt's classification, not the git change type
+                                    git_modified_nodes[target_git_key].add(node_id)
                                 found = True
                                 # Don't break — multiple nodes can share one file (schema.yml)
                     if found:
@@ -166,10 +169,6 @@ class StateModified:
             for change_type, files in unmatched_nodes.items():
                 if len(files) > 0:
                     logger.debug(f"Unmatched files for change type '{change_type}': {files}")
-
-            # For debugging, lets remove it later
-            print("****************** NEW NODES ******************")
-            print(new_nodes)
 
             return {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(
