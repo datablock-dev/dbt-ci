@@ -149,11 +149,13 @@ class StateModified:
                         original_file_path = node_info.get("original_file_path")
                         if original_file_path == file_path:
                             git_modified_nodes[change_type].add(node_id)
+                            unmatched_nodes[change_type].remove(file_path)
+                            break # Break the inner loop to avoid unnecessary iterations once a match is found
 
             # Now lets see if there are any unmatched nodes left
             for change_type, files in unmatched_nodes.items():
                 if len(files) > 0:
-                    logger.warning(f"Unmatched files for change type '{change_type}': {files}")
+                    logger.debug(f"Unmatched files for change type '{change_type}': {files}")
 
             return {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(

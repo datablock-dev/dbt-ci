@@ -91,17 +91,15 @@ def get_nodes(
 
     try:
         nodes = {}
-        for node_type in dependency_graph.keys():
-            if node_type == "metadata":
+        for node_id in node_ids:
+            node = get_node(dependency_graph, node_id)
+            if node is None:
                 continue
-            for node_id in node_ids:
-                if node_id in dependency_graph[node_type]:
-                    if exclude_node_ids and node_id in exclude_node_ids:
-                        continue
-                    nodes[node_id] = dependency_graph[node_type][node_id]
-        if len(nodes.keys()) == 0:
+            if exclude_node_ids and node_id in exclude_node_ids:
+                continue
+            nodes[node_id] = node
+        if len(nodes) == 0:
             return None
-
         return nodes
     except TypeError:
         return None
