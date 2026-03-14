@@ -135,8 +135,8 @@ class StateModified:
             }
 
             print("Without filter:")
-            print(get_structured_modified_nodes(get_nodes(target_graph, list(modified_nodes_dbt["modified_node_ids"]))).keys())
-            print(structured_modified_nodes_dbt["modified_nodes"].keys())
+            print(get_structured_modified_nodes(get_nodes(target_graph, list(modified_nodes_dbt["modified_node_ids"]))).values())
+            print(structured_modified_nodes_dbt["modified_nodes"].values())
             # Now we resolve the ones that are unmatched
 
             return {
