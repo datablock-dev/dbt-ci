@@ -507,6 +507,7 @@ MANIFEST_KEY_MAPPING = {
 # Nodes grouped by resource_type, then keyed by node_id.
 # e.g. {"model": {"model.pkg.foo": DependencyGraphNode}, "snapshot": {...}}
 type StructuredNodes = dict[str, dict[str, DependencyGraphNode]]
+type StateChangeSummaryKeys = Literal["modified_nodes", "deleted_nodes", "new_nodes"]
 
 class StateChangeSummary(TypedDict):
     """Top-level cache structure written by the init command."""

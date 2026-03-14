@@ -7,8 +7,8 @@ from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.graph.graph_utils import get_deleted_nodes, get_new_nodes, get_node_from_path, get_nodes, get_structured_modified_nodes
 from dbt_ci.logging import print_exception
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
-from dbt_ci.schema import RunnerConfig, StateChangeSummary
-from dbt_ci.utilities.git import GitAdapter
+from dbt_ci.schema import RunnerConfig, StateChangeSummary, StateChangeSummaryKeys
+from dbt_ci.utilities.git import GitAdapter, GitChangeType
 
 logger = logging.getLogger(__name__)
 
@@ -134,48 +134,26 @@ class StateModified:
                 ))
             }
 
-            no_filter_structured_modified_nodes_dbt: StateChangeSummary = {
-                "modified_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=target_graph, 
-                    node_ids=list(modified_nodes_dbt["modified_node_ids"]),
-                    #exclude_node_ids=list(git_modified_nodes["modified"])
-                )),
-                "deleted_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=reference_graph, 
-                    node_ids=list(modified_nodes_dbt["deleted_node_ids"]),
-                    #exclude_node_ids=list(git_modified_nodes["deleted"])
-                )),
-                "new_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=target_graph, 
-                    node_ids=list(modified_nodes_dbt["new_node_ids"]),
-                    #exclude_node_ids=list(git_modified_nodes["added"])
-                ))
-            }
-            
-            print("Without filter")
-            for keys, data in no_filter_structured_modified_nodes_dbt["modified_nodes"].items():
-                data = cast(dict, data)
-                print(data.keys())
-
-            print("with filter:")
-            for keys, data in structured_modified_nodes_dbt["modified_nodes"].items():
-                data = cast(dict, data)
-                print(data.keys())
-
-            # Now we resolve the ones that are unmatched
-            print("Unmatched nodes from git diff that were not found in dbt state:modified output:")
+            # Now we resolve the ones that are unmatched by looking into 
+            # the output from dbt state:modified
+            # We seek to see what was actually changed. For example, if a schema.yml file
+            # has been modified, we want to identify the actual test that was changed.
             for change_type, files in unmatched_nodes.items():
+                state_change_summary_key = self._convert_git_key_to_state_change_summary_key(cast(GitChangeType, change_type))
+                current_state_summary_data = structured_modified_nodes_dbt[state_change_summary_key]
+                if not current_state_summary_data:
+                    continue
+
                 for file_path in files:
-                    print(f"{change_type}: {file_path}")
-                    node_info = get_node_from_path(target_graph, file_path) or get_node_from_path(reference_graph, file_path)
-                    if node_info:
-                        node_id = node_info.get("name")
-                        if node_id:
+                    for node_id, node_info in current_state_summary_data.items():
+                        original_file_path = node_info.get("original_file_path")
+                        if original_file_path == file_path:
                             git_modified_nodes[change_type].add(node_id)
-                            print(f"Resolved unmatched file {file_path} to node {node_id} in graph.")
-                    else:
-                        print(f"Could not resolve unmatched file {file_path} to any node in either graph.")
-                        continue
+
+            # Now lets see if there are any unmatched nodes left
+            for change_type, files in unmatched_nodes.items():
+                if len(files) > 0:
+                    logger.warning(f"Unmatched files for change type '{change_type}': {files}")
 
             return {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(
@@ -263,3 +241,17 @@ class StateModified:
         except Exception as e:
             print_exception(e, "Error generating state change summary")
             sys.exit(1)
+
+    def _convert_git_key_to_state_change_summary_key(self, key: GitChangeType) -> StateChangeSummaryKeys:
+        """Convert the output from git strategy to match the structure of StateChangeSummary for consistency across strategies."""
+        mapping: dict[GitChangeType, StateChangeSummaryKeys] = {
+            "modified": "modified_nodes",
+            "added": "new_nodes",
+            "deleted": "deleted_nodes"
+        }
+
+        if key not in mapping:
+            logger.error(f"Invalid git change type: {key}. Expected one of {list(mapping.keys())}.")
+            sys.exit(1)
+
+        return mapping[key]
