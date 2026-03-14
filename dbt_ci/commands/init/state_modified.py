@@ -153,12 +153,12 @@ class StateModified:
             }
             
             print("Without filter")
-            for keys, data in no_filter_structured_modified_nodes_dbt.items():
+            for keys, data in no_filter_structured_modified_nodes_dbt["modified_nodes"].items():
                 data = cast(dict, data)
                 print(data.keys())
 
             print("with filter:")
-            for keys, data in no_filter_structured_modified_nodes_dbt.items():
+            for keys, data in structured_modified_nodes_dbt["modified_nodes"].items():
                 data = cast(dict, data)
                 print(data.keys())
 
