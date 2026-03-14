@@ -91,20 +91,23 @@ class StateModified:
             deleted_node_ids = data["deleted_node_ids"]
             new_node_ids = data["new_node_ids"]
 
-            # Compare against git diff to determine what has been modified vs what is new
-            temp_modified_nodes = get_nodes(
-                dependency_graph=target_graph,
-                node_ids=list(modified_node_ids)
-            )
+            git_modified_nodes = {
+                "modified": set(),
+                "added": set(),
+                "deleted": set()
+            }
 
-            # We now reference and check against git
-            complete_modified_nodes = set()
-            for node_id, node_info in temp_modified_nodes.items():
-                file_path = node_info['original_file_path']
-                if file_path in changed_files["modified"]:
-                    complete_modified_nodes.add(node_id)
-
-            modified_node_ids = complete_modified_nodes
+            # Get modified nodes based on git diff
+            for change_type, files in changed_files.items():
+                for file_path in files:
+                    node_info = get_node_from_path(target_graph, file_path) or get_node_from_path(reference_graph, file_path)
+                    if node_info:
+                        node_id = node_info.get("name")
+                        if node_id:
+                            git_modified_nodes[change_type].add(node_id)
+                    else:
+                        continue
+                        # We double check now if the 
 
             state_change_summary: StateChangeSummary = {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(
