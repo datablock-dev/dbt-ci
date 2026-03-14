@@ -133,11 +133,42 @@ class StateModified:
                     exclude_node_ids=list(git_modified_nodes["added"])
                 ))
             }
+            import json
 
-            print("Without filter:")
-            print(get_structured_modified_nodes(get_nodes(target_graph, list(modified_nodes_dbt["modified_node_ids"]))).values())
-            print(structured_modified_nodes_dbt["modified_nodes"].values())
+            with open("debug_modified_nodes_dbt.json", "w") as f:
+                json.dump(structured_modified_nodes_dbt, f, indent=2)
+            with open("debug_modified_nodes_git.json", "w") as f:
+                json.dump({
+                "modified_nodes": get_structured_modified_nodes(get_nodes(
+                    dependency_graph=target_graph, 
+                    node_ids=list(modified_nodes_dbt["modified_node_ids"]),
+                    #exclude_node_ids=list(git_modified_nodes["modified"])
+                )),
+                "deleted_nodes": get_structured_modified_nodes(get_nodes(
+                    dependency_graph=reference_graph, 
+                    node_ids=list(modified_nodes_dbt["deleted_node_ids"]),
+                    #exclude_node_ids=list(git_modified_nodes["deleted"])
+                )),
+                "new_nodes": get_structured_modified_nodes(get_nodes(
+                    dependency_graph=target_graph, 
+                    node_ids=list(modified_nodes_dbt["new_node_ids"]),
+                    #exclude_node_ids=list(git_modified_nodes["added"])
+                ))
+            }, f, indent=2)
             # Now we resolve the ones that are unmatched
+            print("Unmatched nodes from git diff that were not found in dbt state:modified output:")
+            for change_type, files in unmatched_nodes.items():
+                for file_path in files:
+                    print(f"{change_type}: {file_path}")
+                    node_info = get_node_from_path(target_graph, file_path) or get_node_from_path(reference_graph, file_path)
+                    if node_info:
+                        node_id = node_info.get("name")
+                        if node_id:
+                            git_modified_nodes[change_type].add(node_id)
+                            print(f"Resolved unmatched file {file_path} to node {node_id} in graph.")
+                    else:
+                        print(f"Could not resolve unmatched file {file_path} to any node in either graph.")
+                        continue
 
             return {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(
