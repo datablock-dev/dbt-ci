@@ -14,7 +14,7 @@ from dbt_ci.cache import CacheManager
 from dbt_ci.logging import print_exception
 from dbt_ci.connectors import init_storage_connector
 from dbt_ci.graph.graph_utils import get_downstream_dependencies
-from dbt_ci.commands.init.state_modified import StateModified, get_state_modified
+from dbt_ci.commands.init.state_modified import StateModified
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 from dbt_ci.schema import DependencyGraphNode, StateChangeSummary, StorageConnectorConfig
 from dbt_ci.utilities.dbt_commands import dbt_command_reference_compile, dbt_command_target_compile
