@@ -43,10 +43,10 @@ from dbt_ci.commands.init.index import init
 @click.option(
     "--comparison-strategy", "--comparison",
     envvar=['DBT_COMPARISON_STRATEGY'],
-    default="dbt",
+    default="hybrid",
     type=click.Choice(["dbt", "git", "hybrid"], case_sensitive=False),
     multiple=False,
-    help="Strategy to use for state comparison (default: dbt). Available options: dbt, git, hybrid"
+    help="Strategy to use for state comparison (default: hybrid). Available options: dbt, git, hybrid"
 )
 def init_cmd(**kwargs):
     """Initialize dbt CI state

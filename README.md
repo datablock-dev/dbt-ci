@@ -114,6 +114,7 @@ dbt-ci init \
 | `--target-compile` | | `DBT_TARGET_COMPILE` | `false` | Run the second compile pass against the actual target |
 | `--skip-reference-compile` | | `DBT_SKIP_REFERENCE_COMPILE` | `false` | Skip the compile pass against the reference/production state |
 | `--no-git` | | `DBT_NO_GIT` | `false` | Skip git-based file change comparison |
+| `--comparison-strategy` | `--comparison` | `DBT_COMPARISON_STRATEGY` | `hybrid` | Strategy for detecting changed nodes: `dbt`, `git`, or `hybrid` |
 
 > All [common options](#common-options) also apply.
 
