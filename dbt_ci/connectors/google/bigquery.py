@@ -3,7 +3,6 @@ import sys
 import logging
 from argparse import Namespace
 from typing import Any, cast
-import click
 from google.cloud import bigquery
 from dbt_ci.schema import DeleteMapNode, EphemeralMapNode, MigrationMap
 from dbt_ci.utilities.paths import get_profile, get_profiles_file
@@ -92,7 +91,7 @@ def bigquery_ephemeral_strategy(
         clone_map: dict[str, dict[str, str]] = {}
         for node_metadata in ephemeral_map.values():
             if node_metadata["ephemeral_config"] is None or node_metadata["reference_config"] is None:
-                click.echo(
+                logger.info(
                     f"Skipping node '{node_metadata['name']}' since it does not have both ephemeral and reference configurations.")
                 continue
             ephemeral_database, ephemeral_schema, ephemeral_table = get_full_config(
@@ -111,7 +110,7 @@ def bigquery_ephemeral_strategy(
                     "reference_table_id": f"{reference_database}.{reference_schema}.{reference_table}"
                 }
 
-        click.echo("Running ephemeral strategy for BigQuery...")
+        logger.info("Running ephemeral strategy for BigQuery...")
         create_ephemeral_datasets(client, datasets_to_create, threads)
         clone_tables(client, clone_map, threads)
         return
@@ -126,11 +125,11 @@ def create_ephemeral_datasets(
     """Create ephemeral datasets in BigQuery if needed."""
     # This function can be used to create temporary datasets for ephemeral models if we choose to materialize them as tables instead of CTEs.
     if len(datasets_to_create) == 0:
-        click.echo("No ephemeral datasets to create. Exiting ephemeral strategy.")
+        logger.info("No ephemeral datasets to create. Exiting ephemeral strategy.")
         sys.exit(0)
-    click.echo("Creating ephemeral datasets in BigQuery:")
+    logger.info("Creating ephemeral datasets in BigQuery:")
     for dataset_id in datasets_to_create:
-        click.echo(f"\n  - {dataset_id}")
+        logger.info(f"\n  - {dataset_id}")
 
     # Pass to multi_thread module
     func_list = [
@@ -151,14 +150,14 @@ def bigquery_create_datasets(
 ) -> None:
     """Create datasets in BigQuery."""
     if len(datasets_to_create) == 0:
-        click.echo("No datasets to create. Exiting dataset creation step.")
+        logger.info("No datasets to create. Exiting dataset creation step.")
         return
-    click.echo("Creating datasets in BigQuery:")
+    logger.info("Creating datasets in BigQuery:")
     for dataset_id in datasets_to_create:
-        click.echo(f"\n  - {dataset_id}")
+        logger.info(f"\n  - {dataset_id}")
 
     if dry_run:
-        click.echo("\nDry run mode enabled - no datasets will actually be created.")
+        logger.info("\nDry run mode enabled - no datasets will actually be created.")
         return
 
     # Pass to multi_thread module
@@ -179,9 +178,9 @@ def create_dataset(client: bigquery.Client, dataset_id: str) -> None:
     try:
         result = client.create_dataset(dataset, exists_ok=True)
         if result.created:
-            click.echo(f"Dataset '{dataset_id}' created successfully.")
+            logger.info(f"Dataset '{dataset_id}' created successfully.")
         else:
-            click.echo(f"Dataset '{dataset_id}' already exists.")
+            logger.info(f"Dataset '{dataset_id}' already exists.")
     except Exception as e:
         raise RuntimeError(f"Failed to create dataset '{dataset_id}': {e}")
 
@@ -193,14 +192,14 @@ def bigquery_delete_datasets(
 ) -> None:
     """Delete datasets in BigQuery."""
     if len(datasets_to_delete) == 0:
-        click.echo("No datasets to delete. Exiting dataset deletion step.")
+        logger.info("No datasets to delete. Exiting dataset deletion step.")
         return
-    click.echo("Deleting datasets in BigQuery:")
+    logger.info("Deleting datasets in BigQuery:")
     for dataset_id in datasets_to_delete:
-        click.echo(f"\n  - {dataset_id}")
+        logger.info(f"\n  - {dataset_id}")
 
     if dry_run:
-        click.echo("\nDry run mode enabled - no datasets will actually be deleted.")
+        logger.info("\nDry run mode enabled - no datasets will actually be deleted.")
         return
 
     # Pass to multi_thread module
@@ -218,7 +217,7 @@ def delete_dataset(client: bigquery.Client, dataset_id: str) -> None:
     """Delete a BigQuery dataset."""
     try:
         client.delete_dataset(dataset_id, delete_contents=True, not_found_ok=True)
-        click.echo(f"Dataset '{dataset_id}' deleted successfully.")
+        logger.info(f"Dataset '{dataset_id}' deleted successfully.")
     except Exception as e:
         raise RuntimeError(f"Failed to delete dataset '{dataset_id}': {e}")
 
@@ -228,9 +227,9 @@ def clone_tables(
     threads: int = 5
 ) -> None:
     """Clone reference tables to ephemeral tables in BigQuery."""
-    click.echo("Cloning reference tables to ephemeral tables in BigQuery:")
+    logger.info("Cloning reference tables to ephemeral tables in BigQuery:")
     for node_name, table_ids in clone_map.items():
-        click.echo(
+        logger.info(
             f"\n  - Cloning '{table_ids['reference_table_id']}' to '{table_ids['ephemeral_table_id']}' for node '{node_name}'")
 
     func_list = [
@@ -281,20 +280,20 @@ def bigquery_delete_tables(
         """Delete a single BigQuery table."""
         try:
             client.delete_table(table_id, not_found_ok=True)
-            click.echo(f"Deleted {table_id} from BigQuery")
+            logger.info(f"Deleted {table_id} from BigQuery")
         except Exception as e:
-            click.echo(f"Error deleting {table_id} from BigQuery: {e}", err=True)
+            logger.info(f"Error deleting {table_id} from BigQuery: {e}", err=True)
             raise
 
     if len(tables_to_delete) == 0:
-        click.echo("No tables to delete. Exiting table deletion step.")
+        logger.info("No tables to delete. Exiting table deletion step.")
         return
-    click.echo("Deleting tables in BigQuery:")
+    logger.info("Deleting tables in BigQuery:")
     for table_id in tables_to_delete:
-        click.echo(f"\n  - {table_id}")
+        logger.info(f"\n  - {table_id}")
 
     if dry_run:
-        click.echo("\nDry run mode enabled - no tables will actually be deleted.")
+        logger.info("\nDry run mode enabled - no tables will actually be deleted.")
         return
 
     func_list = [
@@ -326,9 +325,9 @@ def delete_table(table_id: str, args: Namespace) -> None:
 
     try:
         client.delete_table(table_id, not_found_ok=True)
-        click.echo(f"Deleted {table_id} from BigQuery")
+        logger.info(f"Deleted {table_id} from BigQuery")
     except Exception as e:
-        click.echo(f"Error deleting {table_id} from BigQuery: {e}", err=True)
+        logger.info(f"Error deleting {table_id} from BigQuery: {e}", err=True)
         raise
 
 
@@ -474,14 +473,14 @@ def bigquery_create_tables(
 ) -> None:
     """Create tables in BigQuery."""
     if len(tables_to_create) == 0:
-        click.echo("No tables to create. Exiting table creation step.")
+        logger.info("No tables to create. Exiting table creation step.")
         return
-    click.echo("Creating tables in BigQuery:")
+    logger.info("Creating tables in BigQuery:")
     for table_id in tables_to_create:
-        click.echo(f"\n  - {table_id}")
+        logger.info(f"\n  - {table_id}")
 
     if dry_run:
-        click.echo("\nDry run mode enabled - no tables will actually be created.")
+        logger.info("\nDry run mode enabled - no tables will actually be created.")
         return
 
     func_list = [
@@ -500,6 +499,6 @@ def create_table(client: bigquery.Client, table_id: str) -> None:
     try:
         table = bigquery.Table(table_id)
         client.create_table(table, exists_ok=True)
-        click.echo(f"Table '{table_id}' created successfully.")
+        logger.info(f"Table '{table_id}' created successfully.")
     except Exception as e:
         raise RuntimeError(f"Failed to create table '{table_id}': {e}")
