@@ -1,8 +1,18 @@
 import click
-from dbt_ci.main import common_options, cli
+from dbt_ci.main import cli
+from dbt_ci.cli.common_options import common_options
 from dbt_ci.utilities.namespace import to_namespace
 from dbt_ci.logging import setup_logging
 from dbt_ci.commands.finalize.index import finalize
+
+valid_files = {"manifest", "cache"}
+def validate_file_args(ctx, param, value):
+    if not value:
+        return []
+    for file in value:
+        if file not in valid_files:
+            raise click.BadParameter(f"Invalid file specified: {file}. Valid options are: {', '.join(valid_files)}")
+    return value
 
 @cli.command(name="finalize")
 @common_options
@@ -12,6 +22,14 @@ from dbt_ci.commands.finalize.index import finalize
     default=None,
     type=str,
     help="S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., s3://my-bucket/dbt-artifacts/)"
+)
+@click.option(
+    "--files",
+    envvar=["DBT_FINALIZE_FILES"],
+    default=["manifest"],
+    multiple=True,
+    callback=validate_file_args,
+    help=f"Specify which files to upload during finalize (default: manifest). Valid options: {', '.join(valid_files)}"
 )
 @click.option(
     "--clean-ephemeral",

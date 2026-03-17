@@ -1,7 +1,6 @@
-from operator import mul
-
 import click
-from dbt_ci.main import common_options, cli
+from dbt_ci.main import cli
+from dbt_ci.cli.common_options import common_options
 from dbt_ci.utilities.namespace import to_namespace
 from dbt_ci.logging import setup_logging
 from dbt_ci.commands.init.index import init
@@ -25,6 +24,12 @@ from dbt_ci.commands.init.index import init
     envvar=['DBT_STATE_URI', 'STATE_URI'],
     default=None,
     help="Remote URI for the state manifest.json file (e.g., gs://my-bucket/dbt-state/manifest.json or s3://my-bucket/dbt-state/manifest.json)"
+)
+@click.option(
+    "--reference-path",
+    envvar=["DBT_REFERENCE_PATH"],
+    default="reference",
+    help="The path to compiled output when compiling with reference vars. Defaults to 'reference'"
 )
 @click.option(
     "--target-compile",

@@ -33,7 +33,7 @@ class DbtGraph:
         
         # Keep paths as provided by user (relative or absolute)
         if getattr(self.args, "command", None) == "init":
-            self.dbt_project_dir = self.args.dbt_project_dir
+            self.dbt_project_dir = getattr(self.args, "dbt_project_dir")
             self.dependency_graph = generate_dependency_graph(
                 manifest_file=get_manifest_file(self.dbt_project_dir) if not self.is_reference 
                 else get_reference_manifest_file(self.args.reference_state),

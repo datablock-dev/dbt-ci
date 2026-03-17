@@ -23,7 +23,7 @@ class CacheManager:
         self.args = args
         self.cache_dir = cache_dir or Path(tempfile.gettempdir()) / "dbt_ci"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.dir_path = Path(self.cache_dir).resolve()
+        self.dir_path = self.cache_dir.resolve()
 
     def write_cache(self, data: StateChangeSummary | None = None) -> None:
         """Write data to the cache file."""
@@ -47,9 +47,12 @@ class CacheManager:
         }
         self._write(cast(dict, payload), "cache.json")
 
+    def _file_path(self, file_name: str) -> Path:
+        return self.dir_path / file_name
+
     def _write(self, data: dict[str, Any], file_name: str):
         """Write data to the cache file."""
-        file_path = self.dir_path / file_name
+        file_path = self._file_path(file_name)
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(
                 obj=data,
@@ -89,7 +92,7 @@ class CacheManager:
 
     def get_cache(self, file_name: str = "cache.json") -> dict[str, Any] | None:
         """Load cache data from the cache file. Returns None if the file doesn't exist."""
-        file_path = self.dir_path / file_name
+        file_path = self._file_path(file_name)
         if file_path.is_file():
             with open(file_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -102,52 +105,37 @@ class CacheManager:
 
     def start_report(self, command: Commands, args: Namespace):
         """Add information to report.json"""
-        if command == "init":
-            # Clear previous report on init
-            self._write_report({})
-        # Check if key exists in cache, if not create it
-        report_cache = self.get_cache("report.json")
-        if report_cache is None:
-            self._write_report({
-                command: {
-                    "status": "started",
-                    "started_at": datetime.now().isoformat(),
-                    "variables": {
-                        "runner": getattr(args, "runner", None),
-                        "target": getattr(args, "target", None),
-                        "reference_target": getattr(args, "reference_target", None),
-                    }
-                }
-            })
-        else:
-            report_cache[command] = {
-                "status": "started",
-                "started_at": datetime.now().isoformat(),
-                "variables": {
-                    "runner": getattr(args, "runner", None),
-                    "target": getattr(args, "target", None),
-                    "reference_target": getattr(args, "reference_target", None),
-                }
+        report_cache = {} if command == "init" else (self.get_cache("report.json") or {})
+        report_cache[command] = {
+            "status": "started",
+            "started_at": datetime.now().isoformat(),
+            "variables": {
+                "runner": getattr(args, "runner", None),
+                "target": getattr(args, "target", None),
+                "reference_target": getattr(args, "reference_target", None),
             }
-            self._write_report(report_cache)
+        }
+        self._write_report(report_cache)
 
     def update_report(self, command: Commands, status: str, comment: dict[str, Any] | str | None = None):
         """Update report.json with status and timestamp"""
         report_cache = self.get_cache("report.json")
-        if report_cache is not None and command in report_cache:
-            report_cache[command]["status"] = status
-            report_cache[command][f"{status}_at"] = datetime.now().isoformat()
-            if comment:
-                if isinstance(comment, dict):
-                    for key, value in comment.items():
-                        report_cache[command][key] = value
-                else:
-                    report_cache[command]["comment"] = comment
-            self._write_report(report_cache)
+        if report_cache is None or command not in report_cache:
+            logger.warning(f"update_report called for '{command}' but no existing report entry found. Call start_report first.")
+            return
+        report_cache[command]["status"] = status
+        report_cache[command][f"{status}_at"] = datetime.now().isoformat()
+        if comment:
+            if isinstance(comment, dict):
+                for key, value in comment.items():
+                    report_cache[command][key] = value
+            else:
+                report_cache[command]["comment"] = comment
+        self._write_report(report_cache)
 
     def clear_cache(self) -> None:
         """Clear the cache by deleting the files in the folder"""
         if self.dir_path.is_dir():
             for file in self.dir_path.iterdir():
                 file.unlink()
-            print(f"Cache cleared from {self.dir_path.absolute()}")
+            logger.info(f"Cache cleared from {self.dir_path.absolute()}")

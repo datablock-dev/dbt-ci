@@ -15,9 +15,10 @@ from dbt_ci.logging import print_exception
 from dbt_ci.connectors import init_storage_connector
 from dbt_ci.graph.graph_utils import get_downstream_dependencies
 from dbt_ci.commands.init.state_modified import StateModified
+from dbt_ci.utilities.multi_processing import run_multiprocessed
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
-from dbt_ci.utilities.dbt_commands import dbt_command_reference_compile, dbt_command_target_compile
+from dbt_ci.dbt.dbt_commands import DbtCommands
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ def init(args: Namespace):
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Initialization", fg="green", bold=True)
         logger.debug(f"Running with the following arguments: {args}")
+        dbt_commands = DbtCommands(args)
         cache = CacheManager(args)
         state_modified = StateModified(args)
         cache.start_report("init", args)
@@ -64,7 +66,8 @@ def init(args: Namespace):
             cache.write_reference_manifest(get_reference_manifest_file(reference_state_path))
         
         # Compile dbt and generate reference manifest.json file
-        dbt_command_reference_compile(args)
+        #run_multiprocessed
+        dbt_commands.reference_compile()
 
         target_manifest_file = get_manifest_file(dbt_project_dir)
         state_change_summary = state_modified.get_state_modified()
@@ -90,7 +93,7 @@ def init(args: Namespace):
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
-        dbt_command_target_compile(args)
+        dbt_commands.target_compile()
 
         cache.update_report(command="init", status="completed")
         logger.info("Initialization complete. Cache updated with current state(s).")

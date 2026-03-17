@@ -4,7 +4,8 @@ import logging
 from argparse import Namespace
 import click
 from dbt_ci.cache import CacheManager
-from dbt_ci.connectors import get_connector, init_storage_connector
+from dbt_ci.commands.finalize.upload import finalize_upload_files
+from dbt_ci.connectors import get_connector
 from dbt_ci.logging import print_exception
 from dbt_ci.schema import EphemeralMapNode
 from dbt_ci.utilities.paths import get_profile
@@ -27,32 +28,12 @@ def finalize(args: Namespace):
         logger.info("Finalizing ci/cd process by uploading manifest.json and cleaning up cache...")
         manifest_file = cache.get_cache("target_manifest.json") or cache.get_cache("reference_manifest.json")
         cache.start_report("finalize", args)
-        report = cache.get_cache("report.json")
         if manifest_file is None:
             logger.warning("No manifest file found in cache to upload. Skipping artifact upload.")
             sys.exit(1)
 
-        if getattr(args, "artifacts_uri", None):
-            resolved_storage, _ = init_storage_connector(getattr(args, "artifacts_uri", None))
-            if resolved_storage is None:
-                logger.warning("No valid storage connector found for artifact upload. Skipping artifact upload.")
-                sys.exit(1)
-
-            storage_function = resolved_storage.get("upload")
-            if storage_function is None:
-                logger.warning("No upload function found for resolved storage connector. Skipping artifact upload.")
-                sys.exit(1)
-
-            storage_function("manifest.json", manifest_file)
-            logger.info(f"Uploading manifest.json to {getattr(args, 'artifacts_uri', None)}...")
-            # Upload manifest file to storage if artifacts_uri is provided
-            if report is not None:
-                logger.info(f"Uploading report.json to {getattr(args, 'artifacts_uri', None)}...")
-                storage_function("report.json", report)
-                # Upload report file to storage if artifacts_uri is provided
-        else:
-            if report is not None:
-                logger.info(report)
+        # Upload files to storage if artifacts_uri is provided
+        finalize_upload_files(args)
 
         if getattr(args, "clean_ephemeral", False):
             clean_up_ephemeral(args, cache)

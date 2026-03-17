@@ -1,4 +1,5 @@
-from dbt_ci.main import common_options, cli
+from dbt_ci.main import cli
+from dbt_ci.cli.common_options import common_options
 from dbt_ci.utilities.namespace import to_namespace
 from dbt_ci.logging import setup_logging
 from dbt_ci.commands.delete.index import delete
