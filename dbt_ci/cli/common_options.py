@@ -1,27 +1,23 @@
 import click
-from dbt_ci.cli.config import load_config_callback
+from dbt_ci.cli.config import load_config_callback, make_config_callback
 
 
-def _uppercase_log_level(ctx, param, value):
-    return value.upper() if value else value
-
-def parse_multiple_option(ctx, param, value):
+def parse_multiple_option(value):
     """
-    Parse multiple values for options that accept repeated flags.
-
-    - Multiple CLI flags (--docker-env A --docker-env B): already a tuple, pass through.
-    - Single string from env var with comma or newline separation: split and return tuple.
+    Normalise a multiple-value option by splitting comma/newline-separated
+    strings (from env vars or config file) into a tuple.
 
     Examples:
-        DBT_DOCKER_ENV="KEY1=val1,KEY2=val2"          -> ('KEY1=val1', 'KEY2=val2')
-        DBT_DOCKER_ENV=$'KEY1=val1\nKEY2=val2'         -> ('KEY1=val1', 'KEY2=val2')
-        --docker-env KEY1=val1 --docker-env KEY2=val2  -> ('KEY1=val1', 'KEY2=val2') (unchanged)
+        ('KEY1=val1,KEY2=val2',)                       -> ('KEY1=val1', 'KEY2=val2')
+        ('KEY1=val1\\nKEY2=val2',)                      -> ('KEY1=val1', 'KEY2=val2')
+        ('KEY1=val1', 'KEY2=val2')                     -> ('KEY1=val1', 'KEY2=val2') (unchanged)
     """
     if not value:
         return value
-    if len(value) == 1 and (',' in value[0] or '\n' in value[0]):
+    if isinstance(value, (list, tuple)) and len(value) == 1 and (',' in value[0] or '\n' in value[0]):
         return tuple(p.strip() for p in value[0].replace('\n', ',').split(',') if p.strip())
-    return value
+    return value if isinstance(value, tuple) else tuple(value)
+
 
 COMMON_OPTIONS = [
     click.option(
@@ -31,14 +27,15 @@ COMMON_OPTIONS = [
         is_eager=True,
         callback=load_config_callback,
         help=(
-            "Path to dbt-ci configuration file (YAML). Keys must be env var "
-            "names (e.g. DBT_RUNNER). Shell env vars always take precedence."
+            "Path to dbt-ci configuration file (YAML). Supports flat (DBT_RUNNER: docker) "
+            "and nested (docker: {image: ...}) styles. Shell env vars always take precedence."
         ),
     ),
     click.option(
         "--dbt-version",
         envvar=["DBT_VERSION"],
         default=None,
+        callback=make_config_callback("DBT_VERSION"),
         help="Specify a dbt version to use for this command",
     ),
     click.option(
@@ -46,18 +43,21 @@ COMMON_OPTIONS = [
         envvar=["DBT_ADAPTER"],
         type=str,
         default=None,
+        callback=make_config_callback("DBT_ADAPTER"),
         help="Specify the dbt adapter to use (e.g., 'postgres', 'snowflake')",
     ),
     click.option(
         "--dbt-project-dir",
         envvar=["DBT_PROJECT_DIR"],
         default=".",
+        callback=make_config_callback("DBT_PROJECT_DIR"),
         help="Path to the dbt project directory (default: current directory)",
     ),
     click.option(
         "--profiles-dir",
         envvar=["DBT_PROFILES_DIR"],
         default=None,
+        callback=make_config_callback("DBT_PROFILES_DIR"),
         help="Path to the directory containing the dbt profiles.yml file",
     ),
     click.option(
@@ -65,18 +65,21 @@ COMMON_OPTIONS = [
         envvar=["DBT_STATE"],
         default=None,
         type=str,
+        callback=make_config_callback("DBT_STATE"),
         help="Path to the reference manifest.json directory (local path where state will be downloaded)",
     ),
     click.option(
         "--target", "-t",
         envvar=["DBT_TARGET"],
         default=None,
+        callback=make_config_callback("DBT_TARGET"),
         help="The dbt target to use (defaults to what is defined in profiles.yml)",
     ),
     click.option(
         "--vars", "-v",
         envvar=["DBT_VARS"],
         default="",
+        callback=make_config_callback("DBT_VARS"),
         help="A YAML string or path to YAML file containing variables to pass to dbt",
     ),
     click.option(
@@ -84,6 +87,7 @@ COMMON_OPTIONS = [
         envvar=["DBT_DEFER"],
         is_flag=True,
         default=False,
+        callback=make_config_callback("DBT_DEFER"),
         help="Use dbt's --defer flag to defer to the state of the production manifest (only applicable to run and test commands)",
     ),
     click.option(
@@ -91,12 +95,14 @@ COMMON_OPTIONS = [
         envvar=["DBT_RUNNER"],
         type=click.Choice(["local", "docker", "bash", "dbt"]),
         default="dbt",
+        callback=make_config_callback("DBT_RUNNER"),
         help="Runner to use for executing dbt commands",
     ),
     click.option(
         "--entrypoint",
         envvar=["DBT_ENTRYPOINT"],
         default="dbt",
+        callback=make_config_callback("DBT_ENTRYPOINT"),
         help="Command entrypoint for dbt (default: dbt)",
     ),
     click.option(
@@ -104,6 +110,7 @@ COMMON_OPTIONS = [
         envvar=["DBT_DRY_RUN"],
         is_flag=True,
         default=False,
+        callback=make_config_callback("DBT_DRY_RUN"),
         help="Print commands without executing them",
     ),
     click.option(
@@ -111,7 +118,7 @@ COMMON_OPTIONS = [
         envvar=["DBT_LOG_LEVEL"],
         type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
         default="INFO",
-        callback=_uppercase_log_level,
+        callback=make_config_callback("DBT_LOG_LEVEL", then=str.upper),
         help="Logging level",
     ),
     click.option(
@@ -120,25 +127,28 @@ COMMON_OPTIONS = [
         envvar=["SLACK_WEBHOOK", "SLACK_WEBHOOK_URL"],
         default=None,
         type=str,
+        callback=make_config_callback("SLACK_WEBHOOK"),
         help="Slack webhook URL for notifications (optional)",
     ),
     click.option(
         "--docker-image",
         envvar=["DBT_DOCKER_IMAGE"],
         default="ghcr.io/dbt-labs/dbt-core:latest",
+        callback=make_config_callback("DBT_DOCKER_IMAGE"),
         help="Docker image to use",
     ),
     click.option(
         "--docker-platform",
         envvar=["DBT_DOCKER_PLATFORM"],
         default=None,
+        callback=make_config_callback("DBT_DOCKER_PLATFORM"),
         help="Platform for Docker (e.g., linux/amd64)",
     ),
     click.option(
         "--docker-volumes",
         envvar=["DBT_DOCKER_VOLUMES"],
         multiple=True,
-        callback=parse_multiple_option,
+        callback=make_config_callback("DBT_DOCKER_VOLUMES", then=parse_multiple_option),
         help=(
             "Additional volume mounts (format: host:container). Repeat flag for multiple "
             "volumes: --docker-volumes /path1:/path1 --docker-volumes /path2:/path2. "
@@ -149,7 +159,7 @@ COMMON_OPTIONS = [
         "--docker-env",
         envvar=["DBT_DOCKER_ENV"],
         multiple=True,
-        callback=parse_multiple_option,
+        callback=make_config_callback("DBT_DOCKER_ENV", then=parse_multiple_option),
         help=(
             "Environment variables (format: KEY=VALUE). Repeat flag for multiple vars: "
             "--docker-env VAR1=val1 --docker-env VAR2=val2. Via env var, use comma or "
@@ -160,18 +170,21 @@ COMMON_OPTIONS = [
         "--docker-network",
         envvar=["DBT_DOCKER_NETWORK"],
         default="host",
+        callback=make_config_callback("DBT_DOCKER_NETWORK"),
         help="Docker network mode",
     ),
     click.option(
         "--docker-user",
         envvar=["DBT_DOCKER_USER"],
         default=None,
+        callback=make_config_callback("DBT_DOCKER_USER"),
         help="User to run as inside container",
     ),
     click.option(
         "--docker-args",
         envvar=["DBT_DOCKER_ARGS"],
         default="",
+        callback=make_config_callback("DBT_DOCKER_ARGS"),
         help="Additional docker run arguments",
     ),
     click.option(
@@ -179,6 +192,7 @@ COMMON_OPTIONS = [
         "--bash-path",
         envvar=["DBT_SHELL_PATH"],
         default="/bin/bash",
+        callback=make_config_callback("DBT_SHELL_PATH"),
         help="Path to shell executable for bash runner",
     ),
     click.option(
@@ -186,6 +200,7 @@ COMMON_OPTIONS = [
         envvar=["DBT_QUIET"],
         is_flag=True,
         default=False,
+        callback=make_config_callback("DBT_QUIET"),
         help="Run in quiet mode with minimal output",
     ),
 ]
@@ -193,6 +208,6 @@ COMMON_OPTIONS = [
 
 def common_options(func):
     """Add common dbt-ci options to a Click command."""
-    for option in reversed(COMMON_OPTIONS):
+    for option in COMMON_OPTIONS:
         func = option(func)
     return func
