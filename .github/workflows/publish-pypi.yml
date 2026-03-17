@@ -39,6 +39,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install python-semantic-release
         pip install -e ".[dev]"
+        pip install build
     
     - name: Run tests
       run: |
@@ -66,7 +67,6 @@ jobs:
             name: '${{steps.release_version.outputs.next}}',
             generate_release_notes: true
           });
-          console.log(`Created release ${release.id} at ${release.html_url}`);  
     
     - name: Publish to PyPI
       if: steps.release.outputs.released == 'true'
