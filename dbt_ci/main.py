@@ -1,7 +1,6 @@
 # Shared options for all commands
 import click
 import logging
-
 from dbt_ci.utilities.config import load_config_callback
 
 logger = logging.getLogger(__name__)

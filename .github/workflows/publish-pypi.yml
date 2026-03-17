@@ -2,13 +2,6 @@ name: Publish to PyPI (Reusable)
 
 on:
   workflow_call:
-    secrets:
-      semantic_release_token:
-        description: 'Token for semantic release'
-        required: true
-      pypi_token:
-        description: 'Token for PyPI publishing'
-        required: true
 
 jobs:
   release:
@@ -69,4 +62,4 @@ jobs:
       if: ${{steps.release_version.outputs.next != ''}}
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        password: ${{ secrets.pypi_token }}
+        password: ${{ secrets.PYPI_TOKEN }}

@@ -11,23 +11,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Run tests first
   tests:
     uses: ./.github/workflows/tests.yml
   
-  # Build and push Docker images (only on main or tags)
-  #docker:
-  #  needs: tests
-  #  if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-  #  uses: ./.github/workflows/docker.yml
-  #  with:
-  #    push_images: ${{ github.event_name != 'pull_request' }}
-  
-  # Publish to PyPI (only on main branch)
   pypi:
     needs: tests
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     uses: ./.github/workflows/publish-pypi.yml
-    secrets:
-      semantic_release_token: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
-      pypi_token: ${{ secrets.PYPI_TOKEN }}
+    secrets: inherit
