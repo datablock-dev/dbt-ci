@@ -10,7 +10,7 @@ from typing import cast
 import click
 from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
 from dbt_ci.graph.dependency_graph import DbtGraph
-from dbt_ci.cache import CacheManager
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.logging import print_exception
 from dbt_ci.connectors import init_storage_connector
 from dbt_ci.graph.graph_utils import get_downstream_dependencies

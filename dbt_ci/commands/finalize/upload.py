@@ -1,7 +1,7 @@
 import sys
 import logging
 from argparse import Namespace
-from dbt_ci.cache import CacheManager
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.connectors import init_storage_connector
 from dbt_ci.logging import print_exception
 

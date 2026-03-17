@@ -6,7 +6,7 @@ This module defines the DbtGraph class, which encapsulates the dependency graph 
 import json
 from argparse import Namespace
 from typing import cast
-from dbt_ci.cache import CacheManager
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.schema import DBTManifest, DependencyGraph
 from dbt_ci.graph.parser import generate_dependency_graph
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file

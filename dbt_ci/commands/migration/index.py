@@ -4,7 +4,7 @@ import logging
 from argparse import Namespace
 from typing import cast
 import click
-from dbt_ci.cache import CacheManager
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.logging import print_exception
 from dbt_ci.schema import MigrationMap, SupportedConnectors

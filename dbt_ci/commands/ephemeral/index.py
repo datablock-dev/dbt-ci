@@ -12,7 +12,7 @@ from itertools import chain
 from argparse import Namespace
 from typing import Optional, cast
 import click
-from dbt_ci.cache import CacheManager
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.connectors import DB_CONNECTORS
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.logging import print_exception

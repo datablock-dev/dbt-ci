@@ -3,7 +3,7 @@ import sys
 import logging
 from argparse import Namespace
 from typing import cast
-from dbt_ci.cache import CacheManager
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.utilities.git import GitAdapter
 from dbt_ci.schema import RunnerConfig, StateChangeSummary
