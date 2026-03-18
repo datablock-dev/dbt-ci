@@ -1,135 +1,205 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "dbt-ci configuration",
-  "description": "Configuration file for dbt-ci. Keys map to environment variable names. Shell environment variables always take precedence over values defined here.",
+  "description": "Configuration file for dbt-ci. Supports nested style (recommended) and flat legacy DBT_* style. Hyphens and underscores are interchangeable in key names. Shell environment variables always take precedence.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "DBT_PROJECT_DIR": {
-      "type": "string",
-      "description": "Path to the dbt project directory.",
-      "default": "."
-    },
-    "DBT_PROFILES_DIR": {
-      "type": "string",
-      "description": "Path to the directory containing profiles.yml. Defaults to DBT_PROJECT_DIR."
-    },
-    "DBT_STATE": {
-      "type": "string",
-      "description": "Local path where the reference manifest.json is stored or downloaded to."
-    },
-    "DBT_TARGET": {
-      "type": "string",
-      "description": "The dbt target to use. Defaults to the target defined in profiles.yml."
-    },
-    "DBT_VARS": {
-      "type": "string",
-      "description": "A YAML string or path to a YAML file containing variables to pass to dbt."
-    },
-    "DBT_RUNNER": {
-      "type": "string",
-      "enum": ["dbt", "local", "docker", "bash"],
-      "default": "dbt",
-      "description": "Runner to use for executing dbt commands."
-    },
-    "DBT_ENTRYPOINT": {
-      "type": "string",
-      "default": "dbt",
-      "description": "Command entrypoint for dbt."
-    },
-    "DBT_ADAPTER": {
-      "type": "string",
-      "description": "The dbt adapter to use (e.g. bigquery, postgres, snowflake)."
-    },
-    "DBT_VERSION": {
-      "type": "string",
-      "description": "Override the dbt version to use for this command."
-    },
-    "DBT_DEFER": {
-      "type": "boolean",
-      "default": false,
-      "description": "Enable dbt's --defer flag to defer to the state of the production manifest."
-    },
-    "DBT_DRY_RUN": {
-      "type": "boolean",
-      "default": false,
-      "description": "Print commands without executing them."
-    },
-    "DBT_LOG_LEVEL": {
-      "type": "string",
-      "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-      "default": "INFO",
-      "description": "Logging level."
-    },
-    "DBT_QUIET": {
-      "type": "boolean",
-      "default": false,
-      "description": "Run in quiet mode with minimal output."
-    },
-    "SLACK_WEBHOOK": {
-      "type": "string",
-      "format": "uri",
-      "description": "Slack webhook URL for notifications."
-    },
-    "DBT_DOCKER_IMAGE": {
-      "type": "string",
-      "default": "ghcr.io/dbt-labs/dbt-core:latest",
-      "description": "Docker image to use when runner is 'docker'."
-    },
-    "DBT_DOCKER_PLATFORM": {
-      "type": "string",
-      "examples": ["linux/amd64", "linux/arm64"],
-      "description": "Platform for Docker (e.g. linux/amd64). Only used when runner is 'docker'."
-    },
-    "DBT_DOCKER_VOLUMES": {
-      "description": "Volume mounts for the Docker container. Each entry should be in 'host:container[:mode]' format. Only used when runner is 'docker'.",
-      "oneOf": [
-        {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "examples": ["dbt:/dbt:rw", "${GOOGLE_APPLICATION_CREDENTIALS}:${GOOGLE_APPLICATION_CREDENTIALS}:ro"]
-          }
-        },
-        {
+
+    "project-dir": { "$ref": "#/definitions/projectDir" },
+    "project_dir": { "$ref": "#/definitions/projectDir" },
+    "profiles-dir": { "$ref": "#/definitions/profilesDir" },
+    "profiles_dir": { "$ref": "#/definitions/profilesDir" },
+    "state": { "$ref": "#/definitions/state" },
+    "target": { "$ref": "#/definitions/target" },
+    "vars": { "$ref": "#/definitions/vars" },
+    "runner": { "$ref": "#/definitions/runner" },
+    "entrypoint": { "$ref": "#/definitions/entrypoint" },
+    "adapter": { "$ref": "#/definitions/adapter" },
+    "defer": { "$ref": "#/definitions/defer" },
+    "dry-run": { "$ref": "#/definitions/dryRun" },
+    "dry_run": { "$ref": "#/definitions/dryRun" },
+    "log-level": { "$ref": "#/definitions/logLevel" },
+    "log_level": { "$ref": "#/definitions/logLevel" },
+    "quiet": { "$ref": "#/definitions/quiet" },
+
+    "docker": {
+      "type": "object",
+      "description": "Docker runner configuration. Only used when runner is 'docker'.",
+      "additionalProperties": false,
+      "properties": {
+        "image": {
           "type": "string",
-          "description": "Comma-separated volume mounts."
-        }
-      ]
-    },
-    "DBT_DOCKER_ENV": {
-      "description": "Environment variables to inject into the Docker container in 'KEY=VALUE' format. Only used when runner is 'docker'.",
-      "oneOf": [
-        {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "examples": ["DBT_PROFILES_DIR=/dbt", "GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}"]
-          }
+          "default": "ghcr.io/dbt-labs/dbt-core:latest",
+          "description": "Docker image to use."
         },
-        {
+        "platform": {
           "type": "string",
-          "description": "Comma-separated KEY=VALUE pairs."
+          "examples": ["linux/amd64", "linux/arm64"],
+          "description": "Platform for Docker (e.g. linux/amd64)."
+        },
+        "volumes": {
+          "description": "Volume mounts in 'host:container[:mode]' format.",
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "type": "string" },
+              "examples": [["dbt:/dbt:rw", "${GOOGLE_APPLICATION_CREDENTIALS}:${GOOGLE_APPLICATION_CREDENTIALS}:ro"]]
+            },
+            { "type": "string", "description": "Comma-separated volume mounts." }
+          ]
+        },
+        "env": {
+          "description": "Environment variables to inject into the container in 'KEY=VALUE' format.",
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "type": "string" },
+              "examples": [["DBT_PROFILES_DIR=/dbt", "GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}"]]
+            },
+            { "type": "string", "description": "Comma-separated KEY=VALUE pairs." }
+          ]
+        },
+        "network": {
+          "type": "string",
+          "default": "host",
+          "description": "Docker network mode."
+        },
+        "user": {
+          "type": "string",
+          "description": "User (UID:GID) to run as inside the container."
+        },
+        "args": {
+          "type": "string",
+          "description": "Additional arguments to pass to 'docker run'."
         }
-      ]
+      }
     },
-    "DBT_DOCKER_NETWORK": {
-      "type": "string",
-      "default": "host",
-      "description": "Docker network mode. Only used when runner is 'docker'."
+
+    "init": {
+      "type": "object",
+      "description": "Options for the 'dbt-ci init' command.",
+      "additionalProperties": false,
+      "properties": {
+        "reference-target": { "$ref": "#/definitions/referenceTarget" },
+        "reference_target": { "$ref": "#/definitions/referenceTarget" },
+        "reference-vars": { "$ref": "#/definitions/referenceVars" },
+        "reference_vars": { "$ref": "#/definitions/referenceVars" },
+        "state-uri": { "$ref": "#/definitions/stateUri" },
+        "state_uri": { "$ref": "#/definitions/stateUri" },
+        "reference-path": { "$ref": "#/definitions/referencePath" },
+        "reference_path": { "$ref": "#/definitions/referencePath" },
+        "target-compile": { "$ref": "#/definitions/targetCompile" },
+        "target_compile": { "$ref": "#/definitions/targetCompile" },
+        "skip-reference-compile": { "$ref": "#/definitions/skipReferenceCompile" },
+        "skip_reference_compile": { "$ref": "#/definitions/skipReferenceCompile" },
+        "comparison-strategy": { "$ref": "#/definitions/comparisonStrategy" },
+        "comparison_strategy": { "$ref": "#/definitions/comparisonStrategy" }
+      }
     },
-    "DBT_DOCKER_USER": {
-      "type": "string",
-      "description": "User to run as inside the Docker container. Only used when runner is 'docker'."
+
+    "run": {
+      "type": "object",
+      "description": "Options for the 'dbt-ci run' command.",
+      "additionalProperties": false,
+      "properties": {
+        "nodes": {
+          "type": "string",
+          "enum": ["all", "models", "seeds", "snapshots", "tests"],
+          "default": "all",
+          "description": "Node types to run (default: all)."
+        }
+      }
     },
-    "DBT_DOCKER_ARGS": {
-      "type": "string",
-      "description": "Additional arguments to pass to 'docker run'. Only used when runner is 'docker'."
+
+    "finalize": {
+      "type": "object",
+      "description": "Options for the 'dbt-ci finalize' command.",
+      "additionalProperties": false,
+      "properties": {
+        "artifacts-uri": { "$ref": "#/definitions/artifactsUri" },
+        "artifacts_uri": { "$ref": "#/definitions/artifactsUri" },
+        "files": {
+          "description": "Files to upload during finalize (default: manifest).",
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "type": "string", "enum": ["manifest", "cache", "log"] }
+            },
+            {
+              "type": "string",
+              "enum": ["manifest", "cache", "log"]
+            }
+          ],
+          "default": ["manifest"]
+        },
+        "clean-ephemeral": { "$ref": "#/definitions/cleanEphemeral" },
+        "clean_ephemeral": { "$ref": "#/definitions/cleanEphemeral" }
+      }
     },
-    "DBT_SHELL_PATH": {
-      "type": "string",
-      "default": "/bin/bash",
-      "description": "Path to the shell executable. Only used when runner is 'bash'."
-    }
+
+    "ephemeral": {
+      "type": "object",
+      "description": "Options for the 'dbt-ci ephemeral' command.",
+      "additionalProperties": false,
+      "properties": {
+        "keep-env": { "$ref": "#/definitions/keepEnv" },
+        "keep_env": { "$ref": "#/definitions/keepEnv" }
+      }
+    },
+
+    "slack-webhook": { "$ref": "#/definitions/slackWebhook" },
+    "slack_webhook": { "$ref": "#/definitions/slackWebhook" },
+    "shell-path": { "$ref": "#/definitions/shellPath" },
+    "shell_path": { "$ref": "#/definitions/shellPath" },
+
+    "DBT_PROJECT_DIR":  { "$ref": "#/definitions/projectDir" },
+    "DBT_PROFILES_DIR": { "$ref": "#/definitions/profilesDir" },
+    "DBT_STATE":        { "$ref": "#/definitions/state" },
+    "DBT_TARGET":       { "$ref": "#/definitions/target" },
+    "DBT_VARS":         { "$ref": "#/definitions/vars" },
+    "DBT_RUNNER":       { "$ref": "#/definitions/runner" },
+    "DBT_ENTRYPOINT":   { "$ref": "#/definitions/entrypoint" },
+    "DBT_ADAPTER":      { "$ref": "#/definitions/adapter" },
+    "DBT_DEFER":        { "$ref": "#/definitions/defer" },
+    "DBT_DRY_RUN":      { "$ref": "#/definitions/dryRun" },
+    "DBT_LOG_LEVEL":    { "$ref": "#/definitions/logLevel" },
+    "DBT_QUIET":        { "$ref": "#/definitions/quiet" },
+    "SLACK_WEBHOOK":    { "$ref": "#/definitions/slackWebhook" },
+    "DBT_DOCKER_IMAGE":    { "type": "string" },
+    "DBT_DOCKER_PLATFORM": { "type": "string" },
+    "DBT_DOCKER_VOLUMES":  { "oneOf": [{ "type": "array", "items": { "type": "string" } }, { "type": "string" }] },
+    "DBT_DOCKER_ENV":      { "oneOf": [{ "type": "array", "items": { "type": "string" } }, { "type": "string" }] },
+    "DBT_DOCKER_NETWORK":  { "type": "string" },
+    "DBT_DOCKER_USER":     { "type": "string" },
+    "DBT_DOCKER_ARGS":     { "type": "string" },
+    "DBT_SHELL_PATH":      { "$ref": "#/definitions/shellPath" }
+  },
+
+  "definitions": {
+    "projectDir":           { "type": "string", "description": "Path to the dbt project directory.", "default": "." },
+    "profilesDir":          { "type": "string", "description": "Path to the directory containing profiles.yml." },
+    "state":                { "type": "string", "description": "Local path where the reference manifest.json is stored or downloaded to." },
+    "target":               { "type": "string", "description": "The dbt target to use. Defaults to the target defined in profiles.yml." },
+    "vars":                 { "type": "string", "description": "A YAML string or path to a YAML file containing variables to pass to dbt." },
+    "runner":               { "type": "string", "enum": ["dbt", "local", "docker", "bash"], "default": "dbt", "description": "Runner to use for executing dbt commands." },
+    "entrypoint":           { "type": "string", "default": "dbt", "description": "Command entrypoint for dbt." },
+    "adapter":              { "type": "string", "description": "The dbt adapter to use (e.g. bigquery, postgres, snowflake)." },
+    "defer":                { "type": "boolean", "default": false, "description": "Enable dbt's --defer flag." },
+    "dryRun":               { "type": "boolean", "default": false, "description": "Print commands without executing them." },
+    "logLevel":             { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], "default": "INFO", "description": "Logging level." },
+    "quiet":                { "type": "boolean", "default": false, "description": "Run in quiet mode with minimal output." },
+    "slackWebhook":         { "type": "string", "format": "uri", "description": "Slack webhook URL for notifications." },
+    "shellPath":            { "type": "string", "default": "/bin/bash", "description": "Path to the shell executable. Only used when runner is 'bash'." },
+    "referenceTarget":      { "type": "string", "description": "The dbt target to use for the reference/production manifest." },
+    "referenceVars":        { "type": "string", "description": "Variables to pass to dbt when compiling the reference manifest." },
+    "stateUri":             { "type": "string", "description": "Remote URI for the state manifest.json (e.g. gs://bucket/manifest.json)." },
+    "referencePath":        { "type": "string", "default": "reference", "description": "Output path when compiling with reference vars." },
+    "targetCompile":        { "type": "boolean", "default": false, "description": "Compile towards the target (or default) after reference compile." },
+    "skipReferenceCompile": { "type": "boolean", "default": false, "description": "Skip compiling towards the reference state." },
+    "comparisonStrategy":   { "type": "string", "enum": ["dbt", "git", "hybrid"], "default": "hybrid", "description": "Strategy for state comparison." },
+    "artifactsUri":         { "type": "string", "description": "Object storage URI for storing artifacts (e.g. s3://bucket/dbt-artifacts/)." },
+    "cleanEphemeral":       { "type": "boolean", "default": false, "description": "Clean up the ephemeral environment after finalizing." },
+    "keepEnv":              { "type": "boolean", "default": false, "description": "Don't destroy the ephemeral environment after run." }
   }
 }

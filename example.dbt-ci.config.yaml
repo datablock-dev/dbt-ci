@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./dbt-ci.config.schema.json
 project_dir: "dbt"
 profiles_dir: "dbt"
 state: "dbt/reference_manifest.json"
