@@ -81,7 +81,7 @@ def load_config_callback(ctx, param, value):
           volumes:
             - dbt:/dbt:rw
           env:
-            - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}
+            - DBT_STATE=${DBT_STATE}
     """
     if not value:
         return value
