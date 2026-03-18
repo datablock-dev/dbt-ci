@@ -8,16 +8,16 @@ import logging
 from argparse import Namespace
 from typing import cast
 import click
-from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
-from dbt_ci.graph.dependency_graph import DbtGraph
+from dbt_ci.utilities.logging import print_exception
 from dbt_ci.utilities.cache import CacheManager
-from dbt_ci.logging import print_exception
-from dbt_ci.connectors import init_storage_connector
-from dbt_ci.graph.graph_utils import get_downstream_dependencies
-from dbt_ci.commands.init.state_modified import StateModified
-from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
-from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
 from dbt_ci.dbt.dbt_commands import DbtCommands
+from dbt_ci.graph.dependency_graph import DbtGraph
+from dbt_ci.connectors import init_storage_connector
+from dbt_ci.commands.init.state_modified import StateModified
+from dbt_ci.graph.graph_utils import get_downstream_dependencies
+from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
+from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
+from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
 
 logger = logging.getLogger(__name__)
 

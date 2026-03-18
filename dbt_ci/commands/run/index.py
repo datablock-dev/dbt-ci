@@ -8,7 +8,7 @@ from typing import cast
 import click
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.utilities.cache import CacheManager
-from dbt_ci.logging import print_exception
+from dbt_ci.utilities.logging import print_exception
 from dbt_ci.runners import run_dbt_command, append_dbt_variables_to_command
 from dbt_ci.schema import (
     DependencyGraph,

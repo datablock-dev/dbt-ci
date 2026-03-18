@@ -4,7 +4,7 @@ from argparse import Namespace
 from typing import Literal, TypedDict, cast
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
-from dbt_ci.logging import print_exception
+from dbt_ci.utilities.logging import print_exception
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
 from dbt_ci.schema import RunnerConfig, StateChangeSummary, StateChangeSummaryKeys
 from dbt_ci.utilities.git import GitAdapter, GitChangeType
