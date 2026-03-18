@@ -1,6 +1,7 @@
 import sys
 import logging
 from argparse import Namespace
+from typing import cast
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.connectors import init_storage_connector
 from dbt_ci.utilities.logging import print_exception
@@ -27,7 +28,7 @@ def finalize_upload_files(args: Namespace) -> None:
             logger.warning("No upload function found for resolved storage connector. Skipping artifact upload.")
             sys.exit(1)
 
-        storage_function("manifest.json", manifest_file)
+        storage_function("manifest.json", cast(dict, manifest_file))
         logger.info(f"Uploading manifest.json to {getattr(args, 'artifacts_uri', None)}...")
         # Upload manifest file to storage if artifacts_uri is provided
         #if report is not None:
