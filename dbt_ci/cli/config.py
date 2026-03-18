@@ -122,6 +122,8 @@ def load_config_callback(ctx, param, value):
             f"No valid config file found at {value} or error reading it — "
             "proceeding with environment variables and defaults."
         )
+
+    print("Load Config:", ctx.meta.get(_CTX_META_KEY, {}))  # Debug print to verify loaded config
     return value
 
 

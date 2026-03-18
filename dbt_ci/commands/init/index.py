@@ -15,7 +15,6 @@ from dbt_ci.logging import print_exception
 from dbt_ci.connectors import init_storage_connector
 from dbt_ci.graph.graph_utils import get_downstream_dependencies
 from dbt_ci.commands.init.state_modified import StateModified
-from dbt_ci.utilities.multi_processing import run_multiprocessed
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
 from dbt_ci.dbt.dbt_commands import DbtCommands
@@ -33,7 +32,7 @@ def init(args: Namespace):
     1. The reference manifest.json with target equal to the current target
     2. "Production" reference manifest.json with target equal to the production target (if specified and different from current target)
     """
-
+    print("Init: ", args)
     try:
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)

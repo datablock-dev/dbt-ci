@@ -1,11 +1,15 @@
 # Shared options for all commands
 import click
-import logging
 
-logger = logging.getLogger(__name__)
+def get_version():
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata
+    return importlib_metadata.version("dbt-ci")
 
 @click.group()
-@click.version_option(version='0.1.0', prog_name='dbt-ci')
+@click.version_option(version=get_version(), prog_name='dbt-ci')
 def cli():
     """dbt CI Tool - Intelligent CI for dbt projects
     

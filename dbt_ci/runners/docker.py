@@ -36,7 +36,8 @@ def docker_runner(commands: list[str], runner_config: RunnerConfig) -> Completed
             stderr=True,
             user=runner_config.get("docker_user", f"{os.getuid()}:{os.getgid()}"),
             environment=get_docker_env(runner_config),
-            volumes=get_docker_volumes(runner_config)
+            volumes=get_docker_volumes(runner_config),
+            #network_mode=runner_config.get("docker_network", "bridge")
         )
         
         # Capture all logs as string
