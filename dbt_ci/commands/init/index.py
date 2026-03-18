@@ -131,13 +131,17 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
                 logger.info(f"  • {node['name']} ({node['resource_type']})")
     logger.info("\n------------------------------------------------------")
 
-    try:
-        header = "*DBT CI Initialization Summary:*\n\n"
+    slack_webhook = getattr(args, "slack_webhook", None)
+    if not slack_webhook:
+        return
 
+    try:
+        from dbt_ci.notifications.slack import SlackClient
+        header = "*DBT CI Initialization Summary:*\n\n"
         message = "*State Change Summary:*\n"
-        message += json.dumps(state_change_summary, indent=2)
+        message += json.dumps(state_change_summary, indent=2, default=lambda o: list(o) if isinstance(o, set) else str(o))
         message += "\n\n"
-        #slack.send_message(header, message)
+        SlackClient(args).send_message(header, message)
     except Exception as e:
         logger.error(f"Failed to send Slack message: {e}")
 
