@@ -6,7 +6,7 @@ from typing import cast
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.graph.graph_utils import filter_node_ids_by_type, get_downstream_dependencies, get_upstream_dependencies
 from dbt_ci.schema import RunnerConfig
-from dbt_ci.logging import print_exception
+from dbt_ci.utilities.logging import print_exception
 from dbt_ci.utilities.paths import get_profile
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
 

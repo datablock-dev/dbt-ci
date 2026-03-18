@@ -1,7 +1,7 @@
 from argparse import Namespace
 from typing import Literal, cast
 
-from dbt_ci.cache import CacheManager
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.schema import DbtCiManifest, DependencyGraphNodeType
 
 dependency_graph_node_type: list[DependencyGraphNodeType] = [

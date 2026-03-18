@@ -10,9 +10,8 @@ class TestInitCommand:
     
     @patch('dbt_ci.commands.init.index.CacheManager')
     @patch('dbt_ci.commands.init.index.init_storage_connector')
-    @patch('dbt_ci.commands.init.index.dbt_command_reference_compile')
+    @patch('dbt_ci.commands.init.index.DbtCommands')
     @patch('dbt_ci.commands.init.index.StateModified')
-    @patch('dbt_ci.commands.init.index.dbt_command_target_compile')
     @patch('dbt_ci.commands.init.index.DbtGraph')
     @patch('dbt_ci.commands.init.index.get_manifest_file')
     @patch('dbt_ci.commands.init.index.click.secho')
@@ -21,9 +20,8 @@ class TestInitCommand:
         mock_secho,
         mock_get_manifest,
         mock_graph,
-        mock_target_compile,
         mock_dbt_state,
-        mock_ref_compile,
+        mock_dbt_commands,
         mock_storage,
         mock_cache
     ):
@@ -55,16 +53,15 @@ class TestInitCommand:
             index(args)
         
         # Verify reference compile was called before state check
-        mock_ref_compile.assert_called_once()
+        mock_dbt_commands.return_value.reference_compile.assert_called_once()
         
         # Verify exit code
         assert exc_info.value.code == 0
     
     @patch('dbt_ci.commands.init.index.CacheManager')
     @patch('dbt_ci.commands.init.index.init_storage_connector')
-    @patch('dbt_ci.commands.init.index.dbt_command_reference_compile')
+    @patch('dbt_ci.commands.init.index.DbtCommands')
     @patch('dbt_ci.commands.init.index.StateModified')
-    @patch('dbt_ci.commands.init.index.dbt_command_target_compile')
     @patch('dbt_ci.commands.init.index.DbtGraph')
     @patch('dbt_ci.commands.init.index.get_manifest_file')
     @patch('dbt_ci.commands.init.index.click.secho')
@@ -75,9 +72,8 @@ class TestInitCommand:
         mock_secho,
         mock_get_manifest,
         mock_graph,
-        mock_target_compile,
         mock_dbt_state,
-        mock_ref_compile,
+        mock_dbt_commands,
         mock_storage,
         mock_cache
     ):
@@ -120,7 +116,7 @@ class TestInitCommand:
         assert mock_cache_instance.write_cache.call_count >= 1
         
         # Verify dbt_command_reference_compile was called
-        mock_ref_compile.assert_called_once()
+        mock_dbt_commands.return_value.reference_compile.assert_called_once()
         
         # Verify state modified was called
         mock_dbt_state.return_value.get_state_modified.assert_called_once()
@@ -153,9 +149,8 @@ class TestInitCommand:
     
     @patch('dbt_ci.commands.init.index.CacheManager')
     @patch('dbt_ci.commands.init.index.init_storage_connector')
-    @patch('dbt_ci.commands.init.index.dbt_command_reference_compile')
+    @patch('dbt_ci.commands.init.index.DbtCommands')
     @patch('dbt_ci.commands.init.index.StateModified')
-    @patch('dbt_ci.commands.init.index.dbt_command_target_compile')
     @patch('dbt_ci.commands.init.index.DbtGraph')
     @patch('dbt_ci.commands.init.index.get_manifest_file')
     @patch('dbt_ci.commands.init.index.click.secho')
@@ -164,9 +159,8 @@ class TestInitCommand:
         mock_secho,
         mock_get_manifest,
         mock_graph,
-        mock_target_compile,
         mock_dbt_state,
-        mock_ref_compile,
+        mock_dbt_commands,
         mock_storage,
         mock_cache
     ):
@@ -200,7 +194,7 @@ class TestInitCommand:
             index(args)
         
         # Verify reference compile was called with reference target internally
-        mock_ref_compile.assert_called_once()
+        mock_dbt_commands.return_value.reference_compile.assert_called_once()
         
         # Verify exit code
         assert exc_info.value.code == 0
@@ -209,9 +203,10 @@ class TestInitCommand:
 class TestResolveManifestFromStorage:
     """Test the resolve_manifest_file_from_storage helper function."""
     
+    @patch('builtins.open', new_callable=MagicMock)
     @patch('dbt_ci.commands.init.resolve_manifest.Path')
     @patch('dbt_ci.commands.init.resolve_manifest.logger')
-    def test_resolve_manifest_creates_directory(self, mock_logger, mock_path):
+    def test_resolve_manifest_creates_directory(self, mock_logger, mock_path, mock_open):
         """Test that the function creates the necessary directory."""
         from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
         
@@ -221,7 +216,7 @@ class TestResolveManifestFromStorage:
         }
         state_uri = "s3://bucket/path"
         variables = Namespace(
-            reference_state=None,
+            reference_state='dbt/.dbtstate',
             dbt_project_dir='dbt',
             state='dbt/.dbtstate',
             runner='local'

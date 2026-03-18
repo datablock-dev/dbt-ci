@@ -123,15 +123,18 @@ class TestRunCommand:
         call_args = mock_run_mode.call_args
         assert call_args[1]['mode'] == 'models'
     
+    @patch('dbt_ci.commands.run.index.CacheManager')
     @patch('dbt_ci.commands.run.index.click.echo')
     @patch('dbt_ci.commands.run.index.sys.exit')
     def test_run_error_handling(
         self,
         mock_exit,
-        mock_echo
+        mock_echo,
+        mock_cache
     ):
         """Test run command error handling."""
-        # Run with invalid kwargs to trigger exception
+        # First CacheManager call (in try block) raises, second (in except block) returns mock
+        mock_cache.side_effect = [Exception("Cache error"), MagicMock()]
         args = Namespace(
             dbt_project_dir='/dbt',
             dry_run=False

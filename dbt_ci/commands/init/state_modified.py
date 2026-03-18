@@ -1,12 +1,12 @@
 import sys
 import logging
 from argparse import Namespace
-from typing import Literal, TypedDict, cast
-from dbt_ci.cache import CacheManager
+from typing import TypedDict, cast
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
-from dbt_ci.logging import print_exception
+from dbt_ci.utilities.logging import print_exception
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
-from dbt_ci.schema import RunnerConfig, StateChangeSummary, StateChangeSummaryKeys
+from dbt_ci.schema import ComparisonStrategy, RunnerConfig, StateChangeSummary, StateChangeSummaryKeys
 from dbt_ci.utilities.git import GitAdapter, GitChangeType
 from dbt_ci.graph.graph_utils import (
     get_deleted_nodes,
@@ -26,21 +26,21 @@ class CommonStateChangeSummary(TypedDict):
 class StateModified:
     def __init__(self, args: Namespace):
         self.args = args
-        self.strategy: Literal["dbt", "git", "hybrid"] = getattr(args, "comparison_strategy")
+        self.strategy: ComparisonStrategy = getattr(args, "comparison_strategy")
     
     def get_state_modified(self) -> StateChangeSummary:
         """Determines the modified, new, and deleted nodes compared to the reference state based on the specified comparison strategy."""
         if self.strategy == "git":
-            return self.git_strategy()
+            return self.__git_strategy()
         elif self.strategy == "hybrid":
-            return self.hybrid_strategy()
+            return self.__hybrid_strategy()
         elif self.strategy == "dbt":
-            return self.dbt_strategy()
+            return self.__dbt_strategy()
         else:
             logger.error(f"Invalid comparison strategy specified: {self.strategy}. Supported strategies are 'git', 'dbt', and 'hybrid'.")
             sys.exit(1)
 
-    def git_strategy(self) -> StateChangeSummary:
+    def __git_strategy(self) -> StateChangeSummary:
         try:
             git = GitAdapter(self.args)
             target_graph = DbtGraph(self.args)
@@ -84,13 +84,13 @@ class StateModified:
             print_exception(e, "Error generating state change summary using git strategy")
             sys.exit(1)
 
-    def hybrid_strategy(self) -> StateChangeSummary:
+    def __hybrid_strategy(self) -> StateChangeSummary:
         """Determines modified nodes using dbt state:modified and then cross-references with git diff to filter out nodes that are not actually modified based on file changes."""
         try:
             git = GitAdapter(self.args)
             target_graph = DbtGraph(self.args).to_dict()
             reference_graph = DbtGraph(self.args, is_reference=True).to_dict()
-            modified_nodes_dbt = self.common_state_change()
+            modified_nodes_dbt = self.__common_state_change()
             changed_files = git.get_changed_files()
             new_nodes = get_new_nodes(reference_graph, target_graph)
 
@@ -197,12 +197,12 @@ class StateModified:
             print_exception(e, "Error generating state change summary using hybrid strategy")
             sys.exit(1)
 
-    def dbt_strategy(self) -> StateChangeSummary:
+    def __dbt_strategy(self) -> StateChangeSummary:
         """Compile the DBT project and return a list of modified nodes compared to the reference state."""
         try:
             target_graph = DbtGraph(self.args)
             reference_graph = DbtGraph(self.args, is_reference=True)
-            data = self.common_state_change()
+            data = self.__common_state_change()
 
             return {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(
@@ -221,7 +221,7 @@ class StateModified:
         except Exception as e:
             raise Exception(f"Error generating state change summary: {str(e)}")
 
-    def common_state_change(self) -> CommonStateChangeSummary:
+    def __common_state_change(self) -> CommonStateChangeSummary:
         """
             Common logic to determine modified, new, and deleted nodes using 
             dbt's state:modified comparison, without git diff filtering. 
@@ -266,7 +266,7 @@ class StateModified:
             print_exception(e, "Error generating state change summary")
             sys.exit(1)
 
-    def _convert_git_key_to_state_change_summary_key(self, key: GitChangeType) -> StateChangeSummaryKeys:
+    def __convert_git_key_to_state_change_summary_key(self, key: GitChangeType) -> StateChangeSummaryKeys:
         """Convert the output from git strategy to match the structure of StateChangeSummary for consistency across strategies."""
         mapping: dict[GitChangeType, StateChangeSummaryKeys] = {
             "modified": "modified_nodes",

@@ -6,7 +6,7 @@ import logging
 from typing import List
 import subprocess
 from subprocess import CompletedProcess
-from dbt_ci.logging import setup_logging
+from dbt_ci.utilities.logging import setup_logging
 from dbt_ci.schema import RunnerConfig
 
 logger = logging.getLogger(__name__)

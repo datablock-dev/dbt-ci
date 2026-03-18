@@ -7,7 +7,7 @@ import logging
 from typing import cast
 from argparse import Namespace
 import click
-from dbt_ci.cache import CacheManager
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.connectors import get_connector
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.schema import DeleteMapNode, SupportedConnectors
