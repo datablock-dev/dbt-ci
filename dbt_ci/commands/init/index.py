@@ -32,7 +32,6 @@ def init(args: Namespace):
     1. The reference manifest.json with target equal to the current target
     2. "Production" reference manifest.json with target equal to the production target (if specified and different from current target)
     """
-    print("Init: ", args)
     try:
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)

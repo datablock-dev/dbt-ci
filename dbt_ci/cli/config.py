@@ -42,7 +42,7 @@ def _flatten_config(raw: dict, prefix: str = "") -> dict[str, Any]:
     """
     flat: dict[str, Any] = {}
     for key, val in raw.items():
-        upper_key = key.upper()
+        upper_key = key.upper().replace("-", "_")
         if isinstance(val, dict):
             # Recurse into nested block, e.g. docker: { image: ... }
             # The nested key becomes the new prefix: docker -> DBT_DOCKER
@@ -123,7 +123,7 @@ def load_config_callback(ctx, param, value):
             "proceeding with environment variables and defaults."
         )
 
-    print("Load Config:", ctx.meta.get(_CTX_META_KEY, {}))  # Debug print to verify loaded config
+    logger.debug("Load Config: %s", ctx.meta.get(_CTX_META_KEY, {}))  # Debug print to verify loaded config
     return value
 
 

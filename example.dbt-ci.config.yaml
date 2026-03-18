@@ -3,6 +3,9 @@ profiles_dir: "dbt"
 state: "dbt/reference_manifest.json"
 runner: "docker"
 
+init:
+  comparison-strategy: "git"
+
 docker:
   image: "my-registry/dbt:latest"
   volumes:
