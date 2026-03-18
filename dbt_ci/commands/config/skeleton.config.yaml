@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=./dbt-ci.config.schema.json
+
+# Path to the dbt project directory (default: current directory)
+project-dir: "dbt"
+
+# Path to the directory containing profiles.yml (default: project-dir)
+profiles-dir: "dbt"
+
+# Local path where the reference manifest.json is stored / downloaded to
+state: "dbt/.dbtstate"
+
+# Runner to use: dbt | local | docker | bash (default: dbt)
+runner: "docker"
+
+init:
+  # Remote URI for the reference manifest (gs://, s3://, or az:// supported)
+  # state-uri: "gs://my-bucket/dbt-state/manifest.json"
+
+  # dbt target to compile the reference manifest against
+  # reference-target: "production"
+
+  # Comparison strategy: hybrid | dbt | git (default: hybrid)
+  comparison-strategy: "hybrid"
+
+finalize:
+  # Files to upload after a successful CI run: manifest | cache | log
+  files:
+    - "manifest"
+
+docker:
+  # Docker image that contains dbt and your adapter
+  image: "my-registry/dbt:latest"
+
+  # Volume mounts: host-path:container-path[:mode]
+  volumes:
+    - "dbt:/dbt:rw"
+    - "${GOOGLE_APPLICATION_CREDENTIALS}:${GOOGLE_APPLICATION_CREDENTIALS}:ro"
+
+  # Environment variables injected into the container
+  env:
+    - "DBT_PROFILES_DIR=/dbt"
+    - "USER=${USER}"
+    - "GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}"
+    - "DBT_STATE=${DBT_STATE}"
