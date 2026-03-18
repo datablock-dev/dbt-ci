@@ -505,6 +505,7 @@ MANIFEST_KEY_MAPPING = {
 
 # Nodes grouped by resource_type, then keyed by node_id.
 # e.g. {"model": {"model.pkg.foo": DependencyGraphNode}, "snapshot": {...}}
+type ComparisonStrategy =  Literal["dbt", "git", "hybrid"]
 type StructuredNodes = dict[str, dict[str, DependencyGraphNode]]
 type StateChangeSummaryKeys = Literal["modified_nodes", "deleted_nodes", "new_nodes"]
 
@@ -521,6 +522,8 @@ class DbtCompileOptions(TypedDict):
 class DbtCiConfig(TypedDict):
     """Configuration for the DBT CI Tool, including CLI arguments and connector configurations."""
     connector: SupportedConnectors
+    comparison_strategy: ComparisonStrategy
+    runner: Runners
     reference: DbtCompileOptions
     target: DbtCompileOptions
 

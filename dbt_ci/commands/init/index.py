@@ -40,6 +40,7 @@ def init(args: Namespace):
         dbt_commands = DbtCommands(args)
         cache = CacheManager(args)
         state_modified = StateModified(args)
+        cache.clear_cache() # Clear cache at the start of init to avoid stale data issues
         cache.start_report("init", args)
         dbt_project_dir = getattr(args, "dbt_project_dir", None)
         reference_target = getattr(args, "reference_target", None)

@@ -203,9 +203,10 @@ class TestInitCommand:
 class TestResolveManifestFromStorage:
     """Test the resolve_manifest_file_from_storage helper function."""
     
+    @patch('builtins.open', new_callable=MagicMock)
     @patch('dbt_ci.commands.init.resolve_manifest.Path')
     @patch('dbt_ci.commands.init.resolve_manifest.logger')
-    def test_resolve_manifest_creates_directory(self, mock_logger, mock_path):
+    def test_resolve_manifest_creates_directory(self, mock_logger, mock_path, mock_open):
         """Test that the function creates the necessary directory."""
         from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
         
@@ -215,7 +216,7 @@ class TestResolveManifestFromStorage:
         }
         state_uri = "s3://bucket/path"
         variables = Namespace(
-            reference_state=None,
+            reference_state='dbt/.dbtstate',
             dbt_project_dir='dbt',
             state='dbt/.dbtstate',
             runner='local'

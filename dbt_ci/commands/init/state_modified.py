@@ -1,12 +1,12 @@
 import sys
 import logging
 from argparse import Namespace
-from typing import Literal, TypedDict, cast
+from typing import TypedDict, cast
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.utilities.logging import print_exception
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
-from dbt_ci.schema import RunnerConfig, StateChangeSummary, StateChangeSummaryKeys
+from dbt_ci.schema import ComparisonStrategy, RunnerConfig, StateChangeSummary, StateChangeSummaryKeys
 from dbt_ci.utilities.git import GitAdapter, GitChangeType
 from dbt_ci.graph.graph_utils import (
     get_deleted_nodes,
@@ -26,7 +26,7 @@ class CommonStateChangeSummary(TypedDict):
 class StateModified:
     def __init__(self, args: Namespace):
         self.args = args
-        self.strategy: Literal["dbt", "git", "hybrid"] = getattr(args, "comparison_strategy")
+        self.strategy: ComparisonStrategy = getattr(args, "comparison_strategy")
     
     def get_state_modified(self) -> StateChangeSummary:
         """Determines the modified, new, and deleted nodes compared to the reference state based on the specified comparison strategy."""

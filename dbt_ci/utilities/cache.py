@@ -35,6 +35,8 @@ class CacheManager:
             "deleted_nodes": data.get("deleted_nodes") if data else None,
             "config": {
                 "connector": connector_type,
+                "comparison_strategy": getattr(self.args, "comparison_strategy"),
+                "runner": getattr(self.args, "runner"),
                 "reference": {
                     "target": getattr(self.args, "reference_target", None),
                     "vars": getattr(self.args, "reference_vars", None),
