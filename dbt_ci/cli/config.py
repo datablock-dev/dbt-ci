@@ -117,10 +117,15 @@ def load_config_callback(ctx, param, value):
             else:
                 os.environ.setdefault(env_key, str(val))
 
-    except Exception:
-        logger.debug(
-            f"No valid config file found at {value} or error reading it — "
-            "proceeding with environment variables and defaults."
+    except yaml.YAMLError as e:
+        raise click.BadParameter(
+            f"Config file '{value}' contains invalid YAML: {e}",
+            param_hint="'--config'",
+        )
+    except Exception as e:
+        raise click.BadParameter(
+            f"Failed to load config file '{value}': {e}",
+            param_hint="'--config'",
         )
 
     logger.debug("Load Config: %s", ctx.meta.get(_CTX_META_KEY, {}))  # Debug print to verify loaded config

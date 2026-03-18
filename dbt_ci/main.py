@@ -26,6 +26,7 @@ import dbt_ci.commands.ephemeral.cli  # noqa: E402, F401
 import dbt_ci.commands.delete.cli     # noqa: E402, F401
 import dbt_ci.commands.migration.cli  # noqa: E402, F401
 import dbt_ci.commands.finalize.cli   # noqa: E402, F401
+import dbt_ci.commands.config.cli     # noqa: E402, F401
 
 if __name__ == "__main__":
     cli()

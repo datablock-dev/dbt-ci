@@ -54,7 +54,7 @@ where = ["."]
 include = ["dbt_ci*"]
 
 [tool.setuptools.package-data]
-dbt_ci = ["py.typed"]
+dbt_ci = ["py.typed", "**/*.yaml"]
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
