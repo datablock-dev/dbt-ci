@@ -20,17 +20,17 @@ def finalize_upload_files(args: Namespace) -> None:
             
         if init_storage is None:
             logger.warning("No valid storage connector found for artifact upload. Skipping artifact upload.")
-            sys.exit(1)
+            return
 
         resolved_storage, _ = init_storage
         storage_function = resolved_storage.get("upload")
         if storage_function is None:
             logger.warning("No upload function found for resolved storage connector. Skipping artifact upload.")
-            sys.exit(1)
+            return
 
-        if getattr(args, "files", None) is None:
+        if not getattr(args, "files", None) or len(getattr(args, "files", [])) == 0:
             logger.info("No files specified for upload. Please specify which files to upload using the --files argument. Skipping artifact upload.")
-            sys.exit(0)
+            return
 
         for file in getattr(args, "files", []):
             upload_func = UPLOAD_MAPPING.get(file)
