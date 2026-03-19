@@ -101,6 +101,9 @@ class CacheManager:
                     return json.load(f)
                 elif content_type == "txt":
                     return f.read()
+                else:
+                    logger.error("Unsupported content_type '%s' passed to get_cache for file '%s'.", content_type, file_path)
+                    raise ValueError(f"Unsupported content_type '{content_type}' for get_cache")
         else:
             return None
 
