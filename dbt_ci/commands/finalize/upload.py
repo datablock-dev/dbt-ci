@@ -1,7 +1,7 @@
 import sys
 import logging
 from argparse import Namespace
-from typing import cast
+from typing import Any, Callable
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.connectors import init_storage_connector
 from dbt_ci.utilities.logging import print_exception
@@ -9,14 +9,14 @@ from dbt_ci.utilities.logging import print_exception
 logger = logging.getLogger(__name__)
 
 def finalize_upload_files(args: Namespace) -> None:
-    """"""
+    """Upload files to specified storage location if artifacts_uri is provided in arguments."""
     try:
-        if getattr(args, "artifacts_uri", None) is None:
+        cache = CacheManager(args)
+        artifacts_uri = getattr(args, "artifacts_uri", None)
+        if artifacts_uri is None:
             return
 
-        cache = CacheManager(args)
-        manifest_file = cache.get_cache("target_manifest.json") or cache.get_cache("reference_manifest.json")
-        init_storage = init_storage_connector(getattr(args, "artifacts_uri", None))
+        init_storage = init_storage_connector(artifacts_uri)
             
         if init_storage is None:
             logger.warning("No valid storage connector found for artifact upload. Skipping artifact upload.")
@@ -28,14 +28,60 @@ def finalize_upload_files(args: Namespace) -> None:
             logger.warning("No upload function found for resolved storage connector. Skipping artifact upload.")
             sys.exit(1)
 
-        storage_function("manifest.json", cast(dict, manifest_file))
-        logger.info(f"Uploading manifest.json to {getattr(args, 'artifacts_uri', None)}...")
-        # Upload manifest file to storage if artifacts_uri is provided
-        #if report is not None:
-        #    logger.info(f"Uploading report.json to {getattr(args, 'artifacts_uri', None)}...")
-        #    storage_function("report.json", report)
-        #    # Upload report file to storage if artifacts_uri is provided
+        if getattr(args, "files", None) is None:
+            logger.info("No files specified for upload. Please specify which files to upload using the --files argument. Skipping artifact upload.")
+            sys.exit(0)
+
+        for file in getattr(args, "files", []):
+            upload_func = UPLOAD_MAPPING.get(file)
+            if upload_func is None:
+                logger.warning(f"No upload function found for file type '{file}'. Skipping upload for this file type.")
+                continue
+            upload_func(artifacts_uri, cache, storage_function)
 
     except Exception as e:
         print_exception(e, "Error during artifact upload")
         sys.exit(1)
+
+def upload_cache(
+    artifacts_uri: str,
+    cache: CacheManager,
+    storage_function: Callable[[str, Any], None]
+) -> None:
+    """Upload any relevant artifacts (manifest, run results, etc.) to storage location specified in arguments."""
+    cache_file = cache.get_cache()
+    if cache_file is None:
+        return logger.warning("No cache file found for upload, skipping...")
+    
+    storage_function("cache.json", cache_file)
+    logger.info(f"Uploading cache.json to {artifacts_uri}...")
+    
+def upload_logs(
+    artifacts_uri: str,
+    cache: CacheManager,
+    storage_function: Callable[[str, Any], None]
+) -> None:
+    """Upload logs to storage location specified in arguments."""
+    logs = cache.get_cache("logs.txt")
+
+    if not logs:
+        return logger.warning("No logs found for upload, skipping...")
+    
+    storage_function("logs.txt", logs)
+    logger.info(f"Uploading logs to {artifacts_uri}...")
+
+def upload_manifest(
+    artifacts_uri: str,
+    cache: CacheManager,
+    storage_function: Callable[[str, Any], None]
+) -> None:
+    """Upload manifest file to storage location specified in arguments."""
+    manifest_file = cache.get_cache("target_manifest.json") or cache.get_cache("reference_manifest.json")
+    storage_function("manifest.json", manifest_file)
+    logger.info(f"Uploading manifest.json to {artifacts_uri}...")
+
+UPLOAD_MAPPING: dict[str, Callable[[str, CacheManager, Callable[[str, Any], None]], None]] = {
+    "manifest": upload_manifest,
+    "cache": upload_cache,
+    "logs": upload_logs
+}

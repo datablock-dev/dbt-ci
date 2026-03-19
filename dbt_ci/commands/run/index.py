@@ -52,22 +52,6 @@ def run(args: Namespace):
         if len(changed_nodes) == 0:
             logger.info("No modified, new, or deleted nodes found in cache, skipping...")
             sys.exit(0)
-        
-        """
-        logger.info("\n-------------------------------------------------------")
-        logger.info(f"Found {len(changed_nodes)} modified node(s):")
-        for node in changed_nodes:
-            string = f"  • {node.split('.')[-1]}"
-            if node in changed_nodes_dict["deleted_nodes"]:
-                string += " [Deleted]"
-            elif node in changed_nodes_dict["modified_nodes"]:
-                string += " [Modified]"
-            elif node in changed_nodes_dict["new_nodes"]:
-                string += " [New]"
-            
-            logger.info(string)
-        logger.info("-------------------------------------------------------\n")
-        """
 
         run_nodes(
             args=args,
