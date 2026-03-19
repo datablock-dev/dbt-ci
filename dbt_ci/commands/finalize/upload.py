@@ -52,8 +52,8 @@ def upload_cache(
     cache_file = cache.get_cache()
     if cache_file is None:
         return logger.warning("No cache file found for upload, skipping...")
-    storage_function(artifacts_uri, cache_file, "application/json")
-    logger.info(f"Uploading cache.json to {artifacts_uri}...")
+    storage_function(f"{artifacts_uri}/cache.json", cache_file, "application/json")
+    logger.info(f"Uploading cache.json to {artifacts_uri}/cache.json...")
 
 def upload_logs(
     artifacts_uri: str,
@@ -64,8 +64,8 @@ def upload_logs(
     logs = cache.get_cache("logs.txt", "txt")
     if not logs:
         return logger.warning("No logs found for upload, skipping...")
-    storage_function(artifacts_uri, logs, "text/plain")
-    logger.info(f"Uploading logs to {artifacts_uri}...")
+    storage_function(f"{artifacts_uri}/logs.txt", logs, "text/plain")
+    logger.info(f"Uploading logs to {artifacts_uri}/logs.txt...")
 
 def upload_manifest(
     artifacts_uri: str,
@@ -76,9 +76,8 @@ def upload_manifest(
     manifest_file = cache.get_cache("target_manifest.json") or cache.get_cache("reference_manifest.json")
     if manifest_file is None:
         return logger.warning("No manifest file found for upload, skipping...")
-    
-    storage_function(artifacts_uri, manifest_file, "application/json")
-    logger.info(f"Uploading manifest.json to {artifacts_uri}...")
+    storage_function(f"{artifacts_uri}/manifest.json", manifest_file, "application/json")
+    logger.info(f"Uploading manifest.json to {artifacts_uri}/manifest.json...")
 
 UPLOAD_MAPPING: dict[str, Callable[[str, CacheManager, Callable[[str, Any, str], None]], None]] = {
     "manifest": upload_manifest,
