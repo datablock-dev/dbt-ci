@@ -83,5 +83,5 @@ def upload_manifest(
 UPLOAD_MAPPING: dict[str, Callable[[str, CacheManager, Callable[[str, Any], None]], None]] = {
     "manifest": upload_manifest,
     "cache": upload_cache,
-    "logs": upload_logs
+    "log": upload_logs
 }
