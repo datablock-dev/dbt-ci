@@ -22,7 +22,7 @@ from dbt_ci.schema import (
 from dbt_ci.graph.graph_utils import (
     filter_node_ids_by_type,
     get_downstream_dependencies,
-    get_node_ids_from_structured_nodes,
+    get_node_ids_from_structured_nodes
 )
 
 logger = logging.getLogger(__name__)
