@@ -31,16 +31,16 @@ class StateModified:
     def get_state_modified(self) -> StateChangeSummary:
         """Determines the modified, new, and deleted nodes compared to the reference state based on the specified comparison strategy."""
         if self.strategy == "git":
-            return self.__git_strategy()
+            return self.git_strategy()
         elif self.strategy == "hybrid":
-            return self.__hybrid_strategy()
+            return self.hybrid_strategy()
         elif self.strategy == "dbt":
-            return self.__dbt_strategy()
+            return self.dbt_strategy()
         else:
             logger.error(f"Invalid comparison strategy specified: {self.strategy}. Supported strategies are 'git', 'dbt', and 'hybrid'.")
             sys.exit(1)
 
-    def __git_strategy(self) -> StateChangeSummary:
+    def git_strategy(self) -> StateChangeSummary:
         try:
             git = GitAdapter(self.args)
             target_graph = DbtGraph(self.args)
@@ -84,13 +84,13 @@ class StateModified:
             print_exception(e, "Error generating state change summary using git strategy")
             sys.exit(1)
 
-    def __hybrid_strategy(self) -> StateChangeSummary:
+    def hybrid_strategy(self) -> StateChangeSummary:
         """Determines modified nodes using dbt state:modified and then cross-references with git diff to filter out nodes that are not actually modified based on file changes."""
         try:
             git = GitAdapter(self.args)
             target_graph = DbtGraph(self.args).to_dict()
             reference_graph = DbtGraph(self.args, is_reference=True).to_dict()
-            modified_nodes_dbt = self.__common_state_change()
+            modified_nodes_dbt = self.common_state_change()
             changed_files = git.get_changed_files()
             new_nodes = get_new_nodes(reference_graph, target_graph)
 
@@ -179,6 +179,13 @@ class StateModified:
                 if len(files) > 0:
                     logger.debug(f"Unmatched files for change type '{change_type}': {files}")
 
+            # If git produced no hits at all, fall back entirely to dbt's output.
+            # This happens when the working tree is clean (e.g. manifest was updated
+            # remotely) but dbt state:modified still detects changes.
+            if not any(nodes for nodes in git_modified_nodes.values()):
+                logger.debug("Git returned no changed files — falling back to dbt state:modified output.")
+                return structured_modified_nodes_dbt
+
             return {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(
                     dependency_graph=target_graph, 
@@ -197,12 +204,12 @@ class StateModified:
             print_exception(e, "Error generating state change summary using hybrid strategy")
             sys.exit(1)
 
-    def __dbt_strategy(self) -> StateChangeSummary:
+    def dbt_strategy(self) -> StateChangeSummary:
         """Compile the DBT project and return a list of modified nodes compared to the reference state."""
         try:
             target_graph = DbtGraph(self.args)
             reference_graph = DbtGraph(self.args, is_reference=True)
-            data = self.__common_state_change()
+            data = self.common_state_change()
 
             return {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(
@@ -221,7 +228,7 @@ class StateModified:
         except Exception as e:
             raise Exception(f"Error generating state change summary: {str(e)}")
 
-    def __common_state_change(self) -> CommonStateChangeSummary:
+    def common_state_change(self) -> CommonStateChangeSummary:
         """
             Common logic to determine modified, new, and deleted nodes using 
             dbt's state:modified comparison, without git diff filtering. 
@@ -266,7 +273,7 @@ class StateModified:
             print_exception(e, "Error generating state change summary")
             sys.exit(1)
 
-    def __convert_git_key_to_state_change_summary_key(self, key: GitChangeType) -> StateChangeSummaryKeys:
+    def convert_git_key_to_state_change_summary_key(self, key: GitChangeType) -> StateChangeSummaryKeys:
         """Convert the output from git strategy to match the structure of StateChangeSummary for consistency across strategies."""
         mapping: dict[GitChangeType, StateChangeSummaryKeys] = {
             "modified": "modified_nodes",
