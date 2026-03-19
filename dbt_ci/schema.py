@@ -465,7 +465,7 @@ class StorageConnectorConfig(TypedDict):
     """Configuration for storage connectors."""
     name: str
     client: Callable[..., Any]
-    upload: Callable[[str, Any], None]
+    upload: Callable[[str, Any, str], None]
     download: Callable[[str], DBTManifest]
 
 type SupportedStorageConnectors = Literal["google", "aws"]
