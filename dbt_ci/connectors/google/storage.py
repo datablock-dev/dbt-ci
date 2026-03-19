@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from google.cloud import storage
 from dbt_ci.schema import DBTManifest
 

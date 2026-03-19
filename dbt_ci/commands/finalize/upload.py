@@ -46,41 +46,38 @@ def finalize_upload_files(args: Namespace) -> None:
 def upload_cache(
     artifacts_uri: str,
     cache: CacheManager,
-    storage_function: Callable[[str, Any], None]
+    storage_function: Callable[[str, Any, str], None]
 ) -> None:
-    """Upload any relevant artifacts (manifest, run results, etc.) to storage location specified in arguments."""
+    """Upload cache file to storage."""
     cache_file = cache.get_cache()
     if cache_file is None:
         return logger.warning("No cache file found for upload, skipping...")
-    
-    storage_function("cache.json", cache_file)
+    storage_function(artifacts_uri, cache_file, "application/json")
     logger.info(f"Uploading cache.json to {artifacts_uri}...")
-    
+
 def upload_logs(
     artifacts_uri: str,
     cache: CacheManager,
-    storage_function: Callable[[str, Any], None]
+    storage_function: Callable[[str, Any, str], None]
 ) -> None:
-    """Upload logs to storage location specified in arguments."""
-    logs = cache.get_cache("logs.txt")
-
+    """Upload logs to storage."""
+    logs = cache.get_cache("logs.txt", "txt")
     if not logs:
         return logger.warning("No logs found for upload, skipping...")
-    
-    storage_function("logs.txt", logs)
+    storage_function(artifacts_uri, logs, "text/plain")
     logger.info(f"Uploading logs to {artifacts_uri}...")
 
 def upload_manifest(
     artifacts_uri: str,
     cache: CacheManager,
-    storage_function: Callable[[str, Any], None]
+    storage_function: Callable[[str, Any, str], None]
 ) -> None:
-    """Upload manifest file to storage location specified in arguments."""
+    """Upload manifest file to storage."""
     manifest_file = cache.get_cache("target_manifest.json") or cache.get_cache("reference_manifest.json")
-    storage_function("manifest.json", manifest_file)
+    storage_function(artifacts_uri, manifest_file, "application/json")
     logger.info(f"Uploading manifest.json to {artifacts_uri}...")
 
-UPLOAD_MAPPING: dict[str, Callable[[str, CacheManager, Callable[[str, Any], None]], None]] = {
+UPLOAD_MAPPING: dict[str, Callable[[str, CacheManager, Callable[[str, Any, str], None]], None]] = {
     "manifest": upload_manifest,
     "cache": upload_cache,
     "log": upload_logs

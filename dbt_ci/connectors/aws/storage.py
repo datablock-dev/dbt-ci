@@ -1,5 +1,6 @@
 """Storage connector for AWS S3 interactions."""
 import json
+from typing import Any
 import boto3
 from dbt_ci.schema import DBTManifest
 

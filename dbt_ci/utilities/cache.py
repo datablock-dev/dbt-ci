@@ -82,7 +82,7 @@ class CacheManager:
     
     def get_reference_graph(self) -> dict[str, Any] | None:
         """Load reference graph data from the cache file. Returns None if the file doesn't exist."""
-        return self.get_cache("reference_graph.json")
+        return cast(dict[str, Any], self.get_cache("reference_graph.json"))
 
     def write_target_graph(self, graph_data: dict[str, Any]) -> None:
         """Write target graph data to a JSON file in the cache directory."""
@@ -90,14 +90,17 @@ class CacheManager:
     
     def get_target_graph(self) -> dict[str, Any] | None:
         """Load target graph data from the cache file. Returns None if the file doesn't exist."""
-        return self.get_cache("target_graph.json")
+        return cast(dict[str, Any], self.get_cache("target_graph.json"))
 
-    def get_cache(self, file_name: str = "cache.json") -> dict[str, Any] | None:
+    def get_cache(self, file_name: str = "cache.json", content_type: str = "json") -> dict[str, Any] | str | None:
         """Load cache data from the cache file. Returns None if the file doesn't exist."""
         file_path = self._file_path(file_name)
         if file_path.is_file():
             with open(file_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                if content_type == "json":
+                    return json.load(f)
+                elif content_type == "txt":
+                    return f.read()
         else:
             return None
 
@@ -107,7 +110,7 @@ class CacheManager:
 
     def start_report(self, command: Commands, args: Namespace):
         """Add information to report.json"""
-        report_cache = {} if command == "init" else (self.get_cache("report.json") or {})
+        report_cache = {} if command == "init" else (cast(dict[str, Any], self.get_cache("report.json")) or {})
         report_cache[command] = {
             "status": "started",
             "started_at": datetime.now().isoformat(),
@@ -121,7 +124,7 @@ class CacheManager:
 
     def update_report(self, command: Commands, status: str, comment: dict[str, Any] | str | None = None):
         """Update report.json with status and timestamp"""
-        report_cache = self.get_cache("report.json")
+        report_cache = cast(dict[str, Any], self.get_cache("report.json"))
         if report_cache is None or command not in report_cache:
             logger.warning(f"update_report called for '{command}' but no existing report entry found. Call start_report first.")
             return
