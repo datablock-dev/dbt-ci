@@ -74,6 +74,9 @@ def upload_manifest(
 ) -> None:
     """Upload manifest file to storage."""
     manifest_file = cache.get_cache("target_manifest.json") or cache.get_cache("reference_manifest.json")
+    if manifest_file is None:
+        return logger.warning("No manifest file found for upload, skipping...")
+    
     storage_function(artifacts_uri, manifest_file, "application/json")
     logger.info(f"Uploading manifest.json to {artifacts_uri}...")
 
