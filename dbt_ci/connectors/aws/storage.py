@@ -1,5 +1,6 @@
 """Storage connector for AWS S3 interactions."""
 import json
+from typing import Any
 import boto3
 from dbt_ci.schema import DBTManifest
 
@@ -24,6 +25,23 @@ def aws_upload_json(uri: str, data: dict) -> None:
     except Exception as e:
         raise RuntimeError(f"Failed to upload JSON to {uri}: {e}")
     
+def aws_upload(uri: str, data: Any, content_type: str = "application/json") -> None:
+    """Upload data to the specified S3 URI with the given content type."""
+    if not uri.startswith("s3://"):
+        raise ValueError(f"Invalid S3 URI: {uri}. Must start with 's3://'")
+
+    path_parts = uri[5:].split("/", 1)
+    bucket_name = path_parts[0]
+    key = path_parts[1] if len(path_parts) > 1 else ""
+
+    body: str | bytes = json.dumps(data) if content_type == "application/json" else data
+    try:
+        client = aws_storage_client()
+        client.put_object(Bucket=bucket_name, Key=key, Body=body, ContentType=content_type)
+        print(f"Successfully uploaded to {uri}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to upload to {uri}: {e}")
+
 def aws_download_json(uri: str) -> DBTManifest:
     """Download and parse a JSON object from the specified S3 URI."""
     if not uri.startswith("s3://"):

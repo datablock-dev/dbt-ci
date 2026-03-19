@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from google.cloud import storage
 from dbt_ci.schema import DBTManifest
 
@@ -24,6 +25,25 @@ def google_upload_json(uri: str, data: dict) -> None:
         print(f"Successfully uploaded JSON to {uri}")
     except Exception as e:
         raise RuntimeError(f"Failed to upload JSON to {uri}: {e}")
+
+def google_upload(uri: str, data: Any, content_type: str = "application/json") -> None:
+    """Upload data to the specified GCS URI with the given content type."""
+    if not uri.startswith("gs://"):
+        raise ValueError(f"Invalid GCS URI: {uri}. Must start with 'gs://'")
+
+    path_parts = uri[5:].split("/", 1)
+    bucket_name = path_parts[0]
+    blob_name = path_parts[1] if len(path_parts) > 1 else ""
+
+    body: str | bytes = json.dumps(data) if content_type == "application/json" else data
+    try:
+        client = google_storage_client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        blob.upload_from_string(body, content_type=content_type)
+        print(f"Successfully uploaded to {uri}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to upload to {uri}: {e}")
 
 def google_download_json(uri: str) -> DBTManifest:
     """Download and parse a JSON blob from GCS using a URI.
