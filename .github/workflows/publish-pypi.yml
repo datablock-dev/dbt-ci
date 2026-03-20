@@ -48,6 +48,15 @@ jobs:
         VERSION="${VERSION#v}"
         sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
 
+    - name: Commit version bump
+      if: steps.release_version.outputs.next != ''
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add pyproject.toml
+        git commit -m "chore(release): ${{ steps.release_version.outputs.next }} [skip ci]"
+        git push origin HEAD:main
+
     - name: Build package
       if: steps.release_version.outputs.next != ''
       run: python -m build
