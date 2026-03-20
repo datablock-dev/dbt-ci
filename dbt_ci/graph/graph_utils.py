@@ -114,8 +114,7 @@ def get_node_ids_from_structured_nodes(structured_nodes: dict[str, DependencyGra
 
     node_ids: set[str] = set()
     for nodes in structured_nodes.values():
-        for node_name in nodes.keys():
-            node_ids.add(node_name)
+        node_ids.update(nodes.keys())
 
     return list(node_ids) if len(node_ids) > 0 else None
 
