@@ -1,15 +1,8 @@
 # Shared options for all commands
 import click
 
-def get_version():
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata
-    return importlib_metadata.version("dbt-ci")
-
 @click.group()
-@click.version_option(version=get_version(), prog_name='dbt-ci')
+@click.version_option(package_name="dbt-ci", prog_name="dbt-ci")
 def cli():
     """dbt CI Tool - Intelligent CI for dbt projects
     
