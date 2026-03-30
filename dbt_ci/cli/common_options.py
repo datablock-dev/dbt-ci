@@ -203,6 +203,13 @@ COMMON_OPTIONS = [
         callback=make_config_callback("DBT_QUIET"),
         help="Run in quiet mode with minimal output",
     ),
+    click.option(
+        "--git-provider",
+        envvar=["GIT_PROVIDER"],
+        default=None,
+        callback=make_config_callback("GIT_PROVIDER"),
+        help="Git provider to use for detecting changed files (default: github)"
+    )
 ]
 
 

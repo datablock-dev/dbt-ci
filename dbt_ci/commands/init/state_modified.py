@@ -7,7 +7,7 @@ from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.utilities.logging import print_exception
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
 from dbt_ci.schema import ComparisonStrategy, RunnerConfig, StateChangeSummary, StateChangeSummaryKeys
-from dbt_ci.utilities.git import GitAdapter, GitChangeType
+from dbt_ci.adapters.git import GitAdapter, GitChangeType
 from dbt_ci.graph.graph_utils import (
     get_deleted_nodes,
     get_new_nodes,

@@ -16,11 +16,9 @@ GIT_STATUS_MAPPING = {
 type GitChangeType = Literal["modified", "added", "deleted", "renamed"]
 
 class GitAdapter:
-    # Not being utilised at the moment
-    provider = os.getenv("GIT_PROVIDER", "github").lower()
-
     def __init__(self, args: Namespace):
         self.args: Namespace = args
+        self.provider = getattr(self.args, "git_provider").lower() # Not being used yet
         head_branch = subprocess.run(
             ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"], 
             capture_output=True, 
