@@ -11,6 +11,6 @@ class Github:
     def get_github_context(self) -> GitHubContext | None:
         if self.provider == "github":
             github_context = os.getenv("GITHUB_CONTEXT")
-            return self.context
+            return github_context
         
         return None
