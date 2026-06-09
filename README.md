@@ -322,6 +322,8 @@ dbt-ci supports a `dbt-ci.config.yaml` file as an alternative to passing every f
 
 **Default location:** `dbt-ci.config.yaml` in the current working directory (override with `--config` / `DBT_CONFIG`).
 
+If the config file is not found in the current directory, dbt-ci will automatically look for it inside `--dbt-project-dir` (or `DBT_PROJECT_DIR`). This means if your dbt project lives in a subdirectory (e.g. `dbt/`), placing `dbt-ci.config.yaml` there and setting `DBT_PROJECT_DIR=dbt` is enough — no `--config` flag needed.
+
 The file uses a **nested style** where top-level keys map to common options, and command-specific options live under their command's key (`init`, `run`, `finalize`, `ephemeral`, `docker`):
 
 ```yaml
