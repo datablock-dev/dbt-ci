@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dbt-ci"
-version = "1.3.7"
+version = "1.3.8"
 description = "CI/CD tool for dbt projects with intelligent change detection and selective execution"
 authors = [
     {name = "Patrick Tannoury", email = "patrick.tannoury@datablock.dev"},
