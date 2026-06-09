@@ -1,6 +1,7 @@
 import yaml
 import os
 import re
+import sys
 import logging
 from typing import Any
 import click
@@ -87,7 +88,25 @@ def load_config_callback(ctx, param, value):
         return value
     try:
         if not os.path.exists(value):
-            return value
+            # Config not found in CWD — try to locate it relative to --dbt-project-dir.
+            # The config callback fires eagerly before other options are parsed, so we
+            # peek at DBT_PROJECT_DIR from the environment and sys.argv as a fallback.
+            project_dir = os.environ.get("DBT_PROJECT_DIR")
+            if project_dir is None:
+                argv = sys.argv[1:]
+                for i, arg in enumerate(argv):
+                    if arg == "--dbt-project-dir" and i + 1 < len(argv):
+                        project_dir = argv[i + 1]
+                        break
+            if project_dir:
+                candidate = os.path.join(project_dir, value)
+                if os.path.exists(candidate):
+                    logger.info(f"Config not found in CWD, using {candidate}")
+                    value = candidate
+                else:
+                    return value
+            else:
+                return value
 
         logger.info(f"Configuration file found. Loading configuration from {value}")
 

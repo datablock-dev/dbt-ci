@@ -51,9 +51,10 @@ def run_dbt_command(
     """
     runner = runner_config['runner']
     if runner in RUNNERS:
-        if runner == "dbt" and not dbt_version_exists(runner_config.get('dbt_version')):
-            logger.info(f"dbt version {runner_config.get('dbt_version')} not found. Installing...")
-            run_with_dbt_version(runner_config.get('dbt_version'))
+        dbt_version = runner_config.get('dbt_version')
+        if runner == "dbt" and dbt_version is not None and not dbt_version_exists(dbt_version):
+            logger.info(f"dbt version {dbt_version} not found. Installing...")
+            run_with_dbt_version(dbt_version)
         
         if runner_config.get("adapter") and not adapter_exists(runner_config.get("adapter")):
             logger.info(f"Adapter {runner_config.get('adapter')} not found. Installing...")
