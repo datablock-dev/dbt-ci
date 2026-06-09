@@ -53,16 +53,12 @@ def init(args: Namespace):
             sys.exit(1)
 
         if resolved_storage is not None:
-            if reference_state_path is None:
-                logger.error("State URI provided without a reference state path. Please specify a local path for the reference state using --reference-state or --state when using remote state storage.")
-                sys.exit(1)
-
             local_state_dir = resolve_manifest_file_from_storage(resolved_storage, args)
             # Update reference_state to use the local path where manifest was downloaded
             setattr(args, "reference_state", str(local_state_dir))
-            
+
             # Reload reference manifest file after downloading from storage
-            cache.write_reference_manifest(get_reference_manifest_file(reference_state_path))
+            cache.write_reference_manifest(get_reference_manifest_file(str(local_state_dir)))
         
         # Compile dbt and generate reference manifest.json file
         #run_multiprocessed
