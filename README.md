@@ -322,17 +322,43 @@ dbt-ci supports a `dbt-ci.config.yaml` file as an alternative to passing every f
 
 **Default location:** `dbt-ci.config.yaml` in the current working directory (override with `--config` / `DBT_CONFIG`).
 
-Keys in the file correspond to the environment variable names of each flag:
+The file uses a **nested style** where top-level keys map to common options, and command-specific options live under their command's key (`init`, `run`, `finalize`, `ephemeral`, `docker`):
 
 ```yaml
 # dbt-ci.config.yaml
+project_dir: dbt
+profiles_dir: dbt
+state: dbt/.dbtstate
+runner: docker
+
+init:
+  state-uri: gs://my-bucket/dbt-state/manifest.json
+  reference-target: production
+  comparison-strategy: hybrid
+
+finalize:
+  artifacts-uri: s3://my-bucket/dbt-artifacts/
+  files:
+    - manifest
+    - cache
+
+docker:
+  image: docker.pkg.dev/my-project/dbt:latest
+  volumes:
+    - "$(pwd)/dbt:/dbt:rw"
+    - "${GOOGLE_APPLICATION_CREDENTIALS}:${GOOGLE_APPLICATION_CREDENTIALS}:ro"
+  env:
+    - "DBT_PROFILES_DIR=/dbt"
+    - "GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}"
+  network: host
+```
+
+The legacy flat `DBT_*` key style is also supported:
+
+```yaml
 DBT_RUNNER: docker
-DBT_DOCKER_IMAGE: docker.pkg.dev/my-project/dbt:latest
 DBT_PROJECT_DIR: dbt
-DBT_STATE: dbt/state
-DBT_REFERENCE_TARGET: prod
-DBT_DOCKER_VOLUMES: "$(pwd)/dbt:/dbt"
-DBT_DOCKER_ENV: "DBT_PROFILES_DIR=/dbt,GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}"
+DBT_STATE: dbt/.dbtstate
 ```
 
 **Precedence (highest → lowest):**

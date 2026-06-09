@@ -27,14 +27,12 @@ def resolve_manifest_file_from_storage(
     if dbt_project_dir is None:
         logger.error("No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument.")
         sys.exit(1)
-    if reference_state_path is None:
-        logger.error("State URI provided without a reference state path. Please specify a local path for the reference state using --reference-state or --state when using remote state storage.")
-        sys.exit(1)
-
     # Write and download manifest to path
     # When using Docker, always use the local dbt_project_dir/.dbtstate path on host
     if getattr(args, "runner", None) == "docker" or reference_state_path is None:
-        dbtstate_dir = cwd / dbt_project_dir / ".dbtstate" # Default
+        dbtstate_dir = cwd / dbt_project_dir / ".dbtstate"
+        if reference_state_path is None:
+            logger.info(f"State URI provided without a reference state path, defaulting to {dbtstate_dir}/manifest.json. To overwrite this, please pass --reference-state or --state.")
     else:
         dbtstate_dir = cwd / reference_state_path
 
