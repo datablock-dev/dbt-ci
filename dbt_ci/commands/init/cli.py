@@ -61,6 +61,13 @@ from dbt_ci.commands.init.index import init
     callback=make_config_callback("DBT_INIT_COMPARISON_STRATEGY"),
     help="Strategy to use for state comparison (default: hybrid). Available options: dbt, git, hybrid"
 )
+@click.option(
+    "--base-ref",
+    envvar=['DBT_CI_BASE_REF'],
+    default=None,
+    callback=make_config_callback("DBT_INIT_BASE_REF"),
+    help="The base branch to diff against (e.g. main). Auto-detected from git/CI env if not set."
+)
 def init_cmd(**kwargs):
     """Initialize dbt CI state
     
