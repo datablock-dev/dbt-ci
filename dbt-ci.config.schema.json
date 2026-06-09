@@ -94,7 +94,9 @@
         "skip-reference-compile": { "$ref": "#/definitions/skipReferenceCompile" },
         "skip_reference_compile": { "$ref": "#/definitions/skipReferenceCompile" },
         "comparison-strategy": { "$ref": "#/definitions/comparisonStrategy" },
-        "comparison_strategy": { "$ref": "#/definitions/comparisonStrategy" }
+        "comparison_strategy": { "$ref": "#/definitions/comparisonStrategy" },
+        "base-ref": { "$ref": "#/definitions/baseRef" },
+        "base_ref": { "$ref": "#/definitions/baseRef" }
       }
     },
 
@@ -198,6 +200,7 @@
     "targetCompile":        { "type": "boolean", "default": false, "description": "Compile towards the target (or default) after reference compile." },
     "skipReferenceCompile": { "type": "boolean", "default": false, "description": "Skip compiling towards the reference state." },
     "comparisonStrategy":   { "type": "string", "enum": ["dbt", "git", "hybrid"], "default": "hybrid", "description": "Strategy for state comparison." },
+    "baseRef":              { "type": "string", "description": "Base branch to diff against (e.g. main). Auto-detected from git/CI env if not set. Overrides GITHUB_BASE_REF and git auto-detection." },
     "artifactsUri":         { "type": "string", "description": "Object storage URI for storing artifacts (e.g. s3://bucket/dbt-artifacts/)." },
     "cleanEphemeral":       { "type": "boolean", "default": false, "description": "Clean up the ephemeral environment after finalizing." },
     "keepEnv":              { "type": "boolean", "default": false, "description": "Don't destroy the ephemeral environment after run." }

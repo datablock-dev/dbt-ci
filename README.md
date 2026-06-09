@@ -115,6 +115,7 @@ dbt-ci init \
 | `--skip-reference-compile` | | `DBT_SKIP_REFERENCE_COMPILE` | `false` | Skip the compile pass against the reference/production state |
 | `--no-git` | | `DBT_NO_GIT` | `false` | Skip git-based file change comparison |
 | `--comparison-strategy` | `--comparison` | `DBT_COMPARISON_STRATEGY` | `hybrid` | Strategy for detecting changed nodes: `dbt`, `git`, or `hybrid` |
+| `--base-ref` | | `DBT_CI_BASE_REF` | Auto-detected | Base branch to diff against (e.g. `main`). Auto-detected from `GITHUB_BASE_REF` or git if not set |
 
 > All [common options](#common-options) also apply.
 
@@ -326,8 +327,15 @@ If the config file is not found in the current directory, dbt-ci will automatica
 
 The file uses a **nested style** where top-level keys map to common options, and command-specific options live under their command's key (`init`, `run`, `finalize`, `ephemeral`, `docker`):
 
+Add the following comment to the top of your `dbt-ci.config.yaml` to get autocompletion and validation in editors that support [yaml-language-server](https://github.com/redhat-developer/yaml-language-server) (e.g. VS Code with the [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)):
+
 ```yaml
-# dbt-ci.config.yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/datablock-dev/dbt-ci/main/dbt-ci.config.schema.json
+```
+
+#### dbt-ci.config.yaml
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/datablock-dev/dbt-ci/main/dbt-ci.config.schema.json
 project_dir: dbt
 profiles_dir: dbt
 state: dbt/.dbtstate
@@ -337,6 +345,7 @@ init:
   state-uri: gs://my-bucket/dbt-state/manifest.json
   reference-target: production
   comparison-strategy: hybrid
+  base-ref: main
 
 finalize:
   artifacts-uri: s3://my-bucket/dbt-artifacts/
