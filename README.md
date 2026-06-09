@@ -347,7 +347,7 @@ finalize:
 docker:
   image: docker.pkg.dev/my-project/dbt:latest
   volumes:
-    - "$(pwd)/dbt:/dbt:rw"
+    - "${PWD}/dbt:/dbt:rw"
     - "${GOOGLE_APPLICATION_CREDENTIALS}:${GOOGLE_APPLICATION_CREDENTIALS}:ro"
   env:
     - "DBT_PROFILES_DIR=/dbt"
