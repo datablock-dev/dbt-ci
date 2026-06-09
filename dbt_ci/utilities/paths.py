@@ -167,7 +167,7 @@ def get_profile(args: Namespace) -> DBTProfile:
     profiles = get_dbt_profiles_config(dbt_root_path)
     dbt_profile = dbt_project_file.get("profile", None)
     target = getattr(args, "target", None) or profiles.get(dbt_profile, {}).get("target", None)
-    profile_name = getattr(args, "profile", "default")
+    profile_name = dbt_profile or "default"
 
     if target is None:
         logger.error("Target environment not specified in arguments. Please pass the target using --target <target>.")
