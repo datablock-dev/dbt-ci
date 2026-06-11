@@ -97,8 +97,10 @@ def _validate_value(path: str, value: Any, rule: dict, errors: list[str]) -> Non
             errors.append(f"'{path}' must be a boolean (true/false), got {value!r}")
     elif kind == "enum":
         choices = rule["choices"]
-        normalized = value.upper() if isinstance(value, str) else value
-        if normalized not in choices:
+        if isinstance(value, str):
+            if value.lower() not in [c.lower() for c in choices]:
+                errors.append(f"'{path}' must be one of {choices!r}, got {value!r}")
+        elif value not in choices:
             errors.append(f"'{path}' must be one of {choices!r}, got {value!r}")
     elif kind == "list_or_str":
         if not isinstance(value, (list, str)):

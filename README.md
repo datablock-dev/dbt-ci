@@ -250,12 +250,10 @@ Run dbt commands inside a Docker container:
 dbt-ci run \
   --runner docker \
   --docker-image ghcr.io/dbt-labs/dbt-duckdb:latest \
-  --docker-volumes "$(pwd)/dbt:/dbt:rw" \
-  --dbt-project-dir dbt \
-  --state dbt/.dbtstate
+  --docker-volumes "$(pwd)/dbt:/dbt:rw"
 ```
 
-dbt-ci automatically translates `--dbt-project-dir` and `--state` from host paths to their container equivalents by matching them against the volume map. In the example above, `dbt` resolves to `$(pwd)/dbt` on the host and is passed as `--project-dir /dbt` inside the container.
+When using the Docker runner, `--project-dir`, `--profiles-dir`, and `--state` are derived from the volume map — if the host path is covered by a mounted volume, the corresponding container path is passed to dbt inside the container. If no matching volume is found, the flag is omitted and dbt falls back to its own defaults (typically the container's `WORKDIR`).
 
 **For Apple Silicon Macs:**
 
@@ -264,8 +262,7 @@ dbt-ci run \
   --runner docker \
   --docker-platform linux/amd64 \
   --docker-image ghcr.io/dbt-labs/dbt-postgres:latest \
-  --docker-volumes "$(pwd)/dbt:/dbt:rw" \
-  --dbt-project-dir dbt
+  --docker-volumes "$(pwd)/dbt:/dbt:rw"
 ```
 
 #### Docker Advanced Options
@@ -310,8 +307,6 @@ dbt-ci run \
   --docker-network host \
   --docker-volumes "$(pwd):/workspace" \
   --docker-volumes "$HOME/.aws:/root/.aws:ro" \
-  --dbt-project-dir /workspace/dbt \
-  --profiles-dir /workspace/dbt \
   --target prod
 ```
 
