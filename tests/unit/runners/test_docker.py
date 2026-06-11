@@ -2,7 +2,7 @@
 import pytest
 import os
 from pathlib import Path
-from dbt_ci.runners.docker import get_docker_env, get_docker_volumes
+from dbt_ci.runners.docker import get_docker_env, get_docker_volumes, get_container_paths
 from dbt_ci.utilities.paths import get_absolute_path
 
 
@@ -144,7 +144,67 @@ class TestGetDockerVolumes:
             result = get_docker_volumes(config)
             
             # Should contain absolute path
-            assert any(path.endswith('relative') and Path(path).is_absolute() 
+            assert any(path.endswith('relative') and Path(path).is_absolute()
                       for path in result.keys())
         finally:
             os.chdir(original_cwd)
+
+
+class TestGetContainerPaths:
+    """Test get_container_paths resolves dbt_project_dir to container paths."""
+
+    def test_relative_project_dir_with_relative_volume_key(self, mock_runner_config):
+        """Relative project-dir matches a relative volume key (both normalize to the same absolute path)."""
+        config = mock_runner_config({
+            'dbt_project_dir': 'dbt',
+            'docker_volumes': ['dbt:/container/dbt:rw'],
+            'docker_env': [],
+        })
+        result = get_container_paths(config)
+        assert result.get('dbt_project_dir') == '/container/dbt'
+
+    def test_relative_project_dir_with_absolute_volume_key(self, mock_runner_config):
+        """Relative project-dir matches an absolute volume key (the core bug case).
+
+        Simulates a user writing '${PWD}/dbt:/container/dbt:rw', which the config
+        loader expands to an absolute path before passing it in.
+        """
+        abs_dbt = get_absolute_path('dbt')
+        config = mock_runner_config({
+            'dbt_project_dir': 'dbt',
+            'docker_volumes': [f'{abs_dbt}:/container/dbt:rw'],
+            'docker_env': [],
+        })
+        result = get_container_paths(config)
+        assert result.get('dbt_project_dir') == '/container/dbt'
+
+    def test_project_dir_is_subdirectory_of_mounted_volume(self, mock_runner_config):
+        """project-dir nested under a mounted volume resolves with the relative suffix."""
+        config = mock_runner_config({
+            'dbt_project_dir': 'workspace/dbt',
+            'docker_volumes': ['workspace:/container/workspace:rw'],
+            'docker_env': [],
+        })
+        result = get_container_paths(config)
+        assert result.get('dbt_project_dir') == '/container/workspace/dbt'
+
+    def test_docker_env_takes_priority_over_volume_map(self, mock_runner_config):
+        """DBT_PROJECT_DIR in docker_env overrides the volume map lookup."""
+        abs_dbt = get_absolute_path('dbt')
+        config = mock_runner_config({
+            'dbt_project_dir': 'dbt',
+            'docker_volumes': [f'{abs_dbt}:/volume/dbt:rw'],
+            'docker_env': ['DBT_PROJECT_DIR=/env/dbt'],
+        })
+        result = get_container_paths(config)
+        assert result.get('dbt_project_dir') == '/env/dbt'
+
+    def test_no_volume_match_omits_project_dir(self, mock_runner_config):
+        """When no volume covers project-dir the key is absent (no crash)."""
+        config = mock_runner_config({
+            'dbt_project_dir': 'dbt',
+            'docker_volumes': ['/some/other/path:/container/other:rw'],
+            'docker_env': [],
+        })
+        result = get_container_paths(config)
+        assert 'dbt_project_dir' not in result

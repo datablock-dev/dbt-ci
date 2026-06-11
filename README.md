@@ -250,10 +250,12 @@ Run dbt commands inside a Docker container:
 dbt-ci run \
   --runner docker \
   --docker-image ghcr.io/dbt-labs/dbt-duckdb:latest \
-  --docker-volumes $(pwd):/workspace \
-  --dbt-project-dir /workspace/dbt \
-  --state /workspace/dbt/.dbtstate
+  --docker-volumes "$(pwd)/dbt:/dbt:rw" \
+  --dbt-project-dir dbt \
+  --state dbt/.dbtstate
 ```
+
+dbt-ci automatically translates `--dbt-project-dir` and `--state` from host paths to their container equivalents by matching them against the volume map. In the example above, `dbt` resolves to `$(pwd)/dbt` on the host and is passed as `--project-dir /dbt` inside the container.
 
 **For Apple Silicon Macs:**
 
@@ -262,8 +264,8 @@ dbt-ci run \
   --runner docker \
   --docker-platform linux/amd64 \
   --docker-image ghcr.io/dbt-labs/dbt-postgres:latest \
-  --docker-volumes $(pwd):/workspace \
-  --dbt-project-dir /workspace/dbt
+  --docker-volumes "$(pwd)/dbt:/dbt:rw" \
+  --dbt-project-dir dbt
 ```
 
 #### Docker Advanced Options
@@ -377,6 +379,8 @@ DBT_STATE: dbt/.dbtstate
 2. CLI flags
 3. `dbt-ci.config.yaml`
 4. Built-in defaults
+
+The config file is validated on load. dbt-ci will exit with a clear error message if it contains unknown keys, invalid enum values (e.g. `runner: kubernetes`), or wrong types (e.g. `defer: "yes"` instead of a boolean).
 
 `${VAR_NAME}` references inside the config file are resolved from the shell environment at load time.
 
