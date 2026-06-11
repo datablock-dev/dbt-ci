@@ -6,7 +6,7 @@ from argparse import Namespace
 from itertools import chain
 from typing import cast
 from dbt_ci.graph.dependency_graph import DbtGraph
-from dbt_ci.runners import run_dbt_command, append_dbt_variables_to_command
+from dbt_ci.runners import run_dbt_command, resolve_dbt_commands
 from dbt_ci.graph.graph_utils import filter_node_ids_by_type, get_upstream_dependencies, get_downstream_dependencies
 from dbt_ci.schema import (
     RunModes,
@@ -63,7 +63,7 @@ def run_nodes(
                 continue
 
             result = run_dbt_command(
-                command_args=append_dbt_variables_to_command([cast(str, command), "--select", " ".join(nodes_to_run)], args),
+                command_args=resolve_dbt_commands([cast(str, command), "--select", " ".join(nodes_to_run)], args),
                 runner_config=cast(RunnerConfig, args.__dict__)
             )
 

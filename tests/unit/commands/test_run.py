@@ -159,7 +159,7 @@ class TestRunNodes:
         mock_run_cmd
     ):
         """Test run_nodes with 'all' mode runs all command types."""
-        variables = Namespace(dry_run=False, nodes='all')
+        variables = Namespace(dry_run=False, nodes='all', runner='local')
         target_graph = MagicMock()
         target_graph.to_dict.return_value = {
             "model": {},
@@ -197,7 +197,7 @@ class TestRunNodes:
         mock_run_cmd
     ):
         """Test run_nodes with 'models' mode only runs models."""
-        variables = Namespace(dry_run=False, nodes='models')
+        variables = Namespace(dry_run=False, nodes='models', runner='local')
         target_graph = MagicMock()
         target_graph.to_dict.return_value = {"model": {}}
         modified_nodes_dict = {

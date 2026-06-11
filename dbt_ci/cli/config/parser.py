@@ -6,9 +6,10 @@ import logging
 from typing import Any
 import click
 
+from .schema import validate_config
+
 logger = logging.getLogger(__name__)
 
-# Key used to store the parsed config dict in Click's context metadata
 _CTX_META_KEY = "dbt_ci_config"
 
 
@@ -45,16 +46,13 @@ def _flatten_config(raw: dict, prefix: str = "") -> dict[str, Any]:
     for key, val in raw.items():
         upper_key = key.upper().replace("-", "_")
         if isinstance(val, dict):
-            # Recurse into nested block, e.g. docker: { image: ... }
-            # The nested key becomes the new prefix: docker -> DBT_DOCKER
             nested_prefix = f"DBT_{upper_key}" if not prefix else f"{prefix}_{upper_key}"
             flat.update(_flatten_config(val, prefix=nested_prefix))
         else:
-            # Top-level key: if it doesn't already start with a known prefix, prepend DBT_
             if prefix:
                 env_key = f"{prefix}_{upper_key}"
             elif upper_key.startswith("DBT_") or upper_key.startswith("SLACK_"):
-                env_key = upper_key  # already a full env var name
+                env_key = upper_key
             else:
                 env_key = f"DBT_{upper_key}"
             flat[env_key] = val
@@ -65,6 +63,7 @@ def load_config_callback(ctx, param, value):
     """
     Eager callback that reads the dbt-ci YAML config file.
 
+    - Validates the raw config against the schema and raises an error on any issues.
     - Stores the parsed flat config in ctx.meta so individual option callbacks
       can read it via make_config_callback().
     - Also injects values into os.environ (using setdefault) for backward
@@ -113,6 +112,14 @@ def load_config_callback(ctx, param, value):
         with open(value, "r", encoding="utf-8") as f:
             raw = yaml.safe_load(f) or {}
 
+        errors = validate_config(raw)
+        if errors:
+            error_list = "\n".join(f"  - {e}" for e in errors)
+            raise click.BadParameter(
+                f"Config file '{value}' has validation errors:\n{error_list}",
+                param_hint="'--config'",
+            )
+
         flat = _flatten_config(raw)
 
         # Resolve ${VAR} references and store in ctx.meta
@@ -136,6 +143,8 @@ def load_config_callback(ctx, param, value):
             else:
                 os.environ.setdefault(env_key, str(val))
 
+    except click.BadParameter:
+        raise
     except yaml.YAMLError as e:
         raise click.BadParameter(
             f"Config file '{value}' contains invalid YAML: {e}",
@@ -147,7 +156,7 @@ def load_config_callback(ctx, param, value):
             param_hint="'--config'",
         )
 
-    logger.debug("Load Config: %s", ctx.meta.get(_CTX_META_KEY, {}))  # Debug print to verify loaded config
+    logger.debug("Load Config: %s", ctx.meta.get(_CTX_META_KEY, {}))
     return value
 
 
@@ -169,15 +178,12 @@ def make_config_callback(config_key: str, *, then=None):
     def callback(ctx, param, value):
         source = ctx.get_parameter_source(param.name)
 
-        # Explicit CLI flag always wins
         if source == click.core.ParameterSource.COMMANDLINE:
             return then(value) if then else value
 
-        # Config file is next
         config: dict[str, Any] = ctx.meta.get(_CTX_META_KEY, {})
         if config_key in config:
             config_val = config[config_key]
-            # For multiple/tuple options, return a tuple
             if param.multiple and isinstance(config_val, list):
                 result = tuple(config_val)
             elif param.multiple and isinstance(config_val, str):
@@ -191,7 +197,6 @@ def make_config_callback(config_key: str, *, then=None):
                     result = config_val
             return then(result) if then else result
 
-        # Fall back to Click's resolved value (env var or default)
         return then(value) if then else value
 
     return callback

@@ -143,10 +143,20 @@ def get_container_paths(runner_config: RunnerConfig) -> dict:
     if "DBT_PROJECT_DIR" in env_dict:
         container_path_map["dbt_project_dir"] = env_dict["DBT_PROJECT_DIR"]
     else:
-        # Try to derive from volume mapping
+        # Try to derive from volume mapping — normalize both sides to absolute paths
+        # so that relative config values (e.g. "dbt") match expanded volume keys
+        # (e.g. "${PWD}/dbt" → "/home/runner/work/repo/dbt").
         dbt_project_host = runner_config.get("dbt_project_dir")
-        if dbt_project_host and dbt_project_host in volume_map:
-            container_path_map["dbt_project_dir"] = volume_map[dbt_project_host]
+        if dbt_project_host:
+            abs_host = get_absolute_path(dbt_project_host)
+            for host_mount, container_mount in volume_map.items():
+                host_mount_abs = get_absolute_path(host_mount)
+                if abs_host.startswith(host_mount_abs):
+                    relative_path = abs_host[len(host_mount_abs):].lstrip("/")
+                    container_path_map["dbt_project_dir"] = (
+                        f"{container_mount}/{relative_path}" if relative_path else container_mount
+                    )
+                    break
     
     # For profiles_dir: use DBT_PROFILES_DIR env
     if "DBT_PROFILES_DIR" in env_dict:
