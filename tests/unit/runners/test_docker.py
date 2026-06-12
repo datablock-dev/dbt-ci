@@ -2,7 +2,8 @@
 import pytest
 import os
 from pathlib import Path
-from dbt_ci.runners.docker import get_docker_env, get_docker_volumes, get_container_paths
+from unittest.mock import MagicMock, patch
+from dbt_ci.runners.docker import docker_runner, get_docker_env, get_docker_volumes, get_container_paths
 from dbt_ci.utilities.paths import get_absolute_path
 
 
@@ -208,3 +209,43 @@ class TestGetContainerPaths:
         })
         result = get_container_paths(config)
         assert 'dbt_project_dir' not in result
+
+
+class TestDockerRunnerUser:
+    """Test that docker_runner resolves the container user correctly."""
+
+    def _make_mock_client(self):
+        """Build a minimal docker client mock that records containers.run kwargs."""
+        mock_container = MagicMock()
+        mock_container.logs.return_value = iter([])
+        mock_container.wait.return_value = {"StatusCode": 0}
+
+        mock_client = MagicMock()
+        mock_client.containers.run.return_value = mock_container
+        return mock_client, mock_container
+
+    def test_none_docker_user_falls_back_to_uid_gid(self, mock_runner_config):
+        """docker_user=None should resolve to os.getuid():os.getgid(), not pass None."""
+        config = mock_runner_config()  # docker_user is None by default
+        mock_client, _ = self._make_mock_client()
+
+        with patch("dbt_ci.runners.docker.docker.client.from_env", return_value=mock_client):
+            docker_runner(["dbt", "debug"], config)
+
+        _, kwargs = mock_client.containers.run.call_args
+        expected_user = f"{os.getuid()}:{os.getgid()}"
+        assert kwargs["user"] == expected_user, (
+            f"Expected user='{expected_user}' but got user={kwargs['user']!r}. "
+            "None docker_user must not be forwarded to the container."
+        )
+
+    def test_explicit_docker_user_is_respected(self, mock_runner_config):
+        """An explicitly configured docker_user is forwarded as-is."""
+        config = mock_runner_config({"docker_user": "1234:5678"})
+        mock_client, _ = self._make_mock_client()
+
+        with patch("dbt_ci.runners.docker.docker.client.from_env", return_value=mock_client):
+            docker_runner(["dbt", "debug"], config)
+
+        _, kwargs = mock_client.containers.run.call_args
+        assert kwargs["user"] == "1234:5678"

@@ -412,7 +412,7 @@ Only used when `--runner docker` is set.
 | `--docker-volumes` | `DBT_DOCKER_VOLUMES` | `[]` | Volume mounts (repeatable): `host:container[:mode]` |
 | `--docker-env` | `DBT_DOCKER_ENV` | `[]` | Environment variables (repeatable): `KEY=VALUE` |
 | `--docker-network` | `DBT_DOCKER_NETWORK` | `host` | Docker network mode |
-| `--docker-user` | `DBT_DOCKER_USER` | Auto-detect | User to run as inside the container (`UID:GID`) |
+| `--docker-user` | `DBT_DOCKER_USER` | Invoking user (`uid:gid`) | User to run as inside the container (`UID:GID`). Defaults to the UID and GID of the process running dbt-ci so container-written files are owned by the invoking user. |
 | `--docker-args` | `DBT_DOCKER_ARGS` | `""` | Extra arguments appended to `docker run` |
 
 ### Bash Runner
