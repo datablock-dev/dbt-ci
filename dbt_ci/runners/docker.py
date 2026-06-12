@@ -2,8 +2,10 @@
 import os
 import sys
 from subprocess import CompletedProcess
+from typing import cast
 import docker
 from docker import errors
+from docker.models.containers import Container
 from dbt_ci.schema import RunnerConfig
 from dbt_ci.utilities.paths import get_absolute_path
 
@@ -28,16 +30,16 @@ def docker_runner(commands: list[str], runner_config: RunnerConfig) -> Completed
     """
     try:
         client = docker.client.from_env()
-        container = client.containers.run(
+        container = cast(Container, client.containers.run(
             image=runner_config.get("docker_image", "ghcr.io/dbt-labs/dbt-core:latest"),
             command=commands,
             detach=True,
             stdout=True,
             stderr=True,
-            user=runner_config.get("docker_user", f"{os.getuid()}:{os.getgid()}"),
+            user=runner_config.get("docker_user") or f"{os.getuid()}:{os.getgid()}",
             environment=get_docker_env(runner_config),
             volumes=get_docker_volumes(runner_config)
-        )
+        ))
         
         # Capture all logs as string
         output_logs = []
