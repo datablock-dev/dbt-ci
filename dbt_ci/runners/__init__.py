@@ -1,6 +1,5 @@
 """Central dispatcher for running dbt commands across different runners."""
 import subprocess
-import sys
 import venv
 import logging
 from pathlib import Path
@@ -62,8 +61,7 @@ def run_dbt_command(
 
         return RUNNERS[runner](command_args, runner_config)
 
-    logger.error(f"Unsupported runner: {runner}")
-    sys.exit(1)
+    raise ValueError(f"Unsupported runner: {runner}")
 
 def run_with_dbt_version(version: str):
     """Create a persistent virtual environment with a specific dbt version."""
@@ -96,8 +94,7 @@ def install_adapter(adapter: str):
     adapter_version = adapter_list[-1].strip()
 
     if adapter_name is None or adapter_version is None:
-        logger.error(f"Invalid adapter format: {adapter}. Expected format 'adapter=version' (e.g., 'postgres=1.0.0')")
-        sys.exit(1)
+        raise ValueError(f"Invalid adapter format: {adapter}. Expected format 'adapter=version' (e.g., 'postgres=1.0.0')")
 
     venv_path = Path.home() / ".cache" / "dbt-ci" / "venvs" / f"{adapter_name}-{adapter_version}"
     
@@ -220,7 +217,6 @@ def resolve_dbt_commands(
             commands.append(dbt_flag)
 
     if runner is None:
-        print("Runner not found! Exiting...")
-        sys.exit(1)
+        raise ValueError("Runner not specified")
 
     return commands

@@ -1,5 +1,4 @@
 """BigQuery connector for dbt CI."""
-import sys
 import logging
 from argparse import Namespace
 from typing import Any, cast
@@ -126,7 +125,7 @@ def create_ephemeral_datasets(
     # This function can be used to create temporary datasets for ephemeral models if we choose to materialize them as tables instead of CTEs.
     if len(datasets_to_create) == 0:
         logger.info("No ephemeral datasets to create. Exiting ephemeral strategy.")
-        sys.exit(0)
+        return
     logger.info("Creating ephemeral datasets in BigQuery:")
     for dataset_id in datasets_to_create:
         logger.info(f"\n  - {dataset_id}")
@@ -266,8 +265,7 @@ def bigquery_delete_strategy(delete_map: dict[str, DeleteMapNode], args: Namespa
 
         bigquery_delete_tables(client, tables_to_delete, getattr(args, "dry_run", False), threads)
     except Exception as e:
-        logger.error(f"Error in BigQuery delete strategy: {e}")
-        sys.exit(1)
+        raise RuntimeError(f"Error in BigQuery delete strategy: {e}")
 
 def bigquery_delete_tables(
     client: bigquery.Client,
@@ -282,7 +280,7 @@ def bigquery_delete_tables(
             client.delete_table(table_id, not_found_ok=True)
             logger.info(f"Deleted {table_id} from BigQuery")
         except Exception as e:
-            logger.info(f"Error deleting {table_id} from BigQuery: {e}", err=True)
+            logger.error(f"Error deleting {table_id} from BigQuery: {e}")
             raise
 
     if len(tables_to_delete) == 0:
@@ -327,7 +325,7 @@ def delete_table(table_id: str, args: Namespace) -> None:
         client.delete_table(table_id, not_found_ok=True)
         logger.info(f"Deleted {table_id} from BigQuery")
     except Exception as e:
-        logger.info(f"Error deleting {table_id} from BigQuery: {e}", err=True)
+        logger.error(f"Error deleting {table_id} from BigQuery: {e}")
         raise
 
 
@@ -337,8 +335,7 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
         client = bigquery_client(args)
         profile = get_profile(args)
         if profile is None:
-            print("No profile found for the specified target. Please check your profiles.yml configuration.")
-            sys.exit(1)
+            raise ValueError("No profile found for the specified target. Please check your profiles.yml configuration.")
 
         threads: int = cast(int, profile.get("threads", 5))
         nodes = migration_map["nodes"]
@@ -368,7 +365,7 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
 
         if args.dry_run:
             logger.info("Dry run mode enabled - no changes will be applied.")
-            sys.exit(0)
+            return
 
         # Each table's steps must run sequentially, but different tables can run in parallel.
         run_multithreaded(
@@ -380,8 +377,7 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
             exit_on_exception=True
         )
     except Exception as e:
-        print(e, "An error occurred while initializing BigQuery client or processing migration map")
-        sys.exit(1)
+        raise RuntimeError(f"An error occurred while initializing BigQuery client or processing migration map: {e}")
 
 
 def render_bigquery_partition_clause(partition_by: dict[str, Any]) -> str:
@@ -397,73 +393,68 @@ def render_bigquery_partition_clause(partition_by: dict[str, Any]) -> str:
     Returns:
         str: e.g. "PARTITION BY timestamp_trunc(created_at, day)"
     """
-    try:
-        if not partition_by:
-            return ""
+    if not partition_by:
+        return ""
 
-        field = partition_by.get("field")
-        data_type = (partition_by.get("data_type") or "").lower()
-        granularity = (partition_by.get("granularity") or "day").lower()
-        ingestion = partition_by.get("time_ingestion_partitioning", False)
+    field = partition_by.get("field")
+    data_type = (partition_by.get("data_type") or "").lower()
+    granularity = (partition_by.get("granularity") or "day").lower()
+    ingestion = partition_by.get("time_ingestion_partitioning", False)
 
-        if not field:
-            raise Exception("partition_by.field is required")
+    if not field:
+        raise ValueError("partition_by.field is required")
 
-        if data_type not in {"timestamp", "datetime", "date", "int64"}:
-            raise Exception("partition_by.data_type must be one of: timestamp|datetime|date|int64")
+    if data_type not in {"timestamp", "datetime", "date", "int64"}:
+        raise ValueError("partition_by.data_type must be one of: timestamp|datetime|date|int64")
 
-        # ------------------------------------------------------------------
-        # Ingestion-time partitioning
-        # ------------------------------------------------------------------
-        if ingestion:
-            if granularity not in {"hour", "day", "month", "year"}:
-                raise Exception("Ingestion-time partitioning supports: hour|day|month|year")
-            return f"PARTITION BY timestamp_trunc(_PARTITIONTIME, {granularity})"
+    # ------------------------------------------------------------------
+    # Ingestion-time partitioning
+    # ------------------------------------------------------------------
+    if ingestion:
+        if granularity not in {"hour", "day", "month", "year"}:
+            raise ValueError("Ingestion-time partitioning supports: hour|day|month|year")
+        return f"PARTITION BY timestamp_trunc(_PARTITIONTIME, {granularity})"
 
-        # ------------------------------------------------------------------
-        # Integer range partitioning
-        # ------------------------------------------------------------------
-        if data_type == "int64":
-            r = partition_by.get("range") or {}
-            start = r.get("start")
-            end = r.get("end")
-            interval = r.get("interval")
+    # ------------------------------------------------------------------
+    # Integer range partitioning
+    # ------------------------------------------------------------------
+    if data_type == "int64":
+        r = partition_by.get("range") or {}
+        start = r.get("start")
+        end = r.get("end")
+        interval = r.get("interval")
 
-            if None in (start, end, interval):
-                raise Exception("partition_by.range.start/end/interval required for int64 partitioning")
-            
-            return (
-                "PARTITION BY "
-                f"range_bucket({field}, generate_array({start}, {end}, {interval}))"
-            )
+        if None in (start, end, interval):
+            raise ValueError("partition_by.range.start/end/interval required for int64 partitioning")
 
-        # ------------------------------------------------------------------
-        # Date partitioning
-        # ------------------------------------------------------------------
-        if data_type == "date":
-            if granularity == "day":
-                return f"PARTITION BY {field}"
+        return (
+            "PARTITION BY "
+            f"range_bucket({field}, generate_array({start}, {end}, {interval}))"
+        )
 
-            if granularity in {"month", "year"}:
-                return f"PARTITION BY date_trunc({field}, {granularity})"
+    # ------------------------------------------------------------------
+    # Date partitioning
+    # ------------------------------------------------------------------
+    if data_type == "date":
+        if granularity == "day":
+            return f"PARTITION BY {field}"
 
-            raise Exception("Date partitioning supports: day|month|year")
+        if granularity in {"month", "year"}:
+            return f"PARTITION BY date_trunc({field}, {granularity})"
 
-        # ------------------------------------------------------------------
-        # Timestamp / Datetime partitioning
-        # ------------------------------------------------------------------
-        if data_type in {"timestamp", "datetime"}:
-            if granularity not in {"hour", "day", "month", "year"}:
-                raise Exception("Timestamp/datetime partitioning supports: hour|day|month|year")
+        raise ValueError("Date partitioning supports: day|month|year")
 
-            trunc_fn = "timestamp_trunc" if data_type == "timestamp" else "datetime_trunc"
-            return f"PARTITION BY {trunc_fn}({field}, {granularity})"
+    # ------------------------------------------------------------------
+    # Timestamp / Datetime partitioning
+    # ------------------------------------------------------------------
+    if data_type in {"timestamp", "datetime"}:
+        if granularity not in {"hour", "day", "month", "year"}:
+            raise ValueError("Timestamp/datetime partitioning supports: hour|day|month|year")
 
-        print("Unsupported partitioning configuration. No PARTITION BY clause will be applied.")
-        return sys.exit(1)
-    except Exception as e:
-        print(f"Error rendering BigQuery partition clause: {e}")
-        sys.exit(1)
+        trunc_fn = "timestamp_trunc" if data_type == "timestamp" else "datetime_trunc"
+        return f"PARTITION BY {trunc_fn}({field}, {granularity})"
+
+    raise ValueError("Unsupported partitioning configuration. No PARTITION BY clause will be applied.")
 
 def bigquery_create_tables(
     client: bigquery.Client,
