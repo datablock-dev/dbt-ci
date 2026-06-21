@@ -21,14 +21,14 @@ classifiers = [
 ]
 
 # Read dependencies from requirements.txt
-dependencies = [    
-    "click==8.1.8",
-    "pyyaml==6.0.3",
+dependencies = [
+    "click>=8.1,<9",
+    "pyyaml>=6.0,<7",
     "dbt-core>=1.10.13,<2.0.0",
-    "docker==7.1.0",
-    "boto3==1.35.0",
-    "google-cloud-bigquery==3.27.0",
-    "google-cloud-storage==2.19.0",
+    "docker>=7.0,<8",
+    "boto3>=1.35,<2",
+    "google-cloud-bigquery>=3.27,<4",
+    "google-cloud-storage>=2.19,<3",
     "sqlalchemy>=2.0.0",
 ]
 
@@ -36,14 +36,14 @@ dependencies = [
 postgres = ["psycopg2-binary>=2.9.0"]
 mysql = ["pymysql>=1.0.0"]
 dev = [
-    "pytest==8.3.5",
-    "black==24.10.0",
-    "mypy==1.14.1",
-    "flake8==7.1.2",
-    "duckdb==1.2.0",
-    "slack-sdk==3.36.0",
-    "pytest-cov==6.0.0",
-    "pytest-mock==3.14.0",
+    "pytest>=8.3,<9",
+    "black>=24.0,<25",
+    "mypy>=1.14,<2",
+    "flake8>=7.0,<8",
+    "duckdb>=1.2,<2",
+    "slack-sdk>=3.36,<4",
+    "pytest-cov>=6.0,<7",
+    "pytest-mock>=3.14,<4",
 ]
 
 [project.scripts]
