@@ -616,7 +616,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 1. Clone the repository
 2. Install dependencies: `pip install -e ".[dev]"`
 3. Run tests: `pytest tests/`
-4. Run linting: `black src/ tests/`
+4. Run linting: `black dbt_ci/ tests/`
 
 ### Commit Message Format
 
