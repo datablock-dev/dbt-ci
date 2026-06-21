@@ -235,7 +235,7 @@ def clone_tables(
     func_list = [
         lambda table_ids=table_ids: bigquery_query(client=client, 
         query=f"""
-            CREATE OR REPLACE TABLE `{table_ids['ephemeral_table_id']} 
+            CREATE OR REPLACE TABLE `{table_ids['ephemeral_table_id']}`
             CLONE `{table_ids['reference_table_id']}`
             """
         )
