@@ -45,6 +45,7 @@ def get_connector(connector: SupportedConnectors) -> ConnectorConfig | None:
     return DB_CONNECTORS.get(connector)
 
 
-__init__ = [
+__all__ = [
     "get_connector",
+    "init_storage_connector",
 ]
