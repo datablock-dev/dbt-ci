@@ -111,36 +111,11 @@ def bigquery_ephemeral_strategy(
                 }
 
         logger.info("Running ephemeral strategy for BigQuery...")
-        create_ephemeral_datasets(client, datasets_to_create, threads)
+        bigquery_create_datasets(client, datasets_to_create, dry_run=False, threads=threads)
         clone_tables(client, clone_map, threads)
         return
     except Exception as e:
         raise RuntimeError(f"Error in BigQuery ephemeral strategy: {e}")
-
-def create_ephemeral_datasets(
-    client: bigquery.Client,
-    datasets_to_create: set[str],
-    threads: int = 5
-) -> None:
-    """Create ephemeral datasets in BigQuery if needed."""
-    # This function can be used to create temporary datasets for ephemeral models if we choose to materialize them as tables instead of CTEs.
-    if len(datasets_to_create) == 0:
-        logger.info("No ephemeral datasets to create. Exiting ephemeral strategy.")
-        sys.exit(0)
-    logger.info("Creating ephemeral datasets in BigQuery:")
-    for dataset_id in datasets_to_create:
-        logger.info(f"\n  - {dataset_id}")
-
-    # Pass to multi_thread module
-    func_list = [
-        lambda dataset_id=dataset_id: create_dataset(client, dataset_id)
-        for dataset_id in datasets_to_create
-    ]
-    run_multithreaded(
-        func_list=func_list,
-        threads=threads,
-        exit_on_exception=True
-    )
 
 def bigquery_create_datasets(
     client: bigquery.Client,
