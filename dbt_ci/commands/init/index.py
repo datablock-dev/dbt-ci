@@ -83,7 +83,7 @@ def init(args: Namespace):
         # 2. Ephemeral plan
         init_summary(state_change_summary, args)
 
-        # This method has issues and needs to be resolved before being reintroduced
+        # Fail early if any surviving node still depends on a node deleted in this change set
         detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
 
         # Compile with the actual target (not reference target)
@@ -145,7 +145,14 @@ def detect_deleted_models_with_downstream_dependencies(
     state_change_summary: StateChangeSummary,
     args: Namespace
 ) -> None:
-    """Detect deleted models and their downstream dependencies to generate a delete map."""
+    """
+    Detect nodes that still depend on nodes deleted in this change set.
+
+    For every deleted node we resolve its downstream dependencies (the nodes that
+    consume it) from the reference graph and build a mapping of each surviving
+    dependent to the specific deleted node(s) it relies on, so the report can name
+    exactly which deleted node breaks each dependent.
+    """
     deleted_nodes = state_change_summary.get("deleted_nodes", None)
 
     # If there are no deleted nodes, we can skip this step entirely
@@ -162,25 +169,34 @@ def detect_deleted_models_with_downstream_dependencies(
         for node_name in node_type_nodes.keys()
     }
 
-    downstream_dependencies = get_downstream_dependencies(
-        dependency_graph=reference_dict,
-        node_ids=list(deleted_node_ids)
-    )
+    # Map each surviving dependent -> the deleted node(s) it depends on. Resolving
+    # downstream dependencies one deleted node at a time preserves the attribution
+    # that a single flattened union would otherwise lose.
+    dependents_to_deleted: dict[str, set[str]] = {}
+    for deleted_node_id in deleted_node_ids:
+        downstream_dependencies = get_downstream_dependencies(
+            dependency_graph=reference_dict,
+            node_ids=[deleted_node_id]
+        )
+        if not downstream_dependencies:
+            continue
 
-    if downstream_dependencies is None or len(downstream_dependencies) == 0:
-        return
+        for dependent_id in downstream_dependencies:
+            # Skip downstream nodes that are themselves deleted — those are safe to ignore
+            if dependent_id in deleted_node_ids:
+                continue
+            dependents_to_deleted.setdefault(dependent_id, set()).add(deleted_node_id)
 
-    # Exclude downstream nodes that are themselves deleted — those are safe to ignore
-    problematic_dependencies = downstream_dependencies - deleted_node_ids
-    if not problematic_dependencies:
+    if not dependents_to_deleted:
         return
 
     logger.error("\n------------------------------------------------------")
     click.secho("Deleted Nodes with Downstream Dependencies Detected:", fg="red", bold=True)
-    for node_id in problematic_dependencies:
-        node = get_node(reference_dict, node_id)
+    for dependent_id in sorted(dependents_to_deleted):
+        node = get_node(reference_dict, dependent_id)
         resource_type = node.get("resource_type", "unknown") if node else "unknown"
-        logger.error(f"  • {node_id} ({resource_type}) depends on deleted node(s)")
+        deleted_deps = ", ".join(sorted(dependents_to_deleted[dependent_id]))
+        logger.error(f"  • {dependent_id} ({resource_type}) depends on deleted node(s): {deleted_deps}")
     logger.error("------------------------------------------------------\n")
     logger.error("Please review the above nodes and consider deleting them or modifying them to remove dependencies on deleted nodes.")
     logger.error("Exiting...")

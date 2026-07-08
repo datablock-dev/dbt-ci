@@ -2,7 +2,11 @@
 import pytest
 from unittest.mock import MagicMock, patch, call
 from argparse import Namespace
-from dbt_ci.commands.init.index import init as index
+from dbt_ci.commands.init.index import (
+    init as index,
+    detect_deleted_models_with_downstream_dependencies,
+)
+from dbt_ci.graph.parser import generate_dependency_graph
 
 
 class TestInitCommand:
@@ -198,6 +202,124 @@ class TestInitCommand:
         
         # Verify exit code
         assert exc_info.value.code == 0
+
+
+class TestDetectDeletedModelsWithDownstreamDependencies:
+    """Test detection and attribution of nodes depending on deleted nodes."""
+
+    def _build_reference_graph(self):
+        """
+        Build a reference dependency graph with the lineage:
+            source_a -> model_x -> model_y
+            source_a -> test_t
+            source_b -> model_z
+        """
+        manifest = {
+            "metadata": {},
+            "nodes": {
+                "model.p.model_x": {"name": "model_x", "resource_type": "model", "config": {}, "depends_on": {"macros": [], "nodes": ["source.p.src.source_a"]}},
+                "model.p.model_y": {"name": "model_y", "resource_type": "model", "config": {}, "depends_on": {"macros": [], "nodes": ["model.p.model_x"]}},
+                "model.p.model_z": {"name": "model_z", "resource_type": "model", "config": {}, "depends_on": {"macros": [], "nodes": ["source.p.src.source_b"]}},
+                "test.p.test_t": {"name": "test_t", "resource_type": "test", "config": {}, "depends_on": {"macros": [], "nodes": ["source.p.src.source_a"]}},
+            },
+            "sources": {
+                "source.p.src.source_a": {"name": "source_a", "resource_type": "source", "config": {}},
+                "source.p.src.source_b": {"name": "source_b", "resource_type": "source", "config": {}},
+            },
+            "macros": {},
+            "parent_map": {
+                "model.p.model_x": ["source.p.src.source_a"],
+                "model.p.model_y": ["model.p.model_x"],
+                "model.p.model_z": ["source.p.src.source_b"],
+                "test.p.test_t": ["source.p.src.source_a"],
+                "source.p.src.source_a": [],
+                "source.p.src.source_b": [],
+            },
+            "child_map": {
+                "source.p.src.source_a": ["model.p.model_x", "test.p.test_t"],
+                "source.p.src.source_b": ["model.p.model_z"],
+                "model.p.model_x": ["model.p.model_y"],
+                "model.p.model_y": [],
+                "model.p.model_z": [],
+                "test.p.test_t": [],
+            },
+        }
+        return generate_dependency_graph(manifest)
+
+    def _summary_with_deleted(self, ref_graph, deleted_source_names):
+        """Build a StateChangeSummary marking the given source names as deleted."""
+        return {
+            "modified_nodes": {},
+            "new_nodes": {},
+            "deleted_nodes": {
+                "source": {name: ref_graph["source"][name] for name in deleted_source_names}
+            },
+        }
+
+    @patch("dbt_ci.commands.init.index.click.secho")
+    @patch("dbt_ci.commands.init.index.logger")
+    @patch("dbt_ci.commands.init.index.DbtGraph")
+    def test_attributes_each_dependent_to_its_deleted_node(self, mock_graph, mock_logger, mock_secho):
+        """Each surviving dependent is reported against the specific deleted node it relies on."""
+        ref_graph = self._build_reference_graph()
+        mock_graph.return_value.to_dict.return_value = ref_graph
+
+        summary = self._summary_with_deleted(ref_graph, ["source_a", "source_b"])
+
+        with pytest.raises(SystemExit) as exc_info:
+            detect_deleted_models_with_downstream_dependencies(summary, Namespace())
+        assert exc_info.value.code == 1
+
+        logged = "\n".join(str(c.args[0]) for c in mock_logger.error.call_args_list)
+
+        # Direct and transitive dependents of source_a are attributed to source_a
+        assert "model_x (model) depends on deleted node(s): source_a" in logged
+        assert "model_y (model) depends on deleted node(s): source_a" in logged
+        assert "test_t (test) depends on deleted node(s): source_a" in logged
+        # model_z is attributed to source_b, not source_a
+        assert "model_z (model) depends on deleted node(s): source_b" in logged
+
+    @patch("dbt_ci.commands.init.index.click.secho")
+    @patch("dbt_ci.commands.init.index.logger")
+    @patch("dbt_ci.commands.init.index.DbtGraph")
+    def test_combines_multiple_deleted_nodes_for_one_dependent(self, mock_graph, mock_logger, mock_secho):
+        """A dependent that relies on several deleted nodes lists all of them, sorted."""
+        ref_graph = self._build_reference_graph()
+        # model_y transitively depends on both source_a (via model_x) and model_x itself.
+        mock_graph.return_value.to_dict.return_value = ref_graph
+
+        summary = self._summary_with_deleted(ref_graph, ["source_a"])
+        # Also mark model_x as deleted so model_y depends on two deleted nodes.
+        summary["deleted_nodes"]["model"] = {"model_x": ref_graph["model"]["model_x"]}
+
+        with pytest.raises(SystemExit):
+            detect_deleted_models_with_downstream_dependencies(summary, Namespace())
+
+        logged = "\n".join(str(c.args[0]) for c in mock_logger.error.call_args_list)
+        # model_y depends on both deleted nodes; deleted nodes are themselves excluded from the report.
+        assert "model_y (model) depends on deleted node(s): model_x, source_a" in logged
+        assert "model_x (model) depends on" not in logged  # model_x is deleted, not reported
+
+    @patch("dbt_ci.commands.init.index.DbtGraph")
+    def test_no_deleted_nodes_is_a_noop(self, mock_graph):
+        """No deleted nodes means no graph is built and no exit occurs."""
+        summary = {"modified_nodes": {}, "new_nodes": {}, "deleted_nodes": {}}
+        detect_deleted_models_with_downstream_dependencies(summary, Namespace())
+        mock_graph.assert_not_called()
+
+    @patch("dbt_ci.commands.init.index.DbtGraph")
+    def test_deleted_node_with_no_surviving_dependents_does_not_exit(self, mock_graph):
+        """A deleted leaf node with no downstream dependents should not raise SystemExit."""
+        ref_graph = self._build_reference_graph()
+        mock_graph.return_value.to_dict.return_value = ref_graph
+
+        # model_y is a leaf — nothing depends on it, so deleting it is safe.
+        summary = {
+            "modified_nodes": {},
+            "new_nodes": {},
+            "deleted_nodes": {"model": {"model_y": ref_graph["model"]["model_y"]}},
+        }
+        detect_deleted_models_with_downstream_dependencies(summary, Namespace())  # no SystemExit
 
 
 class TestResolveManifestFromStorage:
