@@ -119,6 +119,13 @@ dbt-ci init \
 
 > All [common options](#common-options) also apply.
 
+**Deleted-node safety check:** After building the state summary, `init` fails if any surviving node still depends on a node that was deleted in this change set. The report names each affected node alongside the specific deleted node(s) it depends on, so you can see exactly what to update or remove:
+
+```
+Deleted Nodes with Downstream Dependencies Detected:
+  • finance_balansrakning (model) depends on deleted node(s): finance_sie_tab_technology_ab_2026_04_01
+```
+
 ---
 
 ### `run` - Run Modified Models
