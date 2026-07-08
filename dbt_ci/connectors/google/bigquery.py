@@ -110,7 +110,7 @@ def bigquery_ephemeral_strategy(
                 }
 
         logger.info("Running ephemeral strategy for BigQuery...")
-        create_ephemeral_datasets(client, datasets_to_create, threads)
+        bigquery_create_datasets(client, datasets_to_create, dry_run=False, threads=threads)
         clone_tables(client, clone_map, threads)
         return
     except Exception as e:
@@ -234,7 +234,7 @@ def clone_tables(
     func_list = [
         lambda table_ids=table_ids: bigquery_query(client=client, 
         query=f"""
-            CREATE OR REPLACE TABLE `{table_ids['ephemeral_table_id']} 
+            CREATE OR REPLACE TABLE `{table_ids['ephemeral_table_id']}`
             CLONE `{table_ids['reference_table_id']}`
             """
         )
