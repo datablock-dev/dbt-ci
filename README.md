@@ -1,5 +1,8 @@
 # dbt-ci
 
+[![Tests](https://github.com/datablock-dev/dbt-ci/actions/workflows/tests.yml/badge.svg)](https://github.com/datablock-dev/dbt-ci/actions/workflows/tests.yml)
+[![dbt-core](https://img.shields.io/badge/dbt--core-1.10%20%7C%201.11-orange?logo=dbt&logoColor=white)](https://github.com/datablock-dev/dbt-ci/actions/workflows/tests.yml)
+
 A CI tool for dbt (data build tool) projects that intelligently runs only modified models based on state comparison, supporting multiple execution environments including local, Docker, and dbt runners.
 
 ## How It Works
