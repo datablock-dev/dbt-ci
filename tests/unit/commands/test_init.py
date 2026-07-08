@@ -266,9 +266,8 @@ class TestDetectDeletedModelsWithDownstreamDependencies:
 
         summary = self._summary_with_deleted(ref_graph, ["source_a", "source_b"])
 
-        with pytest.raises(SystemExit) as exc_info:
-            detect_deleted_models_with_downstream_dependencies(summary, Namespace())
-        assert exc_info.value.code == 1
+        # Advisory only: reports the finding but must not raise / exit.
+        detect_deleted_models_with_downstream_dependencies(summary, Namespace())
 
         logged = "\n".join(str(c.args[0]) for c in mock_logger.error.call_args_list)
 
@@ -292,8 +291,7 @@ class TestDetectDeletedModelsWithDownstreamDependencies:
         # Also mark model_x as deleted so model_y depends on two deleted nodes.
         summary["deleted_nodes"]["model"] = {"model_x": ref_graph["model"]["model_x"]}
 
-        with pytest.raises(SystemExit):
-            detect_deleted_models_with_downstream_dependencies(summary, Namespace())
+        detect_deleted_models_with_downstream_dependencies(summary, Namespace())
 
         logged = "\n".join(str(c.args[0]) for c in mock_logger.error.call_args_list)
         # model_y depends on both deleted nodes; deleted nodes are themselves excluded from the report.

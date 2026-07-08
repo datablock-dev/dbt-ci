@@ -201,5 +201,5 @@ def detect_deleted_models_with_downstream_dependencies(
         logger.error(f"  • {dependent_id} ({resource_type}) depends on deleted node(s): {deleted_deps}")
     logger.error("------------------------------------------------------\n")
     logger.error("Please review the above nodes and consider deleting them or modifying them to remove dependencies on deleted nodes.")
-    logger.error("Exiting...")
-    sys.exit(1)
+    # Advisory only — dbt's own compile is the source of truth for broken references,
+    # so this check reports the finding without failing the run.
