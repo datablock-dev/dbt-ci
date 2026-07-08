@@ -32,7 +32,7 @@ jobs:
       run: mypy dbt_ci/ --ignore-missing-imports
 
     - name: Run tests with dbt-core ${{ matrix.dbt-version }}
-      run: pytest -v --cov=src --cov-report=xml --cov-report=term
+      run: pytest -v --cov=dbt_ci --cov-report=xml --cov-report=term
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

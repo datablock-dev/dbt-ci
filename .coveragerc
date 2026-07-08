@@ -1,5 +1,5 @@
 [run]
-source = src
+source = dbt_ci
 omit = 
     */tests/*
     */test_*.py
