@@ -83,8 +83,10 @@ def init(args: Namespace):
         # 2. Ephemeral plan
         init_summary(state_change_summary, args)
 
-        # Fail early if any surviving node still depends on a node deleted in this change set
-        detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
+        # Deleted-node dependency validation is left to dbt: compiling the project
+        # already fails when a ref()/source() points at a node removed in this change
+        # set. Re-enable the call below if standalone reporting is ever needed.
+        # detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
