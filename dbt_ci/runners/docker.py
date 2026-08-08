@@ -1,46 +1,73 @@
 """Docker runner for dbt-ci"""
+import logging
 import os
+import shlex
 import sys
 from subprocess import CompletedProcess
-from typing import cast
+from typing import Any, cast
 import docker
 from docker import errors
 from docker.models.containers import Container
 from dbt_ci.schema import RunnerConfig
+from dbt_ci.utilities.logging import redact
 from dbt_ci.utilities.paths import get_absolute_path
+
+logger = logging.getLogger(__name__)
 
 def docker_runner(commands: list[str], runner_config: RunnerConfig) -> CompletedProcess | None:
     """
     Execute dbt commands inside a Docker container.
-    
-    Args:
-        commands: The dbt command and arguments to run
-        dbt_project_dir: Absolute path to dbt project directory
-        profiles_dir: Absolute path to profiles directory
-        state_dir: Absolute path to state directory
+
+    Reads the following keys from runner_config:
         docker_image: Docker image to use
         docker_platform: Platform for Docker image (e.g., linux/amd64, linux/arm64). Use linux/amd64 on Apple Silicon for compatibility
-        docker_volumes: Additional volume mounts
-        docker_env: Environment variables to pass
+        docker_volumes: Volume mounts (host:container[:mode])
+        docker_env: Environment variables to pass (KEY=VALUE)
         docker_network: Docker network mode
         docker_user: User to run as (UID:GID)
-        docker_args: Additional docker run arguments
+        docker_args: Additional `docker run` arguments (see parse_docker_args)
         dry_run: If True, only print the command
         quiet: If True, suppress stdout
     """
+    if runner_config.get("dry_run", False):
+        logger.info("DRY RUN: Command would be executed")
+        return None
+
+    container: Container | None = None
     try:
         client = docker.client.from_env()
-        container = cast(Container, client.containers.run(
-            image=runner_config.get("docker_image", "ghcr.io/dbt-labs/dbt-core:latest"),
-            command=commands,
-            detach=True,
-            stdout=True,
-            stderr=True,
-            user=runner_config.get("docker_user") or f"{os.getuid()}:{os.getgid()}",
-            environment=get_docker_env(runner_config),
-            volumes=get_docker_volumes(runner_config)
-        ))
-        
+        run_kwargs: dict[str, Any] = {
+            "image": runner_config.get("docker_image", "ghcr.io/dbt-labs/dbt-core:latest"),
+            "command": commands,
+            "detach": True,
+            "stdout": True,
+            "stderr": True,
+            "user": runner_config.get("docker_user") or f"{os.getuid()}:{os.getgid()}",
+            "environment": get_docker_env(runner_config),
+            "volumes": get_docker_volumes(runner_config),
+        }
+
+        platform = runner_config.get("docker_platform")
+        if platform:
+            run_kwargs["platform"] = platform
+
+        network = runner_config.get("docker_network")
+        if network:
+            run_kwargs["network_mode"] = network
+
+        # Extra `docker run` arguments are translated last so they can override
+        # the values derived from the dedicated flags above.
+        extra_kwargs = parse_docker_args(runner_config)
+        if "environment" in extra_kwargs:
+            run_kwargs["environment"] = {
+                **(run_kwargs["environment"] or {}),
+                **extra_kwargs.pop("environment"),
+            }
+        run_kwargs.update(extra_kwargs)
+
+        logger.debug(f"Starting container with: {redact(run_kwargs)}")
+        container = cast(Container, client.containers.run(**run_kwargs))
+
         # Capture all logs as string
         output_logs = []
         for log in container.logs(stream=True):
@@ -48,42 +75,14 @@ def docker_runner(commands: list[str], runner_config: RunnerConfig) -> Completed
             sys.stdout.write(decoded)
             sys.stdout.flush()
             output_logs.append(decoded)
-        
+
         exit_status = container.wait()
         returncode = exit_status.get("StatusCode", 0)
+        stdout = "".join(output_logs)
         if returncode != 0:
-            print("".join(output_logs))
+            print(stdout)
             sys.exit(1)
 
-        # Optionally filter dbt log lines from output
-        stdout = "".join(output_logs)
-
-        """
-        if filter_output:
-            # Filter out dbt log lines - only keep actual command output
-            # Node names/output don't contain ANSI escape codes or log keywords
-            all_lines = stdout.strip().split("\n")
-            filtered_lines = [
-                line.strip()
-                for line in all_lines
-                if line.strip() and
-                   not line.startswith('\x1b') and  # ANSI escape codes
-                   not any(keyword in line for keyword in [
-                       '[', ']', 
-                       ':',
-                       'Running',
-                       'WARNING',
-                       'Found',
-                       'INFO', 
-                       'Completed',
-                       'Done',
-                       'with',
-                       'ERROR'
-                   ])
-            ]
-            stdout = "\n".join(filtered_lines)
-        """
-        
         return CompletedProcess(
             args=commands,
             returncode=returncode,
@@ -102,6 +101,107 @@ def docker_runner(commands: list[str], runner_config: RunnerConfig) -> Completed
     except Exception as e:
         print(f"Unexpected error: {e}")
         sys.exit(1)
+    finally:
+        remove_container(container)
+
+def remove_container(container: Container | None) -> None:
+    """Remove a finished container so repeated CI runs don't leak stopped containers."""
+    if container is None:
+        return
+    try:
+        container.remove(force=True)
+    except Exception as e:
+        logger.warning(f"Failed to remove container: {e}")
+
+# Translation of the `docker run` CLI flags supported by --docker-args into the
+# keyword arguments understood by the Docker SDK. Flags that take no value map
+# to a (kwarg, constant) pair; the rest map to a (kwarg, converter) pair.
+DOCKER_ARG_FLAGS: dict[str, tuple[str, Any]] = {
+    "--privileged": ("privileged", True),
+}
+
+DOCKER_ARG_OPTIONS: dict[str, tuple[str, Any]] = {
+    "--memory": ("mem_limit", str),
+    "-m": ("mem_limit", str),
+    "--cpus": ("nano_cpus", lambda v: int(float(v) * 1_000_000_000)),
+    "--shm-size": ("shm_size", str),
+    "--workdir": ("working_dir", str),
+    "-w": ("working_dir", str),
+    "--hostname": ("hostname", str),
+    "--platform": ("platform", str),
+    "--network": ("network_mode", str),
+}
+
+def parse_docker_args(runner_config: RunnerConfig) -> dict[str, Any]:
+    """
+    Translate the free-form --docker-args string into Docker SDK keyword arguments.
+
+    dbt-ci drives Docker through the SDK rather than the `docker` CLI, so only the
+    subset of `docker run` flags listed in DOCKER_ARG_FLAGS/DOCKER_ARG_OPTIONS (plus
+    -e/--env and --add-host) can be forwarded. Anything else is reported as ignored
+    rather than dropped silently.
+    """
+    raw = runner_config.get("docker_args") or ""
+    if not raw.strip():
+        return {}
+
+    kwargs: dict[str, Any] = {}
+    environment: dict[str, str] = {}
+    extra_hosts: dict[str, str] = {}
+    ignored: list[str] = []
+
+    tokens = shlex.split(raw)
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        index += 1
+
+        # Support both `--flag value` and `--flag=value` spellings.
+        flag, _, inline_value = token.partition("=")
+        value: str | None = inline_value if inline_value else None
+
+        if flag in DOCKER_ARG_FLAGS:
+            kwarg, constant = DOCKER_ARG_FLAGS[flag]
+            kwargs[kwarg] = constant
+            continue
+
+        if flag in ("-e", "--env", "--add-host") or flag in DOCKER_ARG_OPTIONS:
+            if value is None:
+                if index >= len(tokens):
+                    ignored.append(token)
+                    continue
+                value = tokens[index]
+                index += 1
+
+            if flag in ("-e", "--env"):
+                key, _, env_value = value.partition("=")
+                environment[key] = env_value
+            elif flag == "--add-host":
+                host, _, address = value.partition(":")
+                extra_hosts[host] = address
+            else:
+                kwarg, converter = DOCKER_ARG_OPTIONS[flag]
+                try:
+                    kwargs[kwarg] = converter(value)
+                except (TypeError, ValueError):
+                    ignored.append(f"{flag} {value}")
+            continue
+
+        ignored.append(token)
+
+    if environment:
+        kwargs["environment"] = environment
+    if extra_hosts:
+        kwargs["extra_hosts"] = extra_hosts
+    if ignored:
+        logger.warning(
+            "Ignoring unsupported --docker-args entries: %s. dbt-ci runs Docker through "
+            "the SDK, which supports: %s.",
+            " ".join(ignored),
+            ", ".join(sorted(set(DOCKER_ARG_FLAGS) | set(DOCKER_ARG_OPTIONS) | {"-e/--env", "--add-host"})),
+        )
+
+    return kwargs
 
 def parse_docker_env(runner_config: RunnerConfig) -> dict:
     """Parse docker_env list into a dictionary."""

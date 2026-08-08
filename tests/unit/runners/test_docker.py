@@ -3,7 +3,13 @@ import pytest
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-from dbt_ci.runners.docker import docker_runner, get_docker_env, get_docker_volumes, get_container_paths
+from dbt_ci.runners.docker import (
+    docker_runner,
+    get_container_paths,
+    get_docker_env,
+    get_docker_volumes,
+    parse_docker_args,
+)
 from dbt_ci.utilities.paths import get_absolute_path
 
 
@@ -249,3 +255,130 @@ class TestDockerRunnerUser:
 
         _, kwargs = mock_client.containers.run.call_args
         assert kwargs["user"] == "1234:5678"
+
+
+class TestDockerRunnerOptions:
+    """Test that the documented Docker options reach the container."""
+
+    def _run(self, config, overrides=None):
+        """Run docker_runner against a mocked client and return the containers.run kwargs."""
+        mock_container = MagicMock()
+        mock_container.logs.return_value = iter([])
+        mock_container.wait.return_value = {"StatusCode": 0}
+        mock_client = MagicMock()
+        mock_client.containers.run.return_value = mock_container
+
+        with patch("dbt_ci.runners.docker.docker.client.from_env", return_value=mock_client):
+            result = docker_runner(["dbt", "debug"], config)
+
+        _, kwargs = mock_client.containers.run.call_args
+        return kwargs, mock_container, result
+
+    def test_platform_is_forwarded(self, mock_runner_config):
+        """--docker-platform is what makes dbt images work on Apple Silicon."""
+        kwargs, _, _ = self._run(mock_runner_config({"docker_platform": "linux/amd64"}))
+        assert kwargs["platform"] == "linux/amd64"
+
+    def test_platform_omitted_when_unset(self, mock_runner_config):
+        """Without an explicit platform, Docker picks the host's."""
+        kwargs, _, _ = self._run(mock_runner_config({"docker_platform": None}))
+        assert "platform" not in kwargs
+
+    def test_network_is_forwarded(self, mock_runner_config):
+        """--docker-network must reach the container, not silently default to bridge."""
+        kwargs, _, _ = self._run(mock_runner_config({"docker_network": "host"}))
+        assert kwargs["network_mode"] == "host"
+
+    def test_container_is_removed(self, mock_runner_config):
+        """Containers are cleaned up so repeated CI runs don't leak them."""
+        _, container, _ = self._run(mock_runner_config())
+        container.remove.assert_called_once_with(force=True)
+
+    def test_container_is_removed_on_failure(self, mock_runner_config):
+        """A failing dbt run must still clean up its container."""
+        mock_container = MagicMock()
+        mock_container.logs.return_value = iter([b"boom"])
+        mock_container.wait.return_value = {"StatusCode": 1}
+        mock_client = MagicMock()
+        mock_client.containers.run.return_value = mock_container
+
+        with patch("dbt_ci.runners.docker.docker.client.from_env", return_value=mock_client):
+            with pytest.raises(SystemExit):
+                docker_runner(["dbt", "debug"], mock_runner_config())
+
+        mock_container.remove.assert_called_once_with(force=True)
+
+    def test_dry_run_starts_no_container(self, mock_runner_config):
+        """--dry-run must not execute dbt, consistent with the other runners."""
+        mock_client = MagicMock()
+
+        with patch("dbt_ci.runners.docker.docker.client.from_env", return_value=mock_client):
+            result = docker_runner(["dbt", "debug"], mock_runner_config({"dry_run": True}))
+
+        assert result is None
+        mock_client.containers.run.assert_not_called()
+
+
+class TestParseDockerArgs:
+    """Test translation of --docker-args into Docker SDK keyword arguments."""
+
+    def test_empty(self, mock_runner_config):
+        """No extra args means no extra kwargs."""
+        assert parse_docker_args(mock_runner_config({"docker_args": ""})) == {}
+
+    def test_memory_and_cpus(self, mock_runner_config):
+        """The documented '--memory=2g --cpus=2' example is translated."""
+        result = parse_docker_args(mock_runner_config({"docker_args": "--memory=2g --cpus=2"}))
+
+        assert result["mem_limit"] == "2g"
+        assert result["nano_cpus"] == 2_000_000_000
+
+    def test_space_separated_form(self, mock_runner_config):
+        """'--flag value' works as well as '--flag=value'."""
+        result = parse_docker_args(mock_runner_config({"docker_args": "--memory 512m"}))
+        assert result["mem_limit"] == "512m"
+
+    def test_env_vars_are_collected(self, mock_runner_config):
+        """-e/--env entries are merged into the container environment."""
+        result = parse_docker_args(mock_runner_config({"docker_args": "-e A=1 --env B=2"}))
+        assert result["environment"] == {"A": "1", "B": "2"}
+
+    def test_add_host(self, mock_runner_config):
+        """--add-host maps onto extra_hosts."""
+        result = parse_docker_args(
+            mock_runner_config({"docker_args": "--add-host db:10.0.0.1"})
+        )
+        assert result["extra_hosts"] == {"db": "10.0.0.1"}
+
+    def test_boolean_flag(self, mock_runner_config):
+        """Valueless flags map to their constant."""
+        result = parse_docker_args(mock_runner_config({"docker_args": "--privileged"}))
+        assert result["privileged"] is True
+
+    def test_unsupported_args_are_reported(self, mock_runner_config):
+        """Args the SDK can't express are warned about rather than dropped silently."""
+        config = mock_runner_config({"docker_args": "--cap-add SYS_ADMIN"})
+
+        with patch("dbt_ci.runners.docker.logger") as mock_logger:
+            result = parse_docker_args(config)
+
+        assert result == {}
+        mock_logger.warning.assert_called_once()
+
+    def test_docker_args_env_merges_with_docker_env(self, mock_runner_config):
+        """Env vars from --docker-args are added to those from --docker-env."""
+        config = mock_runner_config({
+            "docker_env": ["FROM_FLAG=1"],
+            "docker_args": "-e FROM_ARGS=2",
+        })
+        mock_container = MagicMock()
+        mock_container.logs.return_value = iter([])
+        mock_container.wait.return_value = {"StatusCode": 0}
+        mock_client = MagicMock()
+        mock_client.containers.run.return_value = mock_container
+
+        with patch("dbt_ci.runners.docker.docker.client.from_env", return_value=mock_client):
+            docker_runner(["dbt", "debug"], config)
+
+        _, kwargs = mock_client.containers.run.call_args
+        assert kwargs["environment"] == {"FROM_FLAG": "1", "FROM_ARGS": "2"}
