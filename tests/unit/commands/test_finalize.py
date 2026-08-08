@@ -8,6 +8,7 @@ from dbt_ci.commands.finalize.upload import (
     upload_logs,
     upload_manifest,
 )
+from dbt_ci.utilities.logging import LOG_FILE_NAME
 
 
 def _make_args(**kwargs) -> Namespace:
@@ -245,6 +246,27 @@ class TestUploadLogs:
         storage_fn.assert_called_once_with(
             "gs://bucket/path/logs.txt", "some log content", "text/plain"
         )
+
+    def test_reads_the_file_the_logger_actually_writes(self):
+        """The log handler writes dbt-ci.log, so reading any other name uploads nothing."""
+        storage_fn = _make_storage_function()
+        cache = MagicMock()
+        cache.get_cache.return_value = "some log content"
+
+        upload_logs("gs://bucket/path", cache, storage_fn)
+
+        cache.get_cache.assert_called_once_with(LOG_FILE_NAME, "txt")
+
+    def test_flushes_buffered_records_before_reading(self):
+        """Records still buffered by the handler would otherwise be missing."""
+        storage_fn = _make_storage_function()
+        cache = MagicMock()
+        cache.get_cache.return_value = "some log content"
+
+        with patch("dbt_ci.commands.finalize.upload.flush_log_file") as mock_flush:
+            upload_logs("gs://bucket/path", cache, storage_fn)
+
+        mock_flush.assert_called_once()
 
     def test_skips_when_no_logs(self):
         storage_fn = _make_storage_function()

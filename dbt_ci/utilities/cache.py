@@ -3,14 +3,14 @@
     and managing the report.json for tracking command execution status and variables.
 """
 import json
-import tempfile
 import logging
 from argparse import Namespace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, cast
 from dbt_ci.schema import Commands, DBTManifest, DbtCiManifest, EphemeralMapNode, StateChangeSummary, SupportedConnectors
-from dbt_ci.utilities.paths import get_profile
+from dbt_ci.utilities.logging import LOG_FILE_NAME
+from dbt_ci.utilities.paths import get_cache_dir, get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class CacheManager:
     """
     def __init__(self, args: Namespace, cache_dir: Optional[Path] = None):
         self.args = args
-        self.cache_dir = cache_dir or Path(tempfile.gettempdir()) / "dbt-ci"
+        self.cache_dir = cache_dir or get_cache_dir()
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.dir_path = self.cache_dir.resolve()
 
@@ -142,8 +142,24 @@ class CacheManager:
         self._write_report(report_cache)
 
     def clear_cache(self) -> None:
-        """Clear the cache by deleting the files in the folder"""
-        if self.dir_path.is_dir():
-            for file in self.dir_path.iterdir():
-                file.unlink()
-            logger.info(f"Cache cleared from {self.dir_path.absolute()}")
+        """
+        Clear the cache by removing the files in the cache folder.
+
+        The log file is truncated rather than unlinked: a logging FileHandler holds it
+        open for the duration of the command, and unlinking it would send the rest of
+        the run's output to a deleted file. Subdirectories are left alone so an
+        unexpected directory doesn't abort the whole command.
+        """
+        if not self.dir_path.is_dir():
+            return
+
+        for file in self.dir_path.iterdir():
+            if file.is_dir():
+                logger.debug(f"Skipping directory {file} while clearing the cache.")
+                continue
+            if file.name == LOG_FILE_NAME:
+                file.write_text("", encoding="utf-8")
+                continue
+            file.unlink()
+
+        logger.info(f"Cache cleared from {self.dir_path.absolute()}")
