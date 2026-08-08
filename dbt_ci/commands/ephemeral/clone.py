@@ -4,7 +4,12 @@ import logging
 from argparse import Namespace
 from typing import cast
 from dbt_ci.graph.dependency_graph import DbtGraph
-from dbt_ci.graph.graph_utils import filter_node_ids_by_type, get_downstream_dependencies, get_upstream_dependencies
+from dbt_ci.graph.graph_utils import (
+    filter_node_ids_by_type,
+    get_downstream_dependencies,
+    get_selectors,
+    get_upstream_dependencies,
+)
 from dbt_ci.schema import RunnerConfig
 from dbt_ci.utilities.logging import print_exception
 from dbt_ci.utilities.paths import get_profile
@@ -69,14 +74,15 @@ def clone_command(
             logger.info("No nodes to create ephemeral environments for, skipping...")
             sys.exit(0)
 
-        # We add all changed nodes + their downstream dependencies to the clone selection
-        for node in _filter_models_and_snapshots(target_graph, changed_nodes):
-            node_selector.add(f"{node}+")
+        # We add all changed nodes + their downstream dependencies to the clone selection.
+        # Selectors are fqn paths rather than unique_ids, which dbt's --select cannot resolve.
+        for selector in get_selectors(target_graph.to_dict(), _filter_models_and_snapshots(target_graph, changed_nodes)):
+            node_selector.add(f"{selector}+")
 
         # Downstream dependencies need to be included and to have their
-        # 1st level upstream dependencies included to ensure the graph can be built and run successfully        
-        for node in _filter_models_and_snapshots(target_graph, dependent_nodes):
-            node_selector.add(f"1+{node}")
+        # 1st level upstream dependencies included to ensure the graph can be built and run successfully
+        for selector in get_selectors(target_graph.to_dict(), _filter_models_and_snapshots(target_graph, dependent_nodes)):
+            node_selector.add(f"1+{selector}")
 
         command = resolve_dbt_commands(
             command_args=["clone", "--select", *node_selector, "--threads", str(threads)],

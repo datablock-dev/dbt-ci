@@ -12,7 +12,7 @@ from dbt_ci.utilities.logging import redact_namespace
 from dbt_ci.connectors import get_connector
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.schema import DeleteMapNode, SupportedConnectors
-from dbt_ci.graph.graph_utils import get_node_ids_from_structured_nodes, get_nodes
+from dbt_ci.graph.graph_utils import get_node, get_node_ids_from_structured_nodes, get_nodes
 from dbt_ci.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,8 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
     click.secho("State Change Summary:", fg="green", bold=True)
     logger.info(f"\nFound {len(deleted_nodes)} deleted node(s):")
     for node in deleted_nodes:
-        logger.info(f"  • {node.split('.')[-1]} [Deleted]")
+        node_data = get_node(reference_graph.to_dict(), node)
+        logger.info(f"  • {node_data['name'] if node_data else node} [Deleted]")
     logger.info("------------------------------------------------------\n")
 
     delete_map: dict[str, DeleteMapNode] = {}

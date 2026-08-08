@@ -1,3 +1,4 @@
+import json
 import sys
 import logging
 from argparse import Namespace
@@ -17,12 +18,36 @@ from dbt_ci.utilities.git import GitAdapter, GitChangeType
 from dbt_ci.graph.graph_utils import (
     get_deleted_nodes,
     get_new_nodes,
-    get_node_from_path,
+    get_nodes_from_path,
     get_nodes,
     get_structured_modified_nodes
 )
 
 logger = logging.getLogger(__name__)
+
+def parse_ls_unique_ids(output: str) -> list[str]:
+    """
+    Extract unique_ids from `dbt ls --output json --output-keys unique_id`.
+
+    dbt emits one JSON object per line, but runners interleave their own log lines with
+    that output, so non-JSON lines are skipped rather than parsed as a whole document.
+    """
+    unique_ids: list[str] = []
+    for line in output.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            logger.debug(f"Ignoring non-JSON line in dbt ls output: {line}")
+            continue
+
+        unique_id = entry.get("unique_id")
+        if unique_id:
+            unique_ids.append(unique_id)
+
+    return unique_ids
 
 class CommonStateChangeSummary(TypedDict):
     modified_node_ids: set[str]
@@ -89,11 +114,15 @@ class StateModified:
             # Get modified nodes based on git diff
             for change_type, files in changed_files.items():
                 for file_path in files:
-                    node_info = get_node_from_path(target_dict, file_path) or get_node_from_path(reference_dict, file_path)
-                    if node_info:
-                        node_id = node_info.get("name")
-                        if node_id:
-                            git_modified_nodes[change_type].add(node_id)
+                    # One file can define several nodes (a schema.yml declares many
+                    # tests), so every node at that path is attributed to the change.
+                    nodes_at_path = (
+                        get_nodes_from_path(target_dict, file_path)
+                        or get_nodes_from_path(reference_dict, file_path)
+                    )
+                    if nodes_at_path:
+                        for node_info in nodes_at_path:
+                            git_modified_nodes[change_type].add(node_info["id"])
                     else:
                         logger.debug(f"File {file_path} changed according to git but no corresponding node found in either target or reference graph (e.g. macro, schema YAML, or non-dbt file).")
 
@@ -140,10 +169,13 @@ class StateModified:
             # Get modified nodes based on git diff
             for change_type, files in changed_files.items():
                 for file_path in files:
-                    node_info = get_node_from_path(target_graph, file_path) or get_node_from_path(reference_graph, file_path)
-                    if node_info:
-                        node_id = node_info.get("name")
-                        if node_id:
+                    nodes_at_path = (
+                        get_nodes_from_path(target_graph, file_path)
+                        or get_nodes_from_path(reference_graph, file_path)
+                    )
+                    if nodes_at_path:
+                        for node_info in nodes_at_path:
+                            node_id = node_info["id"]
                             if new_nodes and node_id in new_nodes:
                                 git_modified_nodes["added"].add(node_id)
                             else:
@@ -267,9 +299,22 @@ class StateModified:
         try:
             cache = CacheManager(self.args)
 
-            commands = resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], self.args)
-            commands.extend(["--target", getattr(self.args, "reference_target")])
-            commands.extend(["--vars", getattr(self.args, "reference_vars")]) if getattr(self.args, "reference_vars", None) else None
+            # unique_id rather than name: names are ambiguous across packages and
+            # between a model and a singular test, so a bare name cannot identify a node.
+            commands = resolve_dbt_commands(
+                ["ls", "--select", "state:modified", "--output", "json", "--output-keys", "unique_id", "--quiet"],
+                self.args,
+            )
+            # Only pass --target when a reference target was configured. Appending it
+            # unconditionally put a None into the argument list, which broke the run as
+            # soon as anything tried to join the arguments into a string.
+            reference_target = getattr(self.args, "reference_target", None)
+            if reference_target:
+                commands.extend(["--target", reference_target])
+
+            reference_vars = getattr(self.args, "reference_vars", None)
+            if reference_vars:
+                commands.extend(["--vars", reference_vars])
     
             logger.debug(f"Running dbt ls command with arguments: {commands}")
     
@@ -283,7 +328,7 @@ class StateModified:
                 cache.write_cache()
                 sys.exit(0)
     
-            modified_nodes = ls_output.stdout.splitlines()
+            modified_nodes = parse_ls_unique_ids(ls_output.stdout)
 
             new_node_ids = set(get_new_nodes(self.reference_graph, self.target_graph) or [])
             deleted_node_ids = set(get_deleted_nodes(self.reference_graph, self.target_graph) or [])

@@ -68,21 +68,16 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             "test": set(),
             "exposure": set(),
         }
-            
+
         for dep_id in downstream_dependencies:
             dep_type = dep_id.split(".")[0]
-            dep_manifest_key = MANIFEST_KEY_MAPPING.get(dep_type)
-            
-            if dep_manifest_key and dep_type in node_type_map:
-                dep_item = manifest_file.get(dep_manifest_key, {}).get(dep_id, None)
-                if dep_item:
-                    dep_name = dep_item.get("name")
-                    if dep_name:
-                        node_type_map[dep_type].add(dep_name)
+            if dep_type in node_type_map:
+                node_type_map[dep_type].add(dep_id)
 
-        dependency_graph[node_type][name] = {
+        dependency_graph[node_type][key] = {
             "name": name,
             "id": key,
+            "fqn": full_item.get("fqn", None),
             "database": full_item.get("database", None),
             "schema": full_item.get("schema", None),
             "resource_type": full_item.get("resource_type", None),
@@ -114,19 +109,19 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
         append_depends_on_nodes(
             dependency_graph=dependency_graph,
             node_type=node_type,
-            name=name,
-            dependencies=full_item.get("depends_on", {}), 
-            manifest_file=manifest_file
+            node_id=key,
+            dependencies=full_item.get("depends_on", {}),
         )
 
     # Macros don't appear as keys in child_map, so populate them directly from
     # the manifest's macros section so path-based lookups can find them.
     for macro_id, macro_item in manifest_file.get("macros", {}).items():
         macro_name = macro_item.get("name")
-        if macro_name and macro_name not in dependency_graph["macro"]:
-            dependency_graph["macro"][macro_name] = {
+        if macro_name and macro_id not in dependency_graph["macro"]:
+            dependency_graph["macro"][macro_id] = {
                 "name": macro_name,
                 "id": macro_id,
+                "fqn": macro_item.get("fqn", None),
                 "database": None,
                 "schema": None,
                 "resource_type": "macro",
@@ -152,43 +147,28 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
 def append_depends_on_nodes(
     dependency_graph: DependencyGraph,
     node_type: DependencyGraphNodeType,
-    name: str,
-    dependencies: dict[DependencyGraphNodeType, list[str]], 
-    manifest_file: DBTManifest
+    node_id: str,
+    dependencies: dict[str, list[str]],
 ) -> None:
     """Append dependencies from the "depends_on" section of the manifest file to the dependency graph."""
+    upstream = dependency_graph[node_type][node_id]["upstream_dependencies"]
+
     for dep_type, dep_ids in dependencies.items():
         if dep_ids is None or not isinstance(dep_ids, list):
             continue
 
         # Add all dep_ids to node_dependencies
-        dependency_graph[node_type][name]["upstream_dependencies"]["node_dependencies"].update(dep_ids)
-        
-        # Retrieve name from manifest
-        for dep_id in dep_ids:
-            # dep_type from depends_on is "nodes" or "macros"
-            # Look up in the correct manifest section
-            manifest_section = "macros" if dep_type == "macros" else "nodes"
-            node = manifest_file.get(manifest_section, {}).get(dep_id, None)
-            
-            if node is None:
-                continue
-                
-            node_name = node.get("name")
-            if node_name is None:
-                continue
+        upstream["node_dependencies"].update(dep_ids)
 
-            # Map to the correct dependency type
-            # For "macros" -> "macro", for "nodes" -> extract from dep_id
-            if dep_type == "macros":
-                dep_category = "macro"
-            else:
-                # Extract actual type from dep_id (e.g., "model.project.name" -> "model")
-                dep_category = dep_id.split(".")[0]
-            
+        for dep_id in dep_ids:
+            # dep_type from depends_on is "nodes" or "macros"; for nodes the actual
+            # resource type is the first segment of the unique_id
+            # (e.g. "model.project.name" -> "model").
+            dep_category = "macro" if dep_type == "macros" else dep_id.split(".")[0]
+
             # Only add if this category is tracked
-            if dep_category in dependency_graph[node_type][name]["upstream_dependencies"]["dependencies_by_type"]:
-                dependency_graph[node_type][name]["upstream_dependencies"]["dependencies_by_type"][dep_category].add(node_name)
+            if dep_category in upstream["dependencies_by_type"]:
+                upstream["dependencies_by_type"][dep_category].add(dep_id)
 
 def output_dependency_graph(dependency_graph: DependencyGraph, output_path: str) -> None:
     """Output the dependency graph to a JSON file."""
@@ -258,8 +238,7 @@ def compute_transitive_closure(
 
 
 def append_upstream_dependencies(dependency_graph: DependencyGraph, manifest_file: DBTManifest) -> None:
-    """Populate upstream dependencies by reversing downstream dependencies"""
-    # Iterate through all nodes and their downstream dependencies
+    """Populate upstream dependencies from the manifest's parent_map."""
     parent_map = manifest_file.get("parent_map", {})
 
     for child_id, parent_ids in parent_map.items():
@@ -267,31 +246,22 @@ def append_upstream_dependencies(dependency_graph: DependencyGraph, manifest_fil
             continue
 
         child_node_type = child_id.split(".")[0]
-        manifest_key = MANIFEST_KEY_MAPPING.get(child_node_type)
-        if manifest_key is None:
-            logger.error(f"Unknown node type '{child_node_type}' found in manifest file. Skipping.")
-            sys.exit(1)
-        
-        node = manifest_file.get(manifest_key, {}).get(child_id, {}).get("name", None)
+        node = dependency_graph.get(child_node_type, {}).get(child_id)
 
         if node is None:
-            print(f"Node with ID '{child_id}' not found in manifest file under '{manifest_key}'. Skipping.")
+            # Resource types dbt-ci doesn't track (analyses, operations, unit tests)
+            # legitimately appear in parent_map without being graph nodes.
+            logger.debug(f"Node '{child_id}' is not tracked in the dependency graph. Skipping.")
             continue
 
-        dependency_graph[child_node_type][node]["upstream_dependencies"]["node_dependencies"].update(parent_ids)
+        upstream = node["upstream_dependencies"]
+        upstream["node_dependencies"].update(parent_ids)
 
         # Sort by dependency type
         for parent_id in parent_ids:
             parent_node_type = parent_id.split(".")[0]
-            manifest_key = MANIFEST_KEY_MAPPING.get(parent_node_type)
-            parent_node = manifest_file.get(manifest_key, {}).get(parent_id, None)
-            name = parent_node.get("name", None) if parent_node else None
-
-            if name is None:
-                print(f"Parent node with ID '{parent_id}' not found in manifest file under '{manifest_key}'. Skipping.")
-                continue
-
-            dependency_graph[child_node_type][node]["upstream_dependencies"]["dependencies_by_type"][parent_node_type].add(name)
+            if parent_node_type in upstream["dependencies_by_type"]:
+                upstream["dependencies_by_type"][parent_node_type].add(parent_id)
 
 
 def append_indirect_dependencies(dependency_graph, direction: Literal["upstream", "downstream"] = "upstream"):
@@ -326,9 +296,7 @@ def append_indirect_dependencies(dependency_graph, direction: Literal["upstream"
 
             # Populate by type
             for indirect_id in all_indirect:
-                indirect_node = nodes_by_id.get(indirect_id)
-                if indirect_node:
-                    indirect_type = indirect_id.split(".")[0]
-                    # Only add to dependencies_by_type if the indirect_type is tracked
-                    if indirect_type in node_data[indirect_key]["dependencies_by_type"]:
-                        node_data[indirect_key]["dependencies_by_type"][indirect_type].add(indirect_node["name"])
+                indirect_type = indirect_id.split(".")[0]
+                # Only add to dependencies_by_type if the indirect_type is tracked
+                if indirect_type in node_data[indirect_key]["dependencies_by_type"]:
+                    node_data[indirect_key]["dependencies_by_type"][indirect_type].add(indirect_id)

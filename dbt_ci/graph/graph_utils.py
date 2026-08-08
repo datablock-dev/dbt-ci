@@ -63,22 +63,24 @@ def get_structured_modified_nodes(nodes: dict[str, dict[str, DependencyGraphNode
 
     return structured_nodes
 
-def get_node(dependency_graph: DependencyGraph, node_id: str) -> dict[str, DependencyGraphNode] | None:
-    """Get a single node by ID, searching across all node types."""
-    try:
-        match = None
-        for node_type in dependency_graph.keys():
-            if node_type == "metadata":
-                continue
-            if node_id in dependency_graph[node_type]:
-                match = dependency_graph[node_type][node_id]
-                break
-        return match
-    except TypeError:
+def get_node(dependency_graph: DependencyGraph, node_id: str) -> DependencyGraphNode | None:
+    """
+    Get a single node by its dbt unique_id.
+
+    The unique_id's first segment is the resource type ("model.pkg.name" -> "model"),
+    which addresses the right bucket directly. Nodes used to be keyed by bare name, so a
+    lookup had to scan every bucket and returned whichever type came first - meaning a
+    model always shadowed a singular test of the same name.
+    """
+    if not node_id or not isinstance(node_id, str):
         return None
-    except Exception as e:
-        print(f"Error retrieving node: {e}")
+
+    node_type = node_id.split(".")[0]
+    bucket = dependency_graph.get(node_type)
+    if not isinstance(bucket, dict):
         return None
+
+    return bucket.get(node_id)
 
 def get_nodes(
     dependency_graph: DependencyGraph, 
@@ -240,7 +242,7 @@ def filter_node_ids_by_list_of_node_ids(
     """Filter out node ids if they exist in exclude_filter"""
     return [node_id for node_id in node_ids if node_id not in exclude_filter]
 
-def get_node_from_path(dependency_graph: DependencyGraph, path: str) -> dict[str, DependencyGraphNode] | None:
+def get_node_from_path(dependency_graph: DependencyGraph, path: str) -> DependencyGraphNode | None:
     """Get a node from the dependency graph based on its path."""
     for node_type, node_values in dependency_graph.items():
         if node_type == "metadata":
@@ -249,3 +251,59 @@ def get_node_from_path(dependency_graph: DependencyGraph, path: str) -> dict[str
             if node_info.get("original_file_path", None) == path:
                 return node_info
     return None
+
+def get_nodes_from_path(dependency_graph: DependencyGraph, path: str) -> list[DependencyGraphNode]:
+    """
+    Get every node defined by a given file.
+
+    One file commonly defines several nodes - a schema.yml declares many tests, and a
+    model's .sql file and its tests can share a path - so change detection has to
+    consider all of them rather than the first match.
+    """
+    matches: list[DependencyGraphNode] = []
+    for node_type, node_values in dependency_graph.items():
+        if node_type == "metadata":
+            continue
+        for node_info in cast(dict, node_values).values():
+            if node_info.get("original_file_path", None) == path:
+                matches.append(node_info)
+    return matches
+
+def get_display_name(dependency_graph: DependencyGraph | None, node_id: str) -> str:
+    """
+    Return a human-readable name for a unique_id.
+
+    Splitting the id on '.' is not enough: a generic test's unique_id ends in a hash
+    (test.pkg.not_null_customers_id.422908bfae), so the node's own name is preferred
+    whenever the graph is available.
+    """
+    if dependency_graph is not None:
+        node = get_node(dependency_graph, node_id)
+        if node and node.get("name"):
+            return node["name"]
+    return node_id.split(".")[-1]
+
+def get_selectors(dependency_graph: DependencyGraph, node_ids: list[str]) -> list[str]:
+    """
+    Convert dbt unique_ids into selector strings for `dbt --select`.
+
+    dbt has no `unique_id:` selector method, so the node's fqn path is used instead
+    ("demo.staging.customers"). That is unambiguous across packages, whereas the bare
+    name dbt-ci used to pass matches every node sharing it - selecting a vendored
+    package's model alongside your own.
+    """
+    selectors: list[str] = []
+    for node_id in node_ids:
+        node = get_node(dependency_graph, node_id)
+        if node is None:
+            logger.warning(f"Node ID '{node_id}' not found in dependency graph; skipping selection.")
+            continue
+
+        fqn = node.get("fqn")
+        if fqn:
+            selectors.append(".".join(fqn))
+        else:
+            # Sources and any node without an fqn fall back to their name.
+            selectors.append(node["name"])
+
+    return selectors

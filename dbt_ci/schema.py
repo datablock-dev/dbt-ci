@@ -329,9 +329,15 @@ type DBTMaterialized = Literal[
     "seed"
 ]
 class DependencyGraphNode(TypedDict):
-    """Structured representation of dbt dependencies for lineage analysis."""
+    """Structured representation of dbt dependencies for lineage analysis.
+
+    Nodes are keyed by dbt's unique_id throughout the graph, and every id stored in the
+    dependency sets is a unique_id too. `fqn` is retained because dbt's --select has no
+    unique_id method and the fqn path is what identifies a node unambiguously there.
+    """
     name: str
     id: str
+    fqn: list[str] | None
     database: str
     schema: str
     resource_type: DependencyGraphNodeType
