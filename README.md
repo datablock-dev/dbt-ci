@@ -117,7 +117,6 @@ dbt-ci init \
 | `--state-uri` | | `DBT_STATE_URI`, `STATE_URI` | `None` | Remote URI for the state manifest (e.g. `gs://bucket/manifest.json`, `s3://bucket/manifest.json`) |
 | `--target-compile` | | `DBT_TARGET_COMPILE` | `false` | Run the second compile pass against the actual target |
 | `--skip-reference-compile` | | `DBT_SKIP_REFERENCE_COMPILE` | `false` | Skip the compile pass against the reference/production state |
-| `--no-git` | | `DBT_NO_GIT` | `false` | Skip git-based file change comparison |
 | `--comparison-strategy` | `--comparison` | `DBT_COMPARISON_STRATEGY` | `hybrid` | Strategy for detecting changed nodes: `dbt`, `git`, or `hybrid` |
 | `--base-ref` | | `DBT_CI_BASE_REF` | Auto-detected | Base branch to diff against (e.g. `main`). Auto-detected from `GITHUB_BASE_REF` or git if not set |
 
@@ -203,6 +202,53 @@ dbt-ci delete            # execute deletions
 **Flags:**
 
 > Only [common options](#common-options) apply — no command-specific flags.
+
+---
+
+### `migration` - Migrate Partitioning Changes
+
+Detects models whose partitioning configuration changed between the reference and target
+state, and rebuilds the affected tables with the new partitioning spec. Uses cached state
+from `init`.
+
+BigQuery cannot change a table's partitioning in place, so each affected table is copied
+into a temporary table with the new spec, the original is dropped, and the copy is
+renamed back. Only **incremental** models are considered — other materializations are
+rebuilt by dbt anyway.
+
+```bash
+dbt-ci migration --dry-run  # list the tables that would be rebuilt
+dbt-ci migration            # apply the changes
+```
+
+> **Warning:** this rewrites tables in place. Always review the `--dry-run` output first.
+> Requires a connector implementing a migration strategy — currently BigQuery only.
+
+**Flags:**
+
+> Only [common options](#common-options) apply — no command-specific flags.
+
+---
+
+### `config` - Generate a Config File
+
+Writes a commented `dbt-ci.config.yaml` skeleton with the common options pre-filled, so
+you don't have to memorise every flag. See [Configuration File](#configuration-file).
+
+```bash
+dbt-ci config                          # create ./dbt-ci.config.yaml
+dbt-ci config --output dbt/dbt-ci.config.yaml
+dbt-ci config --force                  # overwrite an existing file
+```
+
+**Flags:**
+
+| Flag | Aliases | Default | Description |
+|------|---------|---------|-------------|
+| `--output` | `-o` | `dbt-ci.config.yaml` | Destination path for the generated file |
+| `--force` | `-f` | `false` | Overwrite the file if it already exists |
+
+> This command does not take the [common options](#common-options).
 
 ---
 
@@ -354,7 +400,7 @@ These flags are available on **every** command.
 
 ### Configuration File
 
-dbt-ci supports a `dbt-ci.config.yaml` file as an alternative to passing every flag on the command line. It is loaded before any other options so that CLI flags and shell environment variables always take precedence.
+dbt-ci supports a `dbt-ci.config.yaml` file as an alternative to passing every flag on the command line. It is loaded before any other options, and a flag passed on the command line always wins over it.
 
 **Default location:** `dbt-ci.config.yaml` in the current working directory (override with `--config` / `DBT_CONFIG`).
 
@@ -408,10 +454,18 @@ DBT_STATE: dbt/.dbtstate
 ```
 
 **Precedence (highest → lowest):**
-1. Shell environment variables
-2. CLI flags
-3. `dbt-ci.config.yaml`
+1. CLI flags
+2. `dbt-ci.config.yaml`
+3. Shell environment variables
 4. Built-in defaults
+
+The config file sits **above** shell environment variables: a value you commit to
+`dbt-ci.config.yaml` is deliberate, whereas the environment a CI runner happens to
+export is not. To override a config value per-run, pass the flag rather than setting the
+environment variable.
+
+`--filters` on `run` is command-line only — it has no environment variable or config
+file key.
 
 The config file is validated on load. dbt-ci will exit with a clear error message if it contains unknown keys, invalid enum values (e.g. `runner: kubernetes`), or wrong types (e.g. `defer: "yes"` instead of a boolean).
 
@@ -640,6 +694,7 @@ dbt-ci:
 - **💬 Notifications**: Slack webhook integration for CI/CD alerts
 - **♻️ Ephemeral Environments**: Test changes in isolated environments
 - **🧹 Cleanup**: Automatically remove deleted models from target warehouse
+- **🔀 Partition Migrations**: Rebuild tables whose partitioning configuration changed (BigQuery)
 
 ## Use Cases
 
