@@ -15,7 +15,7 @@ import click
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.connectors import DB_CONNECTORS
 from dbt_ci.graph.dependency_graph import DbtGraph
-from dbt_ci.utilities.logging import print_exception
+from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.schema import EphemeralMapNode, StateChangeSummary
 from dbt_ci.commands.ephemeral.clone import clone_command
 from dbt_ci.utilities.paths import get_profile
@@ -48,7 +48,12 @@ def ephemeral(args: Namespace):
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Ephemeral", fg="green", bold=True)
-        logger.debug(f"Running with the following arguments: {args}")
+        logger.debug(f"Running with the following arguments: {redact_namespace(args)}")
+        if getattr(args, "keep_env", False):
+            logger.warning(
+                "--keep-env is deprecated and has no effect: ephemeral never destroys the "
+                "environment it creates. Use 'dbt-ci finalize --clean-ephemeral' to tear it down."
+            )
         cache = CacheManager(args)
         cache.start_report("ephemeral", args)
         cache_dict: StateChangeSummary = cast(StateChangeSummary, cache.get_cache())

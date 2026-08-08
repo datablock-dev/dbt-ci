@@ -7,7 +7,7 @@ import click
 from dbt_ci.commands.run.run import run_nodes
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.utilities.cache import CacheManager
-from dbt_ci.utilities.logging import print_exception
+from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.graph.graph_utils import get_node_ids_from_structured_nodes
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ def run(args: Namespace):
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Run", fg="green", bold=True)
-        logger.debug(f"Running with the following arguments: {args}")
+        logger.debug(f"Running with the following arguments: {redact_namespace(args)}")
         cache = CacheManager(args)
         cache.start_report("run", args)
         target_graph = DbtGraph(args)

@@ -6,7 +6,7 @@ import click
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.commands.finalize.upload import finalize_upload_files
 from dbt_ci.connectors import get_connector
-from dbt_ci.utilities.logging import print_exception
+from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.schema import EphemeralMapNode
 from dbt_ci.utilities.paths import get_profile
 
@@ -23,7 +23,7 @@ def finalize(args: Namespace):
     """
     try:
         click.secho("DBT CI Finalize", fg="green", bold=True)
-        logger.debug(f"Running with the following arguments: {args}")
+        logger.debug(f"Running with the following arguments: {redact_namespace(args)}")
         cache = CacheManager(args)
         logger.info("Finalizing ci/cd process by uploading manifest.json and cleaning up cache...")
         manifest_file = cache.get_cache("target_manifest.json") or cache.get_cache("reference_manifest.json")

@@ -8,7 +8,7 @@ import logging
 from argparse import Namespace
 from typing import cast
 import click
-from dbt_ci.utilities.logging import print_exception
+from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.dbt.dbt_commands import DbtCommands
 from dbt_ci.graph.dependency_graph import DbtGraph
@@ -36,7 +36,12 @@ def init(args: Namespace):
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Initialization", fg="green", bold=True)
-        logger.debug(f"Running with the following arguments: {args}")
+        logger.debug(f"Running with the following arguments: {redact_namespace(args)}")
+        if getattr(args, "reference_path", "reference") != "reference":
+            logger.warning(
+                "--reference-path is deprecated and has no effect: the reference compile "
+                "writes to dbt's own target path."
+            )
         dbt_commands = DbtCommands(args)
         cache = CacheManager(args)
         state_modified = StateModified(args)

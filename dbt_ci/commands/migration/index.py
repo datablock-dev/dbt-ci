@@ -6,7 +6,7 @@ from typing import cast
 import click
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
-from dbt_ci.utilities.logging import print_exception
+from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.schema import MigrationMap, SupportedConnectors
 from dbt_ci.connectors import get_connector
 from dbt_ci.utilities.paths import get_profile
@@ -30,7 +30,7 @@ def migration(args: Namespace):
     """
     try:
         click.secho("DBT CI Migration", fg="green", bold=True)
-        logger.debug(f"Running with the following arguments: {args}")
+        logger.debug(f"Running with the following arguments: {redact_namespace(args)}")
         cache = CacheManager(args)
         cache.start_report("migrate", args)
         connector_type = cast(SupportedConnectors, get_profile(args)["type"])
