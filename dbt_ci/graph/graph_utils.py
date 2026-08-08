@@ -6,23 +6,23 @@ from dbt_ci.schema import DependencyGraph, DependencyGraphNode, DependencyGraphN
 logger = logging.getLogger(__name__)
 
 def get_deleted_nodes(
-    target_dependency_graph: DependencyGraph,
-    reference_dependency_graph: DependencyGraph
+    reference_dependency_graph: DependencyGraph,
+    target_dependency_graph: DependencyGraph
 ) -> list[str] | None:
-    """Get deleted nodes by comparing target and reference dependency graphs."""
-    return get_diff_nodes(
-        source_graph=target_dependency_graph,
-        reference_graph=reference_dependency_graph
-    )
-
-def get_new_nodes(
-    target_dependency_graph: DependencyGraph,
-    reference_dependency_graph: DependencyGraph
-) -> list[str] | None:
-    """Get new nodes by comparing target and reference dependency graphs."""
+    """Get nodes that exist in the reference graph but no longer exist in the target graph."""
     return get_diff_nodes(
         source_graph=reference_dependency_graph,
         reference_graph=target_dependency_graph
+    )
+
+def get_new_nodes(
+    reference_dependency_graph: DependencyGraph,
+    target_dependency_graph: DependencyGraph
+) -> list[str] | None:
+    """Get nodes that exist in the target graph but did not exist in the reference graph."""
+    return get_diff_nodes(
+        source_graph=target_dependency_graph,
+        reference_graph=reference_dependency_graph
     )
 
 def get_diff_nodes(

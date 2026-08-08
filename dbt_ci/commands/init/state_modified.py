@@ -6,7 +6,13 @@ from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.utilities.logging import print_exception
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
-from dbt_ci.schema import ComparisonStrategy, RunnerConfig, StateChangeSummary, StateChangeSummaryKeys
+from dbt_ci.schema import (
+    ComparisonStrategy,
+    DependencyGraph,
+    RunnerConfig,
+    StateChangeSummary,
+    StateChangeSummaryKeys,
+)
 from dbt_ci.utilities.git import GitAdapter, GitChangeType
 from dbt_ci.graph.graph_utils import (
     get_deleted_nodes,
@@ -24,10 +30,36 @@ class CommonStateChangeSummary(TypedDict):
     new_node_ids: set[str]
 
 class StateModified:
+    """Resolves the set of modified, new and deleted nodes for the configured strategy."""
+
     def __init__(self, args: Namespace):
         self.args = args
         self.strategy: ComparisonStrategy = getattr(args, "comparison_strategy")
-    
+        self._target_graph: DependencyGraph | None = None
+        self._reference_graph: DependencyGraph | None = None
+
+    @property
+    def target_graph(self) -> DependencyGraph:
+        """
+        Return the target dependency graph, parsing the manifest at most once.
+
+        Building a graph re-reads and re-parses the whole manifest, which is expensive on
+        large projects. The manifests don't change while a change set is being resolved
+        (the reference compile has finished and the target compile hasn't started), so
+        the parsed graphs are safe to reuse across strategies.
+        """
+        if self._target_graph is None:
+            self._target_graph = DbtGraph(self.args).to_dict()
+        return self._target_graph
+
+    @property
+    def reference_graph(self) -> DependencyGraph:
+        """Return the reference dependency graph, parsing the manifest at most once."""
+        if self._reference_graph is None:
+            self._reference_graph = DbtGraph(self.args, is_reference=True).to_dict()
+        return self._reference_graph
+
+
     def get_state_modified(self) -> StateChangeSummary:
         """Determines the modified, new, and deleted nodes compared to the reference state based on the specified comparison strategy."""
         if self.strategy == "git":
@@ -41,12 +73,11 @@ class StateModified:
             sys.exit(1)
 
     def git_strategy(self) -> StateChangeSummary:
+        """Determine modified nodes purely from the git diff against the base branch."""
         try:
             git = GitAdapter(self.args)
-            target_graph = DbtGraph(self.args)
-            target_dict = target_graph.to_dict()
-            reference_graph = DbtGraph(self.args, is_reference=True)
-            reference_dict = reference_graph.to_dict()
+            target_dict = self.target_graph
+            reference_dict = self.reference_graph
             changed_files = git.get_changed_files()
 
             git_modified_nodes = {
@@ -88,8 +119,8 @@ class StateModified:
         """Determines modified nodes using dbt state:modified and then cross-references with git diff to filter out nodes that are not actually modified based on file changes."""
         try:
             git = GitAdapter(self.args)
-            target_graph = DbtGraph(self.args).to_dict()
-            reference_graph = DbtGraph(self.args, is_reference=True).to_dict()
+            target_graph = self.target_graph
+            reference_graph = self.reference_graph
             modified_nodes_dbt = self.common_state_change()
             changed_files = git.get_changed_files()
             new_nodes = get_new_nodes(reference_graph, target_graph)
@@ -207,21 +238,19 @@ class StateModified:
     def dbt_strategy(self) -> StateChangeSummary:
         """Compile the DBT project and return a list of modified nodes compared to the reference state."""
         try:
-            target_graph = DbtGraph(self.args)
-            reference_graph = DbtGraph(self.args, is_reference=True)
             data = self.common_state_change()
 
             return {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=target_graph.to_dict(), 
+                    dependency_graph=self.target_graph,
                     node_ids=list(data["modified_node_ids"])
                 )),
                 "deleted_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=reference_graph.to_dict(), 
+                    dependency_graph=self.reference_graph,
                     node_ids=list(data["deleted_node_ids"])
                 )),
                 "new_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=target_graph.to_dict(), 
+                    dependency_graph=self.target_graph,
                     node_ids=list(data["new_node_ids"])
                 ))
             }
@@ -237,9 +266,7 @@ class StateModified:
         """
         try:
             cache = CacheManager(self.args)
-            target_graph = DbtGraph(self.args)
-            reference_graph = DbtGraph(self.args, is_reference=True)
-    
+
             commands = resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], self.args)
             commands.extend(["--target", getattr(self.args, "reference_target")])
             commands.extend(["--vars", getattr(self.args, "reference_vars")]) if getattr(self.args, "reference_vars", None) else None
@@ -257,11 +284,9 @@ class StateModified:
                 sys.exit(0)
     
             modified_nodes = ls_output.stdout.splitlines()
-            target_graph_dict = target_graph.to_dict()
-            reference_graph_dict = reference_graph.to_dict()
-    
-            new_node_ids = set(get_new_nodes(reference_graph_dict, target_graph_dict) or [])
-            deleted_node_ids = set(get_deleted_nodes(reference_graph_dict, target_graph_dict) or [])
+
+            new_node_ids = set(get_new_nodes(self.reference_graph, self.target_graph) or [])
+            deleted_node_ids = set(get_deleted_nodes(self.reference_graph, self.target_graph) or [])
             truly_modified_nodes = set([n for n in modified_nodes if n not in new_node_ids and n not in deleted_node_ids])
     
             return {
