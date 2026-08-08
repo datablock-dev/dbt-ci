@@ -112,6 +112,7 @@ dbt-ci init \
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
 | `--reference-target` | `--ref-target` | `DBT_REFERENCE_TARGET` | `None` | dbt target for the production/reference manifest |
+| `--reference-path` | | `DBT_REFERENCE_PATH` | `reference` | **Deprecated — no effect.** The reference compile writes to dbt's own target path |
 | `--reference-vars` | `--ref-vars` | `DBT_REFERENCE_VARS` | `None` | Variables to pass to dbt when compiling the reference manifest (YAML string or file path) |
 | `--state-uri` | | `DBT_STATE_URI`, `STATE_URI` | `None` | Remote URI for the state manifest (e.g. `gs://bucket/manifest.json`, `s3://bucket/manifest.json`) |
 | `--target-compile` | | `DBT_TARGET_COMPILE` | `false` | Run the second compile pass against the actual target |
@@ -121,6 +122,10 @@ dbt-ci init \
 | `--base-ref` | | `DBT_CI_BASE_REF` | Auto-detected | Base branch to diff against (e.g. `main`). Auto-detected from `GITHUB_BASE_REF` or git if not set |
 
 > All [common options](#common-options) also apply.
+
+**Git comparison and clone depth:** the `git` and `hybrid` strategies diff `origin/<base-ref>...HEAD` — the merge base — so only the commits on your branch count as changes. Shallow clones often don't contain the merge base; dbt-ci falls back to a direct diff and logs a debug message when that happens. For an accurate change set, fetch full history (`actions/checkout` with `fetch-depth: 0`).
+
+Renamed files are reported by git as a rename of one path to another; dbt-ci treats them as the old node being deleted and a new node being added, since dbt identifies nodes by their file path.
 
 ---
 
@@ -180,7 +185,7 @@ dbt-ci ephemeral \
 
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
-| `--keep-env` | | `DBT_KEEP_ENV` | `false` | Don't destroy the ephemeral environment after the run (if supported by the runner) |
+| `--keep-env` | | `DBT_KEEP_ENV` | `false` | **Deprecated — no effect.** `ephemeral` never destroys the environment it creates; use [`finalize --clean-ephemeral`](#finalize---finalize-state) to tear it down |
 
 > All [common options](#common-options) also apply.
 
@@ -215,7 +220,19 @@ dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
 | `--artifacts-uri` | | `DBT_ARTIFACTS_URI`, `ARTIFACTS_URI` | `None` | Object storage URI for uploading run artifacts such as the updated `manifest.json` (e.g. `s3://bucket/dbt-artifacts/`) |
+| `--files` | | `DBT_FINALIZE_FILES` | `manifest` | Which artifacts to upload (repeatable): `manifest`, `cache`, `log` |
 | `--clean-ephemeral` | `--destroy-ephemeral` | `DBT_CLEAN_EPHEMERAL`, `DBT_DESTROY_EPHEMERAL` | `false` | Clean up the ephemeral environment as part of finalization |
+
+Uploaded artifacts land at `<artifacts-uri>/manifest.json`, `<artifacts-uri>/cache.json`
+and `<artifacts-uri>/logs.txt` respectively. `log` uploads the run log that dbt-ci writes
+to `<cache dir>/dbt-ci.log`.
+
+> **Note:** the log file always records at `DEBUG` level, including the resolved
+> configuration for each command. Values whose names look sensitive (webhook, token,
+> password, secret, credential, api_key) are masked before being written, so uploading
+> the log does not publish your Slack webhook or credentials passed via `--docker-env`.
+> This is a name-based heuristic — review your artifact bucket's access controls before
+> enabling `--files log`.
 
 > All [common options](#common-options) also apply.
 
@@ -299,6 +316,24 @@ dbt-ci run \
 ```bash
 --docker-args "--memory=2g --cpus=2"
 ```
+
+dbt-ci drives Docker through the Python SDK rather than the `docker` CLI, so `--docker-args` supports the subset of `docker run` flags that map onto SDK options. Both `--flag value` and `--flag=value` spellings work:
+
+| Supported in `--docker-args` | Effect |
+|------------------------------|--------|
+| `--memory` / `-m` | Container memory limit |
+| `--cpus` | CPU quota |
+| `--shm-size` | Size of `/dev/shm` |
+| `--env` / `-e` | Extra environment variables (merged with `--docker-env`) |
+| `--add-host` | Extra host-to-IP mappings |
+| `--workdir` / `-w` | Working directory inside the container |
+| `--hostname` | Container hostname |
+| `--privileged` | Extended privileges |
+| `--platform`, `--network` | Override `--docker-platform` / `--docker-network` |
+
+Anything else is logged as ignored rather than dropped silently.
+
+> **Note:** containers are removed once the command finishes, so repeated CI runs don't accumulate stopped containers.
 
 **Complete Docker Example:**
 ```bash
@@ -396,8 +431,8 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 | `--defer` | | `DBT_DEFER` | `false` | Pass dbt's `--defer` flag (defers unmodified nodes to the production state) |
 | `--runner` | `-r` | `DBT_RUNNER` | `dbt` | Runner to use: `dbt`, `local`, `docker`, `bash` |
 | `--entrypoint` | | `DBT_ENTRYPOINT` | `dbt` | Command entrypoint for dbt |
-| `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`) |
-| `--adapter` | `-a` | `DBT_ADAPTER` | `None` | dbt adapter to install (e.g. `dbt-bigquery`, `dbt-duckdb=1.10.0`) |
+| `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`). **Requires `--runner local`** |
+| `--adapter` | `-a` | `DBT_ADAPTER` | `None` | dbt adapter to install (e.g. `dbt-bigquery`, `dbt-duckdb=1.10.0`). **Requires `--runner local`** |
 | `--config` | `-c` | `DBT_CONFIG` | `dbt-ci.config.yaml` | Path to a dbt-ci YAML configuration file |
 | `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them |
 | `--quiet` | `-q` | `DBT_QUIET` | `false` | Run in quiet mode with minimal output |
@@ -417,6 +452,28 @@ Only used when `--runner docker` is set.
 | `--docker-network` | `DBT_DOCKER_NETWORK` | `host` | Docker network mode |
 | `--docker-user` | `DBT_DOCKER_USER` | Invoking user (`uid:gid`) | User to run as inside the container (`UID:GID`). Defaults to the UID and GID of the process running dbt-ci so container-written files are owned by the invoking user. |
 | `--docker-args` | `DBT_DOCKER_ARGS` | `""` | Extra arguments appended to `docker run` |
+
+### Pinning a dbt version or adapter
+
+`--dbt-version` and `--adapter` install the requested packages into a cached virtual
+environment under `~/.cache/dbt-ci/venvs/` and run dbt from it. Only the **`local`**
+runner can execute an arbitrary dbt binary, so the pin applies there:
+
+```bash
+dbt-ci run --runner local --dbt-version 1.10.13 --adapter dbt-duckdb=1.10.0
+```
+
+Adapters may be given with or without a version (`dbt-bigquery`, `dbt-bigquery=1.10.0`,
+`dbt-bigquery==1.10.0`). Each version/adapter combination gets its own cached
+environment, and an interrupted install is rebuilt on the next run rather than reused.
+
+The other runners resolve dbt from elsewhere and log a warning if a pin is set:
+
+| Runner | dbt comes from |
+|--------|----------------|
+| `dbt` | the `dbt-core` installed alongside dbt-ci (runs in-process) |
+| `docker` | the configured `--docker-image` |
+| `bash` | the script at `--shell-path` |
 
 ### Bash Runner
 
@@ -493,8 +550,27 @@ dbt-ci run
 - `DBT_PROFILES_DIR` - Path to profiles.yml location
 - `DBT_TARGET` - Target environment to use
 - `DBT_RUNNER` - Runner type (local, docker, bash, dbt)
+- `DBT_CI_CACHE_DIR` - Where the state cache and log file live (default: `<temp dir>/dbt-ci`)
 
 **Note:** State management is cache-based. Run `init` once, then subsequent commands automatically use the cached state.
+
+### Cache Location
+
+`init` writes its cache (state comparison, manifests, run report and log file) to
+`<temp dir>/dbt-ci`, and later commands read it from there. Because the location is
+fixed, two dbt-ci runs executing at the same time on the same machine — for example two
+pull request jobs on a shared self-hosted runner — would overwrite each other's state.
+
+Set `DBT_CI_CACHE_DIR` to give each run its own directory:
+
+```bash
+export DBT_CI_CACHE_DIR="/tmp/dbt-ci-${GITHUB_RUN_ID}"
+dbt-ci init ...
+dbt-ci run ...
+```
+
+All commands in the same CI job must see the same value, since that is how `run`,
+`delete`, `ephemeral` and `finalize` find the cache written by `init`.
 
 ## CI/CD Integration
 
