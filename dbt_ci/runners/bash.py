@@ -47,8 +47,10 @@ def bash_runner(
         if not runner_config.get('quiet', False):
             print(result.stdout)
 
+        # dbt writes warnings and its own log lines to stderr on successful runs, so
+        # only the exit code (enforced by check=True above) decides success/failure.
         if result.stderr:
-            raise Exception(result.stderr)
+            logger.warning(result.stderr)
 
         return result
     except subprocess.CalledProcessError as e:

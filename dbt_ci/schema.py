@@ -372,6 +372,9 @@ class RunnerConfig(TypedDict):
     dry_run: bool
     quiet: bool
     log_level: LoggingLevel
+    # Optional pins resolved by the local runner
+    dbt_version: NotRequired[Optional[str]]
+    adapter: NotRequired[Optional[str]]
     # Docker-specific configuration
     docker_image: Optional[str]
     docker_platform: Optional[str]
