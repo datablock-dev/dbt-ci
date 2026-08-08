@@ -44,19 +44,6 @@ def get_manifest_file(dbt_project_dir: str) -> DBTManifest:
     with open(file, 'r', encoding='utf-8') as f:
         return json.load(f)
     
-def get_manifest_file_full_path(file_path: str) -> DBTManifest | None:
-    """
-    Get the manifest.json file from the specified path.
-    Raises a FileNotFoundError if the file does not exist.
-    Uses pydantic to confirm the structure of the manifest file.
-    """
-    if not os.path.isfile(file_path):
-        raise FileNotFoundError(f"manifest.json not found at {file_path}")
-    with open(file_path, 'r', encoding='utf-8') as f:
-        item = json.load(f)
-        if isinstance(item, DBTManifest):
-            return item
-
 def get_reference_manifest_file(reference_state_dir: str) -> DBTManifest:
     """
     Get the reference manifest.json file from the state directory.

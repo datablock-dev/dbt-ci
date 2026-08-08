@@ -65,6 +65,16 @@ cd dbt-ci
 pip install -e ".[dev]"
 ```
 
+Or with pipenv:
+
+```bash
+pipenv install --dev
+```
+
+`pyproject.toml` is the single source of truth for dependencies — the `Pipfile` installs
+the project itself rather than restating them, so the two cannot drift apart. Add or
+change a dependency in `pyproject.toml`, then run `pipenv lock`.
+
 After installation, the tool is available as `dbt-ci`.
 
 ## Quick Start
