@@ -1,11 +1,18 @@
+from __future__ import annotations
+
 import json
 from typing import Any
-from google.cloud import storage
 from dbt_ci.schema import DBTManifest
+from dbt_ci.utilities.optional_imports import require
+
+try:  # google-cloud-storage ships in the optional "gcp" extra.
+    from google.cloud import storage
+except ImportError:  # pragma: no cover - exercised only without the extra installed
+    storage = None
 
 def google_storage_client():
     """Initialize Google Cloud Storage client."""
-    return storage.Client()
+    return require(storage, "gcp", "GCS state storage").Client()
 
 def google_upload_json(uri: str, data: dict) -> None:
     """Upload a JSON object to the specified GCS URI."""

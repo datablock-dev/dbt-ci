@@ -25,6 +25,28 @@ This design ensures:
 pip install dbt-ci
 ```
 
+#### Extras
+
+The base install deliberately carries only dbt-core and the CLI plumbing. The cloud SDKs
+and the Docker client are large and most projects need at most one of them, so they are
+installed on demand:
+
+| Extra | Installs | Needed for |
+|-------|----------|------------|
+| `gcp` | `google-cloud-bigquery`, `google-cloud-storage` | `gs://` state/artifact URIs, the BigQuery connector used by `delete` and `migration` |
+| `aws` | `boto3` | `s3://` state/artifact URIs |
+| `docker` | `docker` | `--runner docker` |
+| `all` | all of the above | |
+
+```bash
+pip install 'dbt-ci[gcp]'            # BigQuery + GCS
+pip install 'dbt-ci[aws,docker]'     # S3 state, Docker runner
+pip install 'dbt-ci[all]'            # everything
+```
+
+If a feature needs an extra you haven't installed, dbt-ci says which one and how to
+install it rather than failing with an import traceback.
+
 ### From GitHub
 
 ```bash
@@ -310,7 +332,7 @@ dbt-ci run \
 
 ### Docker Runner
 
-Run dbt commands inside a Docker container:
+Run dbt commands inside a Docker container. Requires `pip install 'dbt-ci[docker]'`:
 
 ```bash
 dbt-ci run \
@@ -541,6 +563,8 @@ Only used when `--runner bash` is set.
 
 dbt-ci supports storing and retrieving state files from cloud storage (GCS, S3), making it ideal for distributed CI/CD workflows.
 
+> Requires the matching extra: `pip install 'dbt-ci[gcp]'` for `gs://` URIs, `pip install 'dbt-ci[aws]'` for `s3://` URIs.
+
 ### GCS/S3 State Storage
 
 Store your dbt reference state in cloud storage for shared access across CI runs:
@@ -653,7 +677,8 @@ jobs:
           aws-region: us-east-1
       
       - name: Install dbt-ci
-        run: pip install git+https://github.com/datablock-dev/dbt-ci.git@main
+        # The gcp extra provides the GCS client needed for the gs:// state URI below
+        run: pip install 'dbt-ci[gcp] @ git+https://github.com/datablock-dev/dbt-ci.git@main'
       
       - name: Initialize dbt-ci with cloud state
         run: |
@@ -674,7 +699,7 @@ jobs:
 dbt-ci:
   image: python:3.11
   script:
-    - pip install git+https://github.com/datablock-dev/dbt-ci.git@main
+    - pip install 'dbt-ci[gcp] @ git+https://github.com/datablock-dev/dbt-ci.git@main'
     - dbt-ci init --dbt-project-dir dbt --state-uri gs://my-dbt-state/prod/manifest.json --reference-target production --state dbt/.dbtstate
     - dbt-ci run --mode models
   only:

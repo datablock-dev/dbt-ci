@@ -1,16 +1,26 @@
 """Docker runner for dbt-ci"""
+from __future__ import annotations
+
 import logging
 import os
 import shlex
 import sys
 from subprocess import CompletedProcess
-from typing import Any, cast
-import docker
-from docker import errors
-from docker.models.containers import Container
+from typing import TYPE_CHECKING, Any, cast
 from dbt_ci.schema import RunnerConfig
 from dbt_ci.utilities.logging import redact
+from dbt_ci.utilities.optional_imports import require
 from dbt_ci.utilities.paths import get_absolute_path
+
+try:  # The Docker SDK ships in the optional "docker" extra.
+    import docker
+    from docker import errors
+except ImportError:  # pragma: no cover - exercised only without the extra installed
+    docker = None
+    errors = None
+
+if TYPE_CHECKING:
+    from docker.models.containers import Container
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +42,10 @@ def docker_runner(commands: list[str], runner_config: RunnerConfig) -> Completed
     if runner_config.get("dry_run", False):
         logger.info("DRY RUN: Command would be executed")
         return None
+
+    # Checked before the try block: the except clauses below reference docker.errors,
+    # which cannot be resolved when the SDK is missing.
+    require(docker, "docker", "The Docker runner")
 
     container: Container | None = None
     try:
@@ -66,7 +80,9 @@ def docker_runner(commands: list[str], runner_config: RunnerConfig) -> Completed
         run_kwargs.update(extra_kwargs)
 
         logger.debug(f"Starting container with: {redact(run_kwargs)}")
-        container = cast(Container, client.containers.run(**run_kwargs))
+        # Quoted: cast() evaluates its first argument at runtime, and Container is only
+        # imported for type checking so the SDK stays optional.
+        container = cast("Container", client.containers.run(**run_kwargs))
 
         # Capture all logs as string
         output_logs = []
