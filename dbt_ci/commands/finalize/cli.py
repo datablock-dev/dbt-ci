@@ -22,6 +22,7 @@ def parse_and_validate_files(value):
     envvar=['DBT_ARTIFACTS_URI', 'ARTIFACTS_URI'],
     default=None,
     type=str,
+    callback=make_config_callback("DBT_FINALIZE_ARTIFACTS_URI"),
     help="S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., s3://my-bucket/dbt-artifacts/)"
 )
 @click.option(
@@ -38,6 +39,7 @@ def parse_and_validate_files(value):
     envvar=['DBT_CLEAN_EPHEMERAL', "DBT_DESTROY_EPHEMERAL"],
     is_flag=True,
     default=False,
+    callback=make_config_callback("DBT_FINALIZE_CLEAN_EPHEMERAL"),
     help="Whether to clean up ephemeral environment after finalizing"
 )
 def finalize_cmd(**kwargs):

@@ -1,6 +1,7 @@
 import click
 from dbt_ci.main import cli
 from dbt_ci.cli.common_options import common_options
+from dbt_ci.cli.config import make_config_callback
 from dbt_ci.cli.namespace import to_namespace
 from dbt_ci.utilities.logging import setup_logging
 from dbt_ci.commands.run.index import run
@@ -20,7 +21,8 @@ from dbt_ci.commands.run.index import run
         #"analyses" --> Not yet supported
     ], case_sensitive=False),
     default='all',
-    help='Run mode for dbt-ci (default: auto)'
+    callback=make_config_callback("DBT_RUN_NODES"),
+    help='Run mode for dbt-ci (default: all)'
 )
 @click.option(
     '--filters', '-f',
