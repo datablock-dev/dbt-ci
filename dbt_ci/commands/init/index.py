@@ -64,6 +64,16 @@ def init(args: Namespace):
 
             # Reload reference manifest file after downloading from storage
             cache.write_reference_manifest(get_reference_manifest_file(str(local_state_dir)))
+        elif reference_state_path:
+            # A local --state directory is just as much a baseline as a downloaded one.
+            # Caching it is what lets later commands resolve nodes that no longer exist
+            # in the target - without it, `delete` cannot look up what it should drop.
+            # Best-effort: if the state isn't there, the comparison below raises a
+            # clearer error than failing here would.
+            try:
+                cache.write_reference_manifest(get_reference_manifest_file(reference_state_path))
+            except FileNotFoundError:
+                logger.debug(f"No reference manifest at '{reference_state_path}' to cache yet.")
         
         # Compile dbt and generate reference manifest.json file
         #run_multiprocessed
@@ -77,11 +87,16 @@ def init(args: Namespace):
             # Different targets - will compile again later with actual target
             cache.write_target_manifest(target_manifest_file)
         else:
-            # Same target or no reference target specified - reference and target are the same
+            # Same target, or none specified. The reference *target* (which warehouse to
+            # compile against) is independent of the reference *state* (the baseline to
+            # compare with), so an already-cached baseline must not be replaced here -
+            # doing so discarded the only copy of the deleted nodes' metadata.
             logger.debug("Reference target is the same as current target!")
-            logger.debug("Using the same manifest for both reference and target state.")
-            cache.write_reference_manifest(target_manifest_file)
             cache.write_target_manifest(target_manifest_file)
+
+            if cache.get_cache("reference_manifest.json") is None:
+                logger.debug("No reference state available. Using the target manifest as the reference.")
+                cache.write_reference_manifest(target_manifest_file)
 
         # Will generate summary and output it in the logs. It also covers:
         # 1. Migration plan for partitioning changes

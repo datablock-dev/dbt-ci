@@ -25,6 +25,17 @@ from dbt_ci.commands.run.index import run
     help='Run mode for dbt-ci (default: all)'
 )
 @click.option(
+    '--downstream-depth',
+    envvar=['DBT_DOWNSTREAM_DEPTH'],
+    type=int,
+    default=None,
+    callback=make_config_callback("DBT_RUN_DOWNSTREAM_DEPTH"),
+    help=(
+        'How many levels of downstream dependencies to include (dbt\'s model+N). '
+        'Omit for the full downstream graph; 0 runs only what changed.'
+    )
+)
+@click.option(
     '--filters', '-f',
     type=click.Choice([
         'models', 

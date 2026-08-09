@@ -357,3 +357,98 @@ class TestResolveManifestFromStorage:
         
         # Verify download was called
         storage_connector["download"].assert_called_once_with(state_uri)
+
+
+class TestReferenceManifestCaching:
+    """Test that init preserves the reference baseline it compared against.
+
+    The reference *target* (which warehouse profile to compile against) is independent
+    of the reference *state* (the baseline to diff against). Conflating them overwrote
+    the cached baseline with the target manifest, which left `delete` unable to look up
+    the nodes it was supposed to drop.
+    """
+
+    def _args(self, tmp_path, **overrides):
+        """Build an init args namespace pointing at a local state directory."""
+        defaults = {
+            "dbt_project_dir": str(tmp_path),
+            "reference_state": str(tmp_path / "state"),
+            "reference_target": None,
+            "target": "dev",
+            "state_uri": None,
+            "comparison_strategy": "dbt",
+            "runner": "dbt",
+            "reference_path": "reference",
+        }
+        defaults.update(overrides)
+        return Namespace(**defaults)
+
+    @patch("dbt_ci.commands.init.index.init_summary")
+    @patch("dbt_ci.commands.init.index.StateModified")
+    @patch("dbt_ci.commands.init.index.DbtCommands")
+    @patch("dbt_ci.commands.init.index.get_manifest_file")
+    @patch("dbt_ci.commands.init.index.get_reference_manifest_file")
+    @patch("dbt_ci.commands.init.index.CacheManager")
+    @patch("dbt_ci.commands.init.index.click.secho")
+    def test_local_state_is_cached_as_the_reference(
+        self, _secho, mock_cache, mock_ref_manifest, mock_target_manifest,
+        _dbt_commands, mock_state_modified, _summary, tmp_path,
+    ):
+        """A --state directory is cached as the baseline, not discarded."""
+        mock_cache.return_value.get_cache.return_value = {"nodes": {}}
+        mock_ref_manifest.return_value = {"nodes": {"model.p.gone": {}}}
+        mock_target_manifest.return_value = {"nodes": {}}
+        mock_state_modified.return_value.get_state_modified.return_value = {}
+
+        index(self._args(tmp_path))
+
+        # The baseline is written from the state directory...
+        mock_cache.return_value.write_reference_manifest.assert_called_once_with(
+            {"nodes": {"model.p.gone": {}}}
+        )
+        # ...and is not replaced by the target manifest afterwards.
+        assert mock_cache.return_value.write_reference_manifest.call_count == 1
+
+    @patch("dbt_ci.commands.init.index.init_summary")
+    @patch("dbt_ci.commands.init.index.StateModified")
+    @patch("dbt_ci.commands.init.index.DbtCommands")
+    @patch("dbt_ci.commands.init.index.get_manifest_file")
+    @patch("dbt_ci.commands.init.index.get_reference_manifest_file")
+    @patch("dbt_ci.commands.init.index.CacheManager")
+    @patch("dbt_ci.commands.init.index.click.secho")
+    def test_target_manifest_used_when_no_baseline_exists(
+        self, _secho, mock_cache, mock_ref_manifest, mock_target_manifest,
+        _dbt_commands, mock_state_modified, _summary, tmp_path,
+    ):
+        """With no reference state at all, the target manifest stands in as the baseline."""
+        mock_cache.return_value.get_cache.return_value = None
+        mock_ref_manifest.side_effect = FileNotFoundError("no manifest")
+        mock_target_manifest.return_value = {"nodes": {"model.p.a": {}}}
+        mock_state_modified.return_value.get_state_modified.return_value = {}
+
+        index(self._args(tmp_path))
+
+        mock_cache.return_value.write_reference_manifest.assert_called_once_with(
+            {"nodes": {"model.p.a": {}}}
+        )
+
+    @patch("dbt_ci.commands.init.index.init_summary")
+    @patch("dbt_ci.commands.init.index.StateModified")
+    @patch("dbt_ci.commands.init.index.DbtCommands")
+    @patch("dbt_ci.commands.init.index.get_manifest_file")
+    @patch("dbt_ci.commands.init.index.get_reference_manifest_file")
+    @patch("dbt_ci.commands.init.index.CacheManager")
+    @patch("dbt_ci.commands.init.index.click.secho")
+    def test_missing_state_does_not_abort_init(
+        self, _secho, mock_cache, mock_ref_manifest, mock_target_manifest,
+        _dbt_commands, mock_state_modified, _summary, tmp_path,
+    ):
+        """Caching the baseline is best-effort; a missing file must not fail init."""
+        mock_cache.return_value.get_cache.return_value = {"already": "cached"}
+        mock_ref_manifest.side_effect = FileNotFoundError("no manifest")
+        mock_target_manifest.return_value = {"nodes": {}}
+        mock_state_modified.return_value.get_state_modified.return_value = {}
+
+        index(self._args(tmp_path))
+
+        mock_state_modified.return_value.get_state_modified.assert_called_once()

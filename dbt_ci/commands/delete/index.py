@@ -8,6 +8,7 @@ from typing import cast
 from argparse import Namespace
 import click
 from dbt_ci.utilities.cache import CacheManager
+from dbt_ci.dbt.flags import apply_cached_config
 from dbt_ci.utilities.logging import redact_namespace
 from dbt_ci.connectors import get_connector
 from dbt_ci.graph.dependency_graph import DbtGraph
@@ -24,6 +25,7 @@ def delete(args: Namespace):
         logger.debug(f"Running with the following arguments: {redact_namespace(args)}")
         cache = CacheManager(args)
         cache.start_report("delete", args)
+        apply_cached_config(args)
         connector_type = cast(SupportedConnectors, get_profile(args)["type"])
         delete_connector = get_connector(connector_type)
         delete_map = generate_delete_map(args, cache)

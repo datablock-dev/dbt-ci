@@ -1,55 +1,77 @@
+"""Resolution of dbt invocation settings that `init` recorded into the cache.
+
+`init` writes the target, vars, runner and comparison strategy it ran with into
+cache.json, and the README promises you "specify state once in init, reuse everywhere".
+That was only ever true for state paths: every later command re-read target and vars
+from the CLI, so they had to be repeated. These helpers close that gap - an explicitly
+provided value still wins, the cache only fills in what was left unset.
+"""
+import logging
 from argparse import Namespace
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
+from dbt_ci.schema import DbtCiManifest
 from dbt_ci.utilities.cache import CacheManager
-from dbt_ci.schema import DbtCiManifest, DependencyGraphNodeType
 
-dependency_graph_node_type: list[DependencyGraphNodeType] = [
-    "model", 
-    "macro", 
-    "source", 
-    "seed", 
-    "snapshot", 
-    "test", 
-    "exposure"
-]
+logger = logging.getLogger(__name__)
 
-def exclude_flag(include: list[DependencyGraphNodeType] | None) -> list[str]:
-    """Generate a list of node types to exclude based on the include list."""
-    default_list = {
-        "model": "--exclude resource_type:model", 
-        "macro": "--exclude resource_type:macro", 
-        "source": "--exclude resource_type:source", 
-        "seed": "--exclude resource_type:seed", 
-        "snapshot": "--exclude resource_type:snapshot", 
-        "test": "--exclude resource_type:test", 
-        "exposure": "--exclude resource_type:exposure"
-    }
+# Settings recorded by init that later commands can inherit, mapped to where they live
+# in the cached config block.
+type CachedTargetKey = Literal["target", "reference_target"]
+type CachedVarsKey = Literal["vars", "reference_vars"]
+
+CONFIG_SECTION: dict[str, str] = {
+    "target": "target",
+    "vars": "target",
+    "reference_target": "reference",
+    "reference_vars": "reference",
+}
 
 
-    exclude_flags: set[str] = set()
+def get_cached_config(args: Namespace) -> dict[str, Any]:
+    """Return the config block init recorded, or an empty mapping when unavailable."""
+    cache_manifest = cast(DbtCiManifest | None, CacheManager(args).get_cache())
+    if not cache_manifest:
+        return {}
+    return cache_manifest.get("config") or {}
 
-    if include is None:
-        exclude_flags = set(default_list.values())
-    else:
-        for node_type in dependency_graph_node_type:
-            if node_type not in include:
-                exclude_flags.add(default_list[node_type])
-    
-    return list(exclude_flags)
 
-def get_target(args: Namespace, target: Literal["target", "reference_target"]) -> str | None:
-    """Get the target from the Namespace, checking both 'target' and 'reference_target' keys."""
-    cache = CacheManager(args)
-    cache_manifest = cast(DbtCiManifest, cache.get_cache())
-    
-    cache_target = cache_manifest.get("config", {}).get(target, {}).get("target", None)
-    return getattr(args, target, cache_target)
+def get_cached_value(args: Namespace, key: str) -> Any:
+    """Look a single recorded setting up out of the cached config block."""
+    section_name = CONFIG_SECTION.get(key)
+    if section_name is None:
+        return None
 
-def get_vars(args: Namespace, target: Literal["vars", "reference_vars"]) -> dict | None:
-    """Get the vars from the Namespace, checking both 'vars' and 'reference_vars' keys."""
-    cache = CacheManager(args)
-    cache_manifest = cast(DbtCiManifest, cache.get_cache())
-    
-    cache_vars = cache_manifest.get("config", {}).get(target, {}).get("vars", None)
-    return getattr(args, target, cache_vars)
+    section = get_cached_config(args).get(section_name) or {}
+    # Within a section the keys are unprefixed: reference_target -> reference.target
+    field = key.replace("reference_", "")
+    return section.get(field)
+
+
+def get_target(args: Namespace, target: CachedTargetKey = "target") -> str | None:
+    """Return the dbt target, preferring an explicit value over the cached one."""
+    return getattr(args, target, None) or get_cached_value(args, target)
+
+
+def get_vars(args: Namespace, key: CachedVarsKey = "vars") -> str | None:
+    """Return the dbt vars, preferring an explicit value over the cached one."""
+    return getattr(args, key, None) or get_cached_value(args, key)
+
+
+def apply_cached_config(args: Namespace) -> Namespace:
+    """
+    Fill unset target/vars on the args namespace from what init recorded.
+
+    Mutates and returns the namespace so it can be applied at the top of a command.
+    Only unset values are filled, so a flag passed on the command line still wins.
+    """
+    for key in ("target", "vars"):
+        current = getattr(args, key, None)
+        if current:
+            continue
+        cached = get_cached_value(args, key)
+        if cached:
+            logger.debug(f"Using {key} recorded by init: {cached}")
+            setattr(args, key, cached)
+
+    return args

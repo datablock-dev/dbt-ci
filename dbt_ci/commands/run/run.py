@@ -87,6 +87,23 @@ def run_nodes(
         logger.error(f"\n❌ Error running dbt command: {e}")
         sys.exit(1)
 
+def get_downstream_depth(args: Namespace) -> int | None:
+    """
+    Return the configured downstream selection depth, or None for the full closure.
+
+    A change to a central staging model otherwise selects every descendant, which on a
+    real project means rebuilding almost everything - the opposite of what a
+    change-based CI tool is for. Depth 0 runs only what changed.
+    """
+    depth = getattr(args, "downstream_depth", None)
+    if depth is None:
+        return None
+    if depth < 0:
+        logger.warning(f"Ignoring negative --downstream-depth ({depth}); selecting the full downstream graph.")
+        return None
+    return depth
+
+
 def seeds(
     target_graph: DbtGraph,
     changed_nodes_dict: dict[str, list[str]],
@@ -130,7 +147,8 @@ def tests(
         get_downstream_dependencies(
             dependency_graph=target_graph.to_dict(),
             node_ids=changed_nodes,
-            node_type="test"
+            node_type="test",
+            levels=get_downstream_depth(args)
         ) or []
     )
 
@@ -201,7 +219,8 @@ def snapshots(
         get_downstream_dependencies(
             dependency_graph=target_graph.to_dict(),
             node_ids=changed_nodes,
-            node_type="snapshot"
+            node_type="snapshot",
+            levels=get_downstream_depth(args)
         ) or []
     )
 
@@ -227,7 +246,8 @@ def models(
         get_downstream_dependencies(
             dependency_graph=target_graph.to_dict(),
             node_ids=changed_nodes,
-            node_type="model"
+            node_type="model",
+            levels=get_downstream_depth(args)
         ) or []
     )
 

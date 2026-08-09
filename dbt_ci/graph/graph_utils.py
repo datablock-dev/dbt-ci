@@ -1,6 +1,6 @@
 """Getters for dependency graph nodes"""
 import logging
-from typing import cast
+from typing import Literal, cast
 from dbt_ci.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 logger = logging.getLogger(__name__)
@@ -120,31 +120,73 @@ def get_node_ids_from_structured_nodes(structured_nodes: dict[str, DependencyGra
 
     return list(node_ids) if len(node_ids) > 0 else None
 
+def collect_dependencies_to_depth(
+    dependency_graph: DependencyGraph,
+    node_ids: list[str],
+    direction: Literal["upstream", "downstream"] = "downstream",
+    depth: int = 1,
+) -> set[str]:
+    """
+    Walk `depth` hops out from the given nodes, following direct edges only.
+
+    Breadth-first rather than reusing the precomputed closure, because the closure has
+    no notion of distance. A depth of 0 selects nothing beyond the starting nodes, which
+    is how a caller asks for "just what changed".
+    """
+    key = f"{direction}_dependencies"
+    reached: set[str] = set()
+    frontier: list[str] = list(node_ids)
+
+    for _ in range(max(depth, 0)):
+        next_frontier: list[str] = []
+        for node_id in frontier:
+            node = get_node(dependency_graph, node_id)
+            if node is None:
+                continue
+            for dep_id in node[key]["node_dependencies"]:
+                if dep_id in reached:
+                    continue
+                reached.add(dep_id)
+                next_frontier.append(dep_id)
+        if not next_frontier:
+            break
+        frontier = next_frontier
+
+    return reached
+
 def get_downstream_dependencies(
     dependency_graph: DependencyGraph,
     node_ids: list[str] | None,
     node_type: DependencyGraphNodeType | None = None,
-    levels: int | None = None # To be implemented in the future
+    levels: int | None = None
 ) -> set[str] | None:
     """
-        Get downstream dependencies for a list of node IDs, 
-        optionally up to a certain number of levels. Defaults to indirect downstream dependencies 
-        if levels is not specified.
+        Get downstream dependencies for a list of node IDs,
+        optionally up to a certain number of levels. Defaults to the full downstream
+        closure when levels is not specified.
     """
-    key = "indirect_downstream_dependencies"
     if node_ids is None or len(node_ids) == 0:
         return None
-    if levels is not None:
-        key = f"downstream_dependencies_level_{levels}"
 
-    downstream_dependencies: set[str] = set()
+    if levels is not None:
+        downstream_dependencies = collect_dependencies_to_depth(
+            dependency_graph, node_ids, "downstream", levels
+        )
+        if node_type:
+            downstream_dependencies = {
+                dep_id for dep_id in downstream_dependencies
+                if (node := get_node(dependency_graph, dep_id)) and node.get("resource_type") == node_type
+            }
+        return downstream_dependencies or None
+
+    downstream_dependencies = set()
     for node_id in node_ids:
         node = get_node(dependency_graph, node_id)
         if node is None:
             logger.warning(f"Node ID '{node_id}' not found in dependency graph when attempting to get downstream dependencies.")
             continue
 
-        dependency_by_type: dict[DependencyGraphNodeType, list[str]] = node[key]["dependencies_by_type"]
+        dependency_by_type: dict[DependencyGraphNodeType, list[str]] = node["indirect_downstream_dependencies"]["dependencies_by_type"]
         for dep_type, dep_names in dependency_by_type.items():
             if node_type and dep_type != node_type:
                 continue
@@ -160,13 +202,25 @@ def get_upstream_dependencies(
     node_ids: list[str] | None,
     node_type: list[DependencyGraphNodeType] | None = None,
     filters: list[DependencyGraphNodeType] | None = None,
-    levels: int | None = None # To be implemented in the future
+    levels: int | None = None
 ) -> set[str] | None:
     """Get upstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
     if node_ids is None or len(node_ids) == 0:
         return None
 
-    upstream_dependencies: set[str] = set()
+    if levels is not None:
+        upstream_dependencies = collect_dependencies_to_depth(
+            dependency_graph, node_ids, "upstream", levels
+        )
+        allowed = set(node_type or []) | set(filters or [])
+        if allowed:
+            upstream_dependencies = {
+                dep_id for dep_id in upstream_dependencies
+                if (node := get_node(dependency_graph, dep_id)) and node.get("resource_type") in allowed
+            }
+        return upstream_dependencies or None
+
+    upstream_dependencies = set()
     for node_id in node_ids:
         node = get_node(dependency_graph, node_id)
         if node is None:
