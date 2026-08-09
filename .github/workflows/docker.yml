@@ -55,7 +55,7 @@ jobs:
             type=raw,value=latest,enable=${{ matrix.dbt_version == '1.10.13' }}
       
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: ${{ inputs.push_images }}
