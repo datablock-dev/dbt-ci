@@ -206,9 +206,11 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-dbt
-!dbt_ci/**/dbt
-!dbt_ci/**/dbt
+# A dbt project kept at the repository root for local testing. Anchored with a
+# leading slash: an unanchored "dbt" matches every directory of that name at any
+# depth, which silently excluded dbt_ci/dbt/ and tests/unit/dbt/ and needed
+# negation rules to undo.
+/dbt/
 dependency_graph.json
 logs
 dbt.duckdb
