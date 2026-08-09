@@ -210,6 +210,11 @@ def resolve_dbt_commands(
         "reference_state": "--state",
     }
     
+    # Commands such as `run-operation` reject some of these flags, so ignore_keys applies
+    # to the path flags as well as to the variables and boolean flags below.
+    if ignore_keys:
+        path_flags = {var: flag for var, flag in path_flags.items() if var not in ignore_keys}
+
     # Local and dbt runners need absolute paths
     if runner in ["local", "dbt"]:
         for var, flag in path_flags.items():
@@ -217,12 +222,12 @@ def resolve_dbt_commands(
             if value is not None and value != "":
                 absolute_path = get_absolute_path(value)
                 commands.extend([flag, absolute_path])
-    
+
     # Docker runner needs container paths from docker-env
     elif runner == "docker":
         # Use the shared function to get container path mappings
         container_path_map = get_container_paths(args.__dict__)
-        
+
         for var, flag in path_flags.items():
             container_path = container_path_map.get(var)
             if container_path:

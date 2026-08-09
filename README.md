@@ -33,7 +33,7 @@ installed on demand:
 
 | Extra | Installs | Needed for |
 |-------|----------|------------|
-| `gcp` | `google-cloud-bigquery`, `google-cloud-storage` | `gs://` state/artifact URIs, the BigQuery connector used by `delete` and `migration` |
+| `gcp` | `google-cloud-bigquery`, `google-cloud-storage` | `gs://` state/artifact URIs, the native BigQuery connector used by `delete` and `migration` |
 | `aws` | `boto3` | `s3://` state/artifact URIs |
 | `docker` | `docker` | `--runner docker` |
 | `all` | all of the above | |
@@ -257,22 +257,34 @@ dbt-ci delete --dry-run  # preview what will be deleted
 dbt-ci delete            # execute deletions
 ```
 
+Works on every dbt adapter — see [Warehouse Support](#warehouse-support). The relation is
+dropped with the object kind matching its materialization, so views are dropped as views;
+for tables the leftover `__dbt_tmp` staging relation is cleaned up as well.
+
 **Flags:**
 
 > Only [common options](#common-options) apply — no command-specific flags.
 
 ---
 
-### `migration` - Migrate Partitioning Changes
+### `migration` - Migrate Layout Changes
 
-Detects models whose partitioning configuration changed between the reference and target
-state, and rebuilds the affected tables with the new partitioning spec. Uses cached state
+Detects models whose physical layout configuration changed between the reference and
+target state, and rebuilds the affected tables with the new layout. Uses cached state
 from `init`.
 
-BigQuery cannot change a table's partitioning in place, so each affected table is copied
-into a temporary table with the new spec, the original is dropped, and the copy is
-renamed back. Only **incremental** models are considered — other materializations are
-rebuilt by dbt anyway.
+Only **incremental** models are considered — every other materialization is rebuilt by dbt
+on each run and picks up the new layout without help. Which config keys count as "physical
+layout" depends on the adapter:
+
+| Adapter | Config keys compared |
+|---------|----------------------|
+| `bigquery` | `partition_by` |
+| `snowflake` | `cluster_by` |
+| `databricks` | `partition_by`, `clustered_by`, `buckets`, `liquid_clustered_by` |
+| `spark` | `partition_by`, `clustered_by`, `buckets` |
+| `redshift` | `sort`, `sort_type`, `dist` |
+| anything else | `partition_by`, `cluster_by`, `clustered_by`, `buckets` |
 
 ```bash
 dbt-ci migration --dry-run  # list the tables that would be rebuilt
@@ -280,11 +292,38 @@ dbt-ci migration            # apply the changes
 ```
 
 > **Warning:** this rewrites tables in place. Always review the `--dry-run` output first.
-> Requires a connector implementing a migration strategy — currently BigQuery only.
 
 **Flags:**
 
 > Only [common options](#common-options) apply — no command-specific flags.
+
+---
+
+### Warehouse Support
+
+`delete` and `migration` are the only commands that touch the warehouse directly. Every
+other command drives dbt, so it works wherever dbt does.
+
+**BigQuery** has a native connector, used automatically when the target's profile type is
+`bigquery` and the [`gcp` extra](#extras) is installed. It talks to the BigQuery API
+directly, and its migration is **data preserving**: because BigQuery cannot change a
+table's partitioning in place, the table is copied into a temporary table carrying the new
+spec, the original is dropped, and the copy is renamed back.
+
+**Every other adapter** — Snowflake, Databricks, Redshift, Postgres, DuckDB, Spark and so
+on — is served by the generic connector, which needs no extra and no warehouse SDK. It
+issues SQL through `dbt run-operation run_query`, so the credentials, network access and
+adapter already configured in your `profiles.yml` are the only ones involved. Identifiers
+are quoted for the target warehouse (backticks, double quotes or brackets as appropriate).
+
+Two differences are worth knowing about before relying on the generic path:
+
+- **Migrations rebuild rather than copy.** The relation is dropped and then rebuilt with
+  `dbt run --full-refresh`, letting the adapter emit its own DDL for the new layout. The
+  model is rebuilt from its sources, so rows that exist only in the target relation — for
+  example an incremental model whose source has since been truncated — do not survive.
+- **Statements are issued one at a time.** Each one is a separate dbt invocation, so a
+  large delete set is slower than the BigQuery connector's parallel API calls.
 
 ---
 
@@ -804,9 +843,10 @@ dbt-ci:
 - **💬 Notifications**: Slack webhook integration for CI/CD alerts
 - **♻️ Ephemeral Environments**: Test changes in isolated environments
 - **🧹 Cleanup**: Automatically remove deleted models from target warehouse
+- **🏭 Any Warehouse**: Native BigQuery connector, plus a `dbt run-operation` fallback for every other adapter
 - **🎯 Blast-Radius Control**: Cap how far a change propagates with `--downstream-depth`
 - **📝 Run Reports**: Markdown summary of the change set, exposure impact and command status
-- **🔀 Partition Migrations**: Rebuild tables whose partitioning configuration changed (BigQuery)
+- **🔀 Layout Migrations**: Rebuild tables whose partitioning or clustering configuration changed
 
 ## Use Cases
 

@@ -112,7 +112,10 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
         delete_map[node_id] = {
             "type": node_data["resource_type"],
             "name": node_data["name"],
-            "table_id": table_id
+            "table_id": table_id,
+            # Connectors that emit DDL need the object kind: dropping a view with
+            # DROP TABLE fails on most warehouses.
+            "materialization": node_data.get("config", {}).get("materialized", None)
         }
 
     return delete_map

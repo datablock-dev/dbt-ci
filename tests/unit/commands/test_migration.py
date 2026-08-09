@@ -283,7 +283,7 @@ class TestMigrationCommand:
         
         mock_migration_func = MagicMock()
         mock_get_connector.return_value = {'strategies': {'migration': mock_migration_func}}
-        
+
         # Run command - expect SystemExit(0)
         args = Namespace(
             dbt_project_dir='/dbt',
@@ -292,5 +292,147 @@ class TestMigrationCommand:
         )
         with pytest.raises(SystemExit) as exc_info:
             index(args)
-        
+
         assert exc_info.value.code == 0
+
+    @patch('dbt_ci.commands.migration.index.get_profile')
+    @patch('dbt_ci.commands.migration.index.CacheManager')
+    @patch('dbt_ci.commands.migration.index.DbtGraph')
+    @patch('dbt_ci.commands.migration.index.get_connector')
+    @patch('dbt_ci.commands.migration.index.get_node_ids_from_structured_nodes')
+    @patch('dbt_ci.commands.migration.index.filter_node_ids_by_multiple_types')
+    @patch('dbt_ci.commands.migration.index.get_nodes')
+    @patch('dbt_ci.commands.migration.index.logger')
+    @patch('dbt_ci.commands.migration.index.click.secho')
+    @patch('dbt_ci.commands.migration.index.click.echo')
+    def test_migration_detects_clustering_change_on_snowflake(
+        self,
+        mock_echo,
+        mock_secho,
+        mock_logger,
+        mock_get_nodes_util,
+        mock_filter,
+        mock_get_node_ids,
+        mock_get_connector,
+        mock_graph,
+        mock_cache,
+        mock_get_profile
+    ):
+        """Test migration detects a physical layout change expressed as Snowflake clustering."""
+        # Setup mocks
+        mock_get_profile.return_value = {"type": "snowflake"}
+        mock_cache_instance = MagicMock()
+        mock_cache_instance.get_cache.return_value = {
+            "modified_nodes": {"model": {"model.project.model1": {}}}
+        }
+        mock_cache.return_value = mock_cache_instance
+        mock_get_node_ids.return_value = ['model.project.model1']
+        mock_filter.return_value = ['model.project.model1']
+
+        def node(cluster_by):
+            """Build a node whose only physical config is Snowflake clustering."""
+            return {
+                'model.project.model1': {
+                    'id': 'model.project.model1',
+                    'resource_type': 'model',
+                    'name': 'model1',
+                    'database': 'my_db',
+                    'schema': 'my_schema',
+                    'config': {'materialized': 'incremental', 'cluster_by': cluster_by},
+                    'compiled_code': 'SELECT 1'
+                }
+            }
+
+        # get_nodes is called twice: once for target, once for reference
+        mock_get_nodes_util.side_effect = [node(['new_col']), node(['old_col'])]
+        mock_graph.return_value = MagicMock()
+
+        mock_migration_func = MagicMock()
+        mock_get_connector.return_value = {'strategies': {'migration': mock_migration_func}}
+
+        # Run command
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            dry_run=False
+        )
+        index(args)
+
+        # Verify the clustering change made it into the migration map
+        migration_map = mock_migration_func.call_args[0][0]
+        assert migration_map['connector'] == 'snowflake'
+        node_entry = migration_map['nodes']['model.project.model1']
+        assert node_entry['old_config'] == {'cluster_by': ['old_col']}
+        assert node_entry['new_config'] == {'cluster_by': ['new_col']}
+        assert node_entry['name'] == 'model1'
+        assert node_entry['materialization'] == 'incremental'
+
+    @patch('dbt_ci.commands.migration.index.get_profile')
+    @patch('dbt_ci.commands.migration.index.CacheManager')
+    @patch('dbt_ci.commands.migration.index.DbtGraph')
+    @patch('dbt_ci.commands.migration.index.get_connector')
+    @patch('dbt_ci.commands.migration.index.get_node_ids_from_structured_nodes')
+    @patch('dbt_ci.commands.migration.index.filter_node_ids_by_multiple_types')
+    @patch('dbt_ci.commands.migration.index.get_nodes')
+    @patch('dbt_ci.commands.migration.index.logger')
+    @patch('dbt_ci.commands.migration.index.click.secho')
+    @patch('dbt_ci.commands.migration.index.click.echo')
+    def test_migration_ignores_clustering_change_on_bigquery(
+        self,
+        mock_echo,
+        mock_secho,
+        mock_logger,
+        mock_get_nodes_util,
+        mock_filter,
+        mock_get_node_ids,
+        mock_get_connector,
+        mock_graph,
+        mock_cache,
+        mock_get_profile
+    ):
+        """Test BigQuery still migrates on partitioning changes only."""
+        # Setup mocks
+        mock_get_profile.return_value = {"type": "bigquery"}
+        mock_cache_instance = MagicMock()
+        mock_cache_instance.get_cache.return_value = {
+            "modified_nodes": {"model": {"model.project.model1": {}}}
+        }
+        mock_cache.return_value = mock_cache_instance
+        mock_get_node_ids.return_value = ['model.project.model1']
+        mock_filter.return_value = ['model.project.model1']
+
+        def node(cluster_by):
+            """Build a node whose partitioning is stable but whose clustering changed."""
+            return {
+                'model.project.model1': {
+                    'id': 'model.project.model1',
+                    'resource_type': 'model',
+                    'name': 'model1',
+                    'database': 'my_db',
+                    'schema': 'my_schema',
+                    'config': {
+                        'materialized': 'incremental',
+                        'partition_by': {'field': 'date', 'data_type': 'date'},
+                        'cluster_by': cluster_by
+                    },
+                    'compiled_code': 'SELECT 1'
+                }
+            }
+
+        mock_get_nodes_util.side_effect = [node(['new_col']), node(['old_col'])]
+        mock_graph.return_value = MagicMock()
+
+        mock_migration_func = MagicMock()
+        mock_get_connector.return_value = {'strategies': {'migration': mock_migration_func}}
+
+        # Run command - expect SystemExit(0) since partitioning is unchanged
+        args = Namespace(
+            dbt_project_dir='/dbt',
+            reference_state='/dbt/.dbtstate',
+            dry_run=False
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            index(args)
+
+        assert exc_info.value.code == 0
+        mock_migration_func.assert_not_called()

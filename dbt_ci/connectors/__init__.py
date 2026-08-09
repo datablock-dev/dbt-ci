@@ -1,10 +1,22 @@
 """Init file for connectors module."""
+import logging
 from typing import Final, cast
-from dbt_ci.schema import ConnectorConfig, SupportedConnectors, StorageConnectorConfig, SupportedStorageConnectors
+from dbt_ci.schema import (
+    ConnectorConfig,
+    NativeConnectors,
+    SupportedConnectors,
+    StorageConnectorConfig,
+    SupportedStorageConnectors,
+)
 from dbt_ci.connectors.aws import aws_storage_connector
+from dbt_ci.connectors.generic import generic_db_connector
 from dbt_ci.connectors.google import bigquery_db_connector, bigquery_storage_connector
 
-DB_CONNECTORS: Final[dict[SupportedConnectors, ConnectorConfig]] = {
+logger = logging.getLogger(__name__)
+
+# Adapters with a warehouse-native implementation. Everything else is served by the generic
+# connector, which reaches the warehouse through `dbt run-operation`.
+DB_CONNECTORS: Final[dict[NativeConnectors, ConnectorConfig]] = {
     "bigquery": bigquery_db_connector
 }
 
@@ -35,13 +47,19 @@ def init_storage_connector(uri: str | None) -> tuple[StorageConnectorConfig, str
 
 def get_connector(connector: SupportedConnectors) -> ConnectorConfig | None:
     """Factory function to get the appropriate connector based on configuration."""
-    if connector not in DB_CONNECTORS:
-        raise ValueError(f"Connector '{connector}' is not supported.")
+    native_connector = DB_CONNECTORS.get(cast(NativeConnectors, connector))
+    if native_connector is not None:
+        return native_connector
 
-    return DB_CONNECTORS.get(connector)
+    logger.debug(
+        f"No native connector for adapter '{connector}'; using the generic connector, which "
+        "runs SQL through 'dbt run-operation'."
+    )
+    return generic_db_connector
 
 
 __all__ = [
+    "generic_db_connector",
     "get_connector",
     "init_storage_connector",
 ]

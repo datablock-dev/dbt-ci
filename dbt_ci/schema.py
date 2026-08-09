@@ -421,10 +421,14 @@ class DeleteMapNode(TypedDict):
     type: NodeResourceType
     name: str
     table_id: str
+    materialization: NotRequired[str | None]
 
-type SupportedConnectors = Literal[
+type NativeConnectors = Literal[
     "bigquery"
 ]
+# Any dbt adapter type may appear here: adapters without a native connector are served by
+# the generic connector, which drives the warehouse through `dbt run-operation`.
+type SupportedConnectors = str
 type SupportedConnectorsEphemeralStrategy = Literal[
     "bigquery"
 ]
@@ -452,9 +456,11 @@ class ConnectorMethodsConfig(TypedDict):
 
 class ConnectorConfig(TypedDict):
     """Configuration for supported connectors."""
-    client: Callable[..., Any]
+    # Both are optional: the generic connector talks to the warehouse through dbt itself,
+    # so it has neither a warehouse client nor client-bound helper methods.
+    client: NotRequired[Callable[..., Any]]
     strategies: ConnectorStrategiesConfig
-    methods: ConnectorMethodsConfig
+    methods: NotRequired[ConnectorMethodsConfig]
 
 # Add better type definitions
 class MigrationMapNodeEntry(TypedDict):
@@ -463,12 +469,34 @@ class MigrationMapNodeEntry(TypedDict):
     compiled_code: str | None
     old_partitioning: Any | None
     new_partitioning: Any | None
+    name: NotRequired[str]
+    materialization: NotRequired[str | None]
+    # Every physical-layout config compared for this adapter, not just partitioning.
+    old_config: NotRequired[dict[str, Any]]
+    new_config: NotRequired[dict[str, Any]]
 
 
 class MigrationMap(TypedDict):
     """Structure for tracking table partitioning migrations."""
     connector: str
     nodes: dict[str, MigrationMapNodeEntry]
+
+# Model config keys whose value determines a relation's physical layout. Changing any of
+# them requires rebuilding the relation, since an incremental run cannot alter it in place.
+DEFAULT_PHYSICAL_CONFIG_KEYS: tuple[str, ...] = (
+    "partition_by",
+    "cluster_by",
+    "clustered_by",
+    "buckets",
+)
+
+PHYSICAL_CONFIG_KEYS: dict[str, tuple[str, ...]] = {
+    "bigquery": ("partition_by",),
+    "snowflake": ("cluster_by",),
+    "databricks": ("partition_by", "clustered_by", "buckets", "liquid_clustered_by"),
+    "spark": ("partition_by", "clustered_by", "buckets"),
+    "redshift": ("sort", "sort_type", "dist"),
+}
 
 class StorageConnectorConfig(TypedDict):
     """Configuration for storage connectors."""

@@ -8,7 +8,12 @@ from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.dbt.flags import apply_cached_config
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.utilities.logging import print_exception, redact_namespace
-from dbt_ci.schema import MigrationMap, SupportedConnectors
+from dbt_ci.schema import (
+    DEFAULT_PHYSICAL_CONFIG_KEYS,
+    PHYSICAL_CONFIG_KEYS,
+    MigrationMap,
+    SupportedConnectors,
+)
 from dbt_ci.connectors import get_connector
 from dbt_ci.utilities.paths import get_profile
 from dbt_ci.graph.graph_utils import (
@@ -60,8 +65,8 @@ def migration(args: Namespace):
             for node_id, node_info in migration_map["nodes"].items():
                 logger.info(f"Model: {node_id}")
                 logger.info(f"  - Table ID: {node_info['table_id']}")
-                logger.info(f"  - Old Partitioning: {node_info['old_partitioning']}")
-                logger.info(f"  - New Partitioning: {node_info['new_partitioning']}")
+                logger.info(f"  - Old Config: {node_info.get('old_config', node_info['old_partitioning'])}")
+                logger.info(f"  - New Config: {node_info.get('new_config', node_info['new_partitioning'])}")
             logger.info("------------------------------------------------------\n")
 
         if getattr(args, "dry_run", False):
@@ -109,27 +114,44 @@ def generate_migration_map(
     target_nodes = get_nodes(target_graph.to_dict(), selected_nodes)
     reference_nodes = get_nodes(reference_graph.to_dict(), selected_nodes)
 
+    connector_type = get_profile(args)["type"]
+    physical_config_keys = get_physical_config_keys(connector_type)
+
     migration_map: MigrationMap = {
-        "connector": get_profile(args)["type"],
+        "connector": connector_type,
         "nodes": {}
     }
 
     for node_id, node_metadata in target_nodes.items():
         node_config = node_metadata.get("config", {})
-        target_partitioning_config = node_config.get("partition_by", None)
-        reference_partitioning_config = reference_nodes.get(node_id, {}).get("config", {}).get("partition_by", None)
-        # Skip non-incremental models since partitioning changes only apply to incremental models in BigQuery
+        reference_config = reference_nodes.get(node_id, {}).get("config", {})
+        target_physical_config = extract_physical_config(node_config, physical_config_keys)
+        reference_physical_config = extract_physical_config(reference_config, physical_config_keys)
+        # Skip non-incremental models: every other materialization is rebuilt by dbt on each
+        # run, so it already picks up a new physical layout without a migration.
         if node_config.get("materialized", None) != "incremental":
             continue
-        
-        # Check if partitioning has been changed
+
+        # Check if the physical layout has been changed
         # Dict comparison is order-insensitive since Python 3.7+
-        if target_partitioning_config != reference_partitioning_config:
+        if target_physical_config != reference_physical_config:
             migration_map["nodes"][node_id] = {
+                "name": node_metadata.get("name", ""),
+                "materialization": node_config.get("materialized", None),
                 "table_id": f"{node_metadata.get('database', '')}.{node_metadata.get('schema', '')}.{node_metadata.get('name', '')}",
                 "compiled_code": node_metadata.get("compiled_code", None),
-                "old_partitioning": reference_partitioning_config,
-                "new_partitioning": target_partitioning_config
+                "old_partitioning": reference_config.get("partition_by", None),
+                "new_partitioning": node_config.get("partition_by", None),
+                "old_config": reference_physical_config,
+                "new_config": target_physical_config
             }
 
     return migration_map
+
+def get_physical_config_keys(connector_type: str) -> tuple[str, ...]:
+    """Return the model config keys that determine a relation's physical layout for an adapter."""
+    return PHYSICAL_CONFIG_KEYS.get(connector_type, DEFAULT_PHYSICAL_CONFIG_KEYS)
+
+def extract_physical_config(node_config: dict, keys: tuple[str, ...]) -> dict:
+    """Pick the physical-layout entries out of a node's config, dropping unset ones."""
+    return {key: node_config[key] for key in keys if node_config.get(key) is not None}
