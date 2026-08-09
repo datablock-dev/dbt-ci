@@ -4,7 +4,7 @@ import venv
 import logging
 from pathlib import Path
 from argparse import Namespace
-from typing import Callable
+from typing import Callable, cast
 from dbt_ci.schema import RunnerConfig, Runners
 from dbt_ci.runners.dbt import dbt_runner
 from dbt_ci.runners.local import local_runner
@@ -49,78 +49,112 @@ def run_dbt_command(
         output = run_dbt_command(['ls', '--select', 'state:modified+'], config)
     """
     runner = runner_config['runner']
-    if runner in RUNNERS:
-        dbt_version = runner_config.get('dbt_version')
-        if runner == "dbt" and dbt_version is not None and not dbt_version_exists(dbt_version):
-            logger.info(f"dbt version {dbt_version} not found. Installing...")
-            run_with_dbt_version(dbt_version)
-        
-        if runner_config.get("adapter") and not adapter_exists(runner_config.get("adapter")):
-            logger.info(f"Adapter {runner_config.get('adapter')} not found. Installing...")
-            install_adapter(runner_config.get("adapter"))
+    if runner not in RUNNERS:
+        raise ValueError(f"Unsupported runner: {runner}")
 
-        return RUNNERS[runner](command_args, runner_config)
+    dbt_binary = resolve_pinned_dbt_binary(runner_config)
+    if dbt_binary is not None:
+        # local_runner prefixes the command with `entrypoint`, so pointing it at the
+        # pinned virtual environment's dbt is what actually makes the pin take effect.
+        runner_config = cast(RunnerConfig, {**runner_config, "entrypoint": dbt_binary})
 
-    raise ValueError(f"Unsupported runner: {runner}")
+    return RUNNERS[runner](command_args, runner_config)
 
-def run_with_dbt_version(version: str):
-    """Create a persistent virtual environment with a specific dbt version."""
-    venv_dir = Path.home() / ".cache" / "dbt-ci" / "venvs" / f"dbt-{version}"
-    
-    # Create cache directory if it doesn't exist
+def resolve_pinned_dbt_binary(runner_config: RunnerConfig) -> str | None:
+    """
+    Return the path to a dbt binary satisfying --dbt-version/--adapter, or None.
+
+    Only the `local` runner can execute an arbitrary dbt binary: the `dbt` runner
+    invokes dbt in-process, `docker` takes its dbt from the image and `bash` from the
+    user's shell script. For those runners a pin is reported as unsupported instead of
+    being silently ignored.
+    """
+    dbt_version = runner_config.get("dbt_version")
+    adapter = runner_config.get("adapter")
+    if not dbt_version and not adapter:
+        return None
+
+    runner = runner_config.get("runner")
+    if runner != "local":
+        logger.warning(
+            "--dbt-version/--adapter are only honoured by the 'local' runner; the '%s' "
+            "runner resolves dbt from %s. Ignoring the pin.",
+            runner,
+            {
+                "dbt": "the dbt-core installed alongside dbt-ci",
+                "docker": "the configured --docker-image",
+                "bash": "the configured --shell-path script",
+            }.get(cast(str, runner), "its own environment"),
+        )
+        return None
+
+    venv_dir = get_dbt_venv_dir(dbt_version, adapter)
+    if not dbt_venv_is_ready(venv_dir):
+        create_dbt_venv(venv_dir, dbt_version, adapter)
+
+    return str(venv_dir / "bin" / "dbt")
+
+def get_dbt_venv_dir(dbt_version: str | None, adapter: str | None) -> Path:
+    """Return the cache directory holding the virtual environment for this version/adapter pair."""
+    parts = [f"dbt-{dbt_version}" if dbt_version else "dbt-default"]
+    if adapter:
+        name, version = parse_adapter(adapter)
+        parts.append(f"{name}-{version}" if version else name)
+    return Path.home() / ".cache" / "dbt-ci" / "venvs" / "+".join(parts)
+
+def dbt_venv_is_ready(venv_dir: Path) -> bool:
+    """
+    Check whether a cached virtual environment finished installing successfully.
+
+    A sentinel file is used rather than the directory's existence so that an interrupted
+    or failed install is rebuilt instead of being reused in a broken state.
+    """
+    return (venv_dir / ".dbt-ci-ready").is_file() and (venv_dir / "bin" / "dbt").is_file()
+
+def create_dbt_venv(venv_dir: Path, dbt_version: str | None, adapter: str | None) -> None:
+    """Create a virtual environment containing the requested dbt-core version and adapter."""
+    packages: list[str] = []
+    if dbt_version:
+        packages.append(f"dbt-core=={dbt_version}")
+    if adapter:
+        name, version = parse_adapter(adapter)
+        packages.append(f"{name}=={version}" if version else name)
+
+    logger.info(f"Installing {', '.join(packages)} into {venv_dir}...")
     venv_dir.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Create virtual environment
     venv.create(venv_dir, with_pip=True, clear=True)
 
     pip = venv_dir / "bin" / "pip"
     dbt_bin = venv_dir / "bin" / "dbt"
 
-    # Install dbt-core
-    subprocess.run([str(pip), "install", f"dbt-core=={version}"], check=True)
-    
-    # Verify installation
+    subprocess.run([str(pip), "install", *packages], check=True)
     subprocess.run([str(dbt_bin), "--version"], check=True)
 
-def dbt_version_exists(version: str) -> bool:
-    """Check if a virtual environment for the specified dbt version already exists."""
-    venv_path = Path.home() / ".cache" / "dbt-ci" / "venvs" / f"dbt-{version}"
-    return venv_path.exists()
+    (venv_dir / ".dbt-ci-ready").write_text("\n".join(packages), encoding="utf-8")
 
-def install_adapter(adapter: str):
-    """Install the specified dbt adapter into the virtual environment."""
-    adapter_list = adapter.split("=")
-    adapter_name = adapter_list[0].strip()
-    adapter_version = adapter_list[-1].strip()
+def parse_adapter(adapter: str) -> tuple[str, str | None]:
+    """
+    Split an adapter specification into its package name and optional pinned version.
 
-    if adapter_name is None or adapter_version is None:
-        raise ValueError(f"Invalid adapter format: {adapter}. Expected format 'adapter=version' (e.g., 'postgres=1.0.0')")
+    Accepts 'dbt-bigquery', 'dbt-bigquery=1.10.0' and 'dbt-bigquery==1.10.0'.
+    """
+    name, separator, version = adapter.replace("==", "=").partition("=")
+    name = name.strip()
+    version = version.strip()
 
-    venv_path = Path.home() / ".cache" / "dbt-ci" / "venvs" / f"{adapter_name}-{adapter_version}"
-    
-    if not venv_path.exists():
-        logger.info(f"Installing adapter {adapter_name} version {adapter_version}...")
-        venv.create(venv_path, with_pip=True, clear=True)
-        pip = venv_path / "bin" / "pip"
-        subprocess.run([str(pip), "install", f"{adapter_name}=={adapter_version}"], check=True)
-    else:
-        logger.info(f"Adapter {adapter_name} version {adapter_version} already installed.")
+    if not name:
+        raise ValueError(
+            f"Invalid adapter format: '{adapter}'. Expected 'adapter' or 'adapter=version' "
+            "(e.g. 'dbt-bigquery' or 'dbt-bigquery=1.10.0')."
+        )
 
-def adapter_exists(adapter: str) -> bool:
-    """Check if the specified dbt adapter is installed."""
-    try:
-        adapter_list = adapter.split("=")
-        adapter_name = adapter_list[0].strip()
-        adapter_version = adapter_list[-1].strip()
+    if separator and not version:
+        raise ValueError(
+            f"Invalid adapter format: '{adapter}'. A version separator was given without a "
+            "version (e.g. 'dbt-bigquery=1.10.0')."
+        )
 
-        if adapter_name is None or adapter_version is None:
-            return False
-
-        venv_path = Path.home() / ".cache" / "dbt-ci" / "venvs" / f"{adapter_name}-{adapter_version}"
-        return venv_path.exists()
-    except Exception as e:
-        logger.error(f"Error checking adapter existence: {e}")
-        return False
+    return name, version or None
 
 def append_dbt_variables_to_command(
     command_args: list[str],

@@ -1,9 +1,16 @@
 """BigQuery connector for dbt CI."""
+from __future__ import annotations
+
 import logging
 from argparse import Namespace
 from typing import Any, cast
-from google.cloud import bigquery
 from dbt_ci.schema import DeleteMapNode, EphemeralMapNode, MigrationMap
+from dbt_ci.utilities.optional_imports import require
+
+try:  # google-cloud-bigquery ships in the optional "gcp" extra.
+    from google.cloud import bigquery
+except ImportError:  # pragma: no cover - exercised only without the extra installed
+    bigquery = None
 from dbt_ci.utilities.paths import get_profile, get_profiles_file
 from dbt_ci.utilities.multi_threading import run_multithreaded
 
@@ -47,7 +54,7 @@ def bigquery_client(args: Namespace) -> bigquery.Client:
         raise ValueError(
             f"No 'location' specified for target '{getattr(args, 'target', None)}' in profiles.yml")
 
-    client = bigquery.Client(
+    client = require(bigquery, "gcp", "The BigQuery connector").Client(
         project=output.get("project", ""),
         location=output.get("location", "")
     )

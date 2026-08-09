@@ -144,9 +144,28 @@ class TestRunCommand:
         mock_exit.assert_called_once_with(1)
 
 
+def _graph_node(unique_id: str, fqn: list[str] | None = None) -> dict:
+    """Build the minimal graph entry get_selectors and display_name need."""
+    name = unique_id.split(".")[-1]
+    return {
+        "id": unique_id,
+        "name": name,
+        "fqn": fqn if fqn is not None else unique_id.split(".")[1:],
+        "resource_type": unique_id.split(".")[0],
+    }
+
+
+def _graph(*unique_ids: str) -> dict:
+    """Build a dependency graph keyed by unique_id, bucketed by resource type."""
+    graph: dict = {"model": {}, "seed": {}, "snapshot": {}, "test": {}}
+    for unique_id in unique_ids:
+        graph.setdefault(unique_id.split(".")[0], {})[unique_id] = _graph_node(unique_id)
+    return graph
+
+
 class TestRunNodes:
     """Test the run_nodes helper function."""
-    
+
     @patch('dbt_ci.commands.run.run.run_dbt_command')
     @patch('dbt_ci.commands.run.run.get_downstream_dependencies')
     @patch('dbt_ci.commands.run.run.get_upstream_dependencies')
@@ -161,12 +180,9 @@ class TestRunNodes:
         """Test run_nodes with 'all' mode runs all command types."""
         variables = Namespace(dry_run=False, nodes='all', runner='local')
         target_graph = MagicMock()
-        target_graph.to_dict.return_value = {
-            "model": {},
-            "seed": {},
-            "snapshot": {},
-            "test": {}
-        }
+        target_graph.to_dict.return_value = _graph(
+            "model.project.model1", "model.project.model2"
+        )
         modified_nodes_dict = {
             "modified_nodes": ["model.project.model1"],
             "new_nodes": ["model.project.model2"],
@@ -199,7 +215,9 @@ class TestRunNodes:
         """Test run_nodes with 'models' mode only runs models."""
         variables = Namespace(dry_run=False, nodes='models', runner='local')
         target_graph = MagicMock()
-        target_graph.to_dict.return_value = {"model": {}}
+        target_graph.to_dict.return_value = _graph(
+            "model.project.model1", "model.project.model3"
+        )
         modified_nodes_dict = {
             "modified_nodes": ["model.project.model1"],
             "new_nodes": [],
@@ -259,7 +277,7 @@ class TestRunNodes:
         """Test run_nodes skips dbt execution in dry run mode."""
         variables = Namespace(dry_run=True, nodes='models')
         target_graph = MagicMock()
-        target_graph.to_dict.return_value = {"model": {}}
+        target_graph.to_dict.return_value = _graph("model.project.model1")
         modified_nodes_dict = {
             "modified_nodes": ["model.project.model1"],
             "new_nodes": [],

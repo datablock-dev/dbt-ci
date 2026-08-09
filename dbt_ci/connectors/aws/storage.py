@@ -1,12 +1,19 @@
 """Storage connector for AWS S3 interactions."""
+from __future__ import annotations
+
 import json
 from typing import Any
-import boto3
 from dbt_ci.schema import DBTManifest
+from dbt_ci.utilities.optional_imports import require
+
+try:  # boto3 ships in the optional "aws" extra.
+    import boto3
+except ImportError:  # pragma: no cover - exercised only without the extra installed
+    boto3 = None
 
 def aws_storage_client():
     """Initialize AWS S3 client."""
-    return boto3.client("s3")
+    return require(boto3, "aws", "S3 state storage").client("s3")
 
 def aws_upload_json(uri: str, data: dict) -> None:
     """Upload a JSON object to the specified S3 URI."""

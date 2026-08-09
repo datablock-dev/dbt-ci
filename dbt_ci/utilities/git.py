@@ -1,19 +1,23 @@
 """
 Module for Git-related utilities, such as cloning repositories and managing branches.
 """
+import logging
 import os
 import subprocess
 from argparse import Namespace
 from typing import Literal, cast
 
+logger = logging.getLogger(__name__)
+
+# Keyed by the first character of git's status code. Codes carrying a similarity
+# score ("R100", "C085") are matched on that first character too.
 GIT_STATUS_MAPPING = {
     "M": "modified",
     "A": "added",
     "D": "deleted",
-    "R": "renamed" # -> Is same as deleted?
 }
 
-type GitChangeType = Literal["modified", "added", "deleted", "renamed"]
+type GitChangeType = Literal["modified", "added", "deleted"]
 
 
 class GitAdapter:
@@ -31,14 +35,38 @@ class GitAdapter:
             capture_output=False,
         )
 
-        result = subprocess.run(
-            ["git", "diff", "--name-status", f"origin/{self.head_branch}", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        self.changes: list[list[str]] = self._diff_against_base()
 
-        self.changes: list[list[str]] = [line.split("\t") for line in result.stdout.splitlines()]
+    def _diff_against_base(self) -> list[list[str]]:
+        """
+        Diff HEAD against the merge base with the base branch.
+
+        The three-dot form is what CI wants: it reports only what this branch changed,
+        whereas a two-dot diff also reports commits landed on the base branch since the
+        branch point as (reversed) changes, inflating the change set. Shallow clones may
+        not contain the merge base, so the two-dot form is kept as a fallback.
+        """
+        base = f"origin/{self.head_branch}"
+        attempts = [
+            ["git", "diff", "--name-status", f"{base}...HEAD"],
+            ["git", "diff", "--name-status", base, "HEAD"],
+        ]
+
+        for command in attempts:
+            result = subprocess.run(command, capture_output=True, text=True)
+            if result.returncode == 0:
+                return [line.split("\t") for line in result.stdout.splitlines()]
+
+            logger.debug(
+                f"'{' '.join(command)}' failed ({result.stderr.strip()}). If this repository "
+                "was cloned shallowly, fetch more history (e.g. actions/checkout with "
+                "fetch-depth: 0) for an accurate change set."
+            )
+
+        raise RuntimeError(
+            f"Could not diff against 'origin/{self.head_branch}'. Ensure the base branch has "
+            "been fetched and that the repository has enough history."
+        )
 
     def _resolve_head_branch(self) -> str:
         """Resolve the base branch to diff against, in priority order:
@@ -102,26 +130,50 @@ class GitAdapter:
             raise ValueError("DBT project directory not specified in arguments.")
 
         dbt_related_changes: dict[GitChangeType, list[str]] = {}
-        for change in self.changes:
-            change_type = change[0]
-            change_type_key: GitChangeType | None = cast(
-                GitChangeType | None, GIT_STATUS_MAPPING.get(change_type, None)
-            )
-            if change_type_key is None:
+        for change_type_key, file_path in self._classify_changes():
+            if dbt_project_dir not in file_path:
                 continue
-            file_path = change[-1]  # For renames (R100\told\tnew), use the new path (last element)
-            if dbt_project_dir in file_path:
-                file_name = file_path.split(f"{dbt_project_dir}/")[-1]
 
-                if extensions is None:
-                    dbt_related_changes.setdefault(change_type_key, []).append(file_name)
-                elif any(file_name.endswith(ext) for ext in extensions):
-                    dbt_related_changes.setdefault(change_type_key, []).append(file_name)
+            file_name = file_path.split(f"{dbt_project_dir}/")[-1]
+            if extensions is None or any(file_name.endswith(ext) for ext in extensions):
+                dbt_related_changes.setdefault(change_type_key, []).append(file_name)
 
         if remove_extensions:
             dbt_related_changes = self.remove_extensions(dbt_related_changes)
 
         return dbt_related_changes
+
+    def _classify_changes(self) -> list[tuple[GitChangeType, str]]:
+        """
+        Turn raw `git diff --name-status` rows into (change type, path) pairs.
+
+        Renames and copies arrive as 'R100\\told\\tnew' / 'C100\\told\\tnew' and carry a
+        similarity score, so the status is matched on its first character. A rename is
+        expanded into two changes because dbt identifies nodes by path: the node at the
+        old path disappears and a new node appears at the new path.
+        """
+        classified: list[tuple[GitChangeType, str]] = []
+        for change in self.changes:
+            if not change or not change[0]:
+                continue
+
+            status = change[0][0]
+            if status == "R" and len(change) >= 3:
+                classified.append(("deleted", change[1]))
+                classified.append(("added", change[-1]))
+                continue
+            if status == "C" and len(change) >= 3:
+                classified.append(("added", change[-1]))
+                continue
+
+            change_type_key = cast(GitChangeType | None, GIT_STATUS_MAPPING.get(status, None))
+            if change_type_key is None:
+                logger.debug(f"Ignoring unsupported git status '{change[0]}' for {change[-1]}")
+                continue
+
+            classified.append((change_type_key, change[-1]))
+
+        return classified
 
     def remove_extensions(self, files: dict[GitChangeType, list[str]]) -> dict[GitChangeType, list[str]]:
         """Remove file extensions from a list of file paths."""

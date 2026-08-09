@@ -3,26 +3,19 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
+# Dependencies are declared once, in pyproject.toml. This file installs the project
+# itself rather than restating them, so a pipenv environment and a `pip install dbt-ci`
+# resolve to the same set and the two manifests cannot drift apart.
+#
+#   pipenv install         -> runtime dependencies + every optional connector
+#   pipenv install --dev   -> the above plus the test and lint tooling
+#
+# Add or change dependencies in pyproject.toml, then run `pipenv lock`.
 [packages]
-click = "==8.1.8"
-pyyaml = "==6.0.3"
-dbt-core = "==1.10.13"
-docker = "==7.1.0"
-boto3 = "==1.35.0"
-google-cloud-bigquery = "==3.27.0"
-google-cloud-storage = "==2.19.0"
-pydantic = "==2.12.5"
-pydantic-settings = "==2.13.0"
+dbt-ci = {path = ".", editable = true, extras = ["all"]}
 
 [dev-packages]
-pytest = "==9.0.3"
-black = "==26.3.1"
-mypy = "==1.14.1"
-flake8 = "==7.1.2"
-duckdb = "==1.2.0"
-slack-sdk = "==3.36.0"
-pytest-cov = "==6.0.0"
-pytest-mock = "==3.14.0"
+dbt-ci = {path = ".", editable = true, extras = ["all", "dev"]}
 
 [requires]
 python_version = "3.12"

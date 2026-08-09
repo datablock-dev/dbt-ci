@@ -34,7 +34,10 @@ from dbt_ci.commands.init.index import init
     envvar=["DBT_REFERENCE_PATH"],
     default="reference",
     callback=make_config_callback("DBT_INIT_REFERENCE_PATH"),
-    help="The path to compiled output when compiling with reference vars. Defaults to 'reference'"
+    help=(
+        "DEPRECATED - has no effect. The reference compile writes to dbt's own target "
+        "path; this option is never passed to dbt."
+    )
 )
 @click.option(
     "--target-compile",

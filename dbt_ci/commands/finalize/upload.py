@@ -4,7 +4,7 @@ from argparse import Namespace
 from typing import Any, Callable, cast
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.connectors import init_storage_connector
-from dbt_ci.utilities.logging import print_exception
+from dbt_ci.utilities.logging import LOG_FILE_NAME, flush_log_file, print_exception
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +60,11 @@ def upload_logs(
     cache: CacheManager,
     storage_function: Callable[[str, Any, str], None]
 ) -> None:
-    """Upload logs to storage."""
-    logs = cast(str | None, cache.get_cache("logs.txt", "txt"))
+    """Upload the run's log file to storage."""
+    # Records still sitting in the handler's buffer would otherwise be missing from the
+    # uploaded copy, since the handler stays attached for the rest of the command.
+    flush_log_file()
+    logs = cast(str | None, cache.get_cache(LOG_FILE_NAME, "txt"))
     if not logs:
         return logger.warning("No logs found for upload, skipping...")
     storage_function(f"{artifacts_uri}/logs.txt", logs, "text/plain")

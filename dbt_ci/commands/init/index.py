@@ -8,13 +8,13 @@ import logging
 from argparse import Namespace
 from typing import cast
 import click
-from dbt_ci.utilities.logging import print_exception
+from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.dbt.dbt_commands import DbtCommands
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.connectors import init_storage_connector
 from dbt_ci.commands.init.state_modified import StateModified
-from dbt_ci.graph.graph_utils import get_downstream_dependencies, get_node
+from dbt_ci.graph.graph_utils import get_display_name, get_downstream_dependencies, get_node
 from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
@@ -36,7 +36,12 @@ def init(args: Namespace):
         # Convert kwargs to Namespace and resolve configuration
         # Variables class handles type conversions (tuples->lists, string->bool, etc.)
         click.secho("DBT CI Initialization", fg="green", bold=True)
-        logger.debug(f"Running with the following arguments: {args}")
+        logger.debug(f"Running with the following arguments: {redact_namespace(args)}")
+        if getattr(args, "reference_path", "reference") != "reference":
+            logger.warning(
+                "--reference-path is deprecated and has no effect: the reference compile "
+                "writes to dbt's own target path."
+            )
         dbt_commands = DbtCommands(args)
         cache = CacheManager(args)
         state_modified = StateModified(args)
@@ -197,8 +202,12 @@ def detect_deleted_models_with_downstream_dependencies(
     for dependent_id in sorted(dependents_to_deleted):
         node = get_node(reference_dict, dependent_id)
         resource_type = node.get("resource_type", "unknown") if node else "unknown"
-        deleted_deps = ", ".join(sorted(dependents_to_deleted[dependent_id]))
-        logger.error(f"  • {dependent_id} ({resource_type}) depends on deleted node(s): {deleted_deps}")
+        deleted_deps = ", ".join(sorted(
+            get_display_name(reference_dict, deleted_id)
+            for deleted_id in dependents_to_deleted[dependent_id]
+        ))
+        dependent_name = get_display_name(reference_dict, dependent_id)
+        logger.error(f"  • {dependent_name} ({resource_type}) depends on deleted node(s): {deleted_deps}")
     logger.error("------------------------------------------------------\n")
     logger.error("Please review the above nodes and consider deleting them or modifying them to remove dependencies on deleted nodes.")
     # Advisory only — dbt's own compile is the source of truth for broken references,

@@ -21,6 +21,8 @@ def mock_runner_config():
         'dry_run': False,
         'quiet': False,
         'log_level': 'INFO',
+        'dbt_version': None,
+        'adapter': None,
         'docker_image': 'ghcr.io/dbt-labs/dbt-postgres:latest',
         'docker_platform': 'linux/amd64',
         'docker_volumes': [],

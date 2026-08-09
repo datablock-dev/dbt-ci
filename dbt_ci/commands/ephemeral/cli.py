@@ -12,21 +12,21 @@ from dbt_ci.commands.ephemeral.index import ephemeral
     envvar=['DBT_KEEP_ENV'],
     is_flag=True,
     default=False,
-    help="Don't destroy ephemeral environment after run (if supported by runner)"
+    help=(
+        "DEPRECATED - has no effect. The ephemeral command never destroys the environment "
+        "it creates; use 'dbt-ci finalize --clean-ephemeral' to tear it down."
+    )
 )
 def ephemeral_cmd(**kwargs):
     """Run ephemeral CI check workflow
-    
+
     Uses cached state from 'dbt-ci init' to create and test ephemeral schemas.
     Useful for full integration testing in isolated environments.
-    
+
     Examples:
         # Run after init
         dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
         dbt-ci ephemeral --runner docker
-        
-        # Keep environment for debugging
-        dbt-ci ephemeral --keep-env
     """
     setup_logging(to_namespace(kwargs).log_level)
     return ephemeral(to_namespace(kwargs, command="ephemeral"))

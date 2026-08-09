@@ -7,7 +7,13 @@ from itertools import chain
 from typing import cast
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.runners import run_dbt_command, resolve_dbt_commands
-from dbt_ci.graph.graph_utils import filter_node_ids_by_type, get_upstream_dependencies, get_downstream_dependencies
+from dbt_ci.graph.graph_utils import (
+    filter_node_ids_by_type,
+    get_downstream_dependencies,
+    get_display_name,
+    get_selectors,
+    get_upstream_dependencies,
+)
 from dbt_ci.schema import (
     RunModes,
     RunnerConfig,
@@ -56,14 +62,19 @@ def run_nodes(
 
             # Print information
             logger.info(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
-            log_nodes_to_run(nodes_to_run, changed_nodes_dict)
+            log_nodes_to_run(nodes_to_run, changed_nodes_dict, target_graph)
 
             if getattr(args, "dry_run", False):
                 logger.info("DRY RUN: Command would be executed")
                 continue
 
+            selectors = get_selectors(target_graph.to_dict(), nodes_to_run)
+            if not selectors:
+                logger.info(f"No resolvable selectors for {command}, skipping...")
+                continue
+
             result = run_dbt_command(
-                command_args=resolve_dbt_commands([cast(str, command), "--select", " ".join(nodes_to_run)], args),
+                command_args=resolve_dbt_commands([cast(str, command), "--select", " ".join(selectors)], args),
                 runner_config=cast(RunnerConfig, args.__dict__)
             )
 
@@ -231,7 +242,12 @@ def models(
     )
 
 
-def log_nodes_to_run(nodes_to_run: list[str], changed_nodes_dict: dict[str, list[str]]) -> None: 
+def log_nodes_to_run(
+    nodes_to_run: list[str],
+    changed_nodes_dict: dict[str, list[str]],
+    target_graph: DbtGraph | None = None,
+) -> None:
+    """Print the nodes about to run, grouped by why they were selected."""
     mapping = {
         "new": set(),
         "modified": set(),
@@ -252,12 +268,12 @@ def log_nodes_to_run(nodes_to_run: list[str], changed_nodes_dict: dict[str, list
 
     logger.info("\n-------------------------------------------------------")
     logger.info(f"Found {len(nodes_to_run)} node(s) to run:")
-    
+
+    graph = target_graph.to_dict() if target_graph else None
     for type, nodes in mapping.items():
         if len(nodes) == 0:
             continue
         logger.info(f"\n{type.upper()} NODES:")
-        for node in nodes:
-            string = f"  • {node.split('.')[-1]}"
-            logger.info(string)
+        for node in sorted(nodes):
+            logger.info(f"  • {get_display_name(graph, node)}")
     logger.info("-------------------------------------------------------\n")

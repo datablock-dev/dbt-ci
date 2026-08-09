@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import tempfile
 import yaml
 import json
 from pathlib import Path
@@ -8,6 +9,18 @@ from argparse import Namespace
 from dbt_ci.schema import DBTManifest, DBTProfile
 
 logger = logging.getLogger(__name__)
+
+def get_cache_dir() -> Path:
+    """
+    Return the directory holding dbt-ci's cache and log files.
+
+    Defaults to '<temp dir>/dbt-ci'. Set DBT_CI_CACHE_DIR to relocate it, which is what
+    concurrent CI jobs sharing a runner need so they don't overwrite each other's state.
+    """
+    override = os.environ.get("DBT_CI_CACHE_DIR")
+    if override:
+        return Path(override)
+    return Path(tempfile.gettempdir()) / "dbt-ci"
 
 def get_dir_name_from_path(path: str) -> str | None:
     """Get the directory name from a given path."""
@@ -31,19 +44,6 @@ def get_manifest_file(dbt_project_dir: str) -> DBTManifest:
     with open(file, 'r', encoding='utf-8') as f:
         return json.load(f)
     
-def get_manifest_file_full_path(file_path: str) -> DBTManifest | None:
-    """
-    Get the manifest.json file from the specified path.
-    Raises a FileNotFoundError if the file does not exist.
-    Uses pydantic to confirm the structure of the manifest file.
-    """
-    if not os.path.isfile(file_path):
-        raise FileNotFoundError(f"manifest.json not found at {file_path}")
-    with open(file_path, 'r', encoding='utf-8') as f:
-        item = json.load(f)
-        if isinstance(item, DBTManifest):
-            return item
-
 def get_reference_manifest_file(reference_state_dir: str) -> DBTManifest:
     """
     Get the reference manifest.json file from the state directory.
