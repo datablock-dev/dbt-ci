@@ -5,6 +5,7 @@ from argparse import Namespace
 from typing import cast
 import click
 from dbt_ci.utilities.cache import CacheManager
+from dbt_ci.dbt.flags import apply_cached_config
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.schema import MigrationMap, SupportedConnectors
@@ -33,6 +34,7 @@ def migration(args: Namespace):
         logger.debug(f"Running with the following arguments: {redact_namespace(args)}")
         cache = CacheManager(args)
         cache.start_report("migrate", args)
+        apply_cached_config(args)
         connector_type = cast(SupportedConnectors, get_profile(args)["type"])
         connector = get_connector(connector_type)
 

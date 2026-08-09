@@ -53,6 +53,7 @@ SCHEMA: dict[str, dict] = {
         "type": "section",
         "fields": {
             "nodes": {"type": "enum", "choices": ["all", "models", "seeds", "snapshots", "tests"]},
+            "downstream-depth": {"aliases": ["downstream_depth"], "type": "int"},
         },
     },
     "finalize": {
@@ -95,6 +96,10 @@ def _validate_value(path: str, value: Any, rule: dict, errors: list[str]) -> Non
     elif kind == "bool":
         if not isinstance(value, bool):
             errors.append(f"'{path}' must be a boolean (true/false), got {value!r}")
+    elif kind == "int":
+        # bool is a subclass of int, so reject it explicitly.
+        if isinstance(value, bool) or not isinstance(value, int):
+            errors.append(f"'{path}' must be an integer, got {value!r}")
     elif kind == "enum":
         choices = rule["choices"]
         if isinstance(value, str):

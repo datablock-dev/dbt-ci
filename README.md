@@ -173,7 +173,33 @@ dbt-ci run --dbt-project-dir dbt --mode models
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
 | `--mode` | `-m`, `--nodes`, `-n` | `DBT_NODES` | `all` | What to run: `all`, `models`, `seeds`, `snapshots`, `tests` |
+| `--downstream-depth` | | `DBT_DOWNSTREAM_DEPTH` | Full graph | How many levels of downstream dependencies to include (dbt's `model+N`) |
 | `--filters` | `-f` | | `None` | Extra resource-type filter (repeatable, choices: `models`, `seeds`, `snapshots`, `tests`). E.g. `--mode tests -f snapshots` to run only tests that have a snapshot dependency |
+
+#### Limiting blast radius
+
+By default a change selects its **entire** downstream graph. On a large project a change
+to a core staging model therefore rebuilds almost everything, which is the opposite of
+what change-based CI is for. `--downstream-depth` caps how far a change propagates:
+
+```bash
+dbt-ci run --downstream-depth 0   # only what changed
+dbt-ci run --downstream-depth 1   # changed models and their direct children
+dbt-ci run --downstream-depth 2   # two levels out
+dbt-ci run                        # unlimited (default)
+```
+
+For a chain `customers → l1 → l2 → l3` where only `customers` changed:
+
+| Flag | Models run |
+|------|------------|
+| `--downstream-depth 0` | `customers` |
+| `--downstream-depth 1` | `customers`, `l1` |
+| `--downstream-depth 2` | `customers`, `l1`, `l2` |
+| *(omitted)* | `customers`, `l1`, `l2`, `l3` |
+
+New and deleted nodes are always included regardless of depth — a new model has to run
+whether or not anything depends on it yet.
 
 > All [common options](#common-options) also apply.
 
@@ -259,6 +285,38 @@ dbt-ci migration            # apply the changes
 **Flags:**
 
 > Only [common options](#common-options) apply — no command-specific flags.
+
+---
+
+### `report` - Summarise the Run
+
+Renders the change set detected by `init` and the status of every command that has run
+so far. In GitHub Actions the report is appended to the job summary automatically, so no
+workflow wiring is needed beyond calling it.
+
+```bash
+dbt-ci report                       # → $GITHUB_STEP_SUMMARY, or stdout locally
+dbt-ci report --output report.md    # → a file, e.g. to post as a PR comment
+dbt-ci report --format json         # → machine-readable
+```
+
+The report covers:
+
+- **Change counts and node names**, grouped as modified / new / deleted. Long lists fold
+  into a collapsible block.
+- **Exposure impact** — the exposures downstream of the change set, including those
+  downstream of *deleted* nodes, which is usually the case worth catching.
+- **Command status and duration** for each of `init`, `run`, `delete`, `ephemeral` and
+  `migration` that has run.
+
+**Flags:**
+
+| Flag | Aliases | Env Var(s) | Default | Description |
+|------|---------|-----------|---------|-------------|
+| `--output` | `-o` | `DBT_REPORT_OUTPUT` | `$GITHUB_STEP_SUMMARY` or stdout | Where to write the report |
+| `--format` | `-F` | `DBT_REPORT_FORMAT` | `markdown` | `markdown` or `json` |
+
+> All [common options](#common-options) also apply.
 
 ---
 
@@ -460,6 +518,10 @@ init:
   comparison-strategy: hybrid
   base-ref: main
 
+run:
+  nodes: models
+  downstream-depth: 2
+
 finalize:
   artifacts-uri: s3://my-bucket/dbt-artifacts/
   files:
@@ -642,6 +704,19 @@ dbt-ci run
 
 **Note:** State management is cache-based. Run `init` once, then subsequent commands automatically use the cached state.
 
+### Settings Inherited From `init`
+
+`init` records the `--target` and `--vars` it ran with, and later commands reuse them, so
+they only need to be given once:
+
+```bash
+dbt-ci init --target ci --vars '{"use_production_data": false}' --state dbt/.dbtstate
+dbt-ci run          # runs against target 'ci' with the same vars
+dbt-ci delete       # likewise
+```
+
+Passing the flag explicitly still wins — the cache only fills in what was left unset.
+
 ### Cache Location
 
 `init` writes its cache (state comparison, manifests, run report and log file) to
@@ -729,6 +804,8 @@ dbt-ci:
 - **💬 Notifications**: Slack webhook integration for CI/CD alerts
 - **♻️ Ephemeral Environments**: Test changes in isolated environments
 - **🧹 Cleanup**: Automatically remove deleted models from target warehouse
+- **🎯 Blast-Radius Control**: Cap how far a change propagates with `--downstream-depth`
+- **📝 Run Reports**: Markdown summary of the change set, exposure impact and command status
 - **🔀 Partition Migrations**: Rebuild tables whose partitioning configuration changed (BigQuery)
 
 ## Use Cases
