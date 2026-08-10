@@ -12,6 +12,8 @@ IDENTIFIER_QUOTES: dict[str, tuple[str, str]] = {
     "databricks": ("`", "`"),
     "spark": ("`", "`"),
     "hive": ("`", "`"),
+    "mysql": ("`", "`"),
+    "mariadb": ("`", "`"),
     "sqlserver": ("[", "]"),
     "synapse": ("[", "]"),
     "fabric": ("[", "]"),

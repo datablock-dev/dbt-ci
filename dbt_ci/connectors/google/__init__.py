@@ -5,6 +5,7 @@ from dbt_ci.connectors.google.storage import (
     google_upload
 )
 from dbt_ci.connectors.google.bigquery import (
+    bigquery,
     bigquery_client,
     bigquery_create_datasets,
     bigquery_create_tables,
@@ -37,6 +38,11 @@ bigquery_db_connector: ConnectorConfig = {
         "delete_tables": bigquery_delete_tables
     }
 }
+
+
+def is_available() -> bool:
+    """Report whether google-cloud-bigquery is installed, so the registry can fall back if not."""
+    return bigquery is not None
 
 __init__ = [
     "bigquery_storage_connector",

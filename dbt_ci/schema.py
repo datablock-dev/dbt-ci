@@ -496,6 +496,14 @@ PHYSICAL_CONFIG_KEYS: dict[str, tuple[str, ...]] = {
     "databricks": ("partition_by", "clustered_by", "buckets", "liquid_clustered_by"),
     "spark": ("partition_by", "clustered_by", "buckets"),
     "redshift": ("sort", "sort_type", "dist"),
+    "synapse": ("dist", "index"),
+    "fabric": ("dist", "index"),
+    # Adapters with no physical layout configuration at all: nothing is ever detected, so
+    # `migration` reports "no changes" instead of proposing a rebuild that cannot help.
+    "postgres": (),
+    "sqlserver": (),
+    "mysql": (),
+    "mariadb": (),
 }
 
 class StorageConnectorConfig(TypedDict):

@@ -135,10 +135,13 @@ def generate_migration_map(
         # Check if the physical layout has been changed
         # Dict comparison is order-insensitive since Python 3.7+
         if target_physical_config != reference_physical_config:
+            # 'name' selects the model for dbt (which does not know about aliases), while
+            # 'table_id' addresses the relation in the warehouse (which only knows the alias).
+            relation_name = node_config.get("alias", None) or node_metadata.get("name", "")
             migration_map["nodes"][node_id] = {
                 "name": node_metadata.get("name", ""),
                 "materialization": node_config.get("materialized", None),
-                "table_id": f"{node_metadata.get('database', '')}.{node_metadata.get('schema', '')}.{node_metadata.get('name', '')}",
+                "table_id": f"{node_metadata.get('database', '')}.{node_metadata.get('schema', '')}.{relation_name}",
                 "compiled_code": node_metadata.get("compiled_code", None),
                 "old_partitioning": reference_config.get("partition_by", None),
                 "new_partitioning": node_config.get("partition_by", None),

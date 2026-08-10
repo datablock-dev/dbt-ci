@@ -1,10 +1,12 @@
 """Unit tests for the generic (run-operation based) connector."""
+import importlib
 import json
 import pytest
 from argparse import Namespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from dbt_ci.connectors import get_connector, generic_db_connector
+from dbt_ci.connectors import NATIVE_CONNECTORS, get_connector, generic_db_connector
+from dbt_ci.connectors.snowflake import snowflake_db_connector
 from dbt_ci.connectors.generic.run_operation import run_operation
 from dbt_ci.connectors.generic.sql import (
     get_relation_kind,
@@ -244,16 +246,39 @@ class TestGenericMigrationStrategy:
 class TestConnectorResolution:
     """Test which connector an adapter type resolves to."""
 
-    def test_unknown_adapter_falls_back_to_generic(self):
-        """Adapters without a native connector are served by the generic one."""
-        for adapter_type in ("snowflake", "postgres", "databricks", "duckdb"):
+    def test_adapter_without_a_native_connector_uses_the_generic_one(self):
+        """Adapters dbt-ci ships no native connector for are served by the generic one."""
+        for adapter_type in ("duckdb", "trino", "athena"):
             assert get_connector(adapter_type) is generic_db_connector
+
+    def test_native_connector_is_used_when_its_driver_is_installed(self):
+        """With the extra installed, the native connector wins."""
+        with patch('dbt_ci.connectors.snowflake.is_available', return_value=True):
+            connector = get_connector("snowflake")
+        assert connector is snowflake_db_connector
+
+    def test_missing_driver_falls_back_instead_of_failing(self):
+        """A native connector whose extra is absent must not break the command."""
+        with patch('dbt_ci.connectors.snowflake.is_available', return_value=False):
+            connector = get_connector("snowflake")
+        assert connector is generic_db_connector
 
     def test_bigquery_keeps_its_native_connector(self):
         """BigQuery keeps its warehouse-native, data-preserving implementation."""
-        connector = get_connector("bigquery")
+        with patch('dbt_ci.connectors.google.is_available', return_value=True):
+            connector = get_connector("bigquery")
         assert connector is not generic_db_connector
         assert connector.get("client") is not None
+
+    def test_every_registered_native_connector_is_complete(self):
+        """Each entry in the registry imports and satisfies both warehouse commands."""
+        for adapter_type, native in NATIVE_CONNECTORS.items():
+            module = importlib.import_module(native.module)
+            connector = getattr(module, native.attribute, None)
+            assert connector is not None, f"{adapter_type} names a missing connector"
+            assert connector["client"] is not None, adapter_type
+            assert connector["strategies"]["delete"] is not None, adapter_type
+            assert connector["strategies"]["migration"] is not None, adapter_type
 
     def test_generic_connector_implements_both_strategies(self):
         """The generic connector satisfies the delete and migration commands."""

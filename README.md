@@ -33,19 +33,31 @@ installed on demand:
 
 | Extra | Installs | Needed for |
 |-------|----------|------------|
-| `gcp` | `google-cloud-bigquery`, `google-cloud-storage` | `gs://` state/artifact URIs, the native BigQuery connector used by `delete` and `migration` |
+| `gcp` | `google-cloud-bigquery`, `google-cloud-storage` | `gs://` state/artifact URIs, native BigQuery connector |
 | `aws` | `boto3` | `s3://` state/artifact URIs |
 | `docker` | `docker` | `--runner docker` |
+| `snowflake` | `snowflake-connector-python` | native Snowflake connector |
+| `redshift` | `redshift-connector` | native Redshift connector |
+| `databricks` | `databricks-sql-connector`, `databricks-sdk` | native Databricks connector |
+| `azure` | `pyodbc` | native Synapse / Fabric / SQL Server connectors |
+| `postgres` | `psycopg2-binary` | native Postgres connector |
+| `mysql` | `pymysql` | native MySQL connector |
 | `all` | all of the above | |
 
 ```bash
 pip install 'dbt-ci[gcp]'            # BigQuery + GCS
 pip install 'dbt-ci[aws,docker]'     # S3 state, Docker runner
+pip install 'dbt-ci[snowflake]'      # native Snowflake connector
 pip install 'dbt-ci[all]'            # everything
 ```
 
-If a feature needs an extra you haven't installed, dbt-ci says which one and how to
-install it rather than failing with an import traceback.
+Install the extra matching your warehouse to get the [native connector](#warehouse-support).
+Skipping it is not an error: `delete` and `migration` fall back to driving the warehouse
+through dbt, which works everywhere but is slower. Everything else — state URIs, the Docker
+runner — reports which extra it needs rather than failing with an import traceback.
+
+> The `azure` extra installs pyodbc, which is only the Python binding. A system ODBC driver
+> (for example *ODBC Driver 18 for SQL Server*) has to be installed separately.
 
 ### From GitHub
 
@@ -284,6 +296,8 @@ layout" depends on the adapter:
 | `databricks` | `partition_by`, `clustered_by`, `buckets`, `liquid_clustered_by` |
 | `spark` | `partition_by`, `clustered_by`, `buckets` |
 | `redshift` | `sort`, `sort_type`, `dist` |
+| `synapse`, `fabric` | `dist`, `index` |
+| `postgres`, `sqlserver`, `mysql` | none — these have no physical layout config in dbt |
 | anything else | `partition_by`, `cluster_by`, `clustered_by`, `buckets` |
 
 ```bash
@@ -304,17 +318,35 @@ dbt-ci migration            # apply the changes
 `delete` and `migration` are the only commands that touch the warehouse directly. Every
 other command drives dbt, so it works wherever dbt does.
 
-**BigQuery** has a native connector, used automatically when the target's profile type is
-`bigquery` and the [`gcp` extra](#extras) is installed. It talks to the BigQuery API
-directly, and its migration is **data preserving**: because BigQuery cannot change a
-table's partitioning in place, the table is copied into a temporary table carrying the new
-spec, the original is dropped, and the copy is renamed back.
+Each supported warehouse has a **native connector** that connects with the warehouse's own
+driver, reading the credentials from the `profiles.yml` dbt already uses. Native connectors
+are selected automatically from the target's profile type, provided the matching
+[extra](#extras) is installed:
 
-**Every other adapter** — Snowflake, Databricks, Redshift, Postgres, DuckDB, Spark and so
-on — is served by the generic connector, which needs no extra and no warehouse SDK. It
-issues SQL through `dbt run-operation run_query`, so the credentials, network access and
-adapter already configured in your `profiles.yml` are the only ones involved. Identifiers
-are quoted for the target warehouse (backticks, double quotes or brackets as appropriate).
+| Profile type | Extra | `delete` | `migration` |
+|--------------|-------|----------|-------------|
+| `bigquery` | `gcp` | ✅ | ✅ copy into new partition spec, then rename — data preserved |
+| `snowflake` | `snowflake` | ✅ | ✅ `ALTER TABLE … CLUSTER BY` — in place, no rebuild |
+| `redshift` | `redshift` | ✅ | ✅ `ALTER … SORTKEY` / `DISTSTYLE` — in place, no rebuild |
+| `databricks` | `databricks` | ✅ | ✅ in place for liquid clustering; rewrite for partitioning |
+| `synapse` | `azure` | ✅ | ✅ CTAS with the new distribution, then rename |
+| `fabric` | `azure` | ✅ | ➖ no rename support; rebuild with `--full-refresh` |
+| `sqlserver` | `azure` | ✅ | ➖ nothing to migrate |
+| `postgres` | `postgres` | ✅ | ➖ nothing to migrate |
+| `mysql` | `mysql` | ✅ | ➖ nothing to migrate |
+| anything else | — | ✅ via dbt | ✅ via dbt |
+
+➖ means the command succeeds and explains that the adapter has no physical layout to
+migrate, rather than failing. Postgres and SQL Server have no partitioning or clustering
+configuration in dbt at all; their only physical config is indexes, which dbt rebuilds
+itself.
+
+**Without the matching extra** — or on an adapter with no native connector, such as DuckDB,
+Trino or Spark — the same commands run through the **generic connector** instead. It needs
+no driver and no extra: it issues SQL through `dbt run-operation run_query`, so the
+credentials, network access and adapter already configured in your `profiles.yml` are the
+only ones involved. Identifiers are quoted for the target warehouse (backticks, double
+quotes or brackets as appropriate).
 
 Two differences are worth knowing about before relying on the generic path:
 
@@ -322,8 +354,10 @@ Two differences are worth knowing about before relying on the generic path:
   `dbt run --full-refresh`, letting the adapter emit its own DDL for the new layout. The
   model is rebuilt from its sources, so rows that exist only in the target relation — for
   example an incremental model whose source has since been truncated — do not survive.
+  Every native connector above preserves the data instead.
 - **Statements are issued one at a time.** Each one is a separate dbt invocation, so a
-  large delete set is slower than the BigQuery connector's parallel API calls.
+  large delete set is much slower than a native connector's parallel, single-connection
+  DDL.
 
 ---
 
@@ -843,7 +877,7 @@ dbt-ci:
 - **💬 Notifications**: Slack webhook integration for CI/CD alerts
 - **♻️ Ephemeral Environments**: Test changes in isolated environments
 - **🧹 Cleanup**: Automatically remove deleted models from target warehouse
-- **🏭 Any Warehouse**: Native BigQuery connector, plus a `dbt run-operation` fallback for every other adapter
+- **🏭 Any Warehouse**: Native connectors for BigQuery, Snowflake, Redshift, Databricks, Azure, Postgres and MySQL, with a `dbt run-operation` fallback everywhere else
 - **🎯 Blast-Radius Control**: Cap how far a change propagates with `--downstream-depth`
 - **📝 Run Reports**: Markdown summary of the change set, exposure impact and command status
 - **🔀 Layout Migrations**: Rebuild tables whose partitioning or clustering configuration changed
