@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13"]
-        dbt-version: ["1.10.22", "1.11.11"]
+        dbt-version: ["1.10.22", "1.11.11", "1.12.5"]
     
     steps:
     - uses: actions/checkout@v7
