@@ -27,7 +27,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
     Args:
         manifest_file: DBTManifest object representing the manifest file
     """
-    child_map = manifest_file.get("child_map", {})
+    child_map = manifest_file.get("child_map") or {}
     dependency_graph: DependencyGraph = {
         "metadata": manifest_file.get("metadata", {}),
         "model": {},
@@ -42,7 +42,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
     for key, downstream_dependencies in child_map.items():
         node_type: DependencyGraphNodeType = cast(DependencyGraphNodeType, key.split(".")[0])
         manifest_key = MANIFEST_KEY_MAPPING.get(node_type)
-        full_item: DbtNode | None  = manifest_file.get(manifest_key, {}).get(key, None) if manifest_key else None
+        full_item: DbtNode | None  = (manifest_file.get(manifest_key) or {}).get(key, None) if manifest_key else None
 
         # Skip if the node type is not recognized (e.g., "analysis", "docs", etc.)
         if node_type not in dependency_graph.keys():
@@ -115,7 +115,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
 
     # Macros don't appear as keys in child_map, so populate them directly from
     # the manifest's macros section so path-based lookups can find them.
-    for macro_id, macro_item in manifest_file.get("macros", {}).items():
+    for macro_id, macro_item in (manifest_file.get("macros") or {}).items():
         macro_name = macro_item.get("name")
         if macro_name and macro_id not in dependency_graph["macro"]:
             dependency_graph["macro"][macro_id] = {
@@ -239,7 +239,7 @@ def compute_transitive_closure(
 
 def append_upstream_dependencies(dependency_graph: DependencyGraph, manifest_file: DBTManifest) -> None:
     """Populate upstream dependencies from the manifest's parent_map."""
-    parent_map = manifest_file.get("parent_map", {})
+    parent_map = manifest_file.get("parent_map") or {}
 
     for child_id, parent_ids in parent_map.items():
         if len(parent_ids) == 0:

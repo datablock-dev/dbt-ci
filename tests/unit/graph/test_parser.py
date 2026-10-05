@@ -125,3 +125,14 @@ class TestTransitiveClosure:
         assert "operation.pkg.hook" in (
             graph["model"]["model.pkg.a"]["indirect_upstream_dependencies"]["node_dependencies"]
         )
+
+    def test_null_manifest_sections_are_treated_as_empty(self):
+        """A manifest that writes null instead of an empty mapping still parses."""
+        manifest = _manifest({"a": []})
+        manifest["parent_map"] = None
+        manifest["macros"] = None
+        manifest["sources"] = None
+
+        graph = generate_dependency_graph(manifest)
+
+        assert "model.pkg.a" in graph["model"]

@@ -1,11 +1,14 @@
 """Unit tests for the runner dispatcher and dbt version/adapter pinning."""
+from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from dbt_ci.runners import (
     get_dbt_venv_dir,
+    get_dbt_venv_packages,
     parse_adapter,
+    resolve_dbt_commands,
     resolve_pinned_dbt_binary,
     run_dbt_command,
 )
@@ -48,6 +51,71 @@ class TestVenvDir:
         assert first != second
         assert first.name == "dbt-1.10.13+dbt-duckdb-1.10.0"
         assert second.name == "dbt-1.10.13+dbt-bigquery"
+
+
+class TestVenvPackages:
+    """Test which distributions a pinned environment installs."""
+
+    def test_v1_installs_dbt_core_and_adapter(self):
+        """dbt 1.x comes from dbt-core with the adapter installed alongside."""
+        assert get_dbt_venv_packages("1.12.5", "dbt-duckdb=1.12.0") == [
+            "dbt-core==1.12.5",
+            "dbt-duckdb==1.12.0",
+        ]
+
+    def test_v2_installs_the_dbt_distribution(self):
+        """dbt v2 is published as `dbt`, not dbt-core."""
+        assert get_dbt_venv_packages("2.0.6", None) == ["dbt==2.0.6"]
+
+    def test_v2_skips_the_adapter(self):
+        """dbt v2 bundles its adapters, so a separate adapter install is dropped."""
+        assert get_dbt_venv_packages("2.0.6", "dbt-bigquery") == ["dbt==2.0.6"]
+
+    def test_adapter_without_version_pin(self):
+        """Without a dbt pin the adapter alone decides what gets installed."""
+        assert get_dbt_venv_packages(None, "dbt-duckdb") == ["dbt-duckdb"]
+
+
+class TestResolveDbtCommandsDefer:
+    """Test that deferral is explicit so dbt v1 and v2 behave the same."""
+
+    @staticmethod
+    def make_args(**overrides) -> Namespace:
+        """Build a minimal args namespace for the local runner."""
+        values = {
+            "runner": "local",
+            "dbt_project_dir": "/workspace/dbt",
+            "profiles_dir": "/workspace/dbt",
+            "reference_state": "/workspace/dbt/.dbtstate",
+            "target": None,
+            "vars": None,
+            "defer": False,
+        }
+        values.update(overrides)
+        return Namespace(**values)
+
+    def test_no_defer_added_when_state_is_passed(self):
+        """dbt v2 defers by default once --state is set, so dbt-ci opts out explicitly."""
+        commands = resolve_dbt_commands(["run", "--select", "a"], self.make_args())
+        assert "--state" in commands
+        assert commands[-1] == "--no-defer"
+
+    def test_defer_is_kept_when_requested(self):
+        """An explicit --defer must not be contradicted by --no-defer."""
+        commands = resolve_dbt_commands(["run"], self.make_args(defer=True))
+        assert "--defer" in commands
+        assert "--no-defer" not in commands
+
+    def test_clone_is_left_to_defer(self):
+        """dbt clone works by deferring to the state manifest."""
+        commands = resolve_dbt_commands(["clone", "--select", "a"], self.make_args())
+        assert "--no-defer" not in commands
+
+    def test_no_state_means_no_defer_flag(self):
+        """Without --state there is nothing to defer to, so no flag is added."""
+        commands = resolve_dbt_commands(["run"], self.make_args(reference_state=None))
+        assert "--state" not in commands
+        assert "--no-defer" not in commands
 
 
 class TestResolvePinnedDbtBinary:
