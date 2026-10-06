@@ -669,8 +669,12 @@ Things to know:
   `--defer`, so `run`, `test` and `build` behave the same on both versions. `--defer`
   still turns deferral on.
 - **Change detection works unchanged.** dbt v2 still writes `target/manifest.json` in the
-  same v12 schema dbt-ci parses. Build your reference state with the same major dbt
-  version that CI runs with.
+  same v12 schema dbt-ci parses. CI checks every manifest field dbt-ci relies on (node
+  ids, resource types, project-relative file paths, configs, lineage) against dbt-core
+  1.10, 1.11, 1.12 and dbt v2.
+- **Upgrading mid-stream is supported.** A reference state built with dbt-core 1.x can be
+  compared against a PR that runs dbt v2, so CI keeps working while production is still
+  on 1.x. Once production runs dbt v2, refresh the stored state so both sides match.
 
 ### Bash Runner
 

@@ -29,9 +29,13 @@ jobs:
         python -m pip install --upgrade pip
         pip install dbt-core==${{ matrix.dbt-version }}
         pip install -e ".[dev]"
+        # dbt-duckdb lets the e2e tests run a real project; pin dbt-core so it stays on the matrix version.
+        pip install dbt-duckdb "dbt-core==${{ matrix.dbt-version }}"
     
     - name: Run tests with dbt-core ${{ matrix.dbt-version }}
-      run: pytest -v --cov=dbt_ci --cov-report=xml --cov-report=term
+      run: |
+        export DBT_CI_E2E_DBT_BINARY="$(command -v dbt)"
+        pytest -v --cov=dbt_ci --cov-report=xml --cov-report=term
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v7
@@ -66,7 +70,18 @@ jobs:
         "$RUNNER_TEMP/dbt-v2/bin/pip" install "dbt==2.0.6"
         "$RUNNER_TEMP/dbt-v2/bin/dbt" --version
 
+    - name: Install dbt-core 1.x in its own environment
+      run: |
+        python -m venv "$RUNNER_TEMP/dbt-v1"
+        "$RUNNER_TEMP/dbt-v1/bin/pip" install "dbt-core==1.12.5" dbt-duckdb
+
     - name: Run end-to-end tests with dbt v2
       run: |
         export DBT_CI_E2E_DBT_BINARY="$RUNNER_TEMP/dbt-v2/bin/dbt"
         pytest -v tests/e2e
+
+    - name: Run end-to-end tests with dbt v2 against state built by dbt-core 1.x
+      run: |
+        export DBT_CI_E2E_DBT_BINARY="$RUNNER_TEMP/dbt-v2/bin/dbt"
+        export DBT_CI_E2E_REFERENCE_DBT_BINARY="$RUNNER_TEMP/dbt-v1/bin/dbt"
+        pytest -v tests/e2e/test_dbt_versions.py

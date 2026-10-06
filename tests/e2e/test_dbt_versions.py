@@ -5,6 +5,10 @@ The test is opt-in: set DBT_CI_E2E_DBT_BINARY to a dbt executable that can run D
 (dbt-core with dbt-duckdb, or dbt v2, which bundles DuckDB). CI uses it to exercise
 dbt v2 through the local runner, since dbt v2 cannot share an environment with the
 dbt-core that dbt-ci itself depends on.
+
+Set DBT_CI_E2E_REFERENCE_DBT_BINARY as well to build the production state with a
+different dbt (e.g. dbt-core 1.x) than the one the PR runs on (e.g. dbt v2). That is
+the mid-upgrade case, where the stored state manifest predates the new dbt version.
 """
 import os
 import shutil
@@ -15,6 +19,7 @@ from pathlib import Path
 import pytest
 
 DBT_BINARY = os.environ.get("DBT_CI_E2E_DBT_BINARY")
+REFERENCE_DBT_BINARY = os.environ.get("DBT_CI_E2E_REFERENCE_DBT_BINARY") or DBT_BINARY
 
 pytestmark = [
     pytest.mark.e2e,
@@ -101,7 +106,7 @@ def project(tmp_path: Path) -> Path:
 
     # Production state: build main against the prod target and keep its manifest.
     subprocess.run(
-        [str(DBT_BINARY), "build", "--project-dir", str(dbt_dir), "--profiles-dir", str(dbt_dir), "--target", "prod"],
+        [str(REFERENCE_DBT_BINARY), "build", "--project-dir", str(dbt_dir), "--profiles-dir", str(dbt_dir), "--target", "prod"],
         cwd=repo,
         check=True,
     )
