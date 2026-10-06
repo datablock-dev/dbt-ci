@@ -140,13 +140,13 @@ gh workflow run ci.yml
 ## Docker Image Releases
 
 Docker images are built for every push to main and tagged with:
-- `dbt-{VERSION}` (e.g., `dbt-1.10.13`)
-- `latest` (points to dbt-1.10.13 currently)
-- Future: `v{RELEASE}-dbt{VERSION}` (e.g., `v1.2.3-dbt1.10.13`)
+- `dbt-{VERSION}` (e.g., `dbt-1.10.23`)
+- `latest` (points to dbt-1.12.5 currently)
+- Future: `v{RELEASE}-dbt{VERSION}` (e.g., `v1.2.3-dbt1.10.23`)
 
 Images are hosted at: `ghcr.io/datablock-dev/dbt-ci`
 
-Supported dbt-core versions: 1.10.13, 1.11.5 (and future versions)
+Supported dbt-core versions: 1.10.23, 1.11.15, 1.12.5 (and future versions)
 
 **Note:** Only dbt-core 1.10.13 and above are supported.
 
