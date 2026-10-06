@@ -271,6 +271,8 @@ dbt-ci delete --dry-run  # preview what will be deleted
 dbt-ci delete            # execute deletions
 ```
 
+The tables dropped are the ones in the **reference** manifest (usually production), so run the real delete only after the removal is merged, and use `--dry-run` everywhere else. On BigQuery the connection comes from the `profile` named in `dbt_project.yml` and the `--target` output in `profiles.yml` (its `project` and `location`).
+
 **Flags:**
 
 > Only [common options](#common-options) apply — no command-specific flags.
