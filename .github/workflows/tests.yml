@@ -53,7 +53,7 @@ jobs:
     # dbt v2 installs its own `dbt` package and executable, so it cannot share an
     # environment with the dbt-core that dbt-ci depends on. It gets its own venv and
     # dbt-ci drives it through the local runner, which is how users run it too.
-    runs-on: [ ubuntu-latest ]
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v7
