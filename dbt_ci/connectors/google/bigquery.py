@@ -11,7 +11,7 @@ try:  # google-cloud-bigquery ships in the optional "gcp" extra.
     from google.cloud import bigquery
 except ImportError:  # pragma: no cover - exercised only without the extra installed
     bigquery = None
-from dbt_ci.utilities.paths import get_profile, get_profiles_file
+from dbt_ci.utilities.paths import get_dbt_project_file, get_profile, get_profiles_file
 from dbt_ci.utilities.multi_threading import run_multithreaded
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def bigquery_client(args: Namespace) -> bigquery.Client:
     )
     
     # Get the profile name from the project config
-    profile_name = getattr(args, "project", {}).get("profile")
+    profile_name = (get_dbt_project_file(dbt_project_dir) or {}).get("profile")
     
     if not profile_name:
         raise ValueError(
