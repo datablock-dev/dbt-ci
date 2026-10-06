@@ -18,6 +18,8 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 
 # Kept deliberately small: dbt-ci is installed alongside a user's dbt project, so exact
