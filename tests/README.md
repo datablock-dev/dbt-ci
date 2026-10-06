@@ -44,6 +44,15 @@ End-to-end tests validate complete workflows and integration scenarios:
 pytest tests/e2e/
 ```
 
+`test_dbt_versions.py` runs `dbt-ci init` and `dbt-ci run` against a real dbt binary and
+is skipped unless `DBT_CI_E2E_DBT_BINARY` points at one that can run DuckDB. CI uses it to
+cover dbt v2:
+
+```bash
+python -m venv /tmp/dbt-v2 && /tmp/dbt-v2/bin/pip install "dbt==2.0.6"
+DBT_CI_E2E_DBT_BINARY=/tmp/dbt-v2/bin/dbt pytest tests/e2e/test_dbt_versions.py
+```
+
 **Example structure:**
 ```
 tests/e2e/

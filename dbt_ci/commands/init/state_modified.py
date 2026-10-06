@@ -301,21 +301,20 @@ class StateModified:
 
             # unique_id rather than name: names are ambiguous across packages and
             # between a model and a singular test, so a bare name cannot identify a node.
-            commands = resolve_dbt_commands(
-                ["ls", "--select", "state:modified", "--output", "json", "--output-keys", "unique_id", "--quiet"],
-                self.args,
-            )
-            # Only pass --target when a reference target was configured. Appending it
-            # unconditionally put a None into the argument list, which broke the run as
-            # soon as anything tried to join the arguments into a string.
+            # The reference target and vars go in before resolve_dbt_commands, which then
+            # leaves out the current --target/--vars. Appending them afterwards passed each
+            # flag twice: dbt v1 silently took the last one, dbt v2 rejects the command.
+            ls_command = ["ls", "--select", "state:modified", "--output", "json", "--output-keys", "unique_id", "--quiet"]
             reference_target = getattr(self.args, "reference_target", None)
             if reference_target:
-                commands.extend(["--target", reference_target])
+                ls_command.extend(["--target", reference_target])
 
             reference_vars = getattr(self.args, "reference_vars", None)
             if reference_vars:
-                commands.extend(["--vars", reference_vars])
-    
+                ls_command.extend(["--vars", reference_vars])
+
+            commands = resolve_dbt_commands(ls_command, self.args)
+
             logger.debug(f"Running dbt ls command with arguments: {commands}")
     
             ls_output = run_dbt_command(

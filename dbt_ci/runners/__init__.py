@@ -6,6 +6,7 @@ from pathlib import Path
 from argparse import Namespace
 from typing import Callable, cast
 from dbt_ci.schema import RunnerConfig, Runners
+from dbt_ci.dbt.versions import get_dbt_distribution, is_dbt_v2
 from dbt_ci.runners.dbt import dbt_runner
 from dbt_ci.runners.local import local_runner
 from dbt_ci.runners.docker import docker_runner, get_container_paths
@@ -112,13 +113,8 @@ def dbt_venv_is_ready(venv_dir: Path) -> bool:
     return (venv_dir / ".dbt-ci-ready").is_file() and (venv_dir / "bin" / "dbt").is_file()
 
 def create_dbt_venv(venv_dir: Path, dbt_version: str | None, adapter: str | None) -> None:
-    """Create a virtual environment containing the requested dbt-core version and adapter."""
-    packages: list[str] = []
-    if dbt_version:
-        packages.append(f"dbt-core=={dbt_version}")
-    if adapter:
-        name, version = parse_adapter(adapter)
-        packages.append(f"{name}=={version}" if version else name)
+    """Create a virtual environment containing the requested dbt version and adapter."""
+    packages = get_dbt_venv_packages(dbt_version, adapter)
 
     logger.info(f"Installing {', '.join(packages)} into {venv_dir}...")
     venv_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -131,6 +127,28 @@ def create_dbt_venv(venv_dir: Path, dbt_version: str | None, adapter: str | None
     subprocess.run([str(dbt_bin), "--version"], check=True)
 
     (venv_dir / ".dbt-ci-ready").write_text("\n".join(packages), encoding="utf-8")
+
+def get_dbt_venv_packages(dbt_version: str | None, adapter: str | None) -> list[str]:
+    """
+    Return the pip requirements for a pinned dbt version and adapter.
+
+    dbt v2 ships as the `dbt` distribution with every adapter bundled, so for v2 the
+    version is installed from `dbt` and a separately requested adapter is skipped.
+    """
+    packages: list[str] = []
+    if dbt_version:
+        packages.append(f"{get_dbt_distribution(dbt_version)}=={dbt_version}")
+    if adapter:
+        if is_dbt_v2(dbt_version):
+            logger.warning(
+                "dbt v2 bundles its adapters; ignoring --adapter '%s' for dbt %s.",
+                adapter,
+                dbt_version,
+            )
+        else:
+            name, version = parse_adapter(adapter)
+            packages.append(f"{name}=={version}" if version else name)
+    return packages
 
 def parse_adapter(adapter: str) -> tuple[str, str | None]:
     """
@@ -249,6 +267,14 @@ def resolve_dbt_commands(
         value = getattr(args, var, None)
         if value is True:
             commands.append(dbt_flag)
+
+    # dbt v2 defers to --state whenever neither --defer nor --no-defer is given, while
+    # v1 only defers on request. Saying --no-defer explicitly keeps both on v1 semantics;
+    # v1 has accepted it on every command since 1.5. clone is left alone because it
+    # works by deferring to the state manifest.
+    if "--state" in commands and "--defer" not in commands and "--no-defer" not in commands:
+        if commands and commands[0] != "clone":
+            commands.append("--no-defer")
 
     if runner is None:
         raise ValueError("Runner not specified")

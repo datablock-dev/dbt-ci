@@ -598,7 +598,7 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 | `--defer` | | `DBT_DEFER` | `false` | Pass dbt's `--defer` flag (defers unmodified nodes to the production state) |
 | `--runner` | `-r` | `DBT_RUNNER` | `dbt` | Runner to use: `dbt`, `local`, `docker`, `bash` |
 | `--entrypoint` | | `DBT_ENTRYPOINT` | `dbt` | Command entrypoint for dbt |
-| `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`). **Requires `--runner local`** |
+| `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`, or `2.0.6` for dbt v2). **Requires `--runner local`** |
 | `--adapter` | `-a` | `DBT_ADAPTER` | `None` | dbt adapter to install (e.g. `dbt-bigquery`, `dbt-duckdb=1.10.0`). **Requires `--runner local`** |
 | `--config` | `-c` | `DBT_CONFIG` | `dbt-ci.config.yaml` | Path to a dbt-ci YAML configuration file |
 | `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them |
@@ -641,6 +641,43 @@ The other runners resolve dbt from elsewhere and log a warning if a pin is set:
 | `dbt` | the `dbt-core` installed alongside dbt-ci (runs in-process) |
 | `docker` | the configured `--docker-image` |
 | `bash` | the script at `--shell-path` |
+
+### dbt v2
+
+dbt v2 is a ground-up rewrite of dbt in Rust. It ships on PyPI as `dbt` (or `dbt-oss`)
+rather than `dbt-core`, as a self-contained binary with every adapter bundled. dbt-ci
+drives it through the CLI, so use the **`local`** runner:
+
+```bash
+# dbt-ci installs dbt v2 into a cached virtual environment
+dbt-ci init --runner local --dbt-version 2.0.6 ...
+dbt-ci run  --runner local --dbt-version 2.0.6 ...
+
+# ...or point dbt-ci at a dbt v2 binary you installed yourself
+dbt-ci run --runner local --entrypoint /path/to/dbt ...
+```
+
+Things to know:
+
+- **Keep dbt v2 out of dbt-ci's environment.** dbt-ci depends on dbt-core 1.x, and dbt v2
+  and dbt-core both install a `dbt` Python package and `dbt` executable, so installing
+  them into one environment overwrites one with the other. Install dbt-ci on its own
+  (e.g. `pipx install dbt-ci` or `uv tool install dbt-ci`) and let `--dbt-version`
+  or `--entrypoint` supply dbt v2.
+- **The `dbt` runner is v1 only.** It runs the dbt-core installed alongside dbt-ci
+  in-process.
+- **`--adapter` is ignored for dbt v2**, because adapters are bundled. A warning is logged.
+- **Deferral stays opt-in.** dbt v2 defers to `--state` by default, while dbt v1 only
+  defers when asked. dbt-ci passes `--no-defer` whenever it passes `--state` without
+  `--defer`, so `run`, `test` and `build` behave the same on both versions. `--defer`
+  still turns deferral on.
+- **Change detection works unchanged.** dbt v2 still writes `target/manifest.json` in the
+  same v12 schema dbt-ci parses. CI checks every manifest field dbt-ci relies on (node
+  ids, resource types, project-relative file paths, configs, lineage) against dbt-core
+  1.10, 1.11, 1.12 and dbt v2.
+- **Upgrading mid-stream is supported.** A reference state built with dbt-core 1.x can be
+  compared against a PR that runs dbt v2, so CI keeps working while production is still
+  on 1.x. Once production runs dbt v2, refresh the stored state so both sides match.
 
 ### Bash Runner
 

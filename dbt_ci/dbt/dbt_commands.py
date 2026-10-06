@@ -108,9 +108,14 @@ class DbtCommands:
 
             changed_files = git.get_changed_files()
 
-            commands = resolve_dbt_commands(["ls", "--select", "state:modified", "--output", "name", "--quiet"], self.args)
-            commands.extend(["--target", getattr(self.args, "reference_target")])
-            commands.extend(["--vars", getattr(self.args, "reference_vars")]) if getattr(self.args, "reference_vars", None) else None
+            # Reference target and vars go in first so resolve_dbt_commands does not add
+            # the current ones as well; dbt v2 rejects a flag given twice.
+            ls_command = ["ls", "--select", "state:modified", "--output", "name", "--quiet"]
+            if getattr(self.args, "reference_target", None):
+                ls_command.extend(["--target", getattr(self.args, "reference_target")])
+            if getattr(self.args, "reference_vars", None):
+                ls_command.extend(["--vars", getattr(self.args, "reference_vars")])
+            commands = resolve_dbt_commands(ls_command, self.args)
 
             logger.debug(f"Running dbt ls command with arguments: {commands}")
 
