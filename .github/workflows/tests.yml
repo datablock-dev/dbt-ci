@@ -89,3 +89,52 @@ jobs:
         export DBT_CI_E2E_DBT_BINARY="$RUNNER_TEMP/dbt-v2/bin/dbt"
         export DBT_CI_E2E_REFERENCE_DBT_BINARY="$RUNNER_TEMP/dbt-v1/bin/dbt"
         pytest -v tests/e2e/test_dbt_versions.py
+
+  test-docker-runner:
+    # Many users run dbt-ci with --runner docker, so the e2e tests also drive dbt through
+    # the Docker runner: a dbt v2 image, the mid-upgrade case against state built by
+    # dbt-core 1.x, and a dbt-core 1.x image. tests/e2e/docker/Dockerfile builds images
+    # with dbt as the entrypoint, like the official dbt images.
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+
+    - name: Install dbt-ci
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Build dbt images
+      run: |
+        docker build -t dbt-ci-e2e:v2 --build-arg DBT_PACKAGES="dbt==2.0.6" tests/e2e/docker
+        docker build -t dbt-ci-e2e:v1 --build-arg DBT_PACKAGES="dbt-core==1.12.5 dbt-duckdb" tests/e2e/docker
+        docker run --rm dbt-ci-e2e:v2 --version
+        docker run --rm dbt-ci-e2e:v1 --version
+
+    - name: Install dbt-core 1.x for the mid-upgrade state
+      run: |
+        python -m venv "$RUNNER_TEMP/dbt-v1"
+        "$RUNNER_TEMP/dbt-v1/bin/pip" install "dbt-core==1.12.5" dbt-duckdb
+
+    - name: Run end-to-end tests through the Docker runner with dbt v2
+      env:
+        DBT_CI_E2E_DOCKER_IMAGE: dbt-ci-e2e:v2
+      run: pytest -v tests/e2e
+
+    - name: Run end-to-end tests through the Docker runner with dbt v2 against state built by dbt-core 1.x
+      env:
+        DBT_CI_E2E_DOCKER_IMAGE: dbt-ci-e2e:v2
+      run: |
+        export DBT_CI_E2E_REFERENCE_DBT_BINARY="$RUNNER_TEMP/dbt-v1/bin/dbt"
+        pytest -v tests/e2e/test_dbt_versions.py
+
+    - name: Run end-to-end tests through the Docker runner with dbt-core 1.x
+      env:
+        DBT_CI_E2E_DOCKER_IMAGE: dbt-ci-e2e:v1
+      run: pytest -v tests/e2e

@@ -1,30 +1,28 @@
 """
-End-to-end check that `dbt-ci init` and `dbt-ci run` work against a real dbt binary.
+End-to-end check that `dbt-ci init` and `dbt-ci run` work against a real dbt.
 
-The test is opt-in: set DBT_CI_E2E_DBT_BINARY to a dbt executable that can run DuckDB
-(dbt-core with dbt-duckdb, or dbt v2, which bundles DuckDB). CI uses it to exercise
-dbt v2 through the local runner, since dbt v2 cannot share an environment with the
-dbt-core that dbt-ci itself depends on.
+The test is opt-in: see dbt_env for the environment variables that pick the dbt under
+test. CI runs it with the local runner against dbt-core 1.x and dbt v2, and with the
+Docker runner against dbt-core 1.x and dbt v2 images. dbt v2 cannot share an
+environment with the dbt-core that dbt-ci itself depends on, so it always runs from
+its own venv or image.
 
-Set DBT_CI_E2E_REFERENCE_DBT_BINARY as well to build the production state with a
-different dbt (e.g. dbt-core 1.x) than the one the PR runs on (e.g. dbt v2). That is
-the mid-upgrade case, where the stored state manifest predates the new dbt version.
+With DBT_CI_E2E_REFERENCE_DBT_BINARY set, the production state is built with that dbt
+(e.g. dbt-core 1.x) while the PR runs the dbt under test (e.g. dbt v2). That is the
+mid-upgrade case, where the stored state manifest predates the new dbt version.
 """
-import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
-DBT_BINARY = os.environ.get("DBT_CI_E2E_DBT_BINARY")
-REFERENCE_DBT_BINARY = os.environ.get("DBT_CI_E2E_REFERENCE_DBT_BINARY") or DBT_BINARY
+from .dbt_env import DBT_AVAILABLE, REFERENCE_DBT_BINARY, SKIP_REASON, dbt_ci, run_dbt
 
 pytestmark = [
     pytest.mark.e2e,
     pytest.mark.requires_dbt,
-    pytest.mark.skipif(not DBT_BINARY, reason="DBT_CI_E2E_DBT_BINARY is not set"),
+    pytest.mark.skipif(not DBT_AVAILABLE, reason=SKIP_REASON),
 ]
 
 DBT_PROJECT = """
@@ -52,25 +50,6 @@ def git(repo: Path, *args: str) -> None:
         cwd=repo,
         check=True,
         capture_output=True,
-    )
-
-
-def dbt_ci(repo: Path, cache_dir: Path, *args: str) -> subprocess.CompletedProcess:
-    """Run the dbt-ci CLI against the local runner and the dbt binary under test."""
-    env = {**os.environ, "DBT_CI_CACHE_DIR": str(cache_dir)}
-    return subprocess.run(
-        [
-            sys.executable, "-c", "from dbt_ci.main import cli; cli()", *args,
-            "--runner", "local",
-            "--entrypoint", str(DBT_BINARY),
-            "--dbt-project-dir", "dbt",
-            "--profiles-dir", "dbt",
-            "--target", "dev",
-        ],
-        cwd=repo,
-        env=env,
-        capture_output=True,
-        text=True,
     )
 
 
@@ -105,11 +84,14 @@ def project(tmp_path: Path) -> Path:
     git(repo, "commit", "-qm", "base")
 
     # Production state: build main against the prod target and keep its manifest.
-    subprocess.run(
-        [str(REFERENCE_DBT_BINARY), "build", "--project-dir", str(dbt_dir), "--profiles-dir", str(dbt_dir), "--target", "prod"],
+    build = run_dbt(
+        ["build", "--project-dir", str(dbt_dir), "--profiles-dir", str(dbt_dir), "--target", "prod"],
         cwd=repo,
-        check=True,
+        mount=tmp_path,
+        binary=REFERENCE_DBT_BINARY,
+        check=False,
     )
+    assert build.returncode == 0, build.stdout + build.stderr
     (repo / "state").mkdir()
     shutil.copy(dbt_dir / "target" / "manifest.json", repo / "state" / "manifest.json")
     shutil.rmtree(dbt_dir / "target")
@@ -132,7 +114,7 @@ def test_init_and_run_detect_and_build_the_modified_model(project: Path, tmp_pat
     cache_dir = tmp_path / "cache"
 
     init = dbt_ci(
-        project, cache_dir, "init",
+        project, cache_dir, tmp_path, "init",
         "--state", "state",
         "--reference-target", "prod",
         "--base-ref", "main",
@@ -142,7 +124,7 @@ def test_init_and_run_detect_and_build_the_modified_model(project: Path, tmp_pat
     assert "Modified Nodes: 1" in init_output, init_output
     assert "stg [model]" in init_output, init_output
 
-    run = dbt_ci(project, cache_dir, "run", "--state", "state")
+    run = dbt_ci(project, cache_dir, tmp_path, "run", "--state", "state")
     run_output = run.stdout + run.stderr
     assert run.returncode == 0, run_output
     assert "Successfully ran 2 models(s)" in run_output, run_output
