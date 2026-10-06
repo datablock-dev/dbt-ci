@@ -1,5 +1,6 @@
 """Logging configuration for the application."""
 import logging
+import traceback
 from argparse import Namespace
 from collections.abc import Mapping
 from pathlib import Path
@@ -101,7 +102,14 @@ def print_exception(
     e: Exception,
     base_message: str = "Unexpected error", 
 ) -> None:
-    """Print an exception with file and line number information."""
+    """Print an exception with the file and line where it was raised.
+
+    The innermost traceback frame is reported, since the outermost one only points at
+    the call site inside the ``try`` block. The full traceback is logged at debug level.
+    """
     logger.error(f"{base_message}: {e}")
-    logger.error(f"File: {e.__traceback__.tb_frame.f_code.co_filename}")
-    logger.error(f"Line: {e.__traceback__.tb_lineno}")
+    frames = traceback.extract_tb(e.__traceback__)
+    if frames:
+        logger.error(f"File: {frames[-1].filename}")
+        logger.error(f"Line: {frames[-1].lineno}")
+    logger.debug("".join(traceback.format_exception(e)))

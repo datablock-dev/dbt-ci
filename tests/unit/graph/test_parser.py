@@ -1,5 +1,9 @@
 """Unit tests for dependency graph construction."""
-from dbt_ci.graph.parser import compute_transitive_closure, generate_dependency_graph
+from dbt_ci.graph.parser import (
+    compute_transitive_closure,
+    generate_dependency_graph,
+    normalize_node_ids,
+)
 
 
 def _model(name: str, parents: list[str]) -> dict:
@@ -136,3 +140,44 @@ class TestTransitiveClosure:
         graph = generate_dependency_graph(manifest)
 
         assert "model.pkg.a" in graph["model"]
+
+    def test_non_string_dependency_entries_are_reduced_to_ids(self):
+        """depends_on, parent_map and child_map entries given as pairs or objects still parse."""
+        manifest = _manifest({"a": [], "b": ["a"]})
+        b = manifest["nodes"]["model.pkg.b"]
+        b["depends_on"]["nodes"] = [["model.pkg.a", {"line": 1, "col": 5}]]
+        b["depends_on"]["nodes_with_ref_location"] = [["model.pkg.a", {"line": 1}]]
+        manifest["parent_map"]["model.pkg.b"] = [{"unique_id": "model.pkg.a"}]
+        manifest["child_map"]["model.pkg.a"] = [["model.pkg.b", None]]
+
+        graph = generate_dependency_graph(manifest)
+
+        b_node = graph["model"]["model.pkg.b"]
+        assert b_node["upstream_dependencies"]["node_dependencies"] == {"model.pkg.a"}
+        assert graph["model"]["model.pkg.a"]["downstream_dependencies"]["node_dependencies"] == {
+            "model.pkg.b"
+        }
+
+    def test_columns_given_as_a_list_are_read_by_name(self):
+        """A columns field written as a list of column objects yields the column names."""
+        manifest = _manifest({"a": []})
+        manifest["nodes"]["model.pkg.a"]["columns"] = [{"name": "id"}, {"name": "amount"}]
+
+        graph = generate_dependency_graph(manifest)
+
+        assert graph["model"]["model.pkg.a"]["columns"] == {"id", "amount"}
+
+
+class TestNormalizeNodeIds:
+    """Tests for normalize_node_ids."""
+
+    def test_mixed_entry_shapes(self):
+        """Strings, pairs and objects are reduced to ids; unrecognised entries are dropped."""
+        entries = ["model.p.a", ["model.p.b", {}], {"unique_id": "model.p.c"}, 3, [], None]
+
+        assert normalize_node_ids(entries) == ["model.p.a", "model.p.b", "model.p.c"]
+
+    def test_non_list_input_is_empty(self):
+        """None or a scalar yields no ids."""
+        assert normalize_node_ids(None) == []
+        assert normalize_node_ids("model.p.a") == []

@@ -22,6 +22,38 @@ def skeleton_dependencies_structure():
         },
     }
 
+def normalize_node_ids(entries) -> list[str]:
+    """Return the unique_ids in a manifest dependency list, whatever shape each entry has.
+
+    dbt-core writes plain unique_id strings. Manifests written by dbt v2 can also hold
+    pairs such as ``[unique_id, location]`` or objects carrying ``unique_id``; those are
+    reduced to the id, and anything without a recognisable id is dropped.
+    """
+    if not isinstance(entries, (list, tuple, set)):
+        return []
+    node_ids: list[str] = []
+    for entry in entries:
+        if isinstance(entry, str):
+            node_ids.append(entry)
+        elif isinstance(entry, (list, tuple)) and entry and isinstance(entry[0], str):
+            node_ids.append(entry[0])
+        elif isinstance(entry, dict):
+            node_id = entry.get("unique_id") or entry.get("id")
+            if isinstance(node_id, str):
+                node_ids.append(node_id)
+    return node_ids
+
+def column_names(columns) -> set[str]:
+    """Return column names from a manifest ``columns`` field, given as a mapping or a list."""
+    if isinstance(columns, dict):
+        return {name for name in columns.keys() if isinstance(name, str)}
+    if isinstance(columns, list):
+        return {
+            column["name"] for column in columns
+            if isinstance(column, dict) and isinstance(column.get("name"), str)
+        }
+    return set()
+
 def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
     """Generate dependency graph from manifest file.
     Args:
@@ -39,7 +71,8 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
         "source": {}
     }
 
-    for key, downstream_dependencies in child_map.items():
+    for key, raw_downstream_dependencies in child_map.items():
+        downstream_dependencies = normalize_node_ids(raw_downstream_dependencies)
         node_type: DependencyGraphNodeType = cast(DependencyGraphNodeType, key.split(".")[0])
         manifest_key = MANIFEST_KEY_MAPPING.get(node_type)
         full_item: DbtNode | None  = (manifest_file.get(manifest_key) or {}).get(key, None) if manifest_key else None
@@ -85,7 +118,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             "compiled_path": full_item.get("compiled_path", None),
             "compiled_code": compiled_code,
             "config": config,
-            "columns": set(full_item.get("columns", {}).keys()),
+            "columns": column_names(full_item.get("columns")),
             "materialized": config.get("materialized", None),
             "incremental_strategy": config.get("incremental_strategy", None),
             "downstream_dependencies": {
@@ -110,7 +143,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             dependency_graph=dependency_graph,
             node_type=node_type,
             node_id=key,
-            dependencies=full_item.get("depends_on", {}),
+            dependencies=full_item.get("depends_on") or {},
         )
 
     # Macros don't appear as keys in child_map, so populate them directly from
@@ -153,8 +186,11 @@ def append_depends_on_nodes(
     """Append dependencies from the "depends_on" section of the manifest file to the dependency graph."""
     upstream = dependency_graph[node_type][node_id]["upstream_dependencies"]
 
-    for dep_type, dep_ids in dependencies.items():
-        if dep_ids is None or not isinstance(dep_ids, list):
+    # Only "nodes" and "macros" hold dependency ids. dbt v2 adds further keys under
+    # depends_on (e.g. per-reference locations) that must not be read as ids.
+    for dep_type in ("nodes", "macros"):
+        dep_ids = normalize_node_ids(dependencies.get(dep_type))
+        if not dep_ids:
             continue
 
         # Add all dep_ids to node_dependencies
@@ -241,7 +277,8 @@ def append_upstream_dependencies(dependency_graph: DependencyGraph, manifest_fil
     """Populate upstream dependencies from the manifest's parent_map."""
     parent_map = manifest_file.get("parent_map") or {}
 
-    for child_id, parent_ids in parent_map.items():
+    for child_id, raw_parent_ids in parent_map.items():
+        parent_ids = normalize_node_ids(raw_parent_ids)
         if len(parent_ids) == 0:
             continue
 
