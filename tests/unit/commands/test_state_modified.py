@@ -90,3 +90,33 @@ class TestGetStateModified:
 
         with pytest.raises(SystemExit):
             state.get_state_modified()
+
+
+class TestCommonStateChangeCommand:
+    """Test the dbt ls command built for state:modified."""
+
+    @pytest.mark.parametrize(
+        "overrides,expected_target,expected_vars",
+        [
+            ({"target": "dev", "vars": "{a: 1}"}, "production", "{b: 2}"),
+            ({"target": "dev", "vars": "{a: 1}", "reference_target": None}, "dev", "{b: 2}"),
+            ({"target": "dev", "vars": "{a: 1}", "reference_vars": None}, "production", "{a: 1}"),
+        ],
+    )
+    def test_target_and_vars_are_passed_once(self, overrides, expected_target, expected_vars):
+        """The reference target and vars replace the current ones instead of repeating the flag."""
+        args = _args(**{"reference_vars": "{b: 2}", **overrides})
+        state = StateModified(args)
+
+        with patch("dbt_ci.commands.init.state_modified.CacheManager"), \
+             patch("dbt_ci.commands.init.state_modified.run_dbt_command") as mock_run, \
+             patch.object(StateModified, "target_graph", {"model": {}}), \
+             patch.object(StateModified, "reference_graph", {"model": {}}):
+            mock_run.return_value.stdout = ""
+            state.common_state_change()
+
+        commands = mock_run.call_args.kwargs["command_args"]
+        assert commands.count("--target") == 1
+        assert commands[commands.index("--target") + 1] == expected_target
+        assert commands.count("--vars") == 1
+        assert commands[commands.index("--vars") + 1] == expected_vars
