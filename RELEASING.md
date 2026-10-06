@@ -16,6 +16,8 @@ When you push commits to `main` branch, the CI/CD pipeline (`publish-pypi.yml`) 
 9. ✅ Publishes to PyPI (https://pypi.org/project/dbt-ci/)
 10. ✅ Builds Docker images for multiple dbt-core versions
 
+**Note:** Pushes that change only Markdown files (`*.md`) skip the pipeline, and pull requests that change only Markdown files skip the tests. Any release they would have produced goes out with the next push that touches other files.
+
 **Note:** The first release after setup may require a manual commit with conventional commit format to trigger semantic-release.
 
 ## Commit Message Format
@@ -115,7 +117,7 @@ gh workflow run ci.yml
 
 **Solutions:**
 1. Check that commits follow Conventional Commits format
-2. Verify commits are not marked with `[skip ci]`
+2. Verify commits are not marked with `[skip ci]`, and that the push changed more than Markdown files
 3. Check GitHub Actions logs for errors
 4. Ensure secrets `SEMANTIC_RELEASE_TOKEN` and `PYPI_TOKEN` are configured
 
