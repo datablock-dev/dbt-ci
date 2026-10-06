@@ -55,6 +55,9 @@ install it rather than failing with an import traceback.
 | 1.11.x | Supported, tested in CI |
 | 1.12.x | Supported, tested in CI |
 
+dbt-ci needs Python 3.12 or newer. CI tests Python 3.12 and 3.13 on every dbt-core version
+above, and Python 3.14 on dbt-core 1.12, the first release that supports it.
+
 `pip install dbt-ci` resolves the newest dbt-core 1.x (`>=1.10.13,<2.0.0`). To stay on an
 older minor version, pin it alongside dbt-ci, e.g. `pip install dbt-ci 'dbt-core~=1.11.0'`.
 
@@ -764,12 +767,12 @@ jobs:
   dbt-ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -798,7 +801,7 @@ jobs:
 
 ```yaml
 dbt-ci:
-  image: python:3.11
+  image: python:3.12
   script:
     - pip install 'dbt-ci[gcp] @ git+https://github.com/datablock-dev/dbt-ci.git@main'
     - dbt-ci init --dbt-project-dir dbt --state-uri gs://my-dbt-state/prod/manifest.json --reference-target production --state dbt/.dbtstate
