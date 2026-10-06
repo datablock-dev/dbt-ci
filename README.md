@@ -1,7 +1,7 @@
 # dbt-ci
 
 [![Tests](https://github.com/datablock-dev/dbt-ci/actions/workflows/tests.yml/badge.svg)](https://github.com/datablock-dev/dbt-ci/actions/workflows/tests.yml)
-[![dbt-core](https://img.shields.io/badge/dbt--core-1.10%20%7C%201.11-orange?logo=dbt&logoColor=white)](https://github.com/datablock-dev/dbt-ci/actions/workflows/tests.yml)
+[![dbt-core](https://img.shields.io/badge/dbt--core-1.10%20%7C%201.11%20%7C%201.12-orange?logo=dbt&logoColor=white)](https://github.com/datablock-dev/dbt-ci/actions/workflows/tests.yml)
 
 A CI tool for dbt (data build tool) projects that intelligently runs only modified models based on state comparison, supporting multiple execution environments including local, Docker, and dbt runners.
 
@@ -46,6 +46,20 @@ pip install 'dbt-ci[all]'            # everything
 
 If a feature needs an extra you haven't installed, dbt-ci says which one and how to
 install it rather than failing with an import traceback.
+
+#### Supported dbt versions
+
+| dbt-core | Status |
+|----------|--------|
+| 1.10.x | Supported, tested in CI |
+| 1.11.x | Supported, tested in CI |
+| 1.12.x | Supported, tested in CI |
+
+`pip install dbt-ci` resolves the newest dbt-core 1.x (`>=1.10.13,<2.0.0`). To stay on an
+older minor version, pin it alongside dbt-ci, e.g. `pip install dbt-ci 'dbt-core~=1.11.0'`.
+
+The published Docker images are tagged per dbt-core version (`dbt-1.10.23`, `dbt-1.11.15`,
+`dbt-1.12.5`); `latest` tracks the newest supported minor version.
 
 ### From GitHub
 
@@ -256,6 +270,8 @@ Detects and deletes models that have been removed from the project. Uses cached 
 dbt-ci delete --dry-run  # preview what will be deleted
 dbt-ci delete            # execute deletions
 ```
+
+The tables dropped are the ones in the **reference** manifest (usually production), so run the real delete only after the removal is merged, and use `--dry-run` everywhere else. On BigQuery the connection comes from the `profile` named in `dbt_project.yml` and the `--target` output in `profiles.yml` (its `project` and `location`).
 
 **Flags:**
 

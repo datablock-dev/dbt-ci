@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dbt-ci"
-version = "1.5.17"
+version = "1.6.2"
 description = "CI/CD tool for dbt projects with intelligent change detection and selective execution"
 authors = [
     {name = "Patrick Tannoury", email = "patrick.tannoury@datablock.dev"},
@@ -51,10 +51,10 @@ dev = [
     "pytest==9.1.1",
     "black==26.5.1",
     "mypy==2.3.1",
-    "flake8==7.3.0",
-    "duckdb==1.5.5",
+    "flake8==7.4.1",
+    "duckdb==1.5.6",
     "pytest-cov==7.1.0",
-    "pytest-mock==3.15.1",
+    "pytest-mock==3.16.0",
 ]
 
 [project.scripts]

@@ -8,7 +8,10 @@ Use the same naming convention as for 'Commit Messages'.
 
 Ticket IDs are always uppercase, regardless of how they are passed in.
 
-Never include references to AI generation in PR bodies — no "Generated with Claude Code", no `Co-authored-by:` trailers, no similar attribution lines.
+Never include references to AI generation in PR bodies — no "Generated with Claude Code", no `Co-authored-by:` trailers, no similar attribution lines. Some tools append such a footer automatically when a PR is created, so re-read the PR body after creating it and remove any that was added.
+
+## Branch Names
+Name branches `<type>/<short-description>`, where `<type>` is one of the commit message prefixes (`feat`, `fix`, `enhance`, `refactor`, `chore`, `docs`, `test`) and the description is lowercase kebab-case, e.g. `fix/bigquery-profile-lookup`. If a ticket ID is given, put it first in the description, in uppercase: `feat/DBT-123-add-snowflake-connector`. Never use tool-generated names such as `claude/...` or names with random suffixes, even when a session suggests one; rename the branch before pushing.
 
 ## README.md
 Always update the README.md file prior to creating a new PR to ensure that it is up to date.
