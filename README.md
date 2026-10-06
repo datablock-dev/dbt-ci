@@ -646,7 +646,7 @@ The other runners resolve dbt from elsewhere and log a warning if a pin is set:
 
 dbt v2 is a ground-up rewrite of dbt in Rust. It ships on PyPI as `dbt` (or `dbt-oss`)
 rather than `dbt-core`, as a self-contained binary with every adapter bundled. dbt-ci
-drives it through the CLI, so use the **`local`** runner:
+drives it through the CLI, so use the **`local`** or **`docker`** runner:
 
 ```bash
 # dbt-ci installs dbt v2 into a cached virtual environment
@@ -655,6 +655,20 @@ dbt-ci run  --runner local --dbt-version 2.0.6 ...
 
 # ...or point dbt-ci at a dbt v2 binary you installed yourself
 dbt-ci run --runner local --entrypoint /path/to/dbt ...
+
+# ...or run dbt v2 from a Docker image
+dbt-ci run --runner docker --docker-image my-registry/dbt-v2:2.0.6 ...
+```
+
+With the Docker runner, dbt-ci passes the dbt command (`ls ...`, `run ...`) as the
+container command, so the image's entrypoint must be `dbt`, as in the official dbt
+images. The default `--docker-image` is a dbt-core 1.x image, so pass a dbt v2 image
+explicitly. A minimal one:
+
+```dockerfile
+FROM python:3.12-slim
+RUN pip install --no-cache-dir "dbt==2.0.6"
+ENTRYPOINT ["dbt"]
 ```
 
 Things to know:
@@ -663,7 +677,7 @@ Things to know:
   and dbt-core both install a `dbt` Python package and `dbt` executable, so installing
   them into one environment overwrites one with the other. Install dbt-ci on its own
   (e.g. `pipx install dbt-ci` or `uv tool install dbt-ci`) and let `--dbt-version`
-  or `--entrypoint` supply dbt v2.
+  or `--entrypoint` supply dbt v2, or run dbt v2 from an image with `--runner docker`.
 - **The `dbt` runner is v1 only.** It runs the dbt-core installed alongside dbt-ci
   in-process.
 - **`--adapter` is ignored for dbt v2**, because adapters are bundled. A warning is logged.
@@ -674,7 +688,7 @@ Things to know:
 - **Change detection works unchanged.** dbt v2 still writes `target/manifest.json` in the
   same v12 schema dbt-ci parses. CI checks every manifest field dbt-ci relies on (node
   ids, resource types, project-relative file paths, configs, lineage) against dbt-core
-  1.10, 1.11, 1.12 and dbt v2.
+  1.10, 1.11, 1.12 and dbt v2, through both the local and the Docker runner.
 - **Upgrading mid-stream is supported.** A reference state built with dbt-core 1.x can be
   compared against a PR that runs dbt v2, so CI keeps working while production is still
   on 1.x. Once production runs dbt v2, refresh the stored state so both sides match.

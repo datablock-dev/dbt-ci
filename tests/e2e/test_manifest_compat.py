@@ -6,12 +6,11 @@ from the manifest. If a dbt version writes any of these differently, change dete
 can degrade silently (e.g. git paths stop matching nodes) rather than fail loudly, so
 this test compiles a small project with a real dbt binary and checks each field.
 
-Opt-in like the other e2e tests: set DBT_CI_E2E_DBT_BINARY to a dbt executable that can
-run DuckDB (dbt-core with dbt-duckdb, or dbt v2).
+Opt-in like the other e2e tests: see dbt_env for the environment variables that pick
+the dbt under test (a local binary or a Docker image).
 """
 import json
 import os
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -20,12 +19,12 @@ from dbt_ci.graph.graph_utils import get_nodes_from_path
 from dbt_ci.graph.parser import generate_dependency_graph
 from dbt_ci.schema import MANIFEST_KEY_MAPPING
 
-DBT_BINARY = os.environ.get("DBT_CI_E2E_DBT_BINARY")
+from .dbt_env import DBT_AVAILABLE, SKIP_REASON, run_dbt
 
 pytestmark = [
     pytest.mark.e2e,
     pytest.mark.requires_dbt,
-    pytest.mark.skipif(not DBT_BINARY, reason="DBT_CI_E2E_DBT_BINARY is not set"),
+    pytest.mark.skipif(not DBT_AVAILABLE, reason=SKIP_REASON),
 ]
 
 PROJECT_FILES = {
@@ -78,9 +77,9 @@ def compiled(tmp_path_factory) -> tuple[Path, dict]:
         f"    dev: {{type: duckdb, path: '{root / 'dev.duckdb'}'}}\n"
     )
 
-    result = subprocess.run(
-        [str(DBT_BINARY), "compile", "--project-dir", str(project), "--profiles-dir", str(project)],
-        cwd=project, capture_output=True, text=True,
+    result = run_dbt(
+        ["compile", "--project-dir", str(project), "--profiles-dir", str(project)],
+        cwd=project, mount=root, check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
