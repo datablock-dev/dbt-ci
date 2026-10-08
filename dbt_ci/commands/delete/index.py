@@ -13,7 +13,7 @@ from dbt_ci.utilities.logging import redact_namespace
 from dbt_ci.connectors import get_connector
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.schema import DeleteMapNode, DependencyGraph, DependencyGraphNode, SupportedConnectors
-from dbt_ci.graph.graph_utils import get_node, get_node_ids_from_structured_nodes, get_nodes
+from dbt_ci.graph.graph_utils import get_node, get_node_ids_from_structured_nodes, get_nodes, get_relation_name
 from dbt_ci.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
@@ -132,7 +132,7 @@ def get_table_id(node_data: DependencyGraphNode) -> str | None:
     """Return the `database.schema.alias` relation of a node, or None if any part is missing."""
     database = node_data.get("database", None)
     schema = node_data.get("schema", None)
-    name = (node_data.get("config") or {}).get("alias", None) or node_data.get("name", None)
+    name = get_relation_name(node_data)
     if any(x is None for x in (database, schema, name)):
         return None
     return f"{database}.{schema}.{name}"

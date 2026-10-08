@@ -1,4 +1,5 @@
 import click
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.main import cli
 from dbt_ci.cli.common_options import common_options
 from dbt_ci.cli.config import make_config_callback
@@ -85,4 +86,6 @@ def init_cmd(**kwargs):
         dbt-ci init --state dbt/.dbtstate --reference-target production
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return init(to_namespace(kwargs, command="init"))
+    args = to_namespace(kwargs, command="init")
+    with CacheManager(args).track_report("init"):
+        return init(args)

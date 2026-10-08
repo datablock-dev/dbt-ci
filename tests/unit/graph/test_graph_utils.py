@@ -129,3 +129,15 @@ class TestGetDisplayName:
     def test_falls_back_to_the_last_segment(self):
         """Without a graph the id's last segment is the best available label."""
         assert get_display_name(None, "model.demo.customers") == "customers"
+
+
+class TestRelationName:
+    """Test which name is used for the table or view dbt builds."""
+
+    def test_resolved_alias_wins(self):
+        """dbt's resolved alias reflects custom generate_alias_name macros."""
+        from dbt_ci.graph.graph_utils import get_relation_name
+
+        assert get_relation_name({"name": "m", "alias": "custom_m", "config": {"alias": "cfg_m"}}) == "custom_m"
+        assert get_relation_name({"name": "m", "config": {"alias": "cfg_m"}}) == "cfg_m"
+        assert get_relation_name({"name": "m", "config": {}}) == "m"

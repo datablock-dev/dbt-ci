@@ -292,3 +292,82 @@ class TestRunNodes:
 
         mock_run_cmd.assert_not_called()
         mock_logger_info.assert_any_call("DRY RUN: Command would be executed")
+
+
+# ---------------------------------------------------------------------------
+# Run order and test selection against a small parsed manifest
+# ---------------------------------------------------------------------------
+
+from dbt_ci.graph.parser import generate_dependency_graph
+from dbt_ci.commands.run.run import tests as select_tests
+
+
+def _manifest_graph() -> dict:
+    """Parse a manifest with a -> b, a data test on each model and a unit test on b."""
+    def model(name, parents=()):
+        """Build a model entry."""
+        return {"name": name, "resource_type": "model", "fqn": ["demo", name], "database": "db",
+                "schema": "sc", "original_file_path": f"models/{name}.sql", "config": {},
+                "columns": {}, "depends_on": {"macros": [], "nodes": list(parents)}}
+
+    def data_test(name, parent):
+        """Build a data test entry."""
+        return {"name": name, "resource_type": "test", "fqn": ["demo", name], "original_file_path": "models/schema.yml",
+                "config": {}, "columns": {}, "depends_on": {"macros": [], "nodes": [parent]}}
+
+    nodes = {
+        "model.demo.a": model("a"),
+        "model.demo.b": model("b", ["model.demo.a"]),
+        "test.demo.t_a": data_test("t_a", "model.demo.a"),
+        "test.demo.t_b": data_test("t_b", "model.demo.b"),
+    }
+    unit_tests = {"unit_test.demo.b.ut_b": {
+        "name": "ut_b", "resource_type": "unit_test", "fqn": ["demo", "b", "ut_b"],
+        "original_file_path": "models/schema.yml", "config": {}, "depends_on": {"macros": [], "nodes": ["model.demo.b"]},
+    }}
+    entries = {**nodes, **unit_tests}
+    parent_map = {node_id: node["depends_on"]["nodes"] for node_id, node in entries.items()}
+    child_map = {node_id: [c for c, ps in parent_map.items() if node_id in ps] for node_id in entries}
+    return generate_dependency_graph({"metadata": {}, "nodes": nodes, "unit_tests": unit_tests, "macros": {},
+                                      "sources": {}, "parent_map": parent_map, "child_map": child_map})
+
+
+class TestRunOrder:
+    """Test the order in which run_nodes executes dbt commands in --mode all."""
+
+    def test_snapshots_run_before_models_and_tests_last(self):
+        """Models built on a changed snapshot must see its new state."""
+        executed = []
+        stub = lambda name: (lambda **_kwargs: [f"{name}.demo.x"])
+        with patch.dict("dbt_ci.commands.run.run.__dict__", {
+            "seeds": stub("seed"), "snapshots": stub("snapshot"), "models": stub("model"), "tests": stub("test"),
+        }), patch("dbt_ci.commands.run.run.get_selectors", return_value=["demo.x"]), \
+             patch("dbt_ci.commands.run.run.resolve_dbt_commands", side_effect=lambda cmd, _args: cmd), \
+             patch("dbt_ci.commands.run.run.run_dbt_command",
+                   side_effect=lambda command_args, runner_config: executed.append(command_args[0]) or MagicMock(returncode=0)), \
+             patch("dbt_ci.commands.run.run.log_nodes_to_run"):
+            run_nodes(Namespace(nodes="all", dry_run=False), MagicMock(), ["model.demo.x"], {"modified_nodes": ["model.demo.x"]})
+        assert executed == ["seed", "snapshot", "run", "test"]
+
+
+class TestTestSelection:
+    """Test which data and unit tests the test step selects."""
+
+    def select(self, depth=None):
+        """Select tests for a change to model a."""
+        graph = MagicMock()
+        graph.to_dict.return_value = _manifest_graph()
+        return set(select_tests(graph, {"modified_nodes": ["model.demo.a"]}, ["model.demo.a"],
+                                Namespace(downstream_depth=depth, filters=None)))
+
+    def test_full_graph_includes_unit_tests(self):
+        """Unit tests downstream of a change run alongside data tests."""
+        assert self.select() == {"test.demo.t_a", "test.demo.t_b", "unit_test.demo.b.ut_b"}
+
+    def test_depth_zero_keeps_tests_of_the_changed_model(self):
+        """Depth 0 builds only a, but a's own tests must still run."""
+        assert self.select(depth=0) == {"test.demo.t_a"}
+
+    def test_depth_one_keeps_tests_of_the_deepest_built_model(self):
+        """Depth 1 builds b, so b's data and unit tests (one level further down) run too."""
+        assert self.select(depth=1) == {"test.demo.t_a", "test.demo.t_b", "unit_test.demo.b.ut_b"}

@@ -306,6 +306,15 @@ def get_node_from_path(dependency_graph: DependencyGraph, path: str) -> Dependen
                 return node_info
     return None
 
+def get_relation_name(node: DependencyGraphNode | dict) -> str | None:
+    """
+    Return the table/view name dbt builds for a node.
+
+    The alias dbt resolved is preferred, since a custom generate_alias_name macro can
+    make it differ from both the node name and config.alias.
+    """
+    return node.get("alias") or (node.get("config") or {}).get("alias") or node.get("name")
+
 def get_nodes_from_path(
     dependency_graph: DependencyGraph,
     path: str,

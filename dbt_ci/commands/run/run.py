@@ -11,6 +11,7 @@ from dbt_ci.graph.graph_utils import (
     filter_node_ids_by_type,
     get_downstream_dependencies,
     get_display_name,
+    get_node,
     get_selectors,
     get_upstream_dependencies,
 )
@@ -26,6 +27,9 @@ from dbt_ci.schema import (
 
 logger = logging.getLogger(__name__)
 
+# dbt runs both data tests and unit tests (dbt >= 1.8) with `dbt test`
+TEST_TYPES: list[DependencyGraphNodeType] = ["test", "unit_test"]
+
 def run_nodes(
     args: Namespace,
     target_graph: DbtGraph,
@@ -34,7 +38,9 @@ def run_nodes(
 ) -> None:
     try:
         mode: RunModes = getattr(args, "nodes", "all")
-        run_order: list[str] = ["seed", "run", "test", "snapshot"]
+        # Snapshots run before models so that models built on a changed snapshot read
+        # its new state, and tests run last once everything they check exists.
+        run_order: list[str] = ["seed", "snapshot", "run", "test"]
         if mode != "all" and mode in MODE_MAPPING:
             run_order = cast(list[str], [MODE_MAPPING[mode]])
 
@@ -143,14 +149,28 @@ def tests(
     If filters are provided, only include tests whose upstream dependencies
     match the specified filter types (e.g. -f snapshots).
     """
-    downstream_test_dependencies = list(
-        get_downstream_dependencies(
-            dependency_graph=target_graph.to_dict(),
-            node_ids=changed_nodes,
-            node_type="test",
-            levels=get_downstream_depth(args)
-        ) or []
-    )
+    dependency_graph = target_graph.to_dict()
+    depth = get_downstream_depth(args)
+    downstream_test_dependencies: set[str] = set()
+    for test_type in TEST_TYPES:
+        downstream_test_dependencies.update(
+            get_downstream_dependencies(
+                dependency_graph=dependency_graph,
+                node_ids=changed_nodes,
+                node_type=test_type,
+                levels=depth
+            ) or []
+        )
+
+    if depth is not None:
+        # A test sits one level below the node it checks, so the depth cap would drop
+        # the tests of the deepest nodes this run builds. Select them explicitly.
+        built_nodes = set(chain(
+            seeds(target_graph, changed_nodes_dict, changed_nodes, args),
+            snapshots(target_graph, changed_nodes_dict, changed_nodes, args),
+            models(target_graph, changed_nodes_dict, changed_nodes, args),
+        ))
+        downstream_test_dependencies.update(get_tests_of_nodes(dependency_graph, built_nodes))
 
     node_ids = list(set(chain(
         changed_nodes_dict.get("modified_nodes", []),
@@ -167,10 +187,23 @@ def tests(
         )
 
     return filter_node_ids_by_type(
-        dependency_graph=target_graph.to_dict(),
-        node_type=["test"],
+        dependency_graph=dependency_graph,
+        node_type=TEST_TYPES,
         node_ids=node_ids
     )
+
+
+def get_tests_of_nodes(dependency_graph: DependencyGraph, node_ids: set[str]) -> set[str]:
+    """Return the data and unit tests that check any of the given nodes."""
+    if not node_ids:
+        return set()
+    test_ids: set[str] = set()
+    for test_type in TEST_TYPES:
+        for test_id, test_node in (dependency_graph.get(test_type) or {}).items():
+            parents = test_node.get("upstream_dependencies", {}).get("node_dependencies") or set()
+            if node_ids & set(parents):
+                test_ids.add(test_id)
+    return test_ids
 
 
 def _tests_with_filter(
@@ -189,12 +222,12 @@ def _tests_with_filter(
 
     filtered_nodes = filter_node_ids_by_type(
         dependency_graph=dependency_graph,
-        node_type=[node_type],
+        node_type=TEST_TYPES,
         node_ids=node_ids
     )
 
     for node_id in filtered_nodes:
-        node_metadata = dependency_graph.get("test", {}).get(node_id, {})
+        node_metadata = get_node(dependency_graph, node_id)
         if not node_metadata:
             continue
         upstream_dependencies_by_type = node_metadata.get("upstream_dependencies", {}).get("dependencies_by_type", {})

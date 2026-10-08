@@ -1,4 +1,5 @@
 import click
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.main import cli
 from dbt_ci.cli.namespace import to_namespace
 from dbt_ci.cli.config import make_config_callback
@@ -53,4 +54,6 @@ def finalize_cmd(**kwargs):
         dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return finalize(to_namespace(kwargs, command="finalize"))
+    args = to_namespace(kwargs, command="finalize")
+    with CacheManager(args).track_report("finalize"):
+        return finalize(args)

@@ -1,4 +1,5 @@
 from dbt_ci.main import cli
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.cli.common_options import common_options
 from dbt_ci.cli.namespace import to_namespace
 from dbt_ci.utilities.logging import setup_logging
@@ -18,4 +19,6 @@ def migration_cmd(**kwargs):
         dbt-ci migration --runner docker
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return migration(to_namespace(kwargs, command="migration"))
+    args = to_namespace(kwargs, command="migration")
+    with CacheManager(args).track_report("migrate"):
+        return migration(args)

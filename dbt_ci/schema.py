@@ -305,7 +305,8 @@ type DependencyGraphNodeType = Literal[
     "seed", 
     "snapshot", 
     "test", 
-    "exposure"
+    "exposure",
+    "unit_test"
 ]
 class DependenciesByType(TypedDict):
     model: Set[str]
@@ -315,6 +316,7 @@ class DependenciesByType(TypedDict):
     snapshot: Set[str]
     test: Set[str]
     exposure: Set[str]
+    unit_test: Set[str]
 class DependencyGraphDownstreamDependency(TypedDict):
     node_dependencies: Set[str]
     dependencies_by_type: DependenciesByType
@@ -340,6 +342,7 @@ class DependencyGraphNode(TypedDict):
     fqn: list[str] | None
     database: str
     schema: str
+    alias: Optional[str]
     resource_type: DependencyGraphNodeType
     original_file_path: str
     patch_path: Optional[str]
@@ -364,6 +367,7 @@ class DependencyGraph(TypedDict):
     source: dict[str, DependencyGraphNode]
     test: dict[str, DependencyGraphNode]
     exposure: dict[str, DependencyGraphNode]
+    unit_test: dict[str, DependencyGraphNode]
 
 type Runners = Literal["local", "docker", "bash", "dbt"]
 
@@ -464,6 +468,9 @@ class MigrationMapNodeEntry(TypedDict):
     compiled_code: str | None
     old_partitioning: Any | None
     new_partitioning: Any | None
+    cluster_by: NotRequired[str | list[str] | None]
+    require_partition_filter: NotRequired[bool | None]
+    partition_expiration_days: NotRequired[int | None]
 
 
 class MigrationMap(TypedDict):
@@ -506,7 +513,8 @@ MANIFEST_KEY_MAPPING = {
     "test": "nodes",
     "macro": "macros",
     "exposure": "exposures",
-    "source": "sources"
+    "source": "sources",
+    "unit_test": "unit_tests"
 }
 
 ###################################################################

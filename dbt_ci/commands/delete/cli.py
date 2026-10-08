@@ -1,4 +1,5 @@
 from dbt_ci.main import cli
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.cli.common_options import common_options
 from dbt_ci.cli.namespace import to_namespace
 from dbt_ci.utilities.logging import setup_logging
@@ -20,4 +21,6 @@ def delete_cmd(**kwargs):
         dbt-ci delete --dry-run
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return delete(to_namespace(kwargs, command="delete"))
+    args = to_namespace(kwargs, command="delete")
+    with CacheManager(args).track_report("delete"):
+        return delete(args)
