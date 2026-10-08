@@ -18,8 +18,10 @@ from dbt_ci.utilities.git import GitAdapter, GitChangeType
 from dbt_ci.graph.graph_utils import (
     get_deleted_nodes,
     get_new_nodes,
+    get_node,
     get_nodes_from_path,
     get_nodes,
+    get_nodes_using_macros,
     get_structured_modified_nodes
 )
 
@@ -48,6 +50,47 @@ def parse_ls_unique_ids(output: str) -> list[str]:
             unique_ids.append(unique_id)
 
     return unique_ids
+
+def add_macro_users(
+    git_modified_nodes: dict[GitChangeType, set[str]],
+    target_graph: DependencyGraph,
+) -> None:
+    """
+    Mark every node that uses a changed macro as modified.
+
+    A macro has no downstream edges in the manifest, so selecting the macro itself runs
+    nothing; the nodes calling it (directly or via other macros) are what need to rebuild.
+    """
+    changed_macros = {
+        node_id
+        for node_ids in git_modified_nodes.values()
+        for node_id in node_ids
+        if node_id.startswith("macro.")
+    }
+    for node_id in get_nodes_using_macros(target_graph, changed_macros):
+        if node_id not in git_modified_nodes["added"]:
+            git_modified_nodes["modified"].add(node_id)
+
+def reconcile_with_graphs(
+    git_modified_nodes: dict[GitChangeType, set[str]],
+    target_graph: DependencyGraph,
+    reference_graph: DependencyGraph,
+) -> None:
+    """
+    Re-classify git's file-level changes by whether the node exists in each manifest.
+
+    git reports a moved file as a delete of the old path plus an add of the new one, but
+    the node keeps its unique_id. A node still present in the target was not deleted, and
+    a node already present in the reference is not new; both are modifications.
+    """
+    for node_id in list(git_modified_nodes["deleted"]):
+        if get_node(target_graph, node_id) is not None:
+            git_modified_nodes["deleted"].discard(node_id)
+            git_modified_nodes["modified"].add(node_id)
+    for node_id in list(git_modified_nodes["added"]):
+        if get_node(reference_graph, node_id) is not None:
+            git_modified_nodes["added"].discard(node_id)
+            git_modified_nodes["modified"].add(node_id)
 
 class CommonStateChangeSummary(TypedDict):
     modified_node_ids: set[str]
@@ -117,14 +160,17 @@ class StateModified:
                     # One file can define several nodes (a schema.yml declares many
                     # tests), so every node at that path is attributed to the change.
                     nodes_at_path = (
-                        get_nodes_from_path(target_dict, file_path)
-                        or get_nodes_from_path(reference_dict, file_path)
+                        get_nodes_from_path(target_dict, file_path, include_patch_path=True)
+                        or get_nodes_from_path(reference_dict, file_path, include_patch_path=True)
                     )
                     if nodes_at_path:
                         for node_info in nodes_at_path:
                             git_modified_nodes[change_type].add(node_info["id"])
                     else:
-                        logger.debug(f"File {file_path} changed according to git but no corresponding node found in either target or reference graph (e.g. macro, schema YAML, or non-dbt file).")
+                        logger.debug(f"File {file_path} changed according to git but no corresponding node found in either target or reference graph (e.g. a non-dbt file).")
+
+            add_macro_users(git_modified_nodes, target_dict)
+            reconcile_with_graphs(git_modified_nodes, target_dict, reference_dict)
 
             return {
                 "modified_nodes": get_structured_modified_nodes(get_nodes(
@@ -236,6 +282,18 @@ class StateModified:
                                 # Don't break — multiple nodes can share one file (schema.yml)
                     if found:
                         unmatched_nodes[change_type].discard(file_path)
+
+            # A model's properties (config, contract, columns) live in its YAML patch file,
+            # not in its .sql file. When git changed that YAML and dbt flagged the model,
+            # it was really modified even though its own path did not change.
+            changed_paths = {file_path for files in changed_files.values() for file_path in files}
+            for node_id in modified_nodes_dbt["modified_node_ids"]:
+                node = get_node(target_graph, node_id)
+                if node is not None and node.get("patch_path") in changed_paths:
+                    git_modified_nodes["modified"].add(node_id)
+
+            add_macro_users(git_modified_nodes, target_graph)
+            reconcile_with_graphs(git_modified_nodes, target_graph, reference_graph)
 
             # Now lets see if there are any unmatched nodes left
             for change_type, files in unmatched_nodes.items():

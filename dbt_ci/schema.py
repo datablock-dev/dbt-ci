@@ -342,6 +342,7 @@ class DependencyGraphNode(TypedDict):
     schema: str
     resource_type: DependencyGraphNodeType
     original_file_path: str
+    patch_path: Optional[str]
     compiled_path: str
     compiled_code: str
     config: Config
