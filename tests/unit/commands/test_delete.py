@@ -44,10 +44,9 @@ class TestDeleteCommand:
         )
         index(args)
         
-        # Verify message was shown
-        mock_logger.info.assert_any_call(
-            "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
-        )
+        # A missing cache means init never ran, which must fail the step
+        mock_exit.assert_called_with(1)
+        assert "No cache found" in mock_logger.error.call_args[0][0]
     
     @patch('dbt_ci.commands.delete.index.get_profile')
     @patch('dbt_ci.commands.delete.index.CacheManager')
@@ -277,3 +276,60 @@ class TestDeleteCommand:
         
         # Verify delete was still called (even with empty map)
         mock_delete_func.assert_called_once()
+
+
+def _graph(*nodes: dict) -> dict:
+    """Build a minimal dependency graph with the given model nodes."""
+    graph = {key: {} for key in ("model", "seed", "snapshot", "test", "macro", "exposure", "source")}
+    for node in nodes:
+        graph["model"][node["id"]] = {"resource_type": "model", "config": {}, **node}
+    return graph
+
+
+class TestDeleteSafeguards:
+    """Test that delete never drops a relation the target project still uses."""
+
+    PROD_ORDERS = {"id": "model.pkg.orders", "name": "orders", "database": "proj", "schema": "analytics"}
+
+    def build(self, reference: dict, target: dict | None, deleted: list[str]):
+        """Run generate_delete_map against the given reference and target graphs."""
+        from dbt_ci.commands.delete.index import generate_delete_map
+
+        cache = MagicMock()
+        cache.get_cache.side_effect = lambda name="cache.json", *_: (
+            {"deleted_nodes": {}} if name == "cache.json"
+            else (target if name == "target_manifest.json" else {})
+        )
+
+        def make_graph(_args, is_reference=False):
+            """Return the reference or target graph depending on the flag."""
+            graph = MagicMock()
+            graph.to_dict.return_value = reference if is_reference else target
+            return graph
+
+        with patch("dbt_ci.commands.delete.index.DbtGraph", side_effect=make_graph), \
+             patch("dbt_ci.commands.delete.index.get_node_ids_from_structured_nodes", return_value=deleted), \
+             patch("dbt_ci.commands.delete.index.click.secho"):
+            return generate_delete_map(Namespace(dry_run=False), cache)
+
+    def test_truly_deleted_model_is_dropped(self):
+        """A model missing from the target project is still deleted."""
+        delete_map = self.build(_graph(self.PROD_ORDERS), _graph(), ["model.pkg.orders"])
+        assert delete_map["model.pkg.orders"]["table_id"] == "proj.analytics.orders"
+
+    def test_moved_model_is_kept(self):
+        """A moved file keeps its unique_id, so its live table must not be dropped."""
+        delete_map = self.build(_graph(self.PROD_ORDERS), _graph(self.PROD_ORDERS), ["model.pkg.orders"])
+        assert delete_map == {}
+
+    def test_relation_reused_by_another_model_is_kept(self):
+        """A table now produced by a different node (e.g. via an alias) is not dropped."""
+        replacement = {"id": "model.pkg.orders_v2", "name": "orders_v2", "database": "proj",
+                       "schema": "analytics", "config": {"alias": "orders"}}
+        delete_map = self.build(_graph(self.PROD_ORDERS), _graph(replacement), ["model.pkg.orders"])
+        assert delete_map == {}
+
+    def test_missing_target_manifest_fails(self):
+        """Without the target manifest deletions cannot be verified, so nothing is dropped."""
+        with pytest.raises(RuntimeError, match="No target manifest"):
+            self.build(_graph(self.PROD_ORDERS), None, ["model.pkg.orders"])

@@ -278,3 +278,126 @@ class TestUploadLogs:
 
         storage_fn.assert_not_called()
         mock_logger.warning.assert_called_once()
+
+
+class TestArtifactsUri:
+
+    def test_trailing_slash_is_stripped(self):
+        """A trailing slash must not produce a double-slash object key."""
+        args = _make_args(artifacts_uri="gs://bucket/path/", files=("manifest",))
+        mock_connector = {"name": "GCS", "upload": MagicMock(), "download": MagicMock()}
+        mock_upload_manifest = MagicMock()
+        with patch("dbt_ci.commands.finalize.upload.CacheManager"), \
+             patch("dbt_ci.commands.finalize.upload.init_storage_connector",
+                   return_value=(mock_connector, "gs://bucket/path/")), \
+             patch.dict("dbt_ci.commands.finalize.upload.UPLOAD_MAPPING",
+                        {"manifest": mock_upload_manifest}):
+            finalize_upload_files(args)
+        assert mock_upload_manifest.call_args[0][0] == "gs://bucket/path"
+
+
+# ---------------------------------------------------------------------------
+# finalize command — dry run and ephemeral cleanup
+# ---------------------------------------------------------------------------
+
+class TestFinalizeDryRun:
+
+    def test_dry_run_skips_upload_and_keeps_cache(self):
+        """A dry run must neither upload artifacts nor clear the cache."""
+        from dbt_ci.commands.finalize.index import finalize
+
+        args = _make_args(artifacts_uri="gs://bucket/prod-state", dry_run=True, clean_ephemeral=False)
+        with patch("dbt_ci.commands.finalize.index.CacheManager") as mock_cm, \
+             patch("dbt_ci.commands.finalize.index.finalize_upload_files") as mock_upload, \
+             patch("dbt_ci.commands.finalize.index.click.secho"), \
+             pytest.raises(SystemExit) as exc_info:
+            finalize(args)
+
+        assert exc_info.value.code == 0
+        mock_upload.assert_not_called()
+        mock_cm.return_value.clear_cache.assert_not_called()
+
+    def test_dry_run_cleanup_needs_no_client(self):
+        """A dry-run cleanup lists datasets without creating a warehouse client."""
+        cleanup = TestCleanUpEphemeral()
+        client_factory, delete_datasets, _ = cleanup.run_cleanup(
+            cleanup._map(("ci_pr_1", None)), [], dry_run=True
+        )
+        client_factory.assert_not_called()
+        delete_datasets.assert_called_once_with(None, {"proj.ci_pr_1"}, True, 2)
+
+
+class TestCleanUpEphemeral:
+
+    @staticmethod
+    def _map(*datasets: tuple[str, str | None]) -> dict:
+        """Build an ephemeral map with one node per (ephemeral schema, reference schema) pair."""
+        return {
+            f"model.pkg.m{i}": {
+                "name": f"m{i}",
+                "resource_type": "model",
+                "ephemeral_config": {"database": "proj", "schema": schema, "name": f"m{i}", "alias": None},
+                "reference_config": (
+                    {"database": "proj", "schema": ref_schema, "name": f"m{i}", "alias": None}
+                    if ref_schema else None
+                ),
+            }
+            for i, (schema, ref_schema) in enumerate(datasets)
+        }
+
+    def run_cleanup(self, ephemeral_map: dict, reference_schemas: list[str], delete_side_effect=None, dry_run=False):
+        """Run clean_up_ephemeral with stubbed connector and reference graph."""
+        from dbt_ci.commands.finalize.index import clean_up_ephemeral
+
+        client_factory = MagicMock()
+        delete_datasets = MagicMock(side_effect=delete_side_effect)
+        connector = {"client": client_factory, "methods": {"delete_datasets": delete_datasets}}
+        reference_graph = {"source": {
+            f"source.pkg.raw.{s}": {"database": "proj", "schema": s} for s in reference_schemas
+        }}
+        cache = MagicMock()
+        cache.get_cache.return_value = ephemeral_map
+        args = _make_args(dry_run=dry_run)
+        with patch("dbt_ci.commands.finalize.index.get_profile", return_value={"type": "bigquery", "threads": 2}), \
+             patch("dbt_ci.commands.finalize.index.get_connector", return_value=connector), \
+             patch("dbt_ci.commands.finalize.index.DbtGraph") as mock_graph:
+            mock_graph.return_value.to_dict.return_value = reference_graph
+            clean_up_ephemeral(args, cache)
+        return client_factory, delete_datasets, args
+
+    def test_deletes_ci_datasets_with_a_real_client(self):
+        """The connector's client factory is called and its client is used for deletion."""
+        client_factory, delete_datasets, args = self.run_cleanup(self._map(("ci_pr_1", "analytics")), [])
+        client_factory.assert_called_once_with(args)
+        delete_datasets.assert_called_once_with(client_factory.return_value, {"proj.ci_pr_1"}, False, 2)
+
+    def test_refuses_production_datasets(self):
+        """Datasets used by the reference manifest are never deleted."""
+        ephemeral_map = self._map(("ci_pr_1", "analytics"), ("analytics", "analytics"), ("raw", None))
+        _, delete_datasets, _ = self.run_cleanup(ephemeral_map, ["raw"])
+        assert delete_datasets.call_args[0][1] == {"proj.ci_pr_1"}
+
+    def test_nothing_left_skips_deletion(self):
+        """When every dataset is protected, nothing is deleted."""
+        _, delete_datasets, _ = self.run_cleanup(self._map(("analytics", "analytics")), [])
+        delete_datasets.assert_not_called()
+
+    def test_missing_reference_manifest_refuses_cleanup(self):
+        """Without the production manifest nothing can be protected, so nothing is deleted."""
+        from dbt_ci.commands.finalize.index import clean_up_ephemeral
+
+        cache = MagicMock()
+        cache.get_cache.side_effect = lambda name="cache.json", *_: (
+            self._map(("ci_pr_1", None)) if name == "ephemeral_map.json" else None
+        )
+        connector = {"client": MagicMock(), "methods": {"delete_datasets": MagicMock()}}
+        with patch("dbt_ci.commands.finalize.index.get_profile", return_value={"type": "bigquery"}), \
+             patch("dbt_ci.commands.finalize.index.get_connector", return_value=connector), \
+             pytest.raises(RuntimeError, match="No reference manifest"):
+            clean_up_ephemeral(_make_args(dry_run=False), cache)
+        connector["methods"]["delete_datasets"].assert_not_called()
+
+    def test_errors_propagate(self):
+        """A failed cleanup must fail finalize instead of being logged and ignored."""
+        with pytest.raises(RuntimeError):
+            self.run_cleanup(self._map(("ci_pr_1", None)), [], delete_side_effect=RuntimeError("boom"))

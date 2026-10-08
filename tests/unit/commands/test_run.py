@@ -11,16 +11,16 @@ class TestRunCommand:
     
     @patch('dbt_ci.commands.run.index.CacheManager')
     @patch('dbt_ci.commands.run.index.DbtGraph')
-    @patch('dbt_ci.commands.run.index.logger.error')
+    @patch('dbt_ci.commands.run.index.print_exception')
     @patch('dbt_ci.commands.run.index.click.secho')
     def test_run_no_cache(
         self,
         mock_secho,
-        mock_logger_error,
+        mock_print_exception,
         mock_graph,
         mock_cache
     ):
-        """Test run command exits when no cache is found."""
+        """Test run command fails when no cache is found, since init never ran."""
         # Setup mocks
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = None
@@ -30,12 +30,12 @@ class TestRunCommand:
             dbt_project_dir='/dbt',
             dry_run=False
         )
-        index(args)
-        
-        # Verify message was logged
-        mock_logger_error.assert_called_with(
-            "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
-        )
+        with pytest.raises(SystemExit) as exc_info:
+            index(args)
+
+        assert exc_info.value.code == 1
+        assert "No cache found" in str(mock_print_exception.call_args[0][0])
+        mock_cache_instance.update_report.assert_called_with("run", "failed", comment=str(mock_print_exception.call_args[0][0]))
     
     @patch('dbt_ci.commands.run.index.CacheManager')
     @patch('dbt_ci.commands.run.index.DbtGraph')

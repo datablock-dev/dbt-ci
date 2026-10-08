@@ -179,7 +179,7 @@ Renamed files are reported by git as a rename of one path to another; dbt-ci tre
 
 ### `run` - Run Modified Models
 
-Detects and runs models that have changed. Uses cached state from `init`.
+Detects and runs models that have changed. Uses cached state from `init`, and fails if `init` has not run.
 
 ```bash
 dbt-ci run --dbt-project-dir dbt --mode models
@@ -254,6 +254,9 @@ dbt-ci ephemeral \
 2. Builds a selection of all affected models and their downstream dependencies
 3. Runs `dbt clone --select <nodes>` targeting the specified environment
 4. The cloned tables/views can then be used as the base for subsequent `dbt run` commands in the PR environment
+5. Records the datasets it cloned into, so `finalize --clean-ephemeral` can drop them later
+
+If `dbt clone` fails, `ephemeral` exits with a non-zero code on every runner.
 
 **Flags:**
 
@@ -274,7 +277,9 @@ dbt-ci delete --dry-run  # preview what will be deleted
 dbt-ci delete            # execute deletions
 ```
 
-The tables dropped are the ones in the **reference** manifest (usually production), so run the real delete only after the removal is merged, and use `--dry-run` everywhere else. On BigQuery the connection comes from the `profile` named in `dbt_project.yml` and the `--target` output in `profiles.yml` (its `project` and `location`).
+The tables dropped are the ones in the **reference** manifest (usually production), so run the real delete only after the removal is merged, and use `--dry-run` everywhere else.
+
+A node is only dropped if it is really gone from the current project. Nodes that still exist in the target manifest (for example a model whose file was moved or renamed, which git reports as delete + add) are skipped, as are relations that another target node still builds (for example through an `alias`). `delete` fails if `init` has not run, instead of passing without doing anything. On BigQuery the connection comes from the `profile` named in `dbt_project.yml` and the `--target` output in `profiles.yml` (its `project` and `location`).
 
 **Flags:**
 
@@ -376,10 +381,12 @@ dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
 |------|---------|-----------|---------|-------------|
 | `--artifacts-uri` | | `DBT_ARTIFACTS_URI`, `ARTIFACTS_URI` | `None` | Object storage URI for uploading run artifacts such as the updated `manifest.json` (e.g. `s3://bucket/dbt-artifacts/`) |
 | `--files` | | `DBT_FINALIZE_FILES` | `manifest` | Which artifacts to upload (repeatable): `manifest`, `cache`, `log` |
-| `--clean-ephemeral` | `--destroy-ephemeral` | `DBT_CLEAN_EPHEMERAL`, `DBT_DESTROY_EPHEMERAL` | `false` | Clean up the ephemeral environment as part of finalization |
+| `--clean-ephemeral` | `--destroy-ephemeral` | `DBT_CLEAN_EPHEMERAL`, `DBT_DESTROY_EPHEMERAL` | `false` | Drop the datasets that `ephemeral` cloned into (BigQuery). Datasets used by any node in the reference (production) manifest are never dropped, and a failed cleanup fails the step |
 
 Uploaded artifacts land at `<artifacts-uri>/manifest.json`, `<artifacts-uri>/cache.json`
-and `<artifacts-uri>/logs.txt` respectively. `log` uploads the run log that dbt-ci writes
+and `<artifacts-uri>/logs.txt` respectively (a trailing `/` on the URI is ignored).
+With `--dry-run`, nothing is uploaded, the cache is kept, and `--clean-ephemeral` only
+lists the datasets it would drop. `log` uploads the run log that dbt-ci writes
 to `<cache dir>/dbt-ci.log`.
 
 > **Note:** the log file always records at `DEBUG` level, including the resolved

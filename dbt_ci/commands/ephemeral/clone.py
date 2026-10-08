@@ -20,12 +20,15 @@ logger = logging.getLogger(__name__)
 def clone_command(
     changed_nodes_dict: dict[str, list[str]],
     args: Namespace
-) -> None:
+) -> list[str]:
     """
         Helper function to run the dbt command that will create the ephemeral models based on the selected nodes.
         
         Please observe that we only clone models and snapshots, even if tests are modified.
         This is because Dbt only creates ephemeral versions of models and snapshots.
+
+        Returns the ids of the models and snapshots the clone selection covers, so the
+        environment can be torn down again by `finalize --clean-ephemeral`.
     """
     def _filter_models_and_snapshots(target_graph: DbtGraph, node_ids: list[str]) -> list[str]:
         return filter_node_ids_by_type(
@@ -95,10 +98,26 @@ def clone_command(
             logger.info("Dry run enabled - no actual ephemeral environment will be created.")
             sys.exit(0)
 
-        run_dbt_command(
+        result = run_dbt_command(
             command_args=command,
             runner_config=cast(RunnerConfig, args.__dict__)
         )
+        # The in-process dbt runner reports failed nodes through the return code instead
+        # of raising, so a failed clone has to be caught here.
+        if result is not None and result.returncode != 0:
+            raise RuntimeError(f"dbt clone failed with exit code {result.returncode}")
+
+        cloned_nodes = set(chain(
+            changed_nodes,
+            descendants,
+            dependent_nodes,
+            get_upstream_dependencies(
+                dependency_graph=target_graph.to_dict(),
+                node_ids=dependent_nodes,
+                node_type=["model", "snapshot"]
+            ) or set()
+        ))
+        return _filter_models_and_snapshots(target_graph, list(cloned_nodes))
     except Exception as e:
         logger.error(f"Error running dbt clone command: {str(e)}")
         print_exception(e)

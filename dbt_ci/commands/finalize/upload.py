@@ -15,6 +15,8 @@ def finalize_upload_files(args: Namespace) -> None:
         artifacts_uri = getattr(args, "artifacts_uri", None)
         if artifacts_uri is None:
             return
+        # "gs://bucket/path/" would otherwise upload to "gs://bucket/path//manifest.json"
+        artifacts_uri = artifacts_uri.rstrip("/")
 
         init_storage = init_storage_connector(artifacts_uri)
             

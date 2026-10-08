@@ -12,7 +12,7 @@ from dbt_ci.dbt.flags import apply_cached_config
 from dbt_ci.utilities.logging import redact_namespace
 from dbt_ci.connectors import get_connector
 from dbt_ci.graph.dependency_graph import DbtGraph
-from dbt_ci.schema import DeleteMapNode, SupportedConnectors
+from dbt_ci.schema import DeleteMapNode, DependencyGraph, DependencyGraphNode, SupportedConnectors
 from dbt_ci.graph.graph_utils import get_node, get_node_ids_from_structured_nodes, get_nodes
 from dbt_ci.utilities.paths import get_profile
 
@@ -72,9 +72,9 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
 
     # Look for cache
     prev_cache = cache.get_cache()
-    if prev_cache is None: # Should we exit here instead of compiling?
-        logger.info("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
-        return {}
+    if prev_cache is None:
+        # Nothing was compared, so passing here would hide a skipped or failed init.
+        raise RuntimeError("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
     logger.info("Cache successfully found - using cached state for comparison")
 
     deleted_nodes = get_node_ids_from_structured_nodes(prev_cache.get("deleted_nodes", None)) or []
@@ -96,17 +96,27 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
         logger.info("No deleted nodes found in manifest, skipping...")
         sys.exit(0)
 
+    if cache.get_cache("target_manifest.json") is None:
+        raise RuntimeError("No target manifest found in cache, so deleted nodes cannot be verified against the current project. Run 'dbt-ci init' first.")
+    target_graph = DbtGraph(args).to_dict()
+    target_table_ids = get_target_table_ids(target_graph)
+
     for node_id, node_data in nodes.items():
         if node_data["resource_type"] not in ("model", "snapshot"):
             continue
 
-        database = node_data.get("database", None)
-        schema = node_data.get("schema", None)
-        name = node_data.get("config", {}).get('alias', None) or node_data.get("name", None)
-        table_id = f"{database}.{schema}.{name}"
-
-        if any(x is None for x in (database, schema, name)):
+        table_id = get_table_id(node_data)
+        if table_id is None:
             logger.warning(f"Missing database, schema or name for node {node_id}. Skipping deletion for this node.")
+            continue
+
+        # A moved or renamed file shows up in git as delete + add, but the node itself
+        # keeps its unique_id and relation. Dropping it would destroy a live table.
+        if get_node(target_graph, node_id) is not None:
+            logger.warning(f"Node {node_id} still exists in the target manifest (e.g. its file was moved). Skipping deletion of {table_id}.")
+            continue
+        if table_id in target_table_ids:
+            logger.warning(f"Relation {table_id} is still used by a node in the target manifest. Skipping deletion for {node_id}.")
             continue
 
         delete_map[node_id] = {
@@ -116,3 +126,24 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
         }
 
     return delete_map
+
+
+def get_table_id(node_data: DependencyGraphNode) -> str | None:
+    """Return the `database.schema.alias` relation of a node, or None if any part is missing."""
+    database = node_data.get("database", None)
+    schema = node_data.get("schema", None)
+    name = (node_data.get("config") or {}).get("alias", None) or node_data.get("name", None)
+    if any(x is None for x in (database, schema, name)):
+        return None
+    return f"{database}.{schema}.{name}"
+
+
+def get_target_table_ids(target_graph: DependencyGraph) -> set[str]:
+    """Collect the relations of every model and snapshot that still exists in the target manifest."""
+    table_ids: set[str] = set()
+    for node_type in ("model", "snapshot"):
+        for node_data in (target_graph.get(node_type) or {}).values():
+            table_id = get_table_id(node_data)
+            if table_id is not None:
+                table_ids.add(table_id)
+    return table_ids
