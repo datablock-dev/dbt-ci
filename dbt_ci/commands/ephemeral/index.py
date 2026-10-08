@@ -71,12 +71,12 @@ def ephemeral(args: Namespace):
             "new_nodes": get_node_ids_from_structured_nodes(cache_dict.get("new_nodes", None)) or [],
         }
 
-        #ephemeral_connector(ephemeral_map, args)
-        clone_command(changed_nodes_dict, args)
-        
-        # Store cache (ephemeral map) for use in finalize step
-        #cache.write_ephemeral(ephemeral_map)
-        #cache.update_report("ephemeral", "completed", comment=str(list(ephemeral_map.keys())))
+        cloned_nodes = clone_command(changed_nodes_dict, args)
+
+        # Store the ephemeral map so `finalize --clean-ephemeral` knows which datasets to drop
+        ephemeral_map = build_ephemeral_map(args, cloned_nodes)
+        cache.write_ephemeral(ephemeral_map)
+        cache.update_report("ephemeral", "completed", comment=str(list(ephemeral_map.keys())))
         logger.info("Ephemeral strategy completed successfully.")
         logger.info("Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies.")
         sys.exit(0)
@@ -85,6 +85,37 @@ def ephemeral(args: Namespace):
         cache.update_report("ephemeral", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
+
+def build_ephemeral_map(args: Namespace, node_ids: list[str]) -> dict[str, EphemeralMapNode]:
+    """Map each cloned model and snapshot to its ephemeral (target) and reference relation."""
+    target_graph = DbtGraph(args).to_dict()
+    reference_graph = DbtGraph(args, is_reference=True).to_dict()
+    target_nodes = get_nodes(target_graph, node_ids) or {}
+    reference_nodes = get_nodes(reference_graph, node_ids) or {}
+
+    ephemeral_map: dict[str, EphemeralMapNode] = {}
+    for node_id, target_node in target_nodes.items():
+        # Ephemeral models are never materialised, so they have no relation to clean up
+        if target_node.get("materialized") == "ephemeral":
+            continue
+        reference_node = reference_nodes.get(node_id) or {}
+        ephemeral_map[node_id] = {
+            "name": target_node["name"],
+            "resource_type": target_node["resource_type"],
+            "ephemeral_config": full_config_or_none(
+                database=target_node.get("database", None),
+                schema=target_node.get("schema", None),
+                name=target_node.get("name", None),
+                alias=(target_node.get("config") or {}).get("alias", None),
+            ),
+            "reference_config": full_config_or_none(
+                database=reference_node.get("database", None),
+                schema=reference_node.get("schema", None),
+                name=reference_node.get("name", None),
+                alias=(reference_node.get("config") or {}).get("alias", None),
+            ),
+        }
+    return ephemeral_map
 
 # Not currently used (might need deprecation)
 # DBT Clone command is not utilised for better support

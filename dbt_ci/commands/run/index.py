@@ -39,9 +39,9 @@ def run(args: Namespace):
                 
         # Look for cache
         prev_cache = cache.get_cache()
-        if prev_cache is None: # Should we exit here instead of compiling?
-            logger.error("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
-            return
+        if prev_cache is None:
+            # Nothing was compared, so passing here would hide a skipped or failed init.
+            raise RuntimeError("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
         logger.info("Cache successfully found - using cached state for comparison")
 
         changed_nodes_dict = {

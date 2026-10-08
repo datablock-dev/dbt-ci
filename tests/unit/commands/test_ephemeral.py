@@ -259,3 +259,70 @@ class TestEphemeralCommand:
             ephemeral(args)
         
         assert exc_info.value.code == 0
+
+
+def _keep_all_node_ids(*args, **kwargs):
+    """Stand in for filter_node_ids_by_type by keeping every node id."""
+    node_ids = kwargs.get("node_ids", args[1] if len(args) > 1 else [])
+    return list(node_ids)
+
+
+class TestCloneCommand:
+    """Test failure handling and the returned clone selection of clone_command."""
+
+    def run_clone(self, returncode: int):
+        """Invoke clone_command for one changed model with a stubbed dbt result."""
+        from dbt_ci.commands.ephemeral.clone import clone_command
+
+        result = MagicMock(returncode=returncode)
+        with patch("dbt_ci.commands.ephemeral.clone.get_profile", return_value={"threads": 1}), \
+             patch("dbt_ci.commands.ephemeral.clone.DbtGraph"), \
+             patch("dbt_ci.commands.ephemeral.clone.get_downstream_dependencies", return_value={"model.pkg.child"}), \
+             patch("dbt_ci.commands.ephemeral.clone.get_upstream_dependencies", return_value=None), \
+             patch("dbt_ci.commands.ephemeral.clone.filter_node_ids_by_type", side_effect=_keep_all_node_ids), \
+             patch("dbt_ci.commands.ephemeral.clone.get_selectors", return_value=["pkg.parent"]), \
+             patch("dbt_ci.commands.ephemeral.clone.resolve_dbt_commands", return_value=["clone"]), \
+             patch("dbt_ci.commands.ephemeral.clone.run_dbt_command", return_value=result):
+            return clone_command(
+                {"modified_nodes": ["model.pkg.parent"], "new_nodes": [], "deleted_nodes": []},
+                Namespace(dry_run=False),
+            )
+
+    def test_failed_clone_exits_non_zero(self):
+        """The in-process runner reports failures via returncode, which must fail the step."""
+        with pytest.raises(SystemExit) as exc_info:
+            self.run_clone(returncode=1)
+        assert exc_info.value.code == 1
+
+    def test_successful_clone_returns_cloned_nodes(self):
+        """The changed nodes and their descendants are reported as cloned."""
+        assert set(self.run_clone(returncode=0)) == {"model.pkg.parent", "model.pkg.child"}
+
+
+class TestBuildEphemeralMap:
+    """Test the ephemeral map that finalize uses for cleanup."""
+
+    def test_maps_target_and_reference_relations(self):
+        """Each cloned node records its CI and production relation; ephemeral models are skipped."""
+        from dbt_ci.commands.ephemeral.index import build_ephemeral_map
+
+        def node(name, schema, materialized="table"):
+            """Build a minimal model node."""
+            return {"id": f"model.pkg.{name}", "name": name, "resource_type": "model", "database": "proj",
+                    "schema": schema, "materialized": materialized, "config": {}}
+
+        target = {"model": {"model.pkg.a": node("a", "ci_pr_1"), "model.pkg.e": node("e", "ci_pr_1", "ephemeral")}}
+        reference = {"model": {"model.pkg.a": node("a", "analytics")}}
+
+        def make_graph(_args, is_reference=False):
+            """Return the reference or target graph depending on the flag."""
+            graph = MagicMock()
+            graph.to_dict.return_value = reference if is_reference else target
+            return graph
+
+        with patch("dbt_ci.commands.ephemeral.index.DbtGraph", side_effect=make_graph):
+            ephemeral_map = build_ephemeral_map(Namespace(), ["model.pkg.a", "model.pkg.e"])
+
+        assert list(ephemeral_map) == ["model.pkg.a"]
+        assert ephemeral_map["model.pkg.a"]["ephemeral_config"]["schema"] == "ci_pr_1"
+        assert ephemeral_map["model.pkg.a"]["reference_config"]["schema"] == "analytics"
