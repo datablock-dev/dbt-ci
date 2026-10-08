@@ -1,4 +1,5 @@
 import os
+import re
 import click
 from dbt_ci.cli.config import load_config_callback, make_config_callback
 
@@ -41,6 +42,66 @@ def make_defer_callback():
     return callback
 
 
+class NewlineSeparatedString(click.types.StringParamType):
+    """A string option whose environment variable is split on newlines only, not whitespace."""
+
+    envvar_list_splitter = "\n"
+
+
+# click splits a multiple option's environment variable on whitespace by default, which
+# cut values such as "A=hello world" in two and silently dropped the second half.
+NEWLINE_SEPARATED = NewlineSeparatedString()
+
+# A comma only separates two entries when the next one starts a new KEY=, so commas
+# inside a value (e.g. DBT_VARS={"a": 1, "b": 2}) are kept.
+_ENV_ENTRY_SEPARATOR = re.compile(r",(?=\s*[A-Za-z_][A-Za-z0-9_]*=)")
+
+# dbt-ci and dbt both read DBT_LOG_LEVEL, but dbt only accepts its own lowercase names.
+_DBT_LOG_LEVELS = {
+    "DEBUG": "debug",
+    "INFO": "info",
+    "WARNING": "warn",
+    "WARN": "warn",
+    "ERROR": "error",
+    "CRITICAL": "error",
+    "NONE": "none",
+}
+
+
+# dbt's spellings mapped to the Python logging level dbt-ci itself uses
+_PYTHON_LOG_LEVELS = {"WARN": "WARNING", "NONE": "CRITICAL"}
+
+
+def normalise_log_level(value: str) -> str:
+    """
+    Return dbt-ci's Python log level and rewrite DBT_LOG_LEVEL into a value dbt accepts.
+
+    The config file copies log-level into DBT_LOG_LEVEL, which dbt (in-process or as a
+    subprocess) also reads; "WARNING" or "CRITICAL" there made every dbt call fail.
+    """
+    env_value = os.environ.get("DBT_LOG_LEVEL")
+    if env_value:
+        os.environ["DBT_LOG_LEVEL"] = _DBT_LOG_LEVELS.get(env_value.strip().upper(), env_value)
+    level = value.upper()
+    return _PYTHON_LOG_LEVELS.get(level, level)
+
+
+def parse_env_option(value):
+    """
+    Normalise --docker-env values into a tuple of KEY=VALUE entries.
+
+    Like parse_multiple_option, but a comma only splits entries when it is followed by
+    another KEY=, so values that contain commas themselves stay intact.
+    """
+    if not value:
+        return value
+    entries: list[str] = []
+    for item in (value if isinstance(value, (list, tuple)) else [value]):
+        for line in str(item).split("\n"):
+            entries.extend(part.strip() for part in _ENV_ENTRY_SEPARATOR.split(line) if part.strip())
+    return tuple(entries)
+
+
 def parse_multiple_option(value):
     """
     Normalise a multiple-value option by splitting comma/newline-separated
@@ -67,7 +128,7 @@ COMMON_OPTIONS = [
         callback=load_config_callback,
         help=(
             "Path to dbt-ci configuration file (YAML). Supports flat (DBT_RUNNER: docker) "
-            "and nested (docker: {image: ...}) styles. Shell env vars always take precedence."
+            "and nested (docker: {image: ...}) styles. Precedence: CLI flag > config file > env var > default."
         ),
     ),
     click.option(
@@ -158,9 +219,10 @@ COMMON_OPTIONS = [
     click.option(
         "--log-level",
         envvar=["DBT_LOG_LEVEL"],
-        type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
+        # WARN and NONE are dbt's spellings, accepted because both tools read DBT_LOG_LEVEL
+        type=click.Choice(["DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL", "NONE"], case_sensitive=False),
         default="INFO",
-        callback=make_config_callback("DBT_LOG_LEVEL", then=str.upper),
+        callback=make_config_callback("DBT_LOG_LEVEL", then=normalise_log_level),
         help="Logging level",
     ),
     click.option(
@@ -190,6 +252,7 @@ COMMON_OPTIONS = [
         "--docker-volumes",
         envvar=["DBT_DOCKER_VOLUMES"],
         multiple=True,
+        type=NEWLINE_SEPARATED,
         callback=make_config_callback("DBT_DOCKER_VOLUMES", then=parse_multiple_option),
         help=(
             "Additional volume mounts (format: host:container). Repeat flag for multiple "
@@ -201,7 +264,8 @@ COMMON_OPTIONS = [
         "--docker-env",
         envvar=["DBT_DOCKER_ENV"],
         multiple=True,
-        callback=make_config_callback("DBT_DOCKER_ENV", then=parse_multiple_option),
+        type=NEWLINE_SEPARATED,
+        callback=make_config_callback("DBT_DOCKER_ENV", then=parse_env_option),
         help=(
             "Environment variables (format: KEY=VALUE). Repeat flag for multiple vars: "
             "--docker-env VAR1=val1 --docker-env VAR2=val2. Via env var, use comma or "

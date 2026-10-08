@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "dbt-ci configuration",
-  "description": "Configuration file for dbt-ci. Supports nested style (recommended) and flat legacy DBT_* style. Hyphens and underscores are interchangeable in key names. Shell environment variables always take precedence.",
+  "description": "Configuration file for dbt-ci. Supports nested style (recommended) and flat legacy DBT_* style. Hyphens and underscores are interchangeable in key names. Precedence: CLI flag > config file > environment variable > default.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -16,6 +16,8 @@
     "runner": { "$ref": "#/definitions/runner" },
     "entrypoint": { "$ref": "#/definitions/entrypoint" },
     "adapter": { "$ref": "#/definitions/adapter" },
+    "dbt-version": { "$ref": "#/definitions/dbtVersion" },
+    "dbt_version": { "$ref": "#/definitions/dbtVersion" },
     "defer": { "$ref": "#/definitions/defer" },
     "dry-run": { "$ref": "#/definitions/dryRun" },
     "dry_run": { "$ref": "#/definitions/dryRun" },
@@ -110,7 +112,9 @@
           "enum": ["all", "models", "seeds", "snapshots", "tests"],
           "default": "all",
           "description": "Node types to run (default: all)."
-        }
+        },
+        "downstream-depth": { "$ref": "#/definitions/downstreamDepth" },
+        "downstream_depth": { "$ref": "#/definitions/downstreamDepth" }
       }
     },
 
@@ -149,6 +153,15 @@
         "keep_env": { "$ref": "#/definitions/keepEnv" }
       }
     },
+    "report": {
+      "type": "object",
+      "description": "Options for the 'dbt-ci report' command.",
+      "additionalProperties": false,
+      "properties": {
+        "format": { "$ref": "#/definitions/reportFormat" },
+        "output": { "$ref": "#/definitions/reportOutput" }
+      }
+    },
 
     "slack-webhook": { "$ref": "#/definitions/slackWebhook" },
     "slack_webhook": { "$ref": "#/definitions/slackWebhook" },
@@ -163,6 +176,9 @@
     "DBT_RUNNER":       { "$ref": "#/definitions/runner" },
     "DBT_ENTRYPOINT":   { "$ref": "#/definitions/entrypoint" },
     "DBT_ADAPTER":      { "$ref": "#/definitions/adapter" },
+    "DBT_VERSION":      { "$ref": "#/definitions/dbtVersion" },
+    "DBT_REPORT_FORMAT": { "$ref": "#/definitions/reportFormat" },
+    "DBT_REPORT_OUTPUT": { "$ref": "#/definitions/reportOutput" },
     "DBT_DEFER":        { "$ref": "#/definitions/defer" },
     "DBT_DRY_RUN":      { "$ref": "#/definitions/dryRun" },
     "DBT_LOG_LEVEL":    { "$ref": "#/definitions/logLevel" },
@@ -187,9 +203,13 @@
     "runner":               { "type": "string", "enum": ["dbt", "local", "docker", "bash"], "default": "dbt", "description": "Runner to use for executing dbt commands." },
     "entrypoint":           { "type": "string", "default": "dbt", "description": "Command entrypoint for dbt." },
     "adapter":              { "type": "string", "description": "The dbt adapter to use (e.g. bigquery, postgres, snowflake)." },
+    "dbtVersion":           { "type": "string", "description": "Pin a specific dbt version (e.g. 1.10.13, or 2.0.6 for dbt v2). Requires runner 'local'." },
+    "downstreamDepth":      { "type": "integer", "minimum": 0, "description": "How many levels of downstream dependencies to include (default: full graph)." },
+    "reportFormat":         { "type": "string", "enum": ["markdown", "json"], "default": "markdown", "description": "Output format of 'dbt-ci report'." },
+    "reportOutput":         { "type": "string", "description": "Where to write the report (defaults to $GITHUB_STEP_SUMMARY when set, otherwise stdout)." },
     "defer":                { "type": "boolean", "default": false, "description": "Enable dbt's --defer flag." },
     "dryRun":               { "type": "boolean", "default": false, "description": "Print commands without executing them." },
-    "logLevel":             { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], "default": "INFO", "description": "Logging level." },
+    "logLevel":             { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL", "NONE"], "default": "INFO", "description": "Logging level." },
     "quiet":                { "type": "boolean", "default": false, "description": "Run in quiet mode with minimal output." },
     "slackWebhook":         { "type": "string", "format": "uri", "description": "Slack webhook URL for notifications." },
     "shellPath":            { "type": "string", "default": "/bin/bash", "description": "Path to the shell executable. Only used when runner is 'bash'." },

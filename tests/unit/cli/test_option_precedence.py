@@ -162,3 +162,63 @@ class TestDeferFlagFallback:
             result = CliRunner().invoke(cli, ["run"], env={"DEFER_FLAG": "--favor-state"})
         assert result.exit_code != 0
         assert "DEFER_FLAG" in result.output
+
+
+class TestDbtLogLevel:
+    """Test that dbt-ci's log level never leaves DBT_LOG_LEVEL in a form dbt rejects."""
+
+    @pytest.mark.parametrize("value, expected", [
+        ("WARNING", "warn"), ("CRITICAL", "error"), ("INFO", "info"), ("debug", "debug"),
+    ])
+    def test_environment_is_rewritten_for_dbt(self, value, expected, monkeypatch):
+        """dbt only accepts debug/info/warn/error/none in DBT_LOG_LEVEL."""
+        from dbt_ci.cli.common_options import normalise_log_level
+
+        monkeypatch.setenv("DBT_LOG_LEVEL", value)
+        assert normalise_log_level(value) == value.upper()
+        assert os.environ["DBT_LOG_LEVEL"] == expected
+
+    @pytest.mark.parametrize("value, expected", [("warn", "WARNING"), ("none", "CRITICAL")])
+    def test_dbt_spellings_are_accepted(self, value, expected, monkeypatch):
+        """DBT_LOG_LEVEL=warn (valid for dbt) must not make dbt-ci reject its own option."""
+        monkeypatch.chdir(os.path.dirname(__file__))
+        monkeypatch.setenv("DBT_LOG_LEVEL", value)
+        assert resolve("run", "log_level", "dbt_ci.commands.run.cli.run") == expected
+
+    def test_config_file_value_reaches_dbt_in_its_format(self, tmp_path, monkeypatch):
+        """log-level: WARNING in the config is copied into DBT_LOG_LEVEL as 'warn'."""
+        monkeypatch.chdir(tmp_path)
+        # Set then delete, so the value the config loader injects is removed afterwards
+        monkeypatch.setenv("DBT_LOG_LEVEL", "INFO")
+        monkeypatch.delenv("DBT_LOG_LEVEL")
+        (tmp_path / "dbt-ci.config.yaml").write_text("log-level: WARNING\n", encoding="utf-8")
+        assert resolve("run", "log_level", "dbt_ci.commands.run.cli.run") == "WARNING"
+        assert os.environ["DBT_LOG_LEVEL"] == "warn"
+
+
+class TestDockerEnvSplitting:
+    """Test that --docker-env values are split into entries without cutting values apart."""
+
+    @pytest.fixture(autouse=True)
+    def clean_env(self, tmp_path, monkeypatch):
+        """Run without a config file or inherited docker variables."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("DBT_DOCKER_ENV", raising=False)
+
+    def test_spaces_in_an_environment_value_are_kept(self):
+        """click used to split the variable on whitespace, dropping 'world'."""
+        value = resolve("run", "docker_env", "dbt_ci.commands.run.cli.run", env={"DBT_DOCKER_ENV": "A=hello world"})
+        assert value == ("A=hello world",)
+
+    def test_commas_and_newlines_still_separate_entries(self):
+        """The documented comma and newline separators keep working."""
+        value = resolve("run", "docker_env", "dbt_ci.commands.run.cli.run", env={"DBT_DOCKER_ENV": "A=1,B=2\nC=3"})
+        assert value == ("A=1", "B=2", "C=3")
+
+    def test_commas_inside_a_value_are_kept(self, tmp_path):
+        """A single config entry containing commas is not split."""
+        (tmp_path / "dbt-ci.config.yaml").write_text(
+            "docker:\n  env:\n    - 'DBT_VARS={\"a\": 1, \"b\": 2}'\n", encoding="utf-8"
+        )
+        value = resolve("run", "docker_env", "dbt_ci.commands.run.cli.run")
+        assert value == ('DBT_VARS={"a": 1, "b": 2}',)
