@@ -1,5 +1,44 @@
+import os
 import click
 from dbt_ci.cli.config import load_config_callback, make_config_callback
+
+# Values accepted in DEFER_FLAG. Pipelines usually hold the literal dbt flag in it
+# ("--defer" or empty) so it can be spliced into a dbt command, so both styles count.
+_DEFER_FLAG_TRUE = {"--defer", "true", "1", "yes", "y", "on"}
+_DEFER_FLAG_FALSE = {"", "--no-defer", "false", "0", "no", "n", "off"}
+
+
+def parse_defer_flag(value: str) -> bool:
+    """Turn a DEFER_FLAG value such as "--defer", "" or "true" into a boolean."""
+    normalised = value.strip().lower()
+    if normalised in _DEFER_FLAG_TRUE:
+        return True
+    if normalised in _DEFER_FLAG_FALSE:
+        return False
+    raise click.BadParameter(
+        f"DEFER_FLAG must be '--defer', '--no-defer', empty or a boolean, got {value!r}",
+        param_hint="'DEFER_FLAG'",
+    )
+
+
+def make_defer_callback():
+    """
+    Resolve --defer like make_config_callback("DBT_DEFER"), with DEFER_FLAG as a fallback.
+
+    DEFER_FLAG is only read when neither the CLI flag, the config file nor DBT_DEFER
+    sets a value, so the order is CLI flag > config file > DBT_DEFER > DEFER_FLAG > default.
+    """
+    resolve = make_config_callback("DBT_DEFER")
+
+    def callback(ctx, param, value):
+        """Fall back to DEFER_FLAG when --defer was left at its default."""
+        if ctx.get_parameter_source(param.name) == click.core.ParameterSource.DEFAULT:
+            defer_flag = os.environ.get("DEFER_FLAG")
+            if defer_flag is not None:
+                value = parse_defer_flag(defer_flag)
+        return resolve(ctx, param, value)
+
+    return callback
 
 
 def parse_multiple_option(value):
@@ -87,8 +126,11 @@ COMMON_OPTIONS = [
         envvar=["DBT_DEFER"],
         is_flag=True,
         default=False,
-        callback=make_config_callback("DBT_DEFER"),
-        help="Use dbt's --defer flag to defer to the state of the production manifest (only applicable to run and test commands)",
+        callback=make_defer_callback(),
+        help=(
+            "Use dbt's --defer flag to defer to the state of the production manifest (only applicable to run and test commands). "
+            "Also read from DEFER_FLAG ('--defer', empty or a boolean) when DBT_DEFER is not set"
+        ),
     ),
     click.option(
         "--runner", "-r",

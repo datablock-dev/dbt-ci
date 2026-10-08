@@ -113,3 +113,52 @@ class TestCommandSectionsReachTheirOptions:
             cli_args=["--artifacts-uri", "s3://from-cli/"],
         )
         assert value == "s3://from-cli/"
+
+
+class TestDeferFlagFallback:
+    """Test that DEFER_FLAG enables deferral when nothing more specific sets it."""
+
+    RUN = "dbt_ci.commands.run.cli.run"
+
+    @pytest.fixture(autouse=True)
+    def clean_env(self, tmp_path, monkeypatch):
+        """Run without a config file and without inherited defer variables."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("DBT_DEFER", raising=False)
+        monkeypatch.delenv("DEFER_FLAG", raising=False)
+
+    @pytest.mark.parametrize("value", ["--defer", "true", "1", " --defer "])
+    def test_enables_defer(self, value):
+        """The literal dbt flag and truthy values both turn deferral on."""
+        assert resolve("run", "defer", self.RUN, env={"DEFER_FLAG": value}) is True
+
+    @pytest.mark.parametrize("value", ["", "--no-defer", "false", "0"])
+    def test_leaves_defer_off(self, value):
+        """An empty or falsy DEFER_FLAG keeps deferral off."""
+        assert resolve("run", "defer", self.RUN, env={"DEFER_FLAG": value}) is False
+
+    def test_unset_means_no_defer(self):
+        """Without DEFER_FLAG the default still applies."""
+        assert resolve("run", "defer", self.RUN) is False
+
+    def test_dbt_defer_wins(self):
+        """DBT_DEFER is the documented variable, so it outranks DEFER_FLAG."""
+        value = resolve("run", "defer", self.RUN, env={"DBT_DEFER": "false", "DEFER_FLAG": "--defer"})
+        assert value is False
+
+    def test_config_file_wins(self, tmp_path):
+        """A defer entry in the config file outranks DEFER_FLAG."""
+        (tmp_path / "dbt-ci.config.yaml").write_text("defer: false\n", encoding="utf-8")
+        assert resolve("run", "defer", self.RUN, env={"DEFER_FLAG": "--defer"}) is False
+
+    def test_cli_flag_wins(self):
+        """--defer on the command line applies regardless of DEFER_FLAG."""
+        value = resolve("run", "defer", self.RUN, cli_args=["--defer"], env={"DEFER_FLAG": ""})
+        assert value is True
+
+    def test_invalid_value_is_rejected(self):
+        """An unrecognised DEFER_FLAG fails loudly instead of silently not deferring."""
+        with patch(self.RUN):
+            result = CliRunner().invoke(cli, ["run"], env={"DEFER_FLAG": "--favor-state"})
+        assert result.exit_code != 0
+        assert "DEFER_FLAG" in result.output
