@@ -1,4 +1,5 @@
 """Unit tests for the git adapter used during state comparison."""
+import os
 import subprocess
 from argparse import Namespace
 from unittest.mock import patch
@@ -14,6 +15,8 @@ def _make_adapter(changes: list[list[str]], dbt_project_dir: str = "dbt") -> Git
     adapter.args = Namespace(dbt_project_dir=dbt_project_dir)
     adapter.head_branch = "main"
     adapter.changes = changes
+    # Resolve the project directory against the working directory without calling git
+    adapter.repo_root = os.getcwd()
     return adapter
 
 
@@ -130,3 +133,55 @@ class TestDiffAgainstBase:
         with patch("dbt_ci.utilities.git.subprocess.run", return_value=failure):
             with pytest.raises(RuntimeError, match="Could not diff against 'origin/main'"):
                 adapter._diff_against_base()
+
+
+class TestProjectDirMatching:
+    """Test that changed paths are matched to the dbt project directory by path, not substring."""
+
+    CHANGES = [
+        ["M", "dbt/models/a.sql"],
+        ["M", "analytics_dbt/models/b.sql"],
+        ["M", "docs/dbt/c.sql"],
+        ["M", "README.md"],
+    ]
+
+    @pytest.mark.parametrize("project_dir", ["dbt", "./dbt", "dbt/", "dbt/./"])
+    def test_spellings_of_the_same_directory(self, project_dir, tmp_path, monkeypatch):
+        """Relative spellings of the project directory all match the same files."""
+        monkeypatch.chdir(tmp_path)
+        adapter = _make_adapter(self.CHANGES, dbt_project_dir=project_dir)
+        adapter.repo_root = str(tmp_path)
+        assert adapter.get_changed_files() == {"modified": ["models/a.sql"]}
+
+    def test_absolute_project_dir(self, tmp_path, monkeypatch):
+        """An absolute project directory inside the repository is matched too."""
+        monkeypatch.chdir(tmp_path)
+        adapter = _make_adapter(self.CHANGES, dbt_project_dir=str(tmp_path / "dbt"))
+        adapter.repo_root = str(tmp_path)
+        assert adapter.get_changed_files() == {"modified": ["models/a.sql"]}
+
+    def test_project_at_repository_root(self, tmp_path, monkeypatch):
+        """A project at the repository root keeps every path unchanged."""
+        monkeypatch.chdir(tmp_path)
+        adapter = _make_adapter([["M", "models/a.sql"]], dbt_project_dir=".")
+        adapter.repo_root = str(tmp_path)
+        assert adapter.get_changed_files() == {"modified": ["models/a.sql"]}
+
+    def test_run_from_a_subdirectory(self, tmp_path, monkeypatch):
+        """The project directory is resolved from the working directory, not the repository root."""
+        (tmp_path / "ci").mkdir()
+        monkeypatch.chdir(tmp_path / "ci")
+        adapter = _make_adapter(self.CHANGES, dbt_project_dir="../dbt")
+        adapter.repo_root = str(tmp_path)
+        assert adapter.get_changed_files() == {"modified": ["models/a.sql"]}
+
+    def test_symlinked_working_directory(self, tmp_path, monkeypatch):
+        """A working directory reached through a symlink still matches git's resolved root."""
+        real = tmp_path / "real"
+        (real / "dbt").mkdir(parents=True)
+        link = tmp_path / "link"
+        link.symlink_to(real)
+        monkeypatch.chdir(link)
+        adapter = _make_adapter(self.CHANGES, dbt_project_dir="dbt")
+        adapter.repo_root = str(real)
+        assert adapter.get_changed_files() == {"modified": ["models/a.sql"]}

@@ -306,22 +306,43 @@ def get_node_from_path(dependency_graph: DependencyGraph, path: str) -> Dependen
                 return node_info
     return None
 
-def get_nodes_from_path(dependency_graph: DependencyGraph, path: str) -> list[DependencyGraphNode]:
+def get_nodes_from_path(
+    dependency_graph: DependencyGraph,
+    path: str,
+    include_patch_path: bool = False,
+) -> list[DependencyGraphNode]:
     """
     Get every node defined by a given file.
 
     One file commonly defines several nodes - a schema.yml declares many tests, and a
     model's .sql file and its tests can share a path - so change detection has to
-    consider all of them rather than the first match.
+    consider all of them rather than the first match. With include_patch_path, nodes
+    whose properties (config, contract, columns) live in that YAML file match too.
     """
     matches: list[DependencyGraphNode] = []
     for node_type, node_values in dependency_graph.items():
         if node_type == "metadata":
             continue
         for node_info in cast(dict, node_values).values():
-            if node_info.get("original_file_path", None) == path:
+            if node_info.get("original_file_path", None) == path or (
+                include_patch_path and node_info.get("patch_path", None) == path
+            ):
                 matches.append(node_info)
     return matches
+
+def get_nodes_using_macros(dependency_graph: DependencyGraph, macro_ids: set[str]) -> set[str]:
+    """Return the non-macro nodes that call any of the given macros, directly or through other macros."""
+    if not macro_ids:
+        return set()
+    users: set[str] = set()
+    for node_type, node_values in dependency_graph.items():
+        if node_type in ("metadata", "macro"):
+            continue
+        for node_id, node_info in cast(dict, node_values).items():
+            upstream = (node_info.get("indirect_upstream_dependencies") or {}).get("node_dependencies") or set()
+            if macro_ids & set(upstream):
+                users.add(node_id)
+    return users
 
 def get_display_name(dependency_graph: DependencyGraph | None, node_id: str) -> str:
     """

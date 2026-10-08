@@ -173,7 +173,12 @@ dbt-ci init \
 
 **Git comparison and clone depth:** the `git` and `hybrid` strategies diff `origin/<base-ref>...HEAD` — the merge base — so only the commits on your branch count as changes. Shallow clones often don't contain the merge base; dbt-ci falls back to a direct diff and logs a debug message when that happens. For an accurate change set, fetch full history (`actions/checkout` with `fetch-depth: 0`).
 
-Renamed files are reported by git as a rename of one path to another; dbt-ci treats them as the old node being deleted and a new node being added, since dbt identifies nodes by their file path.
+How git's file-level changes are mapped to nodes:
+
+- **Moved or renamed files** are reported by git as a delete of the old path plus an add of the new one. dbt identifies nodes by `unique_id`, which a move does not change, so a node that still exists in the target manifest is treated as **modified**, not deleted and re-added. Only nodes that are really gone are reported as deleted (and dropped by `delete`).
+- **Macro changes** select every node that calls the changed macro, directly or through another macro.
+- **YAML-only changes** (config, contracts, columns in a `schema.yml`) select the model the YAML configures. With `git`, every model configured by a changed YAML file is selected; with `hybrid`, only those that dbt also flags as modified.
+- **`--dbt-project-dir`** is matched as a directory relative to the repository root, so `dbt`, `./dbt`, `dbt/` and an absolute path behave the same, and files in look-alike folders such as `analytics_dbt/` are ignored.
 
 ---
 
