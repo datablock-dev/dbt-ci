@@ -115,6 +115,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             "schema": full_item.get("schema", None),
             "resource_type": full_item.get("resource_type", None),
             "original_file_path": original_file_path,
+            "patch_path": normalize_patch_path(full_item.get("patch_path", None)),
             "compiled_path": full_item.get("compiled_path", None),
             "compiled_code": compiled_code,
             "config": config,
@@ -159,6 +160,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
                 "schema": None,
                 "resource_type": "macro",
                 "original_file_path": macro_item.get("original_file_path"),
+                "patch_path": None,
                 "compiled_path": None,
                 "compiled_code": None,
                 "config": {},
@@ -170,12 +172,31 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
                 "indirect_upstream_dependencies": skeleton_dependencies_structure(),
                 "indirect_downstream_dependencies": skeleton_dependencies_structure(),
             }
+            # Macros calling other macros, so a change to a shared macro reaches every
+            # node that uses it indirectly through the transitive closure below.
+            append_depends_on_nodes(
+                dependency_graph=dependency_graph,
+                node_type="macro",
+                node_id=macro_id,
+                dependencies=macro_item.get("depends_on") or {},
+            )
 
     append_upstream_dependencies(dependency_graph, manifest_file)
     append_indirect_dependencies(dependency_graph, "upstream")
     append_indirect_dependencies(dependency_graph, "downstream")
 
     return dependency_graph
+
+def normalize_patch_path(patch_path: str | None) -> str | None:
+    """
+    Strip the package prefix from a node's patch_path.
+
+    dbt records the YAML file that configures a node as "<package>://models/schema.yml",
+    whereas git reports the same file as "models/schema.yml" relative to the project.
+    """
+    if not patch_path:
+        return None
+    return patch_path.split("://", 1)[-1]
 
 def append_depends_on_nodes(
     dependency_graph: DependencyGraph,

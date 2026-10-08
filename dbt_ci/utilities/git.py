@@ -5,6 +5,7 @@ import logging
 import os
 import subprocess
 from argparse import Namespace
+from pathlib import PurePath
 from typing import Literal, cast
 
 logger = logging.getLogger(__name__)
@@ -129,12 +130,18 @@ class GitAdapter:
         if dbt_project_dir is None:
             raise ValueError("DBT project directory not specified in arguments.")
 
+        project_prefix = self._project_path_in_repo(dbt_project_dir)
+
         dbt_related_changes: dict[GitChangeType, list[str]] = {}
         for change_type_key, file_path in self._classify_changes():
-            if dbt_project_dir not in file_path:
-                continue
-
-            file_name = file_path.split(f"{dbt_project_dir}/")[-1]
+            # git reports paths relative to the repository root, while dbt records them
+            # relative to the project directory.
+            if project_prefix:
+                if not file_path.startswith(f"{project_prefix}/"):
+                    continue
+                file_name = file_path[len(project_prefix) + 1:]
+            else:
+                file_name = file_path
             if extensions is None or any(file_name.endswith(ext) for ext in extensions):
                 dbt_related_changes.setdefault(change_type_key, []).append(file_name)
 
@@ -143,14 +150,47 @@ class GitAdapter:
 
         return dbt_related_changes
 
+    def _project_path_in_repo(self, dbt_project_dir: str) -> str:
+        """
+        Return the dbt project directory relative to the repository root, in POSIX form.
+
+        "./dbt", "dbt/" and an absolute path all resolve to "dbt", and a project at the
+        repository root resolves to "". Matching on this prefix (rather than a substring)
+        keeps "analytics_dbt/models/a.sql" from being read as part of a "dbt" project.
+        """
+        repo_root = getattr(self, "repo_root", None) or self._resolve_repo_root()
+        # git reports the repository root with symlinks resolved, so resolve both sides
+        relative = os.path.relpath(os.path.realpath(dbt_project_dir), os.path.realpath(repo_root))
+        if relative == ".":
+            return ""
+        if relative.startswith(".."):
+            logger.warning(
+                f"dbt project directory '{dbt_project_dir}' is outside the git repository "
+                f"'{repo_root}', so no changed files can be matched to it."
+            )
+        return PurePath(relative).as_posix()
+
+    @staticmethod
+    def _resolve_repo_root() -> str:
+        """Return the git repository root, or the working directory if it cannot be resolved."""
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+        return os.getcwd()
+
     def _classify_changes(self) -> list[tuple[GitChangeType, str]]:
         """
         Turn raw `git diff --name-status` rows into (change type, path) pairs.
 
         Renames and copies arrive as 'R100\\told\\tnew' / 'C100\\told\\tnew' and carry a
         similarity score, so the status is matched on its first character. A rename is
-        expanded into two changes because dbt identifies nodes by path: the node at the
-        old path disappears and a new node appears at the new path.
+        expanded into a delete of the old path and an add of the new one. dbt keys nodes
+        by unique_id, which a move does not change, so the state comparison reconciles
+        such pairs back into a modification of the same node.
         """
         classified: list[tuple[GitChangeType, str]] = []
         for change in self.changes:
