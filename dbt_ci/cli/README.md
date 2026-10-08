@@ -56,6 +56,7 @@ DBT_DOCKER_ENV:
 | `DBT_ADAPTER` | `--adapter`, `-a` | `None` | dbt adapter (e.g. `bigquery`, `postgres`) |
 | `DBT_VERSION` | `--dbt-version` | `None` | dbt version override |
 | `DBT_DEFER` | `--defer` | `false` | Enable dbt `--defer` flag |
+| `DEFER_FLAG` | `--defer` | unset | Fallback for `DBT_DEFER`: `--defer` or a truthy value enables deferral, empty, `--no-defer` or a falsy value leaves it off |
 | `DBT_DRY_RUN` | `--dry-run` | `false` | Print commands without executing |
 | `DBT_LOG_LEVEL` | `--log-level` | `INFO` | Log level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `DBT_QUIET` | `--quiet`, `-q` | `false` | Minimal output mode |

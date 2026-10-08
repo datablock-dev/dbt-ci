@@ -595,7 +595,7 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 | `--reference-state` | `--state` | `DBT_STATE` | `None` | Local path to the reference state directory (where `manifest.json` is stored) |
 | `--target` | `-t` | `DBT_TARGET` | From `profiles.yml` | dbt target to use |
 | `--vars` | `-v` | `DBT_VARS` | `""` | YAML string or path to a YAML file with dbt variables |
-| `--defer` | | `DBT_DEFER` | `false` | Pass dbt's `--defer` flag (defers unmodified nodes to the production state) |
+| `--defer` | | `DBT_DEFER`, `DEFER_FLAG` | `false` | Pass dbt's `--defer` flag (defers unmodified nodes to the production state). `DEFER_FLAG` is a fallback read only when `DBT_DEFER` is unset, and accepts `--defer`, `--no-defer`, an empty value or a boolean |
 | `--runner` | `-r` | `DBT_RUNNER` | `dbt` | Runner to use: `dbt`, `local`, `docker`, `bash` |
 | `--entrypoint` | | `DBT_ENTRYPOINT` | `dbt` | Command entrypoint for dbt |
 | `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`, or `2.0.6` for dbt v2). **Requires `--runner local`** |
@@ -684,7 +684,7 @@ Things to know:
 - **Deferral stays opt-in.** dbt v2 defers to `--state` by default, while dbt v1 only
   defers when asked. dbt-ci passes `--no-defer` whenever it passes `--state` without
   `--defer`, so `run`, `test` and `build` behave the same on both versions. `--defer`
-  still turns deferral on.
+  (or `DBT_DEFER`, or `DEFER_FLAG=--defer`) still turns deferral on.
 - **Change detection works unchanged.** dbt v2 still writes `target/manifest.json` in the
   same v12 schema dbt-ci parses. CI checks every manifest field dbt-ci relies on (node
   ids, resource types, project-relative file paths, configs, lineage) against dbt-core
