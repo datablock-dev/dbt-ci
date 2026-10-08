@@ -1,4 +1,5 @@
 import click
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.main import cli
 from dbt_ci.cli.common_options import common_options
 from dbt_ci.utilities.logging import setup_logging
@@ -29,4 +30,6 @@ def ephemeral_cmd(**kwargs):
         dbt-ci ephemeral --runner docker
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return ephemeral(to_namespace(kwargs, command="ephemeral"))
+    args = to_namespace(kwargs, command="ephemeral")
+    with CacheManager(args).track_report("ephemeral"):
+        return ephemeral(args)

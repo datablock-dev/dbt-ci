@@ -5,6 +5,8 @@
 import json
 import logging
 from argparse import Namespace
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, cast
@@ -140,6 +142,32 @@ class CacheManager:
             else:
                 report_cache[command]["comment"] = comment
         self._write_report(report_cache)
+
+    @contextmanager
+    def track_report(self, command: Commands) -> Iterator[None]:
+        """
+        Close the command's report entry however the command exits.
+
+        Commands leave through sys.exit() on dry runs, "nothing to do" paths and some
+        failures, which skips their own update_report() call and left the entry on
+        "started" forever. An entry the command already closed is left untouched.
+        """
+        try:
+            yield
+        except SystemExit as e:
+            self._close_report(command, "completed" if e.code in (0, None) else "failed")
+            raise
+        except BaseException:
+            self._close_report(command, "failed")
+            raise
+        else:
+            self._close_report(command, "completed")
+
+    def _close_report(self, command: Commands, status: str) -> None:
+        """Set the final status of a report entry that is still marked as started."""
+        report_cache = self.get_cache("report.json")
+        if isinstance(report_cache, dict) and (report_cache.get(command) or {}).get("status") == "started":
+            self.update_report(command, status)
 
     def clear_cache(self) -> None:
         """

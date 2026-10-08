@@ -198,6 +198,8 @@ dbt-ci run --dbt-project-dir dbt --mode models
 | `--downstream-depth` | | `DBT_DOWNSTREAM_DEPTH` | Full graph | How many levels of downstream dependencies to include (dbt's `model+N`) |
 | `--filters` | `-f` | | `None` | Extra resource-type filter (repeatable, choices: `models`, `seeds`, `snapshots`, `tests`). E.g. `--mode tests -f snapshots` to run only tests that have a snapshot dependency |
 
+With `--mode all`, the steps run in dependency order: **seeds → snapshots → models → tests**, so models built on a changed snapshot read its new state and tests run once everything they check exists. The test step runs both data tests and dbt unit tests (dbt ≥ 1.8).
+
 #### Limiting blast radius
 
 By default a change selects its **entire** downstream graph. On a large project a change
@@ -221,7 +223,9 @@ For a chain `customers → l1 → l2 → l3` where only `customers` changed:
 | *(omitted)* | `customers`, `l1`, `l2`, `l3` |
 
 New and deleted nodes are always included regardless of depth — a new model has to run
-whether or not anything depends on it yet.
+whether or not anything depends on it yet. Every seed, snapshot and model the run builds
+also gets its data and unit tests, even though a test sits one level below the node it
+checks.
 
 > All [common options](#common-options) also apply.
 
@@ -299,8 +303,11 @@ state, and rebuilds the affected tables with the new partitioning spec. Uses cac
 from `init`.
 
 BigQuery cannot change a table's partitioning in place, so each affected table is copied
-into a temporary table with the new spec, the original is dropped, and the copy is
-renamed back. Only **incremental** models are considered — other materializations are
+into a temporary table with the new spec (keeping the model's `cluster_by`,
+`require_partition_filter` and `partition_expiration_days`). The original is then renamed
+to `<table>__dbt_ci_backup`, the copy is renamed into place, and only then is the backup
+dropped — if the swap fails, the original data is still in the backup table. The table
+migrated is the relation dbt resolves for the model, including its `alias`. Only **incremental** models are considered — other materializations are
 rebuilt by dbt anyway.
 
 ```bash
@@ -321,7 +328,8 @@ dbt-ci migration            # apply the changes
 
 Renders the change set detected by `init` and the status of every command that has run
 so far. In GitHub Actions the report is appended to the job summary automatically, so no
-workflow wiring is needed beyond calling it.
+workflow wiring is needed beyond calling it. Each command's entry ends as `completed` or
+`failed` however it exits, including dry runs and runs with nothing to do.
 
 ```bash
 dbt-ci report                       # → $GITHUB_STEP_SUMMARY, or stdout locally
@@ -620,7 +628,7 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 | `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them (and without installing a pinned `--dbt-version`) |
 | `--quiet` | `-q` | `DBT_QUIET` | `false` | Run in quiet mode with minimal output |
 | `--log-level` | | `DBT_LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (dbt's `warn` and `none` are accepted too). dbt reads `DBT_LOG_LEVEL` as well, so dbt-ci rewrites it into dbt's lowercase form (`WARNING` → `warn`, `CRITICAL` → `error`) before running dbt |
-| `--slack-webhook` | `--slack-webhook-url` | `SLACK_WEBHOOK`, `SLACK_WEBHOOK_URL` | `None` | Slack webhook URL for CI notifications |
+| `--slack-webhook` | `--slack-webhook-url` | `SLACK_WEBHOOK`, `SLACK_WEBHOOK_URL` | `None` | Slack webhook URL for CI notifications. `init` posts the number of modified, new and deleted nodes with their names, truncated to Slack's message limit |
 
 ### Docker Runner
 

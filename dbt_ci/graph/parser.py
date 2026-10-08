@@ -19,6 +19,7 @@ def skeleton_dependencies_structure():
             "source": set(),
             "test": set(),
             "exposure": set(),
+            "unit_test": set(),
         },
     }
 
@@ -68,7 +69,8 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
         "test": {},
         "macro": {},
         "exposure": {},
-        "source": {}
+        "source": {},
+        "unit_test": {}
     }
 
     for key, raw_downstream_dependencies in child_map.items():
@@ -100,6 +102,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             "source": set(),
             "test": set(),
             "exposure": set(),
+            "unit_test": set(),
         }
 
         for dep_id in downstream_dependencies:
@@ -113,6 +116,8 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             "fqn": full_item.get("fqn", None),
             "database": full_item.get("database", None),
             "schema": full_item.get("schema", None),
+            # The relation name dbt resolved, including custom generate_alias_name macros
+            "alias": full_item.get("alias", None),
             "resource_type": full_item.get("resource_type", None),
             "original_file_path": original_file_path,
             "patch_path": normalize_patch_path(full_item.get("patch_path", None)),
@@ -132,6 +137,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
                     "source": node_type_map["source"],
                     "test": node_type_map["test"],
                     "exposure": node_type_map["exposure"],
+                    "unit_test": node_type_map["unit_test"],
                 }
             },
             "upstream_dependencies": skeleton_dependencies_structure(),

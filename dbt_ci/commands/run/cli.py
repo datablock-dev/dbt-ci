@@ -1,4 +1,5 @@
 import click
+from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.main import cli
 from dbt_ci.cli.common_options import common_options
 from dbt_ci.cli.config import make_config_callback
@@ -61,4 +62,6 @@ def run_cmd(**kwargs):
         dbt-ci run
     """
     setup_logging(to_namespace(kwargs).log_level)
-    return run(to_namespace(kwargs, command="run"))
+    args = to_namespace(kwargs, command="run")
+    with CacheManager(args).track_report("run"):
+        return run(args)

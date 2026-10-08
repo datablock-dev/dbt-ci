@@ -2,7 +2,6 @@
 This module contains the implementation of the `init` command for the dbt CI tool.
 """
 
-import json
 import sys
 import logging
 from argparse import Namespace
@@ -155,13 +154,26 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
 
     try:
         from dbt_ci.notifications.slack import SlackClient
-        header = "*DBT CI Initialization Summary:*\n\n"
-        message = "*State Change Summary:*\n"
-        message += json.dumps(state_change_summary, indent=2, default=lambda o: list(o) if isinstance(o, set) else str(o))
-        message += "\n\n"
-        SlackClient(args).send_message(header, message)
+        header = "*DBT CI Initialization Summary:*"
+        SlackClient(args).send_message(header, format_slack_summary(state_change_summary))
     except Exception as e:
         logger.error(f"Failed to send Slack message: {e}")
+
+def format_slack_summary(state_change_summary: StateChangeSummary) -> str:
+    """
+    Summarise a change set as counts and node names for Slack.
+
+    The full node data (compiled SQL, configs, lineage) made even a single changed
+    model exceed Slack's per-block text limit, so the message was rejected.
+    """
+    lines = ["*State Change Summary:*"]
+    for change_type in ("modified_nodes", "new_nodes", "deleted_nodes"):
+        values = state_change_summary.get(change_type) or {}
+        nodes = [node for node_dict in values.values() for node in node_dict.values()]
+        lines.append(f"\n*{change_type.replace('_', ' ').title()}: {len(nodes)}*")
+        for node in sorted(nodes, key=lambda n: (n.get("resource_type") or "", n.get("name") or "")):
+            lines.append(f"• {node.get('name')} [{node.get('resource_type')}]")
+    return "\n".join(lines)
 
 def detect_deleted_models_with_downstream_dependencies(
     state_change_summary: StateChangeSummary,

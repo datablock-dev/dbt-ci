@@ -14,7 +14,8 @@ from dbt_ci.utilities.paths import get_profile
 from dbt_ci.graph.graph_utils import (
     filter_node_ids_by_multiple_types,
     get_node_ids_from_structured_nodes,
-    get_nodes
+    get_nodes,
+    get_relation_name
 )
 
 logger = logging.getLogger(__name__)
@@ -126,7 +127,10 @@ def generate_migration_map(
         # Dict comparison is order-insensitive since Python 3.7+
         if target_partitioning_config != reference_partitioning_config:
             migration_map["nodes"][node_id] = {
-                "table_id": f"{node_metadata.get('database', '')}.{node_metadata.get('schema', '')}.{node_metadata.get('name', '')}",
+                "table_id": f"{node_metadata.get('database', '')}.{node_metadata.get('schema', '')}.{get_relation_name(node_metadata)}",
+                "cluster_by": node_config.get("cluster_by", None),
+                "require_partition_filter": node_config.get("require_partition_filter", None),
+                "partition_expiration_days": node_config.get("partition_expiration_days", None),
                 "compiled_code": node_metadata.get("compiled_code", None),
                 "old_partitioning": reference_partitioning_config,
                 "new_partitioning": target_partitioning_config

@@ -25,6 +25,7 @@ from dbt_ci.graph.graph_utils import (
     get_downstream_dependencies,
     get_node_ids_from_structured_nodes,
     get_nodes,
+    get_relation_name,
     get_upstream_dependencies
 )
 
@@ -106,13 +107,13 @@ def build_ephemeral_map(args: Namespace, node_ids: list[str]) -> dict[str, Ephem
                 database=target_node.get("database", None),
                 schema=target_node.get("schema", None),
                 name=target_node.get("name", None),
-                alias=(target_node.get("config") or {}).get("alias", None),
+                alias=get_relation_name(target_node),
             ),
             "reference_config": full_config_or_none(
                 database=reference_node.get("database", None),
                 schema=reference_node.get("schema", None),
                 name=reference_node.get("name", None),
-                alias=(reference_node.get("config") or {}).get("alias", None),
+                alias=get_relation_name(reference_node) if reference_node else None,
             ),
         }
     return ephemeral_map

@@ -5,6 +5,9 @@ from slack_sdk.webhook import WebhookClient
 
 logger = logging.getLogger(__name__)
 
+# Slack rejects a section block whose text is longer than this
+SLACK_SECTION_TEXT_LIMIT = 3000
+
 class SlackClient:
     """Wrapper around Slack WebhookClient for sending notifications."""
 
@@ -19,26 +22,21 @@ class SlackClient:
             self.webhook_client = WebhookClient(self.slack_webhook_url)
 
     def send_message(self, header: str, message: str) -> None:
-        """Send a message to Slack."""
+        """Send a message to Slack, truncating each block to Slack's text limit."""
         if self.webhook_client is None:
             return
-        
+
+        texts = [text for text in (header, message) if text]
         payload = {
             "blocks": [
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": header
+                        "text": truncate_for_slack(text)
                     },
-                } if header else None,
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": message
-                    },
-                },
+                }
+                for text in texts
             ]
         }
 
@@ -46,3 +44,18 @@ class SlackClient:
 
         if response.status_code != 200:
             raise Exception(f"Failed to send message to Slack: {response.status_code} - {response.body}")
+
+
+def truncate_for_slack(text: str, limit: int = SLACK_SECTION_TEXT_LIMIT) -> str:
+    """Cut text to Slack's section limit on a line boundary, noting how many lines were left out."""
+    if len(text) <= limit:
+        return text
+    lines = text.splitlines()
+    kept: list[str] = []
+    # Reserve room for the "...and N more lines" note
+    budget = limit - 40
+    for line in lines:
+        if len("\n".join([*kept, line])) > budget:
+            break
+        kept.append(line)
+    return "\n".join(kept) + f"\n…and {len(lines) - len(kept)} more line(s)"

@@ -352,22 +352,34 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
             table_id: str = node_data["table_id"]
             table_name: str = table_id.split(".")[-1]  # RENAME TO only accepts a bare table name, not a fully-qualified path
             temp_table_id: str = f"{table_id}_temp_new_partition"
+            backup_table_name: str = f"{table_name}__dbt_ci_backup"
+            backup_table_id: str = f"{table_id}__dbt_ci_backup"
             dbt_tmp_table_id: str = f"{table_id}__dbt_tmp"
-            partitioning_clause: str = render_bigquery_partition_clause(node_data["new_partitioning"])
-            steps: list[str] = [
-                # Step 1: Copy data into a new temp table with the new partitioning spec.
-                # Using a new table name avoids the "cannot replace with different partitioning spec" error.
-                f"CREATE OR REPLACE TABLE `{temp_table_id}` {partitioning_clause} AS SELECT * FROM `{table_id}`",
-                # Step 2: Drop the original table (with its old partition spec).
-                f"DROP TABLE IF EXISTS `{table_id}`",
+            table_clauses: str = " ".join(filter(None, [
+                render_bigquery_partition_clause(node_data["new_partitioning"]),
+                render_bigquery_cluster_clause(node_data.get("cluster_by")),
+                render_bigquery_options_clause(node_data),
+            ]))
+            # Step 1: Copy data into a new temp table with the new partitioning spec (and the
+            # model's clustering and partition options, which a plain CTAS would drop).
+            # Using a new table name avoids the "cannot replace with different partitioning spec" error.
+            client.query(f"CREATE OR REPLACE TABLE `{temp_table_id}` {table_clauses} AS SELECT * FROM `{table_id}`").result()
+            # Step 2: Move the original table aside instead of dropping it, so a failure in the
+            # swap below never leaves production without its data.
+            # BigQuery RENAME TO only accepts a bare table name (no project/dataset prefix).
+            client.query(f"ALTER TABLE `{table_id}` RENAME TO `{backup_table_name}`").result()
+            try:
                 # Step 3: Rename the temp table to the original table name.
-                # BigQuery RENAME TO only accepts a bare table name (no project/dataset prefix).
-                f"ALTER TABLE `{temp_table_id}` RENAME TO `{table_name}`",
-                # Step 4: Clean up any leftover dbt tmp table.
-                f"DROP TABLE IF EXISTS `{dbt_tmp_table_id}`",
-            ]
-            for step in steps:
-                client.query(step).result()
+                client.query(f"ALTER TABLE `{temp_table_id}` RENAME TO `{table_name}`").result()
+            except Exception as e:
+                raise RuntimeError(
+                    f"Renaming the migrated table into place failed for '{table_id}'. The original "
+                    f"data is preserved in '{backup_table_id}' and the migrated copy in '{temp_table_id}'. "
+                    f"Original error: {e}"
+                ) from e
+            # Step 4: Only now drop the old table and any leftover dbt tmp table.
+            client.query(f"DROP TABLE IF EXISTS `{backup_table_id}`").result()
+            client.query(f"DROP TABLE IF EXISTS `{dbt_tmp_table_id}`").result()
             logger.info(f"Migrated partitioning for table '{table_id}'")
 
         if args.dry_run:
@@ -385,6 +397,24 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
         )
     except Exception as e:
         raise RuntimeError(f"An error occurred while initializing BigQuery client or processing migration map: {e}")
+
+
+def render_bigquery_cluster_clause(cluster_by: str | list[str] | None) -> str:
+    """Render a BigQuery CLUSTER BY clause from dbt's cluster_by config (a column or list of columns)."""
+    if not cluster_by:
+        return ""
+    columns = [cluster_by] if isinstance(cluster_by, str) else list(cluster_by)
+    return "CLUSTER BY " + ", ".join(f"`{column}`" for column in columns)
+
+
+def render_bigquery_options_clause(node_data: dict[str, Any]) -> str:
+    """Render the OPTIONS(...) clause for the partition settings dbt manages on the table."""
+    options: list[str] = []
+    if node_data.get("require_partition_filter") is not None:
+        options.append(f"require_partition_filter={'true' if node_data['require_partition_filter'] else 'false'}")
+    if node_data.get("partition_expiration_days") is not None:
+        options.append(f"partition_expiration_days={float(node_data['partition_expiration_days'])}")
+    return f"OPTIONS({', '.join(options)})" if options else ""
 
 
 def render_bigquery_partition_clause(partition_by: dict[str, Any]) -> str:
