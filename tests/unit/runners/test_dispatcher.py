@@ -193,3 +193,42 @@ class TestRunDbtCommand:
             run_dbt_command(["compile"], config)
 
         assert config["entrypoint"] == "dbt"
+
+
+class TestBashRunner:
+    """Test that the bash runner gets host paths and can actually start dbt."""
+
+    def test_bash_runner_gets_host_paths(self):
+        """--project-dir, --profiles-dir and --state are passed, so --no-defer applies too."""
+        args = TestResolveDbtCommandsDefer.make_args(runner="bash")
+        commands = resolve_dbt_commands(["ls"], args)
+        for flag in ("--project-dir", "--profiles-dir", "--state", "--no-defer"):
+            assert flag in commands
+
+    @pytest.mark.parametrize("shell_path, expected", [
+        ("/bin/bash", ["/bin/bash", "-c", "dbt ls --select 'tag:a b'"]),
+        ("/usr/bin/sh", ["/usr/bin/sh", "-c", "dbt ls --select 'tag:a b'"]),
+        ("bin/dbt-wrapper", ["bin/dbt-wrapper", "ls", "--select", "tag:a b"]),
+    ])
+    def test_shell_runs_the_entrypoint(self, shell_path, expected):
+        """A plain shell runs the dbt entrypoint; a wrapper script gets the dbt arguments."""
+        from dbt_ci.runners.bash import bash_runner
+
+        with patch("dbt_ci.runners.bash.subprocess.run") as mock_run:
+            bash_runner(["ls", "--select", "tag:a b"], {"shell_path": shell_path, "entrypoint": "dbt", "quiet": True})
+        assert mock_run.call_args.kwargs["args"] == expected
+
+
+class TestDryRunSkipsPinnedInstall:
+    """Test that a dry run never installs a pinned dbt version."""
+
+    def test_pinned_version_is_not_installed(self):
+        """resolve_pinned_dbt_binary (which pip-installs) is skipped on a dry run."""
+        from dbt_ci.runners import run_dbt_command
+
+        runner = MagicMock(return_value=None)
+        with patch.dict("dbt_ci.runners.RUNNERS", {"local": runner}), \
+             patch("dbt_ci.runners.resolve_pinned_dbt_binary") as mock_resolve:
+            run_dbt_command(["ls"], {"runner": "local", "dry_run": True, "dbt_version": "1.10.13"})
+        mock_resolve.assert_not_called()
+        runner.assert_called_once()

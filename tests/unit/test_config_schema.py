@@ -55,3 +55,55 @@ class TestEnumValidation:
             },
         }
         assert validate_config(config) == []
+
+
+class TestSchemaCoverage:
+    """Test that every option the code reads from the config file is accepted by both schemas."""
+
+    @pytest.mark.parametrize("config", [
+        {"dbt-version": "1.10.13"},
+        {"DBT_VERSION": "1.10.13"},
+        {"report": {"format": "json", "output": "report.md"}},
+        {"run": {"downstream-depth": 2}},
+        {"DBT_DOCKER_IMAGE": "img", "DBT_DOCKER_PLATFORM": "linux/amd64"},
+    ])
+    def test_keys_are_accepted(self, config):
+        """These keys used to be rejected as unknown even though the code reads them."""
+        assert validate_config(config) == []
+
+    def test_flat_docker_key_type_is_checked(self):
+        """Flat legacy docker keys are validated like their nested counterparts."""
+        assert validate_config({"DBT_DOCKER_VOLUMES": 3})
+
+    def test_runtime_keys_exist_in_the_json_schema(self):
+        """Editor validation (JSON schema) must not reject keys that dbt-ci accepts."""
+        import json
+        from pathlib import Path
+        from dbt_ci.cli.config.schema import SCHEMA, _flat_section_aliases
+
+        json_schema = json.loads(Path(__file__).parents[2].joinpath("dbt-ci.config.schema.json").read_text())
+        properties = json_schema["properties"]
+        missing = []
+        for key, rule in SCHEMA.items():
+            names = [key, *rule.get("aliases", [])]
+            missing += [name for name in names if name not in properties]
+            if rule["type"] == "section":
+                section = properties.get(key, {}).get("properties", {})
+                for field, field_rule in rule["fields"].items():
+                    field_names = [field, *[a for a in field_rule.get("aliases", []) if not a.startswith("DBT_")]]
+                    missing += [f"{key}.{name}" for name in field_names if name not in section]
+        missing += [name for name in _flat_section_aliases(SCHEMA) if name not in properties]
+        assert missing == []
+
+
+class TestFlattenConfig:
+    """Test how nested config keys are turned into DBT_* names."""
+
+    def test_nested_key_written_with_its_full_name(self):
+        """docker: {DBT_DOCKER_PLATFORM: x} maps to DBT_DOCKER_PLATFORM, not a doubled prefix."""
+        from dbt_ci.cli.config.parser import _flatten_config
+
+        assert _flatten_config({"docker": {"DBT_DOCKER_PLATFORM": "linux/amd64", "image": "img"}}) == {
+            "DBT_DOCKER_PLATFORM": "linux/amd64",
+            "DBT_DOCKER_IMAGE": "img",
+        }

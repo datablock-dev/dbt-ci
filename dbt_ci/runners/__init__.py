@@ -53,7 +53,8 @@ def run_dbt_command(
     if runner not in RUNNERS:
         raise ValueError(f"Unsupported runner: {runner}")
 
-    dbt_binary = resolve_pinned_dbt_binary(runner_config)
+    # A dry run only prints the command, so it must not install a pinned dbt version
+    dbt_binary = None if runner_config.get("dry_run", False) else resolve_pinned_dbt_binary(runner_config)
     if dbt_binary is not None:
         # local_runner prefixes the command with `entrypoint`, so pointing it at the
         # pinned virtual environment's dbt is what actually makes the pin take effect.
@@ -228,8 +229,8 @@ def resolve_dbt_commands(
         "reference_state": "--state",
     }
     
-    # Local and dbt runners need absolute paths
-    if runner in ["local", "dbt"]:
+    # Runners that execute on the host (including a bash wrapper script) need absolute paths
+    if runner in ["local", "dbt", "bash"]:
         for var, flag in path_flags.items():
             value = getattr(args, var, None)
             if value is not None and value != "":

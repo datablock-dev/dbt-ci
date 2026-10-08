@@ -18,16 +18,17 @@ SCHEMA: dict[str, dict] = {
     "runner":        {"aliases": ["DBT_RUNNER"], "type": "enum", "choices": ["dbt", "local", "docker", "bash"]},
     "entrypoint":    {"aliases": ["DBT_ENTRYPOINT"], "type": "str"},
     "adapter":       {"aliases": ["DBT_ADAPTER"], "type": "str"},
+    "dbt-version":   {"aliases": ["dbt_version", "DBT_VERSION"], "type": "str"},
     "defer":         {"aliases": ["DBT_DEFER"], "type": "bool"},
     "dry-run":       {"aliases": ["dry_run", "DBT_DRY_RUN"], "type": "bool"},
-    "log-level":     {"aliases": ["log_level", "DBT_LOG_LEVEL"], "type": "enum", "choices": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]},
+    "log-level":     {"aliases": ["log_level", "DBT_LOG_LEVEL"], "type": "enum", "choices": ["DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL", "NONE"]},
     "quiet":         {"aliases": ["DBT_QUIET"], "type": "bool"},
     "slack-webhook": {"aliases": ["slack_webhook", "SLACK_WEBHOOK"], "type": "str"},
     "shell-path":    {"aliases": ["shell_path", "DBT_SHELL_PATH"], "type": "str"},
     "docker": {
         "type": "section",
         "fields": {
-            "image":    {"type": "str"},
+            "image":    {"aliases": ["DBT_DOCKER_IMAGE"], "type": "str"},
             "platform": {"aliases": ["DBT_DOCKER_PLATFORM"], "type": "str"},
             "volumes":  {"aliases": ["DBT_DOCKER_VOLUMES"], "type": "list_or_str"},
             "env":      {"aliases": ["DBT_DOCKER_ENV"], "type": "list_or_str"},
@@ -70,7 +71,32 @@ SCHEMA: dict[str, dict] = {
             "keep-env": {"aliases": ["keep_env"], "type": "bool"},
         },
     },
+    "report": {
+        "type": "section",
+        "fields": {
+            "format": {"aliases": ["DBT_REPORT_FORMAT"], "type": "enum", "choices": ["markdown", "json"]},
+            "output": {"aliases": ["DBT_REPORT_OUTPUT"], "type": "str"},
+        },
+    },
 }
+
+
+def _flat_section_aliases(schema: dict[str, dict]) -> dict[str, dict]:
+    """
+    Return the rules of section fields that may also be written flat at the top level.
+
+    The legacy flat style puts e.g. DBT_DOCKER_IMAGE next to DBT_RUNNER instead of under
+    docker:, so every DBT_-prefixed alias of a section field is accepted there as well.
+    """
+    flat: dict[str, dict] = {}
+    for rule in schema.values():
+        if rule["type"] != "section":
+            continue
+        for field_rule in rule["fields"].values():
+            for alias in field_rule.get("aliases", []):
+                if alias.startswith("DBT_"):
+                    flat[alias] = field_rule
+    return flat
 
 
 def _valid_keys(schema: dict[str, dict]) -> set[str]:
@@ -135,10 +161,11 @@ def _validate_section(path: str, value: Any, schema: dict[str, dict], errors: li
 def validate_config(raw: dict) -> list[str]:
     """Return a list of human-readable validation error messages for the raw config dict."""
     errors: list[str] = []
-    for k in set(raw.keys()) - _valid_keys(SCHEMA):
+    flat_aliases = _flat_section_aliases(SCHEMA)
+    for k in set(raw.keys()) - _valid_keys(SCHEMA) - set(flat_aliases):
         errors.append(f"Unknown key '{k}'")
     for k, v in raw.items():
-        rule = _find_rule(k, SCHEMA)
+        rule = _find_rule(k, SCHEMA) or flat_aliases.get(k)
         if rule:
             _validate_value(k, v, rule, errors)
     return errors

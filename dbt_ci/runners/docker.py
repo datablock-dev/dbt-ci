@@ -5,6 +5,7 @@ import logging
 import os
 import shlex
 import sys
+from pathlib import PurePath
 from subprocess import CompletedProcess
 from typing import TYPE_CHECKING, Any, cast
 from dbt_ci.schema import RunnerConfig
@@ -242,6 +243,29 @@ def parse_docker_volumes(runner_config: RunnerConfig) -> dict:
             volume_map[host_path] = container_path
     return volume_map
 
+def map_host_path_to_container(host_path: str, volume_map: dict[str, str]) -> str | None:
+    """
+    Translate a host path to its path inside the container, or None if no volume covers it.
+
+    Paths are compared component-wise, so a mount of "dbt" does not cover a sibling such
+    as "dbt_project", and the most specific (longest) matching mount wins.
+    """
+    abs_host = get_absolute_path(host_path)
+    best: tuple[str, str] | None = None
+    for host_mount, container_mount in volume_map.items():
+        host_mount_abs = get_absolute_path(host_mount)
+        if os.path.commonpath([abs_host, host_mount_abs]) != host_mount_abs:
+            continue
+        if best is None or len(host_mount_abs) > len(best[0]):
+            best = (host_mount_abs, container_mount)
+
+    if best is None:
+        return None
+    relative_path = os.path.relpath(abs_host, best[0])
+    if relative_path == ".":
+        return best[1]
+    return f"{best[1].rstrip('/')}/{PurePath(relative_path).as_posix()}"
+
 def get_container_paths(runner_config: RunnerConfig) -> dict:
     """Get container paths for dbt configuration variables.
     
@@ -260,41 +284,26 @@ def get_container_paths(runner_config: RunnerConfig) -> dict:
     # For dbt_project_dir: use DBT_PROJECT_DIR env or derive from volume mapping
     if "DBT_PROJECT_DIR" in env_dict:
         container_path_map["dbt_project_dir"] = env_dict["DBT_PROJECT_DIR"]
-    else:
-        # Try to derive from volume mapping — normalize both sides to absolute paths
-        # so that relative config values (e.g. "dbt") match expanded volume keys
-        # (e.g. "${PWD}/dbt" → "/home/runner/work/repo/dbt").
-        dbt_project_host = runner_config.get("dbt_project_dir")
-        if dbt_project_host:
-            abs_host = get_absolute_path(dbt_project_host)
-            for host_mount, container_mount in volume_map.items():
-                host_mount_abs = get_absolute_path(host_mount)
-                if abs_host.startswith(host_mount_abs):
-                    relative_path = abs_host[len(host_mount_abs):].lstrip("/")
-                    container_path_map["dbt_project_dir"] = (
-                        f"{container_mount}/{relative_path}" if relative_path else container_mount
-                    )
-                    break
-    
-    # For profiles_dir: use DBT_PROFILES_DIR env
+    elif runner_config.get("dbt_project_dir"):
+        container_path = map_host_path_to_container(runner_config["dbt_project_dir"], volume_map)
+        if container_path is not None:
+            container_path_map["dbt_project_dir"] = container_path
+
+    # For profiles_dir: use DBT_PROFILES_DIR env or derive from volume mapping
     if "DBT_PROFILES_DIR" in env_dict:
         container_path_map["profiles_dir"] = env_dict["DBT_PROFILES_DIR"]
-    
+    elif runner_config.get("profiles_dir"):
+        container_path = map_host_path_to_container(runner_config["profiles_dir"], volume_map)
+        if container_path is not None:
+            container_path_map["profiles_dir"] = container_path
+
     # For reference_state: use DBT_STATE env (translated through volume map) or derive from volume mapping
     reference_state_host = env_dict.get("DBT_STATE") or runner_config.get("reference_state")
     if reference_state_host:
-        reference_state_abs = get_absolute_path(reference_state_host)
-        # Translate host path to container path via volume map
-        for host_mount, container_mount in volume_map.items():
-            host_mount_abs = get_absolute_path(host_mount)
-            if reference_state_abs.startswith(host_mount_abs):
-                relative_path = reference_state_abs[len(host_mount_abs):].lstrip('/')
-                container_path_map["reference_state"] = f"{container_mount}/{relative_path}" if relative_path else container_mount
-                break
-        else:
-            # No volume match — use as-is (e.g. already an absolute container path)
-            container_path_map["reference_state"] = reference_state_host
-    
+        container_path = map_host_path_to_container(reference_state_host, volume_map)
+        # No volume match — use as-is (e.g. already an absolute container path)
+        container_path_map["reference_state"] = container_path if container_path is not None else reference_state_host
+
     return container_path_map
 
 def get_docker_env(runner_config: RunnerConfig) -> dict | None:

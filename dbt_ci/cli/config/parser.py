@@ -49,7 +49,10 @@ def _flatten_config(raw: dict, prefix: str = "") -> dict[str, Any]:
             nested_prefix = f"DBT_{upper_key}" if not prefix else f"{prefix}_{upper_key}"
             flat.update(_flatten_config(val, prefix=nested_prefix))
         else:
-            if prefix:
+            if prefix and upper_key.startswith(f"{prefix}_"):
+                # A field already written with its full name (docker: {DBT_DOCKER_PLATFORM: x})
+                env_key = upper_key
+            elif prefix:
                 env_key = f"{prefix}_{upper_key}"
             elif upper_key.startswith("DBT_") or upper_key.startswith("SLACK_"):
                 env_key = upper_key

@@ -382,3 +382,51 @@ class TestParseDockerArgs:
 
         _, kwargs = mock_client.containers.run.call_args
         assert kwargs["environment"] == {"FROM_FLAG": "1", "FROM_ARGS": "2"}
+
+
+class TestVolumePathMatching:
+    """Test that host paths are mapped to the container by path components, not string prefix."""
+
+    def test_sibling_directory_is_not_inside_the_mount(self, mock_runner_config, tmp_path, monkeypatch):
+        """A mount of 'dbt' must not cover 'dbt_project' or 'dbt_state'."""
+        monkeypatch.chdir(tmp_path)
+        config = mock_runner_config({
+            'dbt_project_dir': 'dbt_project',
+            'reference_state': '/elsewhere/state',
+            'docker_volumes': ['dbt:/dbt:rw'],
+            'docker_env': [],
+        })
+        result = get_container_paths(config)
+        assert 'dbt_project_dir' not in result
+        assert result['reference_state'] == '/elsewhere/state'
+
+    def test_most_specific_mount_wins(self, mock_runner_config, tmp_path, monkeypatch):
+        """With nested mounts, the deepest one translates the path."""
+        monkeypatch.chdir(tmp_path)
+        config = mock_runner_config({
+            'dbt_project_dir': 'repo/dbt',
+            'docker_volumes': ['repo:/repo:rw', 'repo/dbt:/dbt:rw'],
+            'docker_env': [],
+        })
+        assert get_container_paths(config)['dbt_project_dir'] == '/dbt'
+
+    def test_profiles_dir_is_derived_from_volumes(self, mock_runner_config, tmp_path, monkeypatch):
+        """--profiles-dir is translated like --project-dir when no DBT_PROFILES_DIR is given."""
+        monkeypatch.chdir(tmp_path)
+        config = mock_runner_config({
+            'dbt_project_dir': 'dbt',
+            'profiles_dir': 'dbt/profiles',
+            'docker_volumes': ['dbt:/dbt:rw'],
+            'docker_env': [],
+        })
+        assert get_container_paths(config)['profiles_dir'] == '/dbt/profiles'
+
+    def test_profiles_dir_env_still_wins(self, mock_runner_config, tmp_path, monkeypatch):
+        """An explicit DBT_PROFILES_DIR in --docker-env is used as-is."""
+        monkeypatch.chdir(tmp_path)
+        config = mock_runner_config({
+            'profiles_dir': 'dbt',
+            'docker_volumes': ['dbt:/dbt:rw'],
+            'docker_env': ['DBT_PROFILES_DIR=/root/.dbt'],
+        })
+        assert get_container_paths(config)['profiles_dir'] == '/root/.dbt'

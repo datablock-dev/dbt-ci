@@ -435,7 +435,7 @@ dbt-ci run \
   --docker-volumes "$(pwd)/dbt:/dbt:rw"
 ```
 
-When using the Docker runner, `--project-dir`, `--profiles-dir`, and `--state` are derived from the volume map — if the host path is covered by a mounted volume, the corresponding container path is passed to dbt inside the container. If no matching volume is found, the flag is omitted and dbt falls back to its own defaults (typically the container's `WORKDIR`).
+When using the Docker runner, `--project-dir`, `--profiles-dir`, and `--state` are derived from the volume map — if the host path is inside a mounted volume (compared by path, so a `dbt` mount does not cover `dbt_project`), the corresponding container path is passed to dbt inside the container; with nested mounts the most specific one wins. `DBT_PROJECT_DIR`, `DBT_PROFILES_DIR` or `DBT_STATE` in `--docker-env` take priority. If no matching volume is found, `--project-dir` and `--profiles-dir` are omitted and dbt falls back to its own defaults (typically the container's `WORKDIR`), while `--state` is passed through unchanged so an absolute container path can be given directly.
 
 **For Apple Silicon Macs:**
 
@@ -571,7 +571,11 @@ The legacy flat `DBT_*` key style is also supported:
 DBT_RUNNER: docker
 DBT_PROJECT_DIR: dbt
 DBT_STATE: dbt/.dbtstate
+DBT_DOCKER_IMAGE: ghcr.io/dbt-labs/dbt-core:latest
 ```
+
+Other keys accepted in the config file include `dbt-version` and a `report:` section
+(`format`, `output`), matching the `report` command's flags.
 
 **Precedence (highest → lowest):**
 1. CLI flags
@@ -608,9 +612,9 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 | `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`, or `2.0.6` for dbt v2). **Requires `--runner local`** |
 | `--adapter` | `-a` | `DBT_ADAPTER` | `None` | dbt adapter to install (e.g. `dbt-bigquery`, `dbt-duckdb=1.10.0`). **Requires `--runner local`** |
 | `--config` | `-c` | `DBT_CONFIG` | `dbt-ci.config.yaml` | Path to a dbt-ci YAML configuration file |
-| `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them |
+| `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them (and without installing a pinned `--dbt-version`) |
 | `--quiet` | `-q` | `DBT_QUIET` | `false` | Run in quiet mode with minimal output |
-| `--log-level` | | `DBT_LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `--log-level` | | `DBT_LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (dbt's `warn` and `none` are accepted too). dbt reads `DBT_LOG_LEVEL` as well, so dbt-ci rewrites it into dbt's lowercase form (`WARNING` → `warn`, `CRITICAL` → `error`) before running dbt |
 | `--slack-webhook` | `--slack-webhook-url` | `SLACK_WEBHOOK`, `SLACK_WEBHOOK_URL` | `None` | Slack webhook URL for CI notifications |
 
 ### Docker Runner
@@ -621,8 +625,8 @@ Only used when `--runner docker` is set.
 |------|-----------|---------|-------------|
 | `--docker-image` | `DBT_DOCKER_IMAGE` | `ghcr.io/dbt-labs/dbt-core:latest` | Docker image to use |
 | `--docker-platform` | `DBT_DOCKER_PLATFORM` | Auto-detect | Platform override, e.g. `linux/amd64` or `linux/arm64` |
-| `--docker-volumes` | `DBT_DOCKER_VOLUMES` | `[]` | Volume mounts (repeatable): `host:container[:mode]` |
-| `--docker-env` | `DBT_DOCKER_ENV` | `[]` | Environment variables (repeatable): `KEY=VALUE` |
+| `--docker-volumes` | `DBT_DOCKER_VOLUMES` | `[]` | Volume mounts (repeatable): `host:container[:mode]`. In the env var, separate entries with commas or newlines |
+| `--docker-env` | `DBT_DOCKER_ENV` | `[]` | Environment variables (repeatable): `KEY=VALUE`. In the env var, separate entries with newlines, or with a comma followed by the next `KEY=`; spaces and other commas stay part of the value |
 | `--docker-network` | `DBT_DOCKER_NETWORK` | `host` | Docker network mode |
 | `--docker-user` | `DBT_DOCKER_USER` | Invoking user (`uid:gid`) | User to run as inside the container (`UID:GID`). Defaults to the UID and GID of the process running dbt-ci so container-written files are owned by the invoking user. |
 | `--docker-args` | `DBT_DOCKER_ARGS` | `""` | Extra arguments appended to `docker run` |
@@ -647,7 +651,7 @@ The other runners resolve dbt from elsewhere and log a warning if a pin is set:
 |--------|----------------|
 | `dbt` | the `dbt-core` installed alongside dbt-ci (runs in-process) |
 | `docker` | the configured `--docker-image` |
-| `bash` | the script at `--shell-path` |
+| `bash` | the script at `--shell-path`, or `--entrypoint` run through it when `--shell-path` is a shell such as `/bin/bash` |
 
 ### dbt v2
 
@@ -706,7 +710,9 @@ Only used when `--runner bash` is set.
 
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
-| `--shell-path` | `--bash-path` | `DBT_SHELL_PATH` | `/bin/bash` | Path to the shell executable |
+| `--shell-path` | `--bash-path` | `DBT_SHELL_PATH` | `/bin/bash` | Path to a dbt wrapper script, which receives the dbt arguments directly, or to a shell (`bash`, `sh`, `zsh`, `dash`, `ksh`), which runs `--entrypoint` (default `dbt`) with them |
+
+The bash runner gets the same absolute `--project-dir`, `--profiles-dir` and `--state` paths as the `local` runner.
 
 ## Cloud Storage Support
 
