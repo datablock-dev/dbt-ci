@@ -24,7 +24,6 @@ SCHEMA: dict[str, dict] = {
     "log-level":     {"aliases": ["log_level", "DBT_LOG_LEVEL"], "type": "enum", "choices": ["DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL", "NONE"]},
     "quiet":         {"aliases": ["DBT_QUIET"], "type": "bool"},
     "slack-webhook": {"aliases": ["slack_webhook", "SLACK_WEBHOOK"], "type": "str"},
-    "slack-format":  {"aliases": ["slack_format", "SLACK_FORMAT"], "type": "enum", "choices": ["default", "compact", "json"]},
     "shell-path":    {"aliases": ["shell_path", "DBT_SHELL_PATH"], "type": "str"},
     "docker": {
         "type": "section",
@@ -70,6 +69,14 @@ SCHEMA: dict[str, dict] = {
         "type": "section",
         "fields": {
             "keep-env": {"aliases": ["keep_env"], "type": "bool"},
+        },
+    },
+    "notifications": {
+        "type": "section",
+        "fields": {
+            "provider": {"aliases": ["DBT_NOTIFICATIONS_PROVIDER"], "type": "enum", "choices": ["slack"]},
+            "format":   {"aliases": ["DBT_NOTIFICATIONS_FORMAT"], "type": "enum", "choices": ["default", "compact", "json"]},
+            "webhook":  {"aliases": ["DBT_NOTIFICATIONS_WEBHOOK"], "type": "str"},
         },
     },
     "report": {

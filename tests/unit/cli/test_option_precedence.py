@@ -115,30 +115,52 @@ class TestCommandSectionsReachTheirOptions:
         assert value == "s3://from-cli/"
 
 
-class TestSlackFormat:
-    """Test that the Slack summary layout can be chosen from the config file or a flag."""
+class TestNotifications:
+    """Test that the notifications section of the config file reaches its options."""
 
     INIT = "dbt_ci.commands.init.cli.init"
 
     @pytest.fixture(autouse=True)
     def clean_env(self, tmp_path, monkeypatch):
-        """Run without a config file and without an inherited SLACK_FORMAT."""
+        """Run without a config file and without inherited notification variables."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("SLACK_FORMAT", raising=False)
+        for key in ("DBT_NOTIFICATIONS_FORMAT", "DBT_NOTIFICATIONS_PROVIDER", "DBT_NOTIFICATIONS_WEBHOOK",
+                    "SLACK_WEBHOOK", "SLACK_WEBHOOK_URL"):
+            monkeypatch.delenv(key, raising=False)
 
-    def test_defaults_to_default(self):
-        """Without any setting the rich layout is used."""
-        assert resolve("init", "slack_format", self.INIT) == "default"
+    def write_config(self, tmp_path, text):
+        """Write a dbt-ci.config.yaml into the working directory."""
+        (tmp_path / "dbt-ci.config.yaml").write_text(text, encoding="utf-8")
 
-    def test_config_file_is_used(self, tmp_path):
-        """slack-format in the config file selects the layout."""
-        (tmp_path / "dbt-ci.config.yaml").write_text("slack-format: json\n", encoding="utf-8")
-        assert resolve("init", "slack_format", self.INIT) == "json"
+    def test_defaults(self):
+        """Without any setting Slack and the default layout are used."""
+        assert resolve("init", "notifications_provider", self.INIT) == "slack"
+        assert resolve("init", "notifications_format", self.INIT) == "default"
+
+    def test_config_section_is_used(self, tmp_path):
+        """provider, format and webhook are read from the notifications section."""
+        self.write_config(tmp_path, "notifications:\n  provider: slack\n  format: json\n  webhook: https://hooks.example/new\n")
+        assert resolve("init", "notifications_format", self.INIT) == "json"
+        assert resolve("init", "slack_webhook", self.INIT) == "https://hooks.example/new"
 
     def test_cli_flag_wins(self, tmp_path):
-        """--slack-format overrides the config file."""
-        (tmp_path / "dbt-ci.config.yaml").write_text("slack-format: json\n", encoding="utf-8")
-        assert resolve("init", "slack_format", self.INIT, cli_args=["--slack-format", "compact"]) == "compact"
+        """--notifications-format overrides the config file."""
+        self.write_config(tmp_path, "notifications:\n  format: json\n")
+        value = resolve("init", "notifications_format", self.INIT, cli_args=["--notifications-format", "compact"])
+        assert value == "compact"
+
+    def test_legacy_top_level_webhook_still_works(self, tmp_path):
+        """The released top-level slack-webhook key keeps working."""
+        self.write_config(tmp_path, "slack-webhook: https://hooks.example/old\n")
+        assert resolve("init", "slack_webhook", self.INIT) == "https://hooks.example/old"
+
+    def test_section_webhook_wins_over_legacy_key(self, tmp_path):
+        """When both spellings are present, notifications.webhook is used."""
+        self.write_config(
+            tmp_path,
+            "slack-webhook: https://hooks.example/old\nnotifications:\n  webhook: https://hooks.example/new\n",
+        )
+        assert resolve("init", "slack_webhook", self.INIT) == "https://hooks.example/new"
 
 
 class TestDeferFlagFallback:

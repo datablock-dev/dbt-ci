@@ -6,9 +6,7 @@ from typing import Any, Literal, cast
 from dbt_ci.schema import StateChangeSummary, StateChangeSummaryKeys
 from dbt_ci.notifications.slack import SLACK_SECTION_TEXT_LIMIT, truncate_for_slack
 
-type SlackFormat = Literal["default", "compact", "json"]
-
-SLACK_FORMATS: list[SlackFormat] = ["default", "compact", "json"]
+type NotificationFormat = Literal["default", "compact", "json"]
 
 # Display order and label for each bucket of the change set
 CHANGE_TYPES: list[tuple[StateChangeSummaryKeys, str]] = [
@@ -83,12 +81,12 @@ def build_init_summary_message(
     """
     Build the Block Kit blocks and plain-text fallback for the init summary.
 
-    The layout follows --slack-format: "default" lists each changed node by name,
+    The layout follows notifications.format: "default" lists each changed node by name,
     "compact" sends only the counts and "json" sends the unique_ids as a code block.
     Full node data (compiled SQL, configs, lineage) is never sent: it exceeds Slack's
     per-block text limit even for a single changed model.
     """
-    slack_format = cast(SlackFormat, (getattr(args, "slack_format", None) or "default").lower())
+    notifications_format = cast(NotificationFormat, (getattr(args, "notifications_format", None) or "default").lower())
     nodes_by_type = {key: get_summary_nodes(state_change_summary, key) for key, _ in CHANGE_TYPES}
     total = sum(len(nodes) for nodes in nodes_by_type.values())
 
@@ -113,9 +111,9 @@ def build_init_summary_message(
             "type": "section",
             "text": {"type": "mrkdwn", "text": "No changes detected compared to the reference state."},
         })
-    elif slack_format == "json":
+    elif notifications_format == "json":
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": format_json_summary(nodes_by_type)}})
-    elif slack_format == "default":
+    elif notifications_format == "default":
         blocks.append({"type": "divider"})
         for key, label in CHANGE_TYPES:
             if nodes_by_type[key]:

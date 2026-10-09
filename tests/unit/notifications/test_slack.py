@@ -54,12 +54,12 @@ class TestSlackMessage:
         assert blocks[0]["type"] == "header"
         assert fallback == "dbt CI: State Change Summary (1 modified, 0 new, 0 deleted)"
 
-    @pytest.mark.parametrize("slack_format", ["default", "compact", "json"])
-    def test_no_emojis(self, slack_format, monkeypatch):
+    @pytest.mark.parametrize("notifications_format", ["default", "compact", "json"])
+    def test_no_emojis(self, notifications_format, monkeypatch):
         """No layout uses emoji shortcodes, including the GitHub Actions context line."""
         monkeypatch.setenv("GITHUB_REPOSITORY", "org/repo")
         monkeypatch.setenv("GITHUB_RUN_ID", "42")
-        blocks, _ = build_init_summary_message(_summary(1), Namespace(slack_format=slack_format))
+        blocks, _ = build_init_summary_message(_summary(1), Namespace(notifications_format=notifications_format))
         text = _texts(blocks)
         assert not re.search(r":[a-z0-9_+-]+:", text.replace("https:", "")), text
 
@@ -73,28 +73,28 @@ class TestSlackMessage:
 
     def test_compact_format_sends_only_counts(self):
         """The compact layout keeps the counts and drops the node list."""
-        blocks, _ = build_init_summary_message(_summary(2), Namespace(slack_format="compact"))
+        blocks, _ = build_init_summary_message(_summary(2), Namespace(notifications_format="compact"))
         text = _texts(blocks)
         assert "*Modified*\n2" in text
         assert "m0" not in text
 
     def test_json_format_sends_unique_ids_in_a_code_block(self):
         """The json layout sends unique_ids per change type as a fenced JSON block."""
-        blocks, _ = build_init_summary_message(_summary(1), Namespace(slack_format="json"))
+        blocks, _ = build_init_summary_message(_summary(1), Namespace(notifications_format="json"))
         code = blocks[-1]["text"]["text"]
         assert code.startswith("```") and code.endswith("```")
         assert json.loads(code.strip("`")) == {
             "modified_nodes": ["model.pkg.m0"], "new_nodes": [], "deleted_nodes": []
         }
 
-    @pytest.mark.parametrize("slack_format", ["default", "json"])
-    def test_long_messages_stay_within_the_block_limit(self, slack_format):
+    @pytest.mark.parametrize("notifications_format", ["default", "json"])
+    def test_long_messages_stay_within_the_block_limit(self, notifications_format):
         """Large change sets are cut on a line boundary with a note, keeping the code fence."""
-        blocks, _ = build_init_summary_message(_summary(500), Namespace(slack_format=slack_format))
+        blocks, _ = build_init_summary_message(_summary(500), Namespace(notifications_format=notifications_format))
         text = blocks[-1]["text"]["text"]
         assert len(text) <= SLACK_SECTION_TEXT_LIMIT
         assert "more line(s)" in text
-        if slack_format == "json":
+        if notifications_format == "json":
             assert text.endswith("```")
 
     def test_node_names_are_escaped(self):

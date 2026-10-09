@@ -153,6 +153,16 @@
         "keep_env": { "$ref": "#/definitions/keepEnv" }
       }
     },
+    "notifications": {
+      "type": "object",
+      "description": "Where and how dbt-ci sends notifications.",
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "$ref": "#/definitions/notificationsProvider" },
+        "format":   { "$ref": "#/definitions/notificationsFormat" },
+        "webhook":  { "$ref": "#/definitions/slackWebhook" }
+      }
+    },
     "report": {
       "type": "object",
       "description": "Options for the 'dbt-ci report' command.",
@@ -165,8 +175,6 @@
 
     "slack-webhook": { "$ref": "#/definitions/slackWebhook" },
     "slack_webhook": { "$ref": "#/definitions/slackWebhook" },
-    "slack-format": { "$ref": "#/definitions/slackFormat" },
-    "slack_format": { "$ref": "#/definitions/slackFormat" },
     "shell-path": { "$ref": "#/definitions/shellPath" },
     "shell_path": { "$ref": "#/definitions/shellPath" },
 
@@ -186,7 +194,9 @@
     "DBT_LOG_LEVEL":    { "$ref": "#/definitions/logLevel" },
     "DBT_QUIET":        { "$ref": "#/definitions/quiet" },
     "SLACK_WEBHOOK":    { "$ref": "#/definitions/slackWebhook" },
-    "SLACK_FORMAT":     { "$ref": "#/definitions/slackFormat" },
+    "DBT_NOTIFICATIONS_PROVIDER": { "$ref": "#/definitions/notificationsProvider" },
+    "DBT_NOTIFICATIONS_FORMAT":   { "$ref": "#/definitions/notificationsFormat" },
+    "DBT_NOTIFICATIONS_WEBHOOK":  { "$ref": "#/definitions/slackWebhook" },
     "DBT_DOCKER_IMAGE":    { "type": "string" },
     "DBT_DOCKER_PLATFORM": { "type": "string" },
     "DBT_DOCKER_VOLUMES":  { "oneOf": [{ "type": "array", "items": { "type": "string" } }, { "type": "string" }] },
@@ -214,8 +224,9 @@
     "dryRun":               { "type": "boolean", "default": false, "description": "Print commands without executing them." },
     "logLevel":             { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL", "NONE"], "default": "INFO", "description": "Logging level." },
     "quiet":                { "type": "boolean", "default": false, "description": "Run in quiet mode with minimal output." },
-    "slackWebhook":         { "type": "string", "format": "uri", "description": "Slack webhook URL for notifications." },
-    "slackFormat":          { "type": "string", "enum": ["default", "compact", "json"], "default": "default", "description": "Layout of the Slack summary: 'default' lists changed nodes by name, 'compact' sends only the counts, 'json' sends the unique_ids as a JSON code block." },
+    "slackWebhook":         { "type": "string", "format": "uri", "description": "Webhook URL for notifications." },
+    "notificationsProvider": { "type": "string", "enum": ["slack"], "default": "slack", "description": "Service the notification webhook belongs to." },
+    "notificationsFormat":  { "type": "string", "enum": ["default", "compact", "json"], "default": "default", "description": "Layout of the notification: 'default' lists changed nodes by name, 'compact' sends only the counts, 'json' sends the unique_ids as a JSON code block." },
     "shellPath":            { "type": "string", "default": "/bin/bash", "description": "Path to the shell executable. Only used when runner is 'bash'." },
     "referenceTarget":      { "type": "string", "description": "The dbt target to use for the reference/production manifest." },
     "referenceVars":        { "type": "string", "description": "Variables to pass to dbt when compiling the reference manifest." },

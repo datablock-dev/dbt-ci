@@ -30,11 +30,20 @@ class TestEnumValidation:
         for value in ("dbt", "git", "hybrid"):
             assert validate_config({"init": {"comparison-strategy": value}}) == []
 
-    def test_slack_format_accepted(self):
-        """Valid slack-format values pass and anything else is rejected."""
-        for value in ("default", "compact", "json"):
-            assert validate_config({"slack-format": value}) == []
-        assert any("slack-format" in e for e in validate_config({"slack-format": "xml"}))
+    def test_notifications_section_accepted(self):
+        """The notifications section takes a provider, a format and a webhook."""
+        config = {"notifications": {"provider": "slack", "format": "compact", "webhook": "https://hooks.example/x"}}
+        assert validate_config(config) == []
+
+    def test_notifications_invalid_values(self):
+        """Unsupported providers and formats are rejected."""
+        errors = validate_config({"notifications": {"provider": "teams", "format": "xml"}})
+        assert any("notifications.provider" in e for e in errors)
+        assert any("notifications.format" in e for e in errors)
+
+    def test_slack_format_is_not_a_top_level_key(self):
+        """The layout lives under notifications, not at the top level."""
+        assert any("slack-format" in e for e in validate_config({"slack-format": "json"}))
 
     def test_unknown_top_level_key(self):
         """An unknown top-level key produces an error."""

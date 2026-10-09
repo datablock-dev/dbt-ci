@@ -149,7 +149,7 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
     logger.info("\n------------------------------------------------------")
 
     slack_webhook = getattr(args, "slack_webhook", None)
-    if not slack_webhook:
+    if not slack_webhook or (getattr(args, "notifications_provider", None) or "slack") != "slack":
         return
 
     try:
