@@ -551,6 +551,10 @@ profiles_dir: dbt
 state: dbt/.dbtstate
 runner: docker
 
+notifications:
+  provider: slack
+  format: compact   # the webhook itself is a secret: pass it via SLACK_WEBHOOK
+
 init:
   state-uri: gs://my-bucket/dbt-state/manifest.json
   reference-target: production
@@ -628,7 +632,9 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 | `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them (and without installing a pinned `--dbt-version`) |
 | `--quiet` | `-q` | `DBT_QUIET` | `false` | Run in quiet mode with minimal output |
 | `--log-level` | | `DBT_LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (dbt's `warn` and `none` are accepted too). dbt reads `DBT_LOG_LEVEL` as well, so dbt-ci rewrites it into dbt's lowercase form (`WARNING` → `warn`, `CRITICAL` → `error`) before running dbt |
-| `--slack-webhook` | `--slack-webhook-url` | `SLACK_WEBHOOK`, `SLACK_WEBHOOK_URL` | `None` | Slack webhook URL for CI notifications. `init` posts the number of modified, new and deleted nodes with their names, truncated to Slack's message limit |
+| `--slack-webhook` | `--slack-webhook-url`, `--notifications-webhook` | `DBT_NOTIFICATIONS_WEBHOOK`, `SLACK_WEBHOOK`, `SLACK_WEBHOOK_URL` | `None` | Webhook URL for CI notifications (`notifications.webhook` in the config file; the top-level `slack-webhook` key still works). `init` posts a summary of the modified, new and deleted nodes, truncated to the provider's message limit |
+| `--notifications-provider` | | `DBT_NOTIFICATIONS_PROVIDER` | `slack` | Service the webhook belongs to (`notifications.provider`). Only `slack` is supported today |
+| `--notifications-format` | | `DBT_NOTIFICATIONS_FORMAT` | `default` | Layout of the notification (`notifications.format`): `default` lists each changed node by name, `compact` sends only the counts, `json` sends the changed `unique_id`s as a JSON code block. Every layout opens with a header, the counts and, in GitHub Actions, the repository, branch and a link to the run |
 
 ### Docker Runner
 

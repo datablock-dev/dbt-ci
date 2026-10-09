@@ -163,7 +163,7 @@ def load_config_callback(ctx, param, value):
     return value
 
 
-def make_config_callback(config_key: str, *, then=None):
+def make_config_callback(config_key: str | tuple[str, ...], *, then=None):
     """
     Return a Click option callback that resolves values with the priority:
 
@@ -171,7 +171,8 @@ def make_config_callback(config_key: str, *, then=None):
 
     Args:
         config_key: The env var key to look up in the parsed config
-                    (e.g. 'DBT_RUNNER', 'DBT_DOCKER_IMAGE').
+                    (e.g. 'DBT_RUNNER', 'DBT_DOCKER_IMAGE'), or several keys in
+                    priority order when an option has a legacy spelling too.
         then: Optional callable to apply to the resolved value (e.g. str.upper).
               Receives (value) and returns the transformed value.
 
@@ -185,8 +186,10 @@ def make_config_callback(config_key: str, *, then=None):
             return then(value) if then else value
 
         config: dict[str, Any] = ctx.meta.get(_CTX_META_KEY, {})
-        if config_key in config:
-            config_val = config[config_key]
+        keys = (config_key,) if isinstance(config_key, str) else config_key
+        found = next((key for key in keys if key in config), None)
+        if found is not None:
+            config_val = config[found]
             if param.multiple and isinstance(config_val, list):
                 result = tuple(config_val)
             elif param.multiple and isinstance(config_val, str):

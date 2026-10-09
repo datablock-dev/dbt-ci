@@ -228,11 +228,32 @@ COMMON_OPTIONS = [
     click.option(
         "--slack-webhook",
         "--slack-webhook-url",
-        envvar=["SLACK_WEBHOOK", "SLACK_WEBHOOK_URL"],
+        "--notifications-webhook",
+        envvar=["DBT_NOTIFICATIONS_WEBHOOK", "SLACK_WEBHOOK", "SLACK_WEBHOOK_URL"],
         default=None,
         type=str,
-        callback=make_config_callback("SLACK_WEBHOOK"),
-        help="Slack webhook URL for notifications (optional)",
+        # notifications.webhook in the config file; the top-level slack-webhook still works
+        callback=make_config_callback(("DBT_NOTIFICATIONS_WEBHOOK", "SLACK_WEBHOOK")),
+        help="Webhook URL for notifications (optional)",
+    ),
+    click.option(
+        "--notifications-provider",
+        envvar=["DBT_NOTIFICATIONS_PROVIDER"],
+        type=click.Choice(["slack"], case_sensitive=False),
+        default="slack",
+        callback=make_config_callback("DBT_NOTIFICATIONS_PROVIDER", then=str.lower),
+        help="Service the webhook belongs to (default: slack)",
+    ),
+    click.option(
+        "--notifications-format",
+        envvar=["DBT_NOTIFICATIONS_FORMAT"],
+        type=click.Choice(["default", "compact", "json"], case_sensitive=False),
+        default="default",
+        callback=make_config_callback("DBT_NOTIFICATIONS_FORMAT", then=str.lower),
+        help=(
+            "Layout of the notification: 'default' lists changed nodes by name, "
+            "'compact' sends only the counts, 'json' sends the unique_ids as a JSON code block"
+        ),
     ),
     click.option(
         "--docker-image",

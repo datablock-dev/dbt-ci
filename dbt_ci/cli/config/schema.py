@@ -71,6 +71,14 @@ SCHEMA: dict[str, dict] = {
             "keep-env": {"aliases": ["keep_env"], "type": "bool"},
         },
     },
+    "notifications": {
+        "type": "section",
+        "fields": {
+            "provider": {"aliases": ["DBT_NOTIFICATIONS_PROVIDER"], "type": "enum", "choices": ["slack"]},
+            "format":   {"aliases": ["DBT_NOTIFICATIONS_FORMAT"], "type": "enum", "choices": ["default", "compact", "json"]},
+            "webhook":  {"aliases": ["DBT_NOTIFICATIONS_WEBHOOK"], "type": "str"},
+        },
+    },
     "report": {
         "type": "section",
         "fields": {
