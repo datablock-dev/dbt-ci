@@ -32,7 +32,9 @@ class TestEnumValidation:
 
     def test_notifications_section_accepted(self):
         """The notifications section takes a provider, a format and a webhook."""
-        config = {"notifications": {"provider": "slack", "format": "compact", "webhook": "https://hooks.example/x"}}
+        config = {"notifications": {
+            "provider": "slack", "format": "compact", "webhook": "https://hooks.example/x", "pr-comment": True,
+        }}
         assert validate_config(config) == []
 
     def test_notifications_invalid_values(self):
@@ -40,6 +42,10 @@ class TestEnumValidation:
         errors = validate_config({"notifications": {"provider": "teams", "format": "xml"}})
         assert any("notifications.provider" in e for e in errors)
         assert any("notifications.format" in e for e in errors)
+
+    def test_pr_comment_must_be_boolean(self):
+        """notifications.pr-comment takes true or false."""
+        assert any("pr-comment" in e for e in validate_config({"notifications": {"pr-comment": "yes"}}))
 
     def test_slack_format_is_not_a_top_level_key(self):
         """The layout lives under notifications, not at the top level."""

@@ -160,7 +160,9 @@
       "properties": {
         "provider": { "$ref": "#/definitions/notificationsProvider" },
         "format":   { "$ref": "#/definitions/notificationsFormat" },
-        "webhook":  { "$ref": "#/definitions/slackWebhook" }
+        "webhook":  { "$ref": "#/definitions/slackWebhook" },
+        "pr-comment": { "$ref": "#/definitions/prComment" },
+        "pr_comment": { "$ref": "#/definitions/prComment" }
       }
     },
     "report": {
@@ -197,6 +199,7 @@
     "DBT_NOTIFICATIONS_PROVIDER": { "$ref": "#/definitions/notificationsProvider" },
     "DBT_NOTIFICATIONS_FORMAT":   { "$ref": "#/definitions/notificationsFormat" },
     "DBT_NOTIFICATIONS_WEBHOOK":  { "$ref": "#/definitions/slackWebhook" },
+    "DBT_NOTIFICATIONS_PR_COMMENT": { "$ref": "#/definitions/prComment" },
     "DBT_DOCKER_IMAGE":    { "type": "string" },
     "DBT_DOCKER_PLATFORM": { "type": "string" },
     "DBT_DOCKER_VOLUMES":  { "oneOf": [{ "type": "array", "items": { "type": "string" } }, { "type": "string" }] },
@@ -226,6 +229,7 @@
     "quiet":                { "type": "boolean", "default": false, "description": "Run in quiet mode with minimal output." },
     "slackWebhook":         { "type": "string", "format": "uri", "description": "Webhook URL for notifications." },
     "notificationsProvider": { "type": "string", "enum": ["slack"], "default": "slack", "description": "Service the notification webhook belongs to." },
+    "prComment":            { "type": "boolean", "default": false, "description": "Make 'dbt-ci report' also post the report as a comment on the GitHub pull request, updating it on later runs. Needs GITHUB_TOKEN with 'pull-requests: write'." },
     "notificationsFormat":  { "type": "string", "enum": ["default", "compact", "json"], "default": "default", "description": "Layout of the notification: 'default' lists changed nodes by name, 'compact' sends only the counts, 'json' sends the unique_ids as a JSON code block." },
     "shellPath":            { "type": "string", "default": "/bin/bash", "description": "Path to the shell executable. Only used when runner is 'bash'." },
     "referenceTarget":      { "type": "string", "description": "The dbt target to use for the reference/production manifest." },

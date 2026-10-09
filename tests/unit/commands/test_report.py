@@ -1,9 +1,10 @@
 """Unit tests for the report command."""
 from argparse import Namespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from dbt_ci.commands.report.index import (
     format_duration,
+    report,
     render_change_summary,
     render_command_status,
     render_markdown,
@@ -155,3 +156,34 @@ class TestRenderMarkdown:
         assert rendered.startswith("## dbt-ci run report")
         assert "| Modified | 1 |" in rendered
         assert "### Commands" in rendered
+
+
+class TestPrComment:
+    """Test that report posts the markdown report as a PR comment when asked to."""
+
+    def run_report(self, tmp_path, **args):
+        """Run report against a stubbed cache and return the post_pr_comment mock."""
+        cache = MagicMock()
+        cache.get_cache.side_effect = lambda name=None: RUN_REPORT if name == "report.json" else CACHE
+        with patch("dbt_ci.commands.report.index.CacheManager", return_value=cache), \
+                patch("dbt_ci.commands.report.index.render_exposure_impact", return_value=[]), \
+                patch("dbt_ci.commands.report.index.post_pr_comment") as post:
+            report(Namespace(output=str(tmp_path / "report.out"), **args))
+        return post
+
+    def test_off_by_default(self, tmp_path):
+        """Without --pr-comment nothing is posted."""
+        assert not self.run_report(tmp_path, format="markdown").called
+
+    def test_posts_the_markdown_report(self, tmp_path):
+        """With --pr-comment the same markdown that was written is posted."""
+        post = self.run_report(tmp_path, format="markdown", pr_comment=True)
+        posted = post.call_args.args[0]
+        assert posted.rstrip("\n") == (tmp_path / "report.out").read_text(encoding="utf-8").rstrip("\n")
+        assert "customers" in posted
+
+    def test_comment_is_markdown_even_with_json_output(self, tmp_path):
+        """--format json changes the written report only; the comment stays readable."""
+        post = self.run_report(tmp_path, format="json", pr_comment=True)
+        assert post.call_args.args[0].startswith("## dbt-ci run report")
+        assert (tmp_path / "report.out").read_text(encoding="utf-8").lstrip().startswith("{")

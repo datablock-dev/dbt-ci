@@ -77,6 +77,7 @@ SCHEMA: dict[str, dict] = {
             "provider": {"aliases": ["DBT_NOTIFICATIONS_PROVIDER"], "type": "enum", "choices": ["slack"]},
             "format":   {"aliases": ["DBT_NOTIFICATIONS_FORMAT"], "type": "enum", "choices": ["default", "compact", "json"]},
             "webhook":  {"aliases": ["DBT_NOTIFICATIONS_WEBHOOK"], "type": "str"},
+            "pr-comment": {"aliases": ["pr_comment", "DBT_NOTIFICATIONS_PR_COMMENT"], "type": "bool"},
         },
     },
     "report": {
