@@ -550,6 +550,7 @@ project_dir: dbt
 profiles_dir: dbt
 state: dbt/.dbtstate
 runner: docker
+slack-format: compact
 
 init:
   state-uri: gs://my-bucket/dbt-state/manifest.json
@@ -628,7 +629,8 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 | `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them (and without installing a pinned `--dbt-version`) |
 | `--quiet` | `-q` | `DBT_QUIET` | `false` | Run in quiet mode with minimal output |
 | `--log-level` | | `DBT_LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (dbt's `warn` and `none` are accepted too). dbt reads `DBT_LOG_LEVEL` as well, so dbt-ci rewrites it into dbt's lowercase form (`WARNING` → `warn`, `CRITICAL` → `error`) before running dbt |
-| `--slack-webhook` | `--slack-webhook-url` | `SLACK_WEBHOOK`, `SLACK_WEBHOOK_URL` | `None` | Slack webhook URL for CI notifications. `init` posts the number of modified, new and deleted nodes with their names, truncated to Slack's message limit |
+| `--slack-webhook` | `--slack-webhook-url` | `SLACK_WEBHOOK`, `SLACK_WEBHOOK_URL` | `None` | Slack webhook URL for CI notifications. `init` posts a summary of the modified, new and deleted nodes, truncated to Slack's message limit |
+| `--slack-format` | | `SLACK_FORMAT` | `default` | Layout of the Slack summary: `default` lists each changed node by name, `compact` sends only the counts, `json` sends the changed `unique_id`s as a JSON code block. Every layout opens with a header, the counts and, in GitHub Actions, the repository, branch and a link to the run |
 
 ### Docker Runner
 

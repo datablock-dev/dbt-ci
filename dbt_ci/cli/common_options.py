@@ -235,6 +235,17 @@ COMMON_OPTIONS = [
         help="Slack webhook URL for notifications (optional)",
     ),
     click.option(
+        "--slack-format",
+        envvar=["SLACK_FORMAT"],
+        type=click.Choice(["default", "compact", "json"], case_sensitive=False),
+        default="default",
+        callback=make_config_callback("SLACK_FORMAT"),
+        help=(
+            "Layout of the Slack summary: 'default' lists changed nodes by name, "
+            "'compact' sends only the counts, 'json' sends the unique_ids as a JSON code block"
+        ),
+    ),
+    click.option(
         "--docker-image",
         envvar=["DBT_DOCKER_IMAGE"],
         default="ghcr.io/dbt-labs/dbt-core:latest",

@@ -30,6 +30,12 @@ class TestEnumValidation:
         for value in ("dbt", "git", "hybrid"):
             assert validate_config({"init": {"comparison-strategy": value}}) == []
 
+    def test_slack_format_accepted(self):
+        """Valid slack-format values pass and anything else is rejected."""
+        for value in ("default", "compact", "json"):
+            assert validate_config({"slack-format": value}) == []
+        assert any("slack-format" in e for e in validate_config({"slack-format": "xml"}))
+
     def test_unknown_top_level_key(self):
         """An unknown top-level key produces an error."""
         errors = validate_config({"unknown_key": "value"})

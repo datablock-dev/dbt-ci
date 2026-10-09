@@ -115,6 +115,32 @@ class TestCommandSectionsReachTheirOptions:
         assert value == "s3://from-cli/"
 
 
+class TestSlackFormat:
+    """Test that the Slack summary layout can be chosen from the config file or a flag."""
+
+    INIT = "dbt_ci.commands.init.cli.init"
+
+    @pytest.fixture(autouse=True)
+    def clean_env(self, tmp_path, monkeypatch):
+        """Run without a config file and without an inherited SLACK_FORMAT."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("SLACK_FORMAT", raising=False)
+
+    def test_defaults_to_default(self):
+        """Without any setting the rich layout is used."""
+        assert resolve("init", "slack_format", self.INIT) == "default"
+
+    def test_config_file_is_used(self, tmp_path):
+        """slack-format in the config file selects the layout."""
+        (tmp_path / "dbt-ci.config.yaml").write_text("slack-format: json\n", encoding="utf-8")
+        assert resolve("init", "slack_format", self.INIT) == "json"
+
+    def test_cli_flag_wins(self, tmp_path):
+        """--slack-format overrides the config file."""
+        (tmp_path / "dbt-ci.config.yaml").write_text("slack-format: json\n", encoding="utf-8")
+        assert resolve("init", "slack_format", self.INIT, cli_args=["--slack-format", "compact"]) == "compact"
+
+
 class TestDeferFlagFallback:
     """Test that DEFER_FLAG enables deferral when nothing more specific sets it."""
 
