@@ -3,6 +3,7 @@ from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
 import json
+import re
 
 import pytest
 
@@ -52,6 +53,15 @@ class TestSlackMessage:
         blocks, fallback = build_init_summary_message(_summary(1), Namespace())
         assert blocks[0]["type"] == "header"
         assert fallback == "dbt CI: State Change Summary (1 modified, 0 new, 0 deleted)"
+
+    @pytest.mark.parametrize("slack_format", ["default", "compact", "json"])
+    def test_no_emojis(self, slack_format, monkeypatch):
+        """No layout uses emoji shortcodes, including the GitHub Actions context line."""
+        monkeypatch.setenv("GITHUB_REPOSITORY", "org/repo")
+        monkeypatch.setenv("GITHUB_RUN_ID", "42")
+        blocks, _ = build_init_summary_message(_summary(1), Namespace(slack_format=slack_format))
+        text = _texts(blocks)
+        assert not re.search(r":[a-z0-9_+-]+:", text.replace("https:", "")), text
 
     def test_empty_change_set_says_so(self):
         """No changes produce a clear note rather than null values."""

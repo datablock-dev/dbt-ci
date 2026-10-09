@@ -10,11 +10,11 @@ type SlackFormat = Literal["default", "compact", "json"]
 
 SLACK_FORMATS: list[SlackFormat] = ["default", "compact", "json"]
 
-# Display order, label and emoji for each bucket of the change set
-CHANGE_TYPES: list[tuple[StateChangeSummaryKeys, str, str]] = [
-    ("modified_nodes", "Modified", ":pencil2:"),
-    ("new_nodes", "New", ":sparkles:"),
-    ("deleted_nodes", "Deleted", ":wastebasket:"),
+# Display order and label for each bucket of the change set
+CHANGE_TYPES: list[tuple[StateChangeSummaryKeys, str]] = [
+    ("modified_nodes", "Modified"),
+    ("new_nodes", "New"),
+    ("deleted_nodes", "Deleted"),
 ]
 
 
@@ -30,9 +30,9 @@ def get_summary_nodes(state_change_summary: StateChangeSummary, key: StateChange
     return sorted(nodes, key=lambda n: (n.get("resource_type") or "", n.get("name") or ""))
 
 
-def format_node_list(label: str, emoji: str, nodes: list[dict]) -> str:
+def format_node_list(label: str, nodes: list[dict]) -> str:
     """Render one change type as a mrkdwn bullet list of node names and resource types."""
-    lines = [f"{emoji} *{label} nodes ({len(nodes)})*"]
+    lines = [f"*{label} nodes ({len(nodes)})*"]
     for node in nodes:
         name = escape_mrkdwn(str(node.get("name") or node.get("id") or "unknown"))
         resource_type = escape_mrkdwn(str(node.get("resource_type") or "node"))
@@ -44,7 +44,7 @@ def format_json_summary(nodes_by_type: dict[StateChangeSummaryKeys, list[dict]])
     """Render the change set as a JSON code block of unique_ids per change type."""
     payload = {
         key: [node.get("id") or node.get("name") for node in nodes_by_type[key]]
-        for key, _, _ in CHANGE_TYPES
+        for key, _ in CHANGE_TYPES
     }
     # Leave room for the code fence so truncation never cuts it off
     body = truncate_for_slack(json.dumps(payload, indent=2), limit=SLACK_SECTION_TEXT_LIMIT - 8)
@@ -64,15 +64,15 @@ def get_run_context(args: Namespace) -> list[str]:
     run_id = os.environ.get("GITHUB_RUN_ID")
 
     if repository:
-        context.append(f":file_folder: <{server_url}/{repository}|{escape_mrkdwn(repository)}>")
+        context.append(f"<{server_url}/{repository}|{escape_mrkdwn(repository)}>")
     if branch:
-        context.append(f":twisted_rightwards_arrows: `{escape_mrkdwn(branch)}`")
+        context.append(f"`{escape_mrkdwn(branch)}`")
     if repository and run_id:
-        context.append(f":gear: <{server_url}/{repository}/actions/runs/{run_id}|CI run>")
+        context.append(f"<{server_url}/{repository}/actions/runs/{run_id}|CI run>")
 
     strategy = getattr(args, "comparison_strategy", None)
     if strategy:
-        context.append(f":mag: {escape_mrkdwn(str(strategy))} comparison")
+        context.append(f"{escape_mrkdwn(str(strategy))} comparison")
     return context
 
 
@@ -89,41 +89,41 @@ def build_init_summary_message(
     per-block text limit even for a single changed model.
     """
     slack_format = cast(SlackFormat, (getattr(args, "slack_format", None) or "default").lower())
-    nodes_by_type = {key: get_summary_nodes(state_change_summary, key) for key, _, _ in CHANGE_TYPES}
+    nodes_by_type = {key: get_summary_nodes(state_change_summary, key) for key, _ in CHANGE_TYPES}
     total = sum(len(nodes) for nodes in nodes_by_type.values())
 
     blocks: list[dict[str, Any]] = [
-        {"type": "header", "text": {"type": "plain_text", "text": ":bar_chart: dbt CI: State Change Summary", "emoji": True}},
+        {"type": "header", "text": {"type": "plain_text", "text": "dbt CI: State Change Summary"}},
     ]
 
     context = get_run_context(args)
     if context:
-        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": "  |  ".join(context)}]})
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": "  ·  ".join(context)}]})
 
     blocks.append({
         "type": "section",
         "fields": [
-            {"type": "mrkdwn", "text": f"{emoji} *{label}*\n{len(nodes_by_type[key])}"}
-            for key, label, emoji in CHANGE_TYPES
+            {"type": "mrkdwn", "text": f"*{label}*\n{len(nodes_by_type[key])}"}
+            for key, label in CHANGE_TYPES
         ],
     })
 
     if total == 0:
         blocks.append({
             "type": "section",
-            "text": {"type": "mrkdwn", "text": ":white_check_mark: No changes detected compared to the reference state."},
+            "text": {"type": "mrkdwn", "text": "No changes detected compared to the reference state."},
         })
     elif slack_format == "json":
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": format_json_summary(nodes_by_type)}})
     elif slack_format == "default":
         blocks.append({"type": "divider"})
-        for key, label, emoji in CHANGE_TYPES:
+        for key, label in CHANGE_TYPES:
             if nodes_by_type[key]:
                 blocks.append({
                     "type": "section",
-                    "text": {"type": "mrkdwn", "text": format_node_list(label, emoji, nodes_by_type[key])},
+                    "text": {"type": "mrkdwn", "text": format_node_list(label, nodes_by_type[key])},
                 })
 
-    counts = ", ".join(f"{len(nodes_by_type[key])} {label.lower()}" for key, label, _ in CHANGE_TYPES)
+    counts = ", ".join(f"{len(nodes_by_type[key])} {label.lower()}" for key, label in CHANGE_TYPES)
     fallback_text = f"dbt CI: State Change Summary ({counts})"
     return blocks, fallback_text
