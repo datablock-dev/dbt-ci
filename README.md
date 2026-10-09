@@ -333,8 +333,9 @@ workflow wiring is needed beyond calling it. Each command's entry ends as `compl
 
 ```bash
 dbt-ci report                       # → $GITHUB_STEP_SUMMARY, or stdout locally
-dbt-ci report --output report.md    # → a file, e.g. to post as a PR comment
+dbt-ci report --output report.md    # → a file
 dbt-ci report --format json         # → machine-readable
+dbt-ci report --pr-comment          # → also posted as a comment on the pull request
 ```
 
 The report covers:
@@ -352,8 +353,34 @@ The report covers:
 |------|---------|-----------|---------|-------------|
 | `--output` | `-o` | `DBT_REPORT_OUTPUT` | `$GITHUB_STEP_SUMMARY` or stdout | Where to write the report |
 | `--format` | `-F` | `DBT_REPORT_FORMAT` | `markdown` | `markdown` or `json` |
+| `--pr-comment` / `--no-pr-comment` | | `DBT_NOTIFICATIONS_PR_COMMENT` | `false` | Also post the report as a comment on the GitHub pull request (`notifications.pr-comment` in the config file) |
 
 > All [common options](#common-options) also apply.
+
+#### Posting the report as a PR comment
+
+With `--pr-comment` (or `notifications.pr-comment: true`), `report` also posts the
+markdown report as a comment on the pull request. dbt-ci owns a single comment per pull
+request and edits it on every later run instead of adding new ones. The comment is always
+markdown, even with `--format json`.
+
+The step needs a token that can write pull request comments:
+
+```yaml
+permissions:
+  pull-requests: write
+
+steps:
+  - run: dbt-ci report --pr-comment
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+The pull request is detected from the GitHub Actions event, and GitHub Enterprise works
+through `GITHUB_API_URL`. Posting the comment never fails the job: on a run that is not
+for a pull request, without a token, or when GitHub rejects the request (pull requests
+from forks get a read-only token), `report` logs why and carries on. Reports longer than
+GitHub's 65,536-character comment limit are cut, with a note pointing to the job summary.
 
 ---
 
@@ -554,6 +581,7 @@ runner: docker
 notifications:
   provider: slack
   format: compact   # the webhook itself is a secret: pass it via SLACK_WEBHOOK
+  pr-comment: true  # dbt-ci report also comments on the pull request
 
 init:
   state-uri: gs://my-bucket/dbt-state/manifest.json
@@ -591,8 +619,9 @@ DBT_STATE: dbt/.dbtstate
 DBT_DOCKER_IMAGE: ghcr.io/dbt-labs/dbt-core:latest
 ```
 
-Other keys accepted in the config file include `dbt-version` and a `report:` section
-(`format`, `output`), matching the `report` command's flags.
+Other keys accepted in the config file include `dbt-version`, a `report:` section
+(`format`, `output`) and a `notifications:` section (`provider`, `format`, `webhook`,
+`pr-comment`), matching the flags of the same names.
 
 **Precedence (highest → lowest):**
 1. CLI flags

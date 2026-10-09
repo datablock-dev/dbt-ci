@@ -28,6 +28,16 @@ from dbt_ci.commands.report.index import report
     callback=make_config_callback("DBT_REPORT_FORMAT", then=str.lower),
     help="Output format (default: markdown).",
 )
+@click.option(
+    "--pr-comment/--no-pr-comment",
+    envvar=["DBT_NOTIFICATIONS_PR_COMMENT"],
+    default=False,
+    callback=make_config_callback("DBT_NOTIFICATIONS_PR_COMMENT"),
+    help=(
+        "Also post the report as a comment on the GitHub pull request, updating the "
+        "previous one on later runs. Needs GITHUB_TOKEN with 'pull-requests: write'."
+    ),
+)
 def report_cmd(**kwargs):
     """Summarise the current dbt-ci run
 
@@ -43,6 +53,9 @@ def report_cmd(**kwargs):
 
         # Machine-readable output
         dbt-ci report --format json
+
+        # Also post (or update) a comment on the pull request
+        dbt-ci report --pr-comment
     """
     setup_logging(to_namespace(kwargs).log_level)
     return report(to_namespace(kwargs, command="report"))

@@ -15,6 +15,7 @@ from typing import Any, cast
 import click
 
 from dbt_ci.graph.dependency_graph import DbtGraph
+from dbt_ci.notifications.github import post_pr_comment
 from dbt_ci.graph.graph_utils import (
     get_display_name,
     get_downstream_dependencies,
@@ -52,6 +53,9 @@ def report(args: Namespace) -> None:
             sys.exit(1)
 
         output_format = getattr(args, "format", "markdown")
+        pr_comment = getattr(args, "pr_comment", False)
+        # The comment is always markdown, whatever --format the written report uses
+        markdown = render_markdown(cache_dict, run_report, args) if output_format != "json" or pr_comment else ""
         if output_format == "json":
             rendered = json.dumps(
                 {"report": run_report, "changes": cache_dict},
@@ -59,9 +63,12 @@ def report(args: Namespace) -> None:
                 default=lambda o: list(o) if isinstance(o, set) else str(o),
             )
         else:
-            rendered = render_markdown(cache_dict, run_report, args)
+            rendered = markdown
 
         write_report(rendered, args)
+
+        if pr_comment:
+            post_pr_comment(markdown)
     except Exception as e:
         print_exception(e, "Error generating report")
         sys.exit(1)

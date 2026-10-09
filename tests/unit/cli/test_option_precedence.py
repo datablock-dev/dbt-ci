@@ -154,6 +154,15 @@ class TestNotifications:
         self.write_config(tmp_path, "slack-webhook: https://hooks.example/old\n")
         assert resolve("init", "slack_webhook", self.INIT) == "https://hooks.example/old"
 
+    def test_pr_comment_from_config(self, tmp_path, monkeypatch):
+        """notifications.pr-comment turns on report's --pr-comment, and the flag can turn it off."""
+        monkeypatch.delenv("DBT_NOTIFICATIONS_PR_COMMENT", raising=False)
+        report = "dbt_ci.commands.report.cli.report"
+        assert resolve("report", "pr_comment", report) is False
+        self.write_config(tmp_path, "notifications:\n  pr-comment: true\n")
+        assert resolve("report", "pr_comment", report) is True
+        assert resolve("report", "pr_comment", report, cli_args=["--no-pr-comment"]) is False
+
     def test_section_webhook_wins_over_legacy_key(self, tmp_path):
         """When both spellings are present, notifications.webhook is used."""
         self.write_config(
