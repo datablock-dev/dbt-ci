@@ -227,6 +227,12 @@ whether or not anything depends on it yet. Every seed, snapshot and model the ru
 also gets its data and unit tests, even though a test sits one level below the node it
 checks.
 
+Deleted nodes no longer exist in the target manifest, so `run` does not look for their
+downstream nodes there. A node that depended on a deleted one has changed itself (its `ref`
+or test arguments differ) and is picked up as modified or new. This also covers generic
+tests whose arguments changed: dbt gives them a new `unique_id`, so they show up as one
+deleted and one new test.
+
 > All [common options](#common-options) also apply.
 
 **Examples:**

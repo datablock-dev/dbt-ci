@@ -49,11 +49,16 @@ def run(args: Namespace):
             "new_nodes": get_node_ids_from_structured_nodes(prev_cache.get("new_nodes", None)) or [],
             "deleted_nodes": get_node_ids_from_structured_nodes(prev_cache.get("deleted_nodes", None)) or []
         }
-        changed_nodes = [value for values in changed_nodes_dict.values() for value in values]
-
-        if len(changed_nodes) == 0:
+        if not any(changed_nodes_dict.values()):
             logger.info("No modified, new, or deleted nodes found in cache, skipping...")
             sys.exit(0)
+
+        # Downstream lookups walk the target graph, where deleted nodes no longer exist.
+        # A renamed generic test, for example, is a deleted id plus a new one; anything
+        # that depended on a deleted node has changed itself and is already modified.
+        changed_nodes = list(dict.fromkeys(
+            changed_nodes_dict["modified_nodes"] + changed_nodes_dict["new_nodes"]
+        ))
 
         run_nodes(
             args=args,
