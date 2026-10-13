@@ -49,7 +49,7 @@ is skipped unless `DBT_CI_E2E_DBT_BINARY` points at one that can run DuckDB. CI 
 cover dbt v2:
 
 ```bash
-python -m venv /tmp/dbt-v2 && /tmp/dbt-v2/bin/pip install "dbt==2.0.6"
+python -m venv /tmp/dbt-v2 && /tmp/dbt-v2/bin/pip install "dbt==2.0.8"
 DBT_CI_E2E_DBT_BINARY=/tmp/dbt-v2/bin/dbt pytest tests/e2e/test_dbt_versions.py
 ```
 

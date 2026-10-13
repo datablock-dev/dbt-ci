@@ -655,7 +655,7 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 | `--defer` | | `DBT_DEFER`, `DEFER_FLAG` | `false` | Pass dbt's `--defer` flag (defers unmodified nodes to the production state). `DEFER_FLAG` is a fallback read only when `DBT_DEFER` is unset, and accepts `--defer`, `--no-defer`, an empty value or a boolean |
 | `--runner` | `-r` | `DBT_RUNNER` | `dbt` | Runner to use: `dbt`, `local`, `docker`, `bash` |
 | `--entrypoint` | | `DBT_ENTRYPOINT` | `dbt` | Command entrypoint for dbt |
-| `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`, or `2.0.6` for dbt v2). **Requires `--runner local`** |
+| `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`, or `2.0.8` for dbt v2). **Requires `--runner local`** |
 | `--adapter` | `-a` | `DBT_ADAPTER` | `None` | dbt adapter to install (e.g. `dbt-bigquery`, `dbt-duckdb=1.10.0`). **Requires `--runner local`** |
 | `--config` | `-c` | `DBT_CONFIG` | `dbt-ci.config.yaml` | Path to a dbt-ci YAML configuration file |
 | `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them (and without installing a pinned `--dbt-version`) |
@@ -709,14 +709,14 @@ drives it through the CLI, so use the **`local`** or **`docker`** runner:
 
 ```bash
 # dbt-ci installs dbt v2 into a cached virtual environment
-dbt-ci init --runner local --dbt-version 2.0.6 ...
-dbt-ci run  --runner local --dbt-version 2.0.6 ...
+dbt-ci init --runner local --dbt-version 2.0.8 ...
+dbt-ci run  --runner local --dbt-version 2.0.8 ...
 
 # ...or point dbt-ci at a dbt v2 binary you installed yourself
 dbt-ci run --runner local --entrypoint /path/to/dbt ...
 
 # ...or run dbt v2 from a Docker image
-dbt-ci run --runner docker --docker-image my-registry/dbt-v2:2.0.6 ...
+dbt-ci run --runner docker --docker-image my-registry/dbt-v2:2.0.8 ...
 ```
 
 With the Docker runner, dbt-ci passes the dbt command (`ls ...`, `run ...`) as the
@@ -726,7 +726,7 @@ explicitly. A minimal one:
 
 ```dockerfile
 FROM python:3.12-slim
-RUN pip install --no-cache-dir "dbt==2.0.6"
+RUN pip install --no-cache-dir "dbt==2.0.8"
 ENTRYPOINT ["dbt"]
 ```
 

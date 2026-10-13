@@ -71,7 +71,7 @@ jobs:
     - name: Install dbt v2 in its own environment
       run: |
         python -m venv "$RUNNER_TEMP/dbt-v2"
-        "$RUNNER_TEMP/dbt-v2/bin/pip" install "dbt==2.0.6"
+        "$RUNNER_TEMP/dbt-v2/bin/pip" install "dbt==2.0.8"
         "$RUNNER_TEMP/dbt-v2/bin/dbt" --version
 
     - name: Install dbt-core 1.x in its own environment
@@ -112,7 +112,7 @@ jobs:
 
     - name: Build dbt images
       run: |
-        docker build -t dbt-ci-e2e:v2 --build-arg DBT_PACKAGES="dbt==2.0.6" tests/e2e/docker
+        docker build -t dbt-ci-e2e:v2 --build-arg DBT_PACKAGES="dbt==2.0.8" tests/e2e/docker
         docker build -t dbt-ci-e2e:v1 --build-arg DBT_PACKAGES="dbt-core==1.12.5 dbt-duckdb" tests/e2e/docker
         docker run --rm dbt-ci-e2e:v2 --version
         docker run --rm dbt-ci-e2e:v1 --version
