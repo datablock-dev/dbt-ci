@@ -121,7 +121,57 @@ class TestRunCommand:
         
         # Verify run_nodes was called
         mock_run_nodes.assert_called_once()
-    
+
+    @patch('dbt_ci.commands.run.index.CacheManager')
+    @patch('dbt_ci.commands.run.index.DbtGraph')
+    @patch('dbt_ci.commands.run.index.run_nodes')
+    @patch('dbt_ci.commands.run.index.click.secho')
+    def test_run_excludes_deleted_nodes_from_downstream_lookups(
+        self,
+        mock_secho,
+        mock_run_nodes,
+        mock_graph,
+        mock_cache
+    ):
+        """Deleted nodes are absent from the target graph, so they are not walked for downstream nodes."""
+        mock_cache_instance = MagicMock()
+        mock_cache_instance.get_cache.return_value = {
+            "modified_nodes": None,
+            "new_nodes": {"test": {"test.project.row_count_true.abc": {}}},
+            "deleted_nodes": {"test": {"test.project.row_count_false.def": {}}},
+        }
+        mock_cache.return_value = mock_cache_instance
+
+        index(Namespace(dbt_project_dir='/dbt', dry_run=False))
+
+        kwargs = mock_run_nodes.call_args.kwargs
+        assert kwargs["changed_nodes"] == ["test.project.row_count_true.abc"]
+        assert kwargs["changed_nodes_dict"]["deleted_nodes"] == ["test.project.row_count_false.def"]
+
+    @patch('dbt_ci.commands.run.index.CacheManager')
+    @patch('dbt_ci.commands.run.index.DbtGraph')
+    @patch('dbt_ci.commands.run.index.run_nodes')
+    @patch('dbt_ci.commands.run.index.click.secho')
+    def test_run_with_only_deleted_nodes_still_runs(
+        self,
+        mock_secho,
+        mock_run_nodes,
+        mock_graph,
+        mock_cache
+    ):
+        """A change set of only deletions is not mistaken for an empty one."""
+        mock_cache_instance = MagicMock()
+        mock_cache_instance.get_cache.return_value = {
+            "modified_nodes": None,
+            "new_nodes": None,
+            "deleted_nodes": {"model": {"model.project.gone": {}}},
+        }
+        mock_cache.return_value = mock_cache_instance
+
+        index(Namespace(dbt_project_dir='/dbt', dry_run=False))
+
+        assert mock_run_nodes.call_args.kwargs["changed_nodes"] == []
+
     @patch('dbt_ci.commands.run.index.CacheManager')
     @patch('dbt_ci.commands.run.index.click.echo')
     @patch('dbt_ci.commands.run.index.sys.exit')
