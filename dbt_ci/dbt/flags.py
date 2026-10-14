@@ -1,10 +1,11 @@
 """Resolution of dbt invocation settings that `init` recorded into the cache.
 
-`init` writes the target, vars, runner and comparison strategy it ran with into
-cache.json, and the README promises you "specify state once in init, reuse everywhere".
-That was only ever true for state paths: every later command re-read target and vars
-from the CLI, so they had to be repeated. These helpers close that gap - an explicitly
-provided value still wins, the cache only fills in what was left unset.
+`init` writes the target, vars, state path, runner and comparison strategy it ran
+with into cache.json, and the README promises you "specify state once in init, reuse
+everywhere". Later commands used to re-read target, vars and state from the CLI, so
+they had to be repeated - and a state path init had defaulted was lost entirely. These
+helpers close that gap - an explicitly provided value still wins, the cache only fills
+in what was left unset.
 """
 import logging
 from argparse import Namespace
@@ -25,6 +26,7 @@ CONFIG_SECTION: dict[str, str] = {
     "vars": "target",
     "reference_target": "reference",
     "reference_vars": "reference",
+    "reference_state": "reference",
 }
 
 
@@ -60,12 +62,14 @@ def get_vars(args: Namespace, key: CachedVarsKey = "vars") -> str | None:
 
 def apply_cached_config(args: Namespace) -> Namespace:
     """
-    Fill unset target/vars on the args namespace from what init recorded.
+    Fill unset target/vars/state on the args namespace from what init recorded.
 
     Mutates and returns the namespace so it can be applied at the top of a command.
     Only unset values are filled, so a flag passed on the command line still wins.
+    The state path matters most: when init defaulted it, a later command that is not
+    told it would run `dbt clone` and other deferring commands without --state.
     """
-    for key in ("target", "vars"):
+    for key in ("target", "vars", "reference_state"):
         current = getattr(args, key, None)
         if current:
             continue

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Optional, cast
 from dbt_ci.schema import Commands, DBTManifest, DbtCiManifest, EphemeralMapNode, StateChangeSummary, SupportedConnectors
 from dbt_ci.utilities.logging import LOG_FILE_NAME
-from dbt_ci.utilities.paths import get_cache_dir, get_profile
+from dbt_ci.utilities.paths import get_absolute_path, get_cache_dir, get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,11 @@ class CacheManager:
     def write_cache(self, data: StateChangeSummary | None = None) -> None:
         """Write data to the cache file."""
         connector_type = cast(SupportedConnectors, get_profile(self.args)["type"])
+        # init may have defaulted the state path (e.g. <project>/.dbtstate after a
+        # --state-uri download); record where it actually put it so later commands
+        # can pass the same --state. Stored absolute, since they may resolve paths
+        # from a different working directory.
+        reference_state = getattr(self.args, "reference_state", None)
 
         payload: DbtCiManifest = {
             "modified_nodes": data.get("modified_nodes") if data else None,
@@ -42,6 +47,7 @@ class CacheManager:
                 "reference": {
                     "target": getattr(self.args, "reference_target", None),
                     "vars": getattr(self.args, "reference_vars", None),
+                    "state": get_absolute_path(reference_state) if reference_state else None,
                 },
                 "target": {
                     "target": getattr(self.args, "target", None),

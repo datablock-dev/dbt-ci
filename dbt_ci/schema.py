@@ -533,9 +533,11 @@ class StateChangeSummary(TypedDict):
     deleted_nodes: StructuredNodes | None
     new_nodes: StructuredNodes | None
 
-class DbtCompileOptions(TypedDict):
+class DbtCompileOptions(TypedDict, total=False):
     target: str | None
     vars: str | None
+    # Only recorded for the reference side: the state directory init used
+    state: str | None
 
 class DbtCiConfig(TypedDict):
     """Configuration for the DBT CI Tool, including CLI arguments and connector configurations."""
