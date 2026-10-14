@@ -241,7 +241,7 @@
     "comparisonStrategy":   { "type": "string", "enum": ["dbt", "git", "hybrid"], "default": "hybrid", "description": "Strategy for state comparison." },
     "baseRef":              { "type": "string", "description": "Base branch to diff against (e.g. main). Auto-detected from git/CI env if not set. Overrides GITHUB_BASE_REF and git auto-detection." },
     "artifactsUri":         { "type": "string", "description": "Object storage URI for storing artifacts (e.g. s3://bucket/dbt-artifacts/)." },
-    "cleanEphemeral":       { "type": "boolean", "default": false, "description": "Clean up the ephemeral environment after finalizing." },
-    "keepEnv":              { "type": "boolean", "default": false, "description": "Don't destroy the ephemeral environment after run." }
+    "cleanEphemeral":       { "type": "boolean", "default": false, "description": "Deprecated - use 'dbt-ci ephemeral destroy'. Drop the datasets 'ephemeral' cloned into when finalizing." },
+    "keepEnv":              { "type": "boolean", "default": false, "description": "Deprecated - has no effect. Use 'dbt-ci ephemeral destroy' to tear the environment down." }
   }
 }
