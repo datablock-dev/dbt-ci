@@ -1,3 +1,4 @@
+import logging
 import click
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.main import cli
@@ -6,6 +7,8 @@ from dbt_ci.cli.config import make_config_callback
 from dbt_ci.utilities.logging import setup_logging
 from dbt_ci.commands.finalize.index import finalize
 from dbt_ci.cli.common_options import common_options, parse_multiple_option
+
+logger = logging.getLogger(__name__)
 
 valid_files = {"manifest", "cache", "log"}
 
@@ -41,7 +44,7 @@ def parse_and_validate_files(value):
     is_flag=True,
     default=False,
     callback=make_config_callback("DBT_FINALIZE_CLEAN_EPHEMERAL"),
-    help="Whether to clean up ephemeral environment after finalizing"
+    help="DEPRECATED - use 'dbt-ci ephemeral destroy'. Drop the datasets 'ephemeral' cloned into before finalizing"
 )
 def finalize_cmd(**kwargs):
     """Finalize the state after running CI commands
@@ -55,5 +58,10 @@ def finalize_cmd(**kwargs):
     """
     setup_logging(to_namespace(kwargs).log_level)
     args = to_namespace(kwargs, command="finalize")
+    if getattr(args, "clean_ephemeral", False):
+        logger.warning(
+            "--clean-ephemeral is deprecated and will be removed in a future release. "
+            "Run 'dbt-ci ephemeral destroy' instead, e.g. in an 'if: always()' step."
+        )
     with CacheManager(args).track_report("finalize"):
         return finalize(args)

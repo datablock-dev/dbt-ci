@@ -254,12 +254,18 @@ dbt-ci run --runner docker --mode models
 
 ### `ephemeral` - Ephemeral Environment
 
+`ephemeral` has two subcommands: `create` builds the environment and `destroy` tears it
+down. Plain `dbt-ci ephemeral` (no subcommand) still means `create`, so existing pipelines
+keep working. Options go after the subcommand (`dbt-ci ephemeral destroy --target ci`).
+
+#### `ephemeral create`
+
 Clones changed models and their downstream dependencies into an isolated target schema using **`dbt clone`**, allowing integration testing without affecting production. Uses cached state from `init`.
 
 > **Important:** `--target` and `--vars` must match the environment you want to clone into. The clone operation reads your `profiles.yml` to determine the target database/schema — if these are wrong, models will be cloned to the wrong location or the command will fail.
 
 ```bash
-dbt-ci ephemeral \
+dbt-ci ephemeral create \
   --target my-pr-env \
   --vars '{"use_production_data":"false"}'
 ```
@@ -269,7 +275,7 @@ dbt-ci ephemeral \
 2. Builds a selection of all affected models and their downstream dependencies
 3. Runs `dbt clone --select <nodes>` targeting the specified environment
 4. The cloned tables/views can then be used as the base for subsequent `dbt run` commands in the PR environment
-5. Records the datasets it cloned into, so `finalize --clean-ephemeral` can drop them later
+5. Records the datasets it cloned into, so `ephemeral destroy` can drop them later
 
 If `dbt clone` fails, `ephemeral` exits with a non-zero code on every runner.
 
@@ -277,7 +283,29 @@ If `dbt clone` fails, `ephemeral` exits with a non-zero code on every runner.
 
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
-| `--keep-env` | | `DBT_KEEP_ENV` | `false` | **Deprecated — no effect.** `ephemeral` never destroys the environment it creates; use [`finalize --clean-ephemeral`](#finalize---finalize-state) to tear it down |
+| `--keep-env` | | `DBT_KEEP_ENV` | `false` | **Deprecated — no effect.** Creating the environment never destroys it; use `ephemeral destroy` to tear it down |
+
+> All [common options](#common-options) also apply.
+
+#### `ephemeral destroy`
+
+Drops the datasets that `ephemeral create` cloned into (BigQuery). Datasets used by any
+node in the reference (production) manifest are never dropped, and a failed teardown
+fails the step.
+
+```yaml
+- name: Tear down ephemeral environment
+  if: ${{ always() }}
+  run: dbt-ci ephemeral destroy
+```
+
+- Run it in the **same job** as `ephemeral create`: the list of cloned datasets lives in
+  the dbt-ci cache (see [Cache Location](#cache-location)).
+- Use `if: always()` so a failed `run` step doesn't leave the datasets behind.
+- It doesn't upload anything or clear the cache, so it can run before or after `finalize`,
+  and a failed teardown can be retried by running it again.
+- `--target` defaults to the one `init` recorded. With `--dry-run` it only lists the
+  datasets it would drop.
 
 > All [common options](#common-options) also apply.
 
@@ -427,7 +455,7 @@ dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
 |------|---------|-----------|---------|-------------|
 | `--artifacts-uri` | | `DBT_ARTIFACTS_URI`, `ARTIFACTS_URI` | `None` | Object storage URI for uploading run artifacts such as the updated `manifest.json` (e.g. `s3://bucket/dbt-artifacts/`) |
 | `--files` | | `DBT_FINALIZE_FILES` | `manifest` | Which artifacts to upload (repeatable): `manifest`, `cache`, `log` |
-| `--clean-ephemeral` | `--destroy-ephemeral` | `DBT_CLEAN_EPHEMERAL`, `DBT_DESTROY_EPHEMERAL` | `false` | Drop the datasets that `ephemeral` cloned into (BigQuery). Datasets used by any node in the reference (production) manifest are never dropped, and a failed cleanup fails the step |
+| `--clean-ephemeral` | `--destroy-ephemeral` | `DBT_CLEAN_EPHEMERAL`, `DBT_DESTROY_EPHEMERAL` | `false` | **Deprecated — use [`ephemeral destroy`](#ephemeral-destroy).** Drop the datasets that `ephemeral` cloned into, the same way `ephemeral destroy` does |
 
 Uploaded artifacts land at `<artifacts-uri>/manifest.json`, `<artifacts-uri>/cache.json`
 and `<artifacts-uri>/logs.txt` respectively (a trailing `/` on the URI is ignored).
@@ -990,9 +1018,10 @@ dbt-ci delete --target production
 ```
 
 ### Multi-Environment Testing
-Create ephemeral test environments:
+Create an ephemeral test environment, and tear it down at the end of the job:
 ```bash
-dbt-ci ephemeral --keep-env
+dbt-ci ephemeral create --target ci
+dbt-ci ephemeral destroy
 ```
 
 ## Contributing

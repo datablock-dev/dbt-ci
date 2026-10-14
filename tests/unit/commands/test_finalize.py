@@ -347,7 +347,7 @@ class TestCleanUpEphemeral:
 
     def run_cleanup(self, ephemeral_map: dict, reference_schemas: list[str], delete_side_effect=None, dry_run=False):
         """Run clean_up_ephemeral with stubbed connector and reference graph."""
-        from dbt_ci.commands.finalize.index import clean_up_ephemeral
+        from dbt_ci.commands.ephemeral.destroy import clean_up_ephemeral
 
         client_factory = MagicMock()
         delete_datasets = MagicMock(side_effect=delete_side_effect)
@@ -358,9 +358,9 @@ class TestCleanUpEphemeral:
         cache = MagicMock()
         cache.get_cache.return_value = ephemeral_map
         args = _make_args(dry_run=dry_run)
-        with patch("dbt_ci.commands.finalize.index.get_profile", return_value={"type": "bigquery", "threads": 2}), \
-             patch("dbt_ci.commands.finalize.index.get_connector", return_value=connector), \
-             patch("dbt_ci.commands.finalize.index.DbtGraph") as mock_graph:
+        with patch("dbt_ci.commands.ephemeral.destroy.get_profile", return_value={"type": "bigquery", "threads": 2}), \
+             patch("dbt_ci.commands.ephemeral.destroy.get_connector", return_value=connector), \
+             patch("dbt_ci.commands.ephemeral.destroy.DbtGraph") as mock_graph:
             mock_graph.return_value.to_dict.return_value = reference_graph
             clean_up_ephemeral(args, cache)
         return client_factory, delete_datasets, args
@@ -384,15 +384,15 @@ class TestCleanUpEphemeral:
 
     def test_missing_reference_manifest_refuses_cleanup(self):
         """Without the production manifest nothing can be protected, so nothing is deleted."""
-        from dbt_ci.commands.finalize.index import clean_up_ephemeral
+        from dbt_ci.commands.ephemeral.destroy import clean_up_ephemeral
 
         cache = MagicMock()
         cache.get_cache.side_effect = lambda name="cache.json", *_: (
             self._map(("ci_pr_1", None)) if name == "ephemeral_map.json" else None
         )
         connector = {"client": MagicMock(), "methods": {"delete_datasets": MagicMock()}}
-        with patch("dbt_ci.commands.finalize.index.get_profile", return_value={"type": "bigquery"}), \
-             patch("dbt_ci.commands.finalize.index.get_connector", return_value=connector), \
+        with patch("dbt_ci.commands.ephemeral.destroy.get_profile", return_value={"type": "bigquery"}), \
+             patch("dbt_ci.commands.ephemeral.destroy.get_connector", return_value=connector), \
              pytest.raises(RuntimeError, match="No reference manifest"):
             clean_up_ephemeral(_make_args(dry_run=False), cache)
         connector["methods"]["delete_datasets"].assert_not_called()
