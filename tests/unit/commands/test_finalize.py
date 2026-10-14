@@ -401,3 +401,64 @@ class TestCleanUpEphemeral:
         """A failed cleanup must fail finalize instead of being logged and ignored."""
         with pytest.raises(RuntimeError):
             self.run_cleanup(self._map(("ci_pr_1", None)), [], delete_side_effect=RuntimeError("boom"))
+
+
+class TestFinalizeCleanupOrder:
+    """The ephemeral teardown must not depend on the manifest or the artifact upload."""
+
+    @staticmethod
+    def run_finalize(manifest=None, upload_side_effect=None, cleanup_side_effect=None):
+        """Run finalize with --clean-ephemeral, returning the exit code and the mocks."""
+        from dbt_ci.commands.finalize.index import finalize
+
+        calls: list[str] = []
+        args = _make_args(artifacts_uri="gs://bucket/prod-state", dry_run=False, clean_ephemeral=True)
+
+        def cleanup(*_):
+            calls.append("cleanup")
+            if cleanup_side_effect:
+                raise cleanup_side_effect
+
+        def upload(*_):
+            calls.append("upload")
+            if upload_side_effect:
+                raise upload_side_effect
+
+        with patch("dbt_ci.commands.finalize.index.CacheManager") as mock_cm, \
+             patch("dbt_ci.commands.finalize.index.finalize_upload_files", side_effect=upload), \
+             patch("dbt_ci.commands.finalize.index.clean_up_ephemeral", side_effect=cleanup), \
+             patch("dbt_ci.commands.finalize.index.print_exception"), \
+             patch("dbt_ci.commands.finalize.index.click.secho"), \
+             pytest.raises(SystemExit) as exc_info:
+            mock_cm.return_value.get_cache.side_effect = lambda name="cache.json", *_: (
+                manifest if name in ("target_manifest.json", "reference_manifest.json") else {}
+            )
+            finalize(args)
+        return exc_info.value.code, calls, mock_cm.return_value
+
+    def test_cleans_up_before_uploading(self):
+        """Teardown runs first, then the upload, and the cache is cleared on success."""
+        code, calls, cache = self.run_finalize(manifest={"nodes": {}})
+        assert code == 0
+        assert calls == ["cleanup", "upload"]
+        cache.clear_cache.assert_called_once()
+
+    def test_cleans_up_without_a_manifest(self):
+        """A missing manifest still fails finalize, but only after the teardown ran."""
+        code, calls, _ = self.run_finalize(manifest=None)
+        assert code == 1
+        assert calls == ["cleanup"]
+
+    def test_failed_upload_does_not_skip_cleanup(self):
+        """An upload that exits the process happens after the teardown."""
+        code, calls, _ = self.run_finalize(manifest={"nodes": {}}, upload_side_effect=SystemExit(1))
+        assert code == 1
+        assert calls == ["cleanup", "upload"]
+
+    def test_failed_cleanup_still_uploads_and_fails(self):
+        """A failed teardown doesn't block the upload, fails the step and keeps the cache for a retry."""
+        code, calls, cache = self.run_finalize(manifest={"nodes": {}}, cleanup_side_effect=RuntimeError("boom"))
+        assert code == 1
+        assert calls == ["cleanup", "upload"]
+        cache.clear_cache.assert_not_called()
+        cache.update_report.assert_called_with("finalize", "failed", comment="Ephemeral cleanup failed: boom")
