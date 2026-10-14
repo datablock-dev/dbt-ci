@@ -843,14 +843,19 @@ dbt-ci run
 
 ### Settings Inherited From `init`
 
-`init` records the `--target` and `--vars` it ran with, and later commands reuse them, so
-they only need to be given once:
+`init` records the `--target`, `--vars` and `--state` it ran with, and later commands reuse
+them, so they only need to be given once:
 
 ```bash
 dbt-ci init --target ci --vars '{"use_production_data": false}' --state dbt/.dbtstate
 dbt-ci run          # runs against target 'ci' with the same vars
 dbt-ci delete       # likewise
 ```
+
+The state path is recorded even when `init` chose it: with `--state-uri` and no `--state`,
+the manifest is downloaded to `<dbt-project-dir>/.dbtstate`, and later commands such as
+`ephemeral` pass that directory to dbt as `--state` (needed for `dbt clone` and other
+deferring commands).
 
 Passing the flag explicitly still wins — the cache only fills in what was left unset.
 

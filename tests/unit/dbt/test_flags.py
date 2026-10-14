@@ -7,7 +7,7 @@ from dbt_ci.dbt.flags import apply_cached_config, get_cached_value, get_target, 
 CACHED = {
     "config": {
         "target": {"target": "dev", "vars": "{'k': 1}"},
-        "reference": {"target": "production", "vars": "{'k': 2}"},
+        "reference": {"target": "production", "vars": "{'k': 2}", "state": "/repo/dbt/.dbtstate"},
     }
 }
 
@@ -33,6 +33,7 @@ class TestGetCachedValue:
         with _with_cache(CACHED):
             assert get_cached_value(Namespace(), "reference_target") == "production"
             assert get_cached_value(Namespace(), "reference_vars") == "{'k': 2}"
+            assert get_cached_value(Namespace(), "reference_state") == "/repo/dbt/.dbtstate"
 
     def test_unknown_key(self):
         """A key with no recorded home resolves to None."""
@@ -75,6 +76,31 @@ class TestApplyCachedConfig:
 
         assert args.target == "dev"
         assert args.vars == "{'k': 1}"
+
+    def test_fills_state_init_defaulted(self):
+        """A later command without --state reuses the state directory init recorded."""
+        args = Namespace(target=None, vars="", reference_state=None)
+        with _with_cache(CACHED):
+            apply_cached_config(args)
+
+        assert args.reference_state == "/repo/dbt/.dbtstate"
+
+    def test_explicit_state_wins(self):
+        """--state passed to the command is not overridden by the cache."""
+        args = Namespace(target=None, vars="", reference_state="other/.dbtstate")
+        with _with_cache(CACHED):
+            apply_cached_config(args)
+
+        assert args.reference_state == "other/.dbtstate"
+
+    def test_cache_without_state_leaves_it_unset(self):
+        """A cache written before the state path was recorded leaves --state unset."""
+        legacy = {"config": {"reference": {"target": "production", "vars": None}}}
+        args = Namespace(target=None, vars="", reference_state=None)
+        with _with_cache(legacy):
+            apply_cached_config(args)
+
+        assert args.reference_state is None
 
     def test_preserves_explicit_values(self):
         """Explicitly provided values survive untouched."""

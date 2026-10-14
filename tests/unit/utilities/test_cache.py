@@ -1,5 +1,7 @@
 """Unit tests for the cache directory manager."""
+import json
 from argparse import Namespace
+from unittest.mock import patch
 
 import pytest
 
@@ -133,3 +135,28 @@ class TestTrackReport:
         with cache.track_report("finalize"):
             pass
         assert cache.get_cache("report.json") is None
+
+
+class TestWriteCacheConfig:
+    """Test the run configuration init records for later commands."""
+
+    def _write(self, tmp_path, **args):
+        """Write the cache with the given args and return the recorded config block."""
+        defaults = {"comparison_strategy": "hybrid", "runner": "local"}
+        cache = CacheManager(Namespace(**{**defaults, **args}), cache_dir=tmp_path / "cache")
+        with patch("dbt_ci.utilities.cache.get_profile", return_value={"type": "bigquery"}):
+            cache.write_cache()
+        return json.loads((tmp_path / "cache" / "cache.json").read_text(encoding="utf-8"))["config"]
+
+    def test_records_state_as_absolute_path(self, tmp_path, monkeypatch):
+        """The state directory init used is recorded absolute, so later commands can pass it as --state."""
+        monkeypatch.chdir(tmp_path)
+        config = self._write(tmp_path, reference_state="dbt/.dbtstate")
+
+        assert config["reference"]["state"] == str((tmp_path / "dbt" / ".dbtstate").resolve())
+
+    def test_records_no_state_when_unset(self, tmp_path):
+        """Without a state path nothing is recorded, rather than a made-up one."""
+        config = self._write(tmp_path)
+
+        assert config["reference"]["state"] is None
