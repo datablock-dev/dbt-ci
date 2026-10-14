@@ -435,6 +435,10 @@ With `--dry-run`, nothing is uploaded, the cache is kept, and `--clean-ephemeral
 lists the datasets it would drop. `log` uploads the run log that dbt-ci writes
 to `<cache dir>/dbt-ci.log`.
 
+`--clean-ephemeral` runs before the upload, so a missing manifest or a failed upload
+doesn't leave the CI datasets behind. If the cleanup itself fails, the artifacts are
+still uploaded, the step fails, and the cache is kept so a re-run can retry the cleanup.
+
 > **Note:** the log file always records at `DEBUG` level, including the resolved
 > configuration for each command. Values whose names look sensitive (webhook, token,
 > password, secret, credential, api_key) are masked before being written, so uploading
