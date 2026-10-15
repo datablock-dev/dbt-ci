@@ -1,26 +1,28 @@
 # Release Process
 
-This project uses automated semantic versioning and releases via `python-semantic-release`.
+Every push to `main` is released automatically. The version is derived from the commit
+messages by [`ietf-tools/semver-action`](https://github.com/ietf-tools/semver-action), and
+the package is published to PyPI.
 
 ## How It Works
 
-When you push commits to `main` branch, the CI/CD pipeline (`publish-pypi.yml`) automatically:
-1. ✅ Runs tests across multiple dbt-core versions
-2. ✅ Analyzes commit messages using Conventional Commits to determine version bump
-3. ✅ Updates version in `pyproject.toml`
-4. ✅ Updates `CHANGELOG.md` with release notes
-5. ✅ Creates a git tag (e.g., `v1.1.0`)
-6. ✅ Commits version changes back to repository with `[skip ci]`
-7. ✅ Creates a GitHub Release with changelog
-8. ✅ Builds Python package (wheel + sdist)
-9. ✅ Publishes to PyPI (https://pypi.org/project/dbt-ci/)
-10. ✅ Builds Docker images for multiple dbt-core versions
+A push to `main` runs the CI/CD pipeline (`.github/workflows/ci.yml`):
+
+1. Runs the test suite across the supported Python and dbt-core versions (`tests.yml`)
+2. Runs the release job (`publish-pypi.yml`), which:
+   1. Checks out the latest `main` and runs the tests again
+   2. Works out the next version from the commits since the latest `v*` tag
+   3. Writes it to `pyproject.toml` and pushes a `chore(release): vX.Y.Z [skip ci]` commit
+   4. Builds the wheel and sdist from that commit
+   5. Creates the `vX.Y.Z` tag and a GitHub Release with generated release notes, both on that commit
+   6. Publishes the package to PyPI (https://pypi.org/project/dbt-ci/)
+
+Release notes live in [GitHub Releases](https://github.com/datablock-dev/dbt-ci/releases);
+there is no hand-maintained changelog.
 
 **Note:** Pushes that change only Markdown files (`*.md`) skip the pipeline, and pull requests that change only Markdown files skip the tests. Any release they would have produced goes out with the next push that touches other files.
 
 **Note:** Releases run one at a time, and each run releases the latest `main` rather than the commit that triggered it. Merging several PRs in quick succession therefore produces one release that includes all of them; the runs queued behind it find nothing new and skip without failing. The release tag points at the version-bump commit the package was built from.
-
-**Note:** The first release after setup may require a manual commit with conventional commit format to trigger semantic-release.
 
 ## Commit Message Format
 
@@ -34,177 +36,55 @@ Use [Conventional Commits](https://www.conventionalcommits.org/) format:
 [optional footer(s)]
 ```
 
+PRs are squash-merged, so the PR title becomes the commit message that decides the version.
+
 ### Version Bumping
 
-**Patch Release (0.1.0 → 0.1.1):**
-```bash
-git commit -m "fix: resolve login bug"
-git commit -m "perf: improve query performance"
-```
+| Commit | Bump | Example |
+|--------|------|---------|
+| `feat:` / `feature:` | Minor (1.9.5 → 1.10.0) | `feat: add S3 state storage support` |
+| `type!:` or a `BREAKING CHANGE:` footer | Major (1.9.5 → 2.0.0) | `feat!: rename --prod-manifest-dir to --state` |
+| Anything else (`fix:`, `refactor:`, `chore:`, `docs:`, …) | Patch (1.9.5 → 1.9.6) | `fix: resolve path resolution on Windows` |
 
-**Minor Release (0.1.0 → 0.2.0):**
-```bash
-git commit -m "feat: add S3 state storage support"
-git commit -m "feat(cli): add --dry-run flag"
-```
-
-**Major Release (0.1.0 → 1.0.0):**
-```bash
-git commit -m "feat!: redesign configuration API
-
-BREAKING CHANGE: Configuration format has changed"
-```
-
-### Commit Types
-
-- `feat:` New feature (triggers minor version bump)
-- `fix:` Bug fix (triggers patch version bump)
-- `docs:` Documentation changes
-- `style:` Code style changes (formatting, etc.)
-- `refactor:` Code refactoring
-- `perf:` Performance improvements (triggers patch version bump)
-- `test:` Adding or updating tests
-- `build:` Build system changes
-- `ci:` CI configuration changes
-- `chore:` Other changes
-
-### Examples
+Every release-triggering push bumps at least the patch version, whatever its type.
 
 ```bash
-# Add new feature
-git commit -m "feat: add Docker runner support
-
-Adds ability to run dbt commands in Docker containers
-with customizable volumes and environment variables"
-
-# Fix a bug
-git commit -m "fix: resolve path resolution on Windows"
-
 # Breaking change
 git commit -m "feat!: change --prod-manifest-dir to --state
 
 BREAKING CHANGE: --prod-manifest-dir flag renamed to --state
 for consistency with dbt conventions"
 
-# Multiple changes
-git commit -m "feat: add cloud storage support" -m "feat: add slack notifications"
-
-# Skip CI (no release)
-git commit -m "docs: update README [skip ci]"
+# No release at all
+git commit -m "chore: tidy CI config [skip ci]"
 ```
 
-## Manual Release (if needed)
+## Manual Release
 
-If you need to manually trigger a release or test the release process:
-
-```bash
-# Ensure you're on main with latest changes
-git checkout main
-git pull
-
-# Run semantic-release locally (requires python-semantic-release installed)
-pip install python-semantic-release
-semantic-release version
-semantic-release publish
-
-# Or just trigger the GitHub Actions workflow manually
-gh workflow run ci.yml
-```
-
-## Troubleshooting
-
-### No Release Created
-
-**Problem:** Commits pushed to main but no release was created.
-
-**Solutions:**
-1. Check that commits follow Conventional Commits format
-2. Verify commits are not marked with `[skip ci]`, and that the push changed more than Markdown files
-3. Check GitHub Actions logs for errors
-4. Ensure secrets `SEMANTIC_RELEASE_TOKEN` and `PYPI_TOKEN` are configured
-
-### Version Not Updated
-
-**Problem:** Release created but version in `pyproject.toml` still shows old version.
-
-**Solution:** This was fixed by ensuring:
-- `version_toml = ["pyproject.toml:project.version"]` in semantic_release config
-- Workflow has `persist-credentials: true` and proper token access
-- Semantic release has permission to commit back to repository
-
-### PyPI Upload Failed
-
-**Problem:** Release created but package not on PyPI.
-
-**Solution:** Verify:
-- `PYPI_TOKEN` secret is configured correctly
-- `upload_to_pypi = true` in `[tool.semantic_release]` (fixed in recent update)
-- PyPI project name matches `name` in `pyproject.toml`
-
-## Docker Image Releases
-
-Docker images are built for every push to main and tagged with:
-- `dbt-{VERSION}` (e.g., `dbt-1.10.23`)
-- `latest` (points to dbt-1.12.5 currently)
-- Future: `v{RELEASE}-dbt{VERSION}` (e.g., `v1.2.3-dbt1.10.23`)
-
-Images are hosted at: `ghcr.io/datablock-dev/dbt-ci`
-
-Supported dbt-core versions: 1.10.23, 1.11.15, 1.12.5 (and future versions)
-
-**Note:** Only dbt-core 1.10.13 and above are supported.
-
-## Versioning Strategy
-
-See [VERSION_STRATEGY.md](VERSION_STRATEGY.md) for detailed information about:
-- Supporting multiple dbt-core versions
-- PyPI package versioning approach
-- Docker multi-tag strategy
-- How production companies handle multi-version support
-
-## First Release
-
-For the initial release from 0.1.0:
-
-```bash
-git commit -m "feat: initial release of dbt-ci
-
-First stable release with core features:
-- Smart state comparison
-- Multiple runner support
-- Cloud storage integration"
-git push origin main
-```
+There is no manual release path: the release job only runs on a push to `main`
+(running `ci.yml` by hand with `workflow_dispatch` runs the tests but not the release).
+To release, merge a change to `main`.
 
 ## Checking Release Status
 
-View releases:
-- GitHub: https://github.com/datablock-dev/dbt-ci/releases
+- GitHub Releases: https://github.com/datablock-dev/dbt-ci/releases
 - PyPI: https://pypi.org/project/dbt-ci/
-
-Check CI workflow:
-```bash
-gh run list --workflow=publish.yml
-```
-
-## Configuration
-
-Version and release settings are in `pyproject.toml`:
-
-```toml
-[tool.semantic_release]
-version_toml = ["pyproject.toml:project.version"]
-branch = "main"
-```
+- Pipeline runs: `gh run list --workflow=ci.yml`
 
 ## Troubleshooting
 
-**No release triggered:**
-- Ensure commit messages follow conventional format
-- Check that commits contain `feat:` or `fix:` for version bumps
-- Verify GitHub Actions workflow ran successfully
+### No release created
 
-**Release failed:**
-- Check GitHub Actions logs
-- Verify `PYPI_TOKEN` secret is set correctly
-- Ensure tests pass before release
+1. Check that the push wasn't marked `[skip ci]` and changed more than Markdown files.
+2. Check the release job's log in the CI/CD Pipeline run.
+3. If an earlier run already released the same commits, the job logs "Couldn't find any commits between branch HEAD and latest tag. Exiting silently..." and skips. That is expected.
+
+### Release job failed
+
+- **Secrets:** the job needs `ORG_TOKEN` (to push the version bump to `main` and read tags) and `PYPI_TOKEN`.
+- **Push rejected:** if another commit landed on `main` between checkout and the bump push, the push fails. The next push to `main` releases both.
+
+## Docker Images
+
+`.github/workflows/docker.yml` can build images to `ghcr.io/datablock-dev/dbt-ci`, but no
+workflow currently calls it, so releases do not publish Docker images.
