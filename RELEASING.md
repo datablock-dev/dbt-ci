@@ -18,6 +18,8 @@ When you push commits to `main` branch, the CI/CD pipeline (`publish-pypi.yml`) 
 
 **Note:** Pushes that change only Markdown files (`*.md`) skip the pipeline, and pull requests that change only Markdown files skip the tests. Any release they would have produced goes out with the next push that touches other files.
 
+**Note:** Releases run one at a time, and each run releases the latest `main` rather than the commit that triggered it. Merging several PRs in quick succession therefore produces one release that includes all of them; the runs queued behind it find nothing new and skip without failing. The release tag points at the version-bump commit the package was built from.
+
 **Note:** The first release after setup may require a manual commit with conventional commit format to trigger semantic-release.
 
 ## Commit Message Format

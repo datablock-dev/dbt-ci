@@ -6,6 +6,11 @@ on:
 jobs:
   release:
     runs-on: ubuntu-24.04
+    # One release at a time: two merges in quick succession otherwise race, and the
+    # second run finds the first one's tag already on its commit.
+    concurrency:
+      group: pypi-release
+      cancel-in-progress: false
     permissions:
       contents: write
       id-token: write
@@ -13,6 +18,9 @@ jobs:
     steps:
     - uses: actions/checkout@v7
       with:
+        # Release the latest main rather than the commit that triggered this run, so a
+        # queued run includes everything merged meanwhile and can push its bump on top.
+        ref: main
         fetch-depth: 0
         persist-credentials: true
         token: ${{ secrets.ORG_TOKEN }}
@@ -39,6 +47,8 @@ jobs:
         token: ${{ secrets.ORG_TOKEN }}
         patchAll: true
         noVersionBumpBehavior: patch
+        # An earlier queued run may already have released these commits.
+        noNewCommitBehavior: silent
         fallbackTag: v1.0.0
 
     - name: Bump version in pyproject.toml
@@ -49,6 +59,7 @@ jobs:
         sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
 
     - name: Commit version bump
+      id: bump
       if: steps.release_version.outputs.next != ''
       run: |
         git config user.name "github-actions[bot]"
@@ -56,6 +67,7 @@ jobs:
         git add pyproject.toml
         git commit -m "chore(release): ${{ steps.release_version.outputs.next }} [skip ci]"
         git push origin HEAD:main
+        echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
     - name: Build package
       if: steps.release_version.outputs.next != ''
@@ -70,7 +82,8 @@ jobs:
             owner: context.repo.owner,
             repo: context.repo.repo,
             tag_name: '${{steps.release_version.outputs.next}}',
-            target_commitish: 'main',
+            // The bump commit this job built, not whatever main points at by now
+            target_commitish: '${{ steps.bump.outputs.sha }}',
             name: '${{steps.release_version.outputs.next}}',
             generate_release_notes: true
           });
