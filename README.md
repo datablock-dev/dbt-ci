@@ -1068,4 +1068,4 @@ See [LICENSE](LICENSE) file for details.
 - **Documentation**: [https://datablock.dev](https://datablock.dev)
 - **Issues**: [GitHub Issues](https://github.com/datablock-dev/dbt-ci/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/datablock-dev/dbt-ci/discussions)
-- **Changelog**: [CHANGELOG.md](CHANGELOG.md)
+- **Release notes**: [GitHub Releases](https://github.com/datablock-dev/dbt-ci/releases)

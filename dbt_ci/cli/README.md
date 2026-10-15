@@ -3,8 +3,10 @@
 All CLI flags can be set via a YAML config file, environment variables, or passed directly as flags. The order of precedence (highest to lowest) is:
 
 ```
-CLI flag > environment variable > config file value > default
+CLI flag > config file value > environment variable > default
 ```
+
+A value committed to the config file is deliberate, whereas the environment a CI runner exports is not, so the config file wins. To override a config value for one run, pass the flag.
 
 ---
 
@@ -18,7 +20,7 @@ dbt-ci init --config path/to/my-config.yaml
 export DBT_CONFIG=path/to/my-config.yaml
 ```
 
-The config file uses YAML format where each key is the corresponding environment variable name:
+The config file is YAML. Keys can use a nested style (`runner: docker`, `docker: {image: ...}`, per-command sections such as `run:` or `finalize:`), described in the main [README](../../README.md#configuration-file), or the flat style shown here, where each key is the corresponding environment variable name:
 
 ```yaml
 # dbt-ci.config.yaml
@@ -35,7 +37,7 @@ DBT_DOCKER_ENV:
   - "GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}"
 ```
 
-> Shell environment variables set before running dbt-ci always take precedence over values in the config file.
+> Values in the config file take precedence over shell environment variables; only a CLI flag overrides them.
 
 ---
 
@@ -65,7 +67,7 @@ DBT_DOCKER_ENV:
 
 | Key | CLI Flag | Default | Description |
 |-----|----------|---------|-------------|
-| `SLACK_WEBHOOK` | `--slack-webhook` | `None` | Slack webhook URL for notifications |
+| `DBT_NOTIFICATIONS_WEBHOOK` (also `SLACK_WEBHOOK`, `SLACK_WEBHOOK_URL`) | `--slack-webhook`, `--notifications-webhook` | `None` | Webhook URL for CI notifications (`notifications.webhook` in the nested style) |
 
 ### Docker Runner
 
