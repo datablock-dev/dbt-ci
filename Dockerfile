@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 # Build argument for dbt-core version
-ARG DBT_CORE_VERSION=1.12.5
+ARG DBT_CORE_VERSION=1.12.6
 
 WORKDIR /app
 COPY . /app
