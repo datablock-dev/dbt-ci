@@ -28,8 +28,8 @@ jobs:
         # This keeps the registry clean - each tag gets overwritten with updates
         dbt_version:
           - '1.10.23' # Latest 1.10.x (update this when 1.10.24 is released)
-          - '1.11.15' # Latest 1.11.x (update this when 1.11.16 is released)
-          - '1.12.5'  # Latest 1.12.x (update this when 1.12.6 is released)
+          - '1.11.16' # Latest 1.11.x (update this when 1.11.17 is released)
+          - '1.12.6'  # Latest 1.12.x (update this when 1.12.7 is released)
     
     steps:
       - name: Checkout repository
@@ -53,7 +53,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=dbt-${{ matrix.dbt_version }}
-            type=raw,value=latest,enable=${{ matrix.dbt_version == '1.12.5' }}
+            type=raw,value=latest,enable=${{ matrix.dbt_version == '1.12.6' }}
       
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
