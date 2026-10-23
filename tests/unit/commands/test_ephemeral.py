@@ -298,6 +298,45 @@ class TestCloneCommand:
         """The changed nodes and their descendants are reported as cloned."""
         assert set(self.run_clone(returncode=0)) == {"model.pkg.parent", "model.pkg.child"}
 
+    def test_changed_leaf_model_clones_its_parents(self):
+        """A changed model with no descendants still gets its direct model parents cloned, but not its seeds."""
+        from dbt_ci.commands.ephemeral.clone import clone_command
+
+        def node(unique_id, upstream_by_type=None):
+            """Build a graph node carrying only what clone_command reads."""
+            resource_type, package, name = unique_id.split(".")
+            return {"id": unique_id, "name": name, "resource_type": resource_type, "fqn": [package, name],
+                    "upstream_dependencies": {"dependencies_by_type": upstream_by_type or {}},
+                    "indirect_downstream_dependencies": {"dependencies_by_type": {}}}
+
+        graph = {
+            "model": {
+                "model.pkg.mrt_leaf": node("model.pkg.mrt_leaf", {
+                    "model": ["model.pkg.itr_a", "model.pkg.itr_b"],
+                    "seed": ["seed.pkg.lookup"],
+                }),
+                "model.pkg.itr_a": node("model.pkg.itr_a", {"model": ["model.pkg.stg_a"]}),
+                "model.pkg.itr_b": node("model.pkg.itr_b"),
+                "model.pkg.stg_a": node("model.pkg.stg_a"),
+            },
+            "seed": {"seed.pkg.lookup": node("seed.pkg.lookup")},
+        }
+        target_graph = MagicMock()
+        target_graph.to_dict.return_value = graph
+
+        with patch("dbt_ci.commands.ephemeral.clone.get_profile", return_value={"threads": 1}), \
+             patch("dbt_ci.commands.ephemeral.clone.DbtGraph", return_value=target_graph), \
+             patch("dbt_ci.commands.ephemeral.clone.resolve_dbt_commands", side_effect=lambda command_args, args: command_args) as mock_resolve, \
+             patch("dbt_ci.commands.ephemeral.clone.run_dbt_command", return_value=MagicMock(returncode=0)):
+            cloned_nodes = clone_command(
+                {"modified_nodes": ["model.pkg.mrt_leaf"], "new_nodes": [], "deleted_nodes": []},
+                Namespace(dry_run=False),
+            )
+
+        command = mock_resolve.call_args.kwargs["command_args"]
+        assert command == ["clone", "--select", "1+pkg.mrt_leaf+", "--exclude", "pkg.lookup", "--threads", "1"]
+        assert set(cloned_nodes) == {"model.pkg.mrt_leaf", "model.pkg.itr_a", "model.pkg.itr_b"}
+
 
 class TestBuildEphemeralMap:
     """Test the ephemeral map that finalize uses for cleanup."""
