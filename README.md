@@ -272,7 +272,7 @@ dbt-ci ephemeral create \
 
 **How it works:**
 1. Reads the cached change set from `init`
-2. Builds a selection of all affected models and their downstream dependencies
+2. Builds a selection of all affected models, their direct parents and their downstream dependencies. Seeds that `run` builds itself are excluded, so `dbt seed` never lands on a cloned view
 3. Runs `dbt clone --select <nodes>` targeting the specified environment
 4. The cloned tables/views can then be used as the base for subsequent `dbt run` commands in the PR environment
 5. Records the datasets it cloned into, so `ephemeral destroy` can drop them later

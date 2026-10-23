@@ -67,6 +67,26 @@ def clone_command(
             ) or set()
         )))
 
+        # 1st level ancestors of changed nodes. `run` passes --no-defer, so their refs resolve
+        # to the ephemeral schema even when the changed node has no descendants to pull them in.
+        changed_parents = list(get_upstream_dependencies(
+            dependency_graph=target_graph.to_dict(),
+            node_ids=changed_nodes,
+            node_type=["model", "snapshot"]
+        ) or set())
+
+        # `run` seeds changed seeds and the seed parents of changed nodes itself. Cloning them
+        # as well builds them twice, and where dbt clones as views (e.g. Postgres, DuckDB)
+        # `dbt seed` then fails with "Cannot seed to ..., it is a view".
+        seeds_built_by_run = list(set(chain(
+            filter_node_ids_by_type(target_graph.to_dict(), changed_nodes, ["seed"]),
+            get_upstream_dependencies(
+                dependency_graph=target_graph.to_dict(),
+                node_ids=changed_nodes,
+                node_type=["seed"]
+            ) or set()
+        )))
+
         ephemeral_nodes = list(set(chain(
             changed_nodes_dict["modified_nodes"],
             changed_nodes_dict["new_nodes"],
@@ -77,10 +97,13 @@ def clone_command(
             logger.info("No nodes to create ephemeral environments for, skipping...")
             sys.exit(0)
 
-        # We add all changed nodes + their downstream dependencies to the clone selection.
+        # We add all changed nodes + their 1st level parents + their downstream dependencies
+        # to the clone selection.
         # Selectors are fqn paths rather than unique_ids, which dbt's --select cannot resolve.
         for selector in get_selectors(target_graph.to_dict(), _filter_models_and_snapshots(target_graph, changed_nodes)):
-            node_selector.add(f"{selector}+")
+            node_selector.add(f"1+{selector}+")
+
+        exclude_selector = get_selectors(target_graph.to_dict(), seeds_built_by_run)
 
         # Downstream dependencies need to be included and to have their
         # 1st level upstream dependencies included to ensure the graph can be built and run successfully
@@ -88,7 +111,11 @@ def clone_command(
             node_selector.add(f"1+{selector}")
 
         command = resolve_dbt_commands(
-            command_args=["clone", "--select", *node_selector, "--threads", str(threads)],
+            command_args=[
+                "clone", "--select", *node_selector,
+                *(["--exclude", *exclude_selector] if exclude_selector else []),
+                "--threads", str(threads)
+            ],
             args=args
         )
 
@@ -109,6 +136,7 @@ def clone_command(
 
         cloned_nodes = set(chain(
             changed_nodes,
+            changed_parents,
             descendants,
             dependent_nodes,
             get_upstream_dependencies(
