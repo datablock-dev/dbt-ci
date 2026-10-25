@@ -20,7 +20,7 @@ dbt-ci init --config path/to/my-config.yaml
 export DBT_CONFIG=path/to/my-config.yaml
 ```
 
-The config file is YAML. Keys can use a nested style (`runner: docker`, `docker: {image: ...}`, per-command sections such as `run:` or `finalize:`), described in the main [README](../../README.md#configuration-file), or the flat style shown here, where each key is the corresponding environment variable name:
+The config file is YAML. Keys can use a nested style (`runner: docker`, `docker: {image: ...}`, per-command sections such as `run:` or `finalize:`), described in the main [configuration docs](../../docs/configuration.md#configuration-file), or the flat style shown here, where each key is the corresponding environment variable name:
 
 ```yaml
 # dbt-ci.config.yaml
