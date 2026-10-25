@@ -94,3 +94,15 @@ jobs:
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         password: ${{ secrets.PYPI_TOKEN }}
+
+    - name: Move the major version tag
+      # Workflows use the GitHub Action as datablock-dev/dbt-ci@v1, so v1 has to follow
+      # the latest 1.x release. It moves only once the release is on PyPI.
+      if: ${{steps.release_version.outputs.next != ''}}
+      env:
+        VERSION: ${{ steps.release_version.outputs.next }}
+        SHA: ${{ steps.bump.outputs.sha }}
+      run: |
+        MAJOR="${VERSION%%.*}"
+        git tag -f "$MAJOR" "$SHA"
+        git push -f origin "refs/tags/$MAJOR"

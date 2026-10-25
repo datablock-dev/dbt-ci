@@ -1,0 +1,60 @@
+name: GitHub Action Smoke Test (Reusable)
+
+# Runs the action from this checkout (uses: ./) against a throwaway dbt + DuckDB repo,
+# so a broken action.yml fails the pull request rather than everyone pinned to @v1.
+on:
+  workflow_call:
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+
+    - name: Build a demo dbt project with production state
+      run: |
+        python -m pip install --upgrade pip
+        pip install "dbt-core==1.12.6" dbt-duckdb
+        python tests/action/make_demo_project.py "$RUNNER_TEMP/demo"
+
+    - name: Run the action
+      id: dbt
+      uses: ./
+      with:
+        working-directory: ${{ runner.temp }}/demo/repo
+        project-dir: dbt
+        profiles-dir: dbt
+        target: dev
+        state: state
+        reference-target: prod
+        base-ref: main
+        adapter: dbt-duckdb
+        # The demo's change set says nothing about this pull request
+        pr-comment: "false"
+
+    - name: Check the outputs
+      env:
+        MODIFIED: ${{ steps.dbt.outputs.modified }}
+        NEW: ${{ steps.dbt.outputs.new }}
+        DELETED: ${{ steps.dbt.outputs.deleted }}
+        HAS_CHANGES: ${{ steps.dbt.outputs.has-changes }}
+        REPORT_JSON: ${{ steps.dbt.outputs.report-json }}
+      run: |
+        set -x
+        test "$MODIFIED" = 1
+        test "$NEW" = 0
+        test "$DELETED" = 0
+        test "$HAS_CHANGES" = true
+        test -s "$REPORT_JSON"
+        # The action puts dbt-ci on PATH and points later steps at its cache
+        dbt-ci --version
+        test -d "$DBT_CI_CACHE_DIR"
