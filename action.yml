@@ -1,0 +1,216 @@
+name: dbt-ci Slim CI
+description: Build and test only the dbt models a pull request changes, and comment the impact on the PR.
+author: datablock-dev
+
+branding:
+  icon: git-pull-request
+  color: orange
+
+inputs:
+  commands:
+    description: >
+      dbt-ci commands to run, one per line, in order. A line may carry extra flags
+      (e.g. `run --mode models`), which win over the inputs below. After a failure the
+      remaining commands are skipped, except `report` and `ephemeral destroy`.
+    required: false
+    default: |
+      init
+      run
+      report
+  working-directory:
+    description: Directory to run dbt-ci from, i.e. the root of the git checkout.
+    required: false
+    default: "."
+
+  # Common options, passed to every command
+  project-dir:
+    description: Path to the dbt project directory (`--dbt-project-dir`).
+    required: false
+    default: ""
+  profiles-dir:
+    description: Directory containing `profiles.yml` (`--profiles-dir`).
+    required: false
+    default: ""
+  target:
+    description: dbt target to build the pull request in (`--target`).
+    required: false
+    default: ""
+  vars:
+    description: dbt variables as a YAML string or a path to a YAML file (`--vars`).
+    required: false
+    default: ""
+  state:
+    description: Local directory holding the reference `manifest.json` (`--state`).
+    required: false
+    default: ""
+  config:
+    description: Path to a `dbt-ci.config.yaml` (`--config`). Inputs set here win over the file.
+    required: false
+    default: ""
+  runner:
+    description: "How dbt is executed: `dbt` (in-process, default), `local`, `docker` or `bash`."
+    required: false
+    default: ""
+  defer:
+    description: Defer unmodified nodes to the reference state (`--defer`).
+    required: false
+    default: "false"
+  log-level:
+    description: "dbt-ci log level: DEBUG, INFO, WARNING, ERROR or CRITICAL."
+    required: false
+    default: ""
+  dry-run:
+    description: Print the dbt commands without executing them (`--dry-run`).
+    required: false
+    default: "false"
+
+  # init
+  state-uri:
+    description: Remote reference manifest to download, e.g. `gs://bucket/manifest.json` or `s3://bucket/manifest.json`.
+    required: false
+    default: ""
+  reference-target:
+    description: dbt target the reference (production) manifest is compiled for.
+    required: false
+    default: ""
+  comparison-strategy:
+    description: "How changes are detected: `hybrid` (default), `git` or `dbt`."
+    required: false
+    default: ""
+  base-ref:
+    description: Branch to diff against. Defaults to the pull request's base branch.
+    required: false
+    default: ""
+
+  # run
+  mode:
+    description: "What `run` builds: `all` (default), `models`, `seeds`, `snapshots` or `tests`."
+    required: false
+    default: ""
+  downstream-depth:
+    description: How many levels of downstream dependents to build. Empty builds the full downstream graph.
+    required: false
+    default: ""
+
+  # finalize
+  artifacts-uri:
+    description: Object storage URI `finalize` uploads artifacts to, e.g. `gs://bucket/dbt-artifacts/`.
+    required: false
+    default: ""
+
+  # Reporting and notifications
+  pr-comment:
+    description: >
+      Post the `report` as a comment on the pull request, updated in place on every
+      run. Needs `pull-requests: write`.
+    required: false
+    default: "true"
+  github-token:
+    description: Token used to post the pull request comment.
+    required: false
+    default: ${{ github.token }}
+  slack-webhook:
+    description: Slack incoming webhook URL. When set, `init` posts a summary of the change set.
+    required: false
+    default: ""
+
+  # Installation
+  install:
+    description: Install dbt-ci into a virtual environment. Set to `false` to use a `dbt-ci` already on PATH.
+    required: false
+    default: "true"
+  version:
+    description: >
+      dbt-ci version to install from PyPI, e.g. `1.10.0`, or `latest`. Empty installs the
+      version the action was referenced at, so `@v1.10.0` runs dbt-ci 1.10.0.
+    required: false
+    default: ""
+  extras:
+    description: "Comma-separated dbt-ci extras: `gcp` for gs:// and BigQuery, `aws` for s3://, `docker` for the Docker runner."
+    required: false
+    default: ""
+  adapter:
+    description: >
+      Space-separated pip requirements for your dbt adapter, installed next to dbt-ci,
+      e.g. `dbt-bigquery` or `dbt-snowflake~=1.11.0`. Required with the default `dbt` runner.
+    required: false
+    default: ""
+  python-version:
+    description: Python version for the dbt-ci virtual environment (3.12 or newer).
+    required: false
+    default: "3.12"
+
+outputs:
+  modified:
+    description: Number of modified nodes `init` detected.
+    value: ${{ steps.run.outputs.modified }}
+  new:
+    description: Number of new nodes `init` detected.
+    value: ${{ steps.run.outputs.new }}
+  deleted:
+    description: Number of deleted nodes `init` detected.
+    value: ${{ steps.run.outputs.deleted }}
+  has-changes:
+    description: "`true` when `init` detected at least one modified, new or deleted node."
+    value: ${{ steps.run.outputs.has-changes }}
+  report-json:
+    description: Path to the JSON report (`dbt-ci report --format json`).
+    value: ${{ steps.run.outputs.report-json }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python for dbt-ci
+      id: python
+      if: inputs.install == 'true'
+      uses: actions/setup-python@v7
+      with:
+        python-version: ${{ inputs.python-version }}
+        # Only used to create dbt-ci's own venv; the job's default Python is left alone.
+        update-environment: false
+
+    - name: Install dbt-ci
+      id: install
+      if: inputs.install == 'true'
+      shell: bash
+      env:
+        PYTHON: ${{ steps.python.outputs.python-path }}
+        DBT_CI_VERSION: ${{ inputs.version }}
+        DBT_CI_EXTRAS: ${{ inputs.extras }}
+        DBT_CI_ADAPTER: ${{ inputs.adapter }}
+      run: |
+        set -euo pipefail
+        if [[ ! "$DBT_CI_EXTRAS" =~ ^[a-z0-9,_\ -]*$ ]]; then
+          echo "::error::Input 'extras' must be a comma-separated list such as 'gcp,docker'."
+          exit 2
+        fi
+        extras="${DBT_CI_EXTRAS// /}"
+        extras="${extras:+[$extras]}"
+        case "$DBT_CI_VERSION" in
+          "") spec="${GITHUB_ACTION_PATH}${extras}" ;;
+          latest) spec="dbt-ci${extras}" ;;
+          *) spec="dbt-ci${extras}==${DBT_CI_VERSION#v}" ;;
+        esac
+        read -r -a adapter <<< "$DBT_CI_ADAPTER"
+
+        venv="$RUNNER_TEMP/dbt-ci-venv"
+        "$PYTHON" -m venv "$venv"
+        "$venv/bin/python" -m pip install --quiet --upgrade pip
+        "$venv/bin/python" -m pip install --quiet "$spec" ${adapter[@]+"${adapter[@]}"}
+        "$venv/bin/dbt-ci" --version
+
+        # Later steps of the job can call dbt-ci and dbt from the same environment.
+        echo "$venv/bin" >> "$GITHUB_PATH"
+        echo "executable=$venv/bin/dbt-ci" >> "$GITHUB_OUTPUT"
+        echo "python=$venv/bin/python" >> "$GITHUB_OUTPUT"
+
+    - name: Run dbt-ci
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        DBT_CI_ACTION_INPUTS: ${{ toJSON(inputs) }}
+        DBT_CI_EXECUTABLE: ${{ steps.install.outputs.executable }}
+        DBT_CI_PYTHON: ${{ steps.install.outputs.python }}
+      run: |
+        "${DBT_CI_PYTHON:-python3}" "$GITHUB_ACTION_PATH/action/run.py"

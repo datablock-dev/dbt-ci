@@ -16,6 +16,10 @@ A push to `main` runs the CI/CD pipeline (`.github/workflows/ci.yml`):
    4. Builds the wheel and sdist from that commit
    5. Creates the `vX.Y.Z` tag and a GitHub Release with generated release notes, both on that commit
    6. Publishes the package to PyPI (https://pypi.org/project/dbt-ci/)
+   7. Moves the major version tag (`v1`) to that commit, so workflows using the GitHub Action as `datablock-dev/dbt-ci@v1` pick up the release
+
+The release job waits for the GitHub Action smoke test (`action-smoke.yml`) as well as the
+tests, so `v1` never moves to a commit whose `action.yml` is broken.
 
 Release notes live in [GitHub Releases](https://github.com/datablock-dev/dbt-ci/releases);
 there is no hand-maintained changelog.
@@ -83,6 +87,12 @@ To release, merge a change to `main`.
 
 - **Secrets:** the job needs `ORG_TOKEN` (to push the version bump to `main` and read tags) and `PYPI_TOKEN`.
 - **Push rejected:** if another commit landed on `main` between checkout and the bump push, the push fails. The next push to `main` releases both.
+
+## GitHub Marketplace
+
+The GitHub Action (`action.yml` at the repository root) is listed on the Marketplace by
+publishing a GitHub Release with "Publish this Action to the GitHub Marketplace" ticked.
+That has to be done once by hand from the release page; later releases stay listed.
 
 ## Docker Images
 

@@ -11,9 +11,13 @@ on:
 jobs:
   tests:
     uses: ./.github/workflows/tests.yml
-  
+
+  action-smoke:
+    uses: ./.github/workflows/action-smoke.yml
+
   pypi:
-    needs: tests
+    # The release also moves the v1 tag the GitHub Action is used through
+    needs: [tests, action-smoke]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     uses: ./.github/workflows/publish-pypi.yml
     secrets: inherit
