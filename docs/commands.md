@@ -140,7 +140,7 @@ dbt-ci ephemeral create \
 4. The cloned tables/views can then be used as the base for subsequent `dbt run` commands in the PR environment
 5. Records the datasets it cloned into, as dbt resolved them for the target it cloned into, so `ephemeral destroy` can drop them later
 
-If `dbt clone` fails, `ephemeral` exits with a non-zero code on every runner.
+If `dbt clone` fails, `ephemeral` exits with a non-zero code on every runner. If the change set selects no models or snapshots (for example, a PR that only adds or changes seeds and their tests), `ephemeral` skips `dbt clone` and exits successfully. `run` then seeds and tests those seeds as usual.
 
 **Flags:**
 
