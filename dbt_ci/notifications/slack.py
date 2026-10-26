@@ -22,19 +22,6 @@ class SlackClient:
         else:
             self.webhook_client = WebhookClient(self.slack_webhook_url)
 
-    def send_message(self, header: str, message: str) -> None:
-        """Send a message to Slack, truncating each block to Slack's text limit."""
-        texts = [text for text in (header, message) if text]
-        self.send_blocks([
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": truncate_for_slack(text)
-                },
-            }
-            for text in texts
-        ])
 
     def send_blocks(self, blocks: list[dict[str, Any]], text: str | None = None) -> None:
         """

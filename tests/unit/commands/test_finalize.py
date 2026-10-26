@@ -1,6 +1,6 @@
 """Unit tests for finalize upload logic."""
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 from argparse import Namespace
 from dbt_ci.commands.finalize.upload import (
     finalize_upload_files,
@@ -30,7 +30,7 @@ class TestFinalizeUploadFiles:
     def test_skips_when_no_artifacts_uri(self):
         """No upload should happen when artifacts_uri is not provided."""
         args = _make_args(artifacts_uri=None, files=("manifest",))
-        with patch("dbt_ci.commands.finalize.upload.CacheManager") as mock_cm, \
+        with patch("dbt_ci.commands.finalize.upload.CacheManager"), \
              patch("dbt_ci.commands.finalize.upload.init_storage_connector") as mock_storage:
             finalize_upload_files(args)
             mock_storage.assert_not_called()

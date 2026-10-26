@@ -22,15 +22,6 @@ def get_cache_dir() -> Path:
         return Path(override)
     return Path(tempfile.gettempdir()) / "dbt-ci"
 
-def get_dir_name_from_path(path: str) -> str | None:
-    """Get the directory name from a given path."""
-    if os.path.isdir(path):
-        return os.path.basename(os.path.normpath(path))
-    elif os.path.isfile(path):
-        return os.path.basename(os.path.dirname(path))
-    elif not os.path.exists(path):
-        logger.error(f"Path '{path}' does not exist.")
-        sys.exit(1)
 
 def get_manifest_file(dbt_project_dir: str) -> DBTManifest:
     """

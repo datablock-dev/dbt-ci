@@ -8,26 +8,21 @@
 
 import sys
 import logging
-from itertools import chain
 from argparse import Namespace
 from typing import Optional, cast
 import click
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.dbt.flags import apply_cached_config
-from dbt_ci.connectors import DB_CONNECTORS
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.graph.parser import generate_dependency_graph
 from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.schema import DependencyGraph, EphemeralMapNode, StateChangeSummary
 from dbt_ci.commands.ephemeral.clone import clone_command
-from dbt_ci.utilities.paths import get_manifest_file, get_profile
+from dbt_ci.utilities.paths import get_manifest_file
 from dbt_ci.graph.graph_utils import (
-    filter_node_ids_by_multiple_types,
-    get_downstream_dependencies,
     get_node_ids_from_structured_nodes,
     get_nodes,
-    get_relation_name,
-    get_upstream_dependencies
+    get_relation_name
 )
 
 logger = logging.getLogger(__name__)
@@ -136,122 +131,6 @@ def build_ephemeral_map(args: Namespace, node_ids: list[str]) -> dict[str, Ephem
         }
     return ephemeral_map
 
-# Not currently used (might need deprecation)
-# DBT Clone command is not utilised for better support
-def generate_ephemeral_map(
-    args: Namespace, 
-    cache: CacheManager
-) -> dict[str, EphemeralMapNode]:
-    """Generate a map of nodes to be included in the ephemeral environment based on the cache and dependency graph."""
-    target_graph = DbtGraph(args)
-    reference_graph = DbtGraph(args, is_reference=True)
-
-    # Look for cache
-    prev_cache = cache.get_cache()
-    if prev_cache is None: # Should we exit here instead of compiling?
-        logger.error("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
-        sys.exit(1)
-    logger.info("Cache successfully found - using cached state for comparison")
-
-    changed_nodes_dict = {
-        "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
-        "deleted_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("deleted_nodes", None)) or [],
-        "new_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("new_nodes", None)) or [],
-    }
-
-    changed_nodes = list(set(chain(
-        changed_nodes_dict["modified_nodes"],
-        changed_nodes_dict["deleted_nodes"],
-        changed_nodes_dict["new_nodes"],
-    )))
-
-    if len(changed_nodes) == 0:
-        logger.info("No modified, deleted, or new nodes found in cache, skipping...")
-        sys.exit(0)
-
-    # Ephemeral cloning strategy:
-    # 1. All modified nodes (models, snapshots, tests)
-    # 2. Downstream dependencies of modified & deleted nodes
-    # 3. If a snapshot changed, include its upstream dependencies (first level)
-    # 4. If a test changed, include its upstream dependencies (first level)
-    # Note: New nodes are skipped - they should be created in the PR/merge, not cloned
-        
-    # Get modified nodes of type that needs to have upstream dependencies included
-    # Snapshots & tests
-    nodes_with_upstream_deps = list(set(chain(
-        filter_node_ids_by_multiple_types(
-            dependency_graph=target_graph.to_dict(),
-            node_types=["snapshot", "test"],
-            node_ids=list(chain(
-                changed_nodes_dict["modified_nodes"],
-                changed_nodes_dict["new_nodes"],
-            ))
-        )
-    )))
-        
-    selected_nodes = filter_node_ids_by_multiple_types(
-        dependency_graph=target_graph.to_dict(),
-        node_types=["model", "snapshot"],
-        node_ids=list(chain(
-            # 1. All modified nodes (models, snapshots)
-            changed_nodes_dict["modified_nodes"],
-            changed_nodes_dict["new_nodes"],
-            # 2. Upstream dependencies of modified models (first level, only models)
-            get_upstream_dependencies(target_graph.to_dict(), changed_nodes, ["model"]) or [],
-            # 3. Get upstream dependencies of modified models downstream dependencies (full graph, all types)
-            get_upstream_dependencies(
-                dependency_graph=target_graph.to_dict(), 
-                node_ids=list(get_downstream_dependencies(target_graph.to_dict(), changed_nodes, None) or []),
-            ) or [],
-            # 4. Indirect Downstream dependencies of modified & deleted nodes (all types)
-            get_downstream_dependencies(target_graph.to_dict(), changed_nodes, None) or [],
-            # 5. Upstream dependencies of modified snapshots & tests (first level, any type)
-            get_upstream_dependencies(target_graph.to_dict(), nodes_with_upstream_deps, None) or [],
-        ))
-    )
-
-    # Lets get all metadata related to these downstream dependencies
-    #print(downstream_dependencies)
-    target_nodes = get_nodes(target_graph.to_dict(), selected_nodes)
-    reference_nodes = get_nodes(reference_graph.to_dict(), selected_nodes)
-
-    # Now we build a dict of target & reference nodes for the engine
-    # to decide how to execute and create the ephemeral environment
-    ephemeral_map: dict[str, EphemeralMapNode] = {}
-
-    # We use reference since it will also include deleted nodes
-    # In target, they wont exist and return None
-    for node_id, node_metadata in reference_nodes.items():
-        # Skip ephemeral models since they are not materialized in the database
-        # and therefore cannot be cloned
-        if (
-            node_metadata["materialized"] in ("ephemeral", "view", "table")
-            and node_metadata["resource_type"] == "model"
-        ):
-            continue
-            
-        target_node = target_nodes.get(node_id, None)
-        if target_node is None:
-            continue
-
-        ephemeral_map[node_id] = {
-            "name": node_metadata["name"],
-            "resource_type": node_metadata["resource_type"],
-            "ephemeral_config": full_config_or_none(
-                database=target_node.get("database", None),
-                schema=target_node.get("schema", None),
-                name=target_node.get("name", None),
-                alias=target_node.get("alias", None),
-            ),
-            "reference_config": full_config_or_none(
-                database=node_metadata.get("database", None),
-                schema=node_metadata.get("schema", None),
-                name=node_metadata.get("name", None),
-                alias=node_metadata.get("alias", None),
-            )
-        }
-
-    return ephemeral_map
 
 def full_config_or_none(
     database: Optional[str],

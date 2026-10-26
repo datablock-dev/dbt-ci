@@ -10,7 +10,6 @@ def cli():
     
     Visit https://datablock.dev for more information.
     """
-    pass
 
 # Import command modules to register them with the cli group
 import dbt_ci.commands.init.cli       # noqa: E402, F401

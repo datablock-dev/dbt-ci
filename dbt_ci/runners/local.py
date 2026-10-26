@@ -4,7 +4,6 @@ import sys
 import subprocess
 import logging
 from subprocess import CompletedProcess
-from typing import List
 from dbt_ci.utilities.logging import setup_logging
 from dbt_ci.schema import RunnerConfig
 

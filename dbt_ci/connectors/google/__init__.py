@@ -6,13 +6,9 @@ from dbt_ci.connectors.google.storage import (
 )
 from dbt_ci.connectors.google.bigquery import (
     bigquery_client,
-    bigquery_create_datasets,
-    bigquery_create_tables,
     bigquery_delete_datasets,
-    bigquery_delete_tables,
     bigquery_delete_strategy,
     bigquery_migration_strategy,
-    bigquery_query
 )
 
 bigquery_storage_connector: StorageConnectorConfig = {
@@ -25,16 +21,11 @@ bigquery_storage_connector: StorageConnectorConfig = {
 bigquery_db_connector: ConnectorConfig = {
     "client": bigquery_client,
     "strategies": {
-        #"ephemeral": bigquery_ephemeral_strategy,
         "delete": bigquery_delete_strategy,
         "migration": bigquery_migration_strategy
     },
     "methods": {
-        "query": bigquery_query,
-        "create_datasets": bigquery_create_datasets,
         "delete_datasets": bigquery_delete_datasets,
-        "create_tables": bigquery_create_tables,
-        "delete_tables": bigquery_delete_tables
     }
 }
 

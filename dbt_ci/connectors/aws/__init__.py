@@ -1,4 +1,4 @@
-from dbt_ci.schema import ConnectorConfig, StorageConnectorConfig
+from dbt_ci.schema import StorageConnectorConfig
 from dbt_ci.connectors.aws.storage import (
     aws_download_json,
     aws_storage_client,

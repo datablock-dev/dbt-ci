@@ -24,8 +24,6 @@ type GitChangeType = Literal["modified", "added", "deleted"]
 class GitAdapter:
     """Adapter for git operations used during state comparison."""
 
-    provider = os.getenv("GIT_PROVIDER", "github").lower()
-
     def __init__(self, args: Namespace):
         self.args: Namespace = args
         self.head_branch = self._resolve_head_branch()

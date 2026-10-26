@@ -1,6 +1,5 @@
 """Unit tests for the config command."""
 import pytest
-from unittest.mock import patch, mock_open
 from dbt_ci.commands.config.index import generate_config, SKELETON
 
 

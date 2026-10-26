@@ -5,7 +5,6 @@ import os
 import sys
 import shlex
 import logging
-from typing import List
 import subprocess
 from subprocess import CompletedProcess
 from dbt_ci.utilities.logging import setup_logging

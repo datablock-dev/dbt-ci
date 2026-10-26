@@ -1,6 +1,6 @@
 """Unit tests for the run command."""
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 from argparse import Namespace
 from dbt_ci.commands.run.index import run as index
 from dbt_ci.commands.run.run import run_nodes

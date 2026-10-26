@@ -239,29 +239,6 @@ def get_upstream_dependencies(
         return None
     return upstream_dependencies
 
-def get_downstream_dependencies_from_cache(
-    cache: dict[str, DependencyGraph] | None,
-    node_type: DependencyGraphNodeType | None = None,
-    levels: int | None = None # To be implemented in the future
-) -> list[str] | None:
-    """Get downstream dependencies for modified nodes from cache."""
-    key = "indirect_downstream_dependencies"
-    if cache is None:
-        return None
-    if levels is not None:
-        key = f"downstream_dependencies_level_{levels}"
-
-    downstream_dependencies: set[str] = set()
-    for node_values in cache.values():
-        for item_values in node_values.values():
-            dependencies_by_type = item_values.get(key).get("dependencies_by_type", None)
-            if dependencies_by_type:
-                for dep_type, dep_names in dependencies_by_type.items():
-                    if node_type and dep_type != node_type:
-                        continue
-
-                    downstream_dependencies.update(dep_names)         
-    return list(downstream_dependencies) if len(downstream_dependencies) > 0 else None
 
 def filter_node_ids_by_type(
     dependency_graph: DependencyGraph,
@@ -276,35 +253,8 @@ def filter_node_ids_by_type(
             filtered_node_ids.append(node_id)
     return filtered_node_ids
 
-def filter_node_ids_by_multiple_types(
-    dependency_graph: DependencyGraph,
-    node_ids: list[str],
-    node_types: list[DependencyGraphNodeType]
-) -> list[str]:
-    """Filter a list of node IDs by multiple types."""
-    filtered_node_ids = []
-    for node_id in node_ids:
-        node = get_node(dependency_graph, node_id)
-        if node and node.get("resource_type") in node_types:
-            filtered_node_ids.append(node_id)
-    return filtered_node_ids
 
-def filter_node_ids_by_list_of_node_ids(
-    node_ids: list[str],
-    exclude_filter: list[str]
-) -> list[str]:
-    """Filter out node ids if they exist in exclude_filter"""
-    return [node_id for node_id in node_ids if node_id not in exclude_filter]
 
-def get_node_from_path(dependency_graph: DependencyGraph, path: str) -> DependencyGraphNode | None:
-    """Get a node from the dependency graph based on its path."""
-    for node_type, node_values in dependency_graph.items():
-        if node_type == "metadata":
-            continue
-        for node_info in cast(dict, node_values).values():
-            if node_info.get("original_file_path", None) == path:
-                return node_info
-    return None
 
 def get_relation_name(node: DependencyGraphNode | dict) -> str | None:
     """

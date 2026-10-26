@@ -449,13 +449,7 @@ class ConnectorStrategiesConfig(TypedDict):
 
 class ConnectorMethodsConfig(TypedDict):
     """Configuration for supported connector methods."""
-    query: Callable[[Any, str], str | None]
-    # Dataset methods
-    create_datasets: Callable[[Any, set[str], bool, int], None]
     delete_datasets: Callable[[Any, set[str], bool, int], None]
-    # Table methods
-    create_tables: Callable[[Any, set[str], bool, int], None]
-    delete_tables: Callable[[Any, set[str], bool, int], None]
 
 
 class ConnectorConfig(TypedDict):

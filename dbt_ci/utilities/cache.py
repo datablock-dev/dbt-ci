@@ -84,21 +84,9 @@ class CacheManager:
         """Write manifest data to a JSON file in the cache directory."""
         self._write(cast(dict, manifest_data), "target_manifest.json")
 
-    def write_reference_graph(self, graph_data: dict[str, Any]) -> None:
-        """Write reference graph data to a JSON file in the cache directory."""
-        self._write(cast(dict, graph_data), "reference_graph.json")
     
-    def get_reference_graph(self) -> dict[str, Any] | None:
-        """Load reference graph data from the cache file. Returns None if the file doesn't exist."""
-        return cast(dict[str, Any], self.get_cache("reference_graph.json"))
 
-    def write_target_graph(self, graph_data: dict[str, Any]) -> None:
-        """Write target graph data to a JSON file in the cache directory."""
-        self._write(cast(dict, graph_data), "target_graph.json")
     
-    def get_target_graph(self) -> dict[str, Any] | None:
-        """Load target graph data from the cache file. Returns None if the file doesn't exist."""
-        return cast(dict[str, Any], self.get_cache("target_graph.json"))
 
     def get_cache(self, file_name: str = "cache.json", content_type: str = "json") -> dict[str, Any] | str | None:
         """Load cache data from the cache file. Returns None if the file doesn't exist."""

@@ -400,16 +400,3 @@ class StateModified:
             print_exception(e, "Error generating state change summary")
             sys.exit(1)
 
-    def convert_git_key_to_state_change_summary_key(self, key: GitChangeType) -> StateChangeSummaryKeys:
-        """Convert the output from git strategy to match the structure of StateChangeSummary for consistency across strategies."""
-        mapping: dict[GitChangeType, StateChangeSummaryKeys] = {
-            "modified": "modified_nodes",
-            "added": "new_nodes",
-            "deleted": "deleted_nodes"
-        }
-
-        if key not in mapping:
-            logger.error(f"Invalid git change type: {key}. Expected one of {list(mapping.keys())}.")
-            sys.exit(1)
-
-        return mapping[key]

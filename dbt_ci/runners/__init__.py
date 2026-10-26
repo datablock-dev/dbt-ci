@@ -175,33 +175,7 @@ def parse_adapter(adapter: str) -> tuple[str, str | None]:
 
     return name, version or None
 
-def append_dbt_variables_to_command(
-    command_args: list[str],
-    args: Namespace,
-    skip_target: bool = False,
-) -> list[str]:
-    """Append dbt variables to command arguments."""
-    commands = command_args.copy()
-    dbt_variables = {
-        "target": "--target",
-        "vars": "--vars",
-        "dbt_project_dir": "--project-dir",
-        "profiles_dir": "--profiles-dir",
-    }
 
-    for var, dbt_flag in dbt_variables.items():
-        if skip_target and var == "target":
-            continue  # Skip adding target if skip_target is True
-        if dbt_flag in commands:
-            continue  # Skip if already in command args
-
-        value = getattr(args, var, None)
-        if value is not None and value != "":
-            commands.extend([str(dbt_flag), str(value)])
-
-    return commands
-
-# To replace append_dbt_variables_to_command
 def resolve_dbt_commands(
     command_args: list[str],
     args: Namespace,

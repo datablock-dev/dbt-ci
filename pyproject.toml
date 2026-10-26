@@ -46,8 +46,6 @@ all = [
     "dbt-ci[aws]",
     "dbt-ci[docker]",
 ]
-postgres = ["psycopg2-binary>=2.9.0"]
-mysql = ["pymysql>=1.0.0"]
 dev = [
     "dbt-ci[all]",
     "pytest==9.1.1",

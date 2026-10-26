@@ -3,7 +3,6 @@ DbtGraph class for representing dbt dependencies and lineage.
 This module defines the DbtGraph class, which encapsulates the dependency graph of dbt resources
 """
 
-import json
 from argparse import Namespace
 from typing import cast
 from dbt_ci.utilities.cache import CacheManager
@@ -50,12 +49,3 @@ class DbtGraph:
         """Convert the DependencyGraph instance to a dictionary."""
         return self.dependency_graph
 
-    def to_json(self, destination_path: str = "./dependency_graph.json") -> None:
-        """Convert the DependencyGraph instance to a JSON string."""
-        with open(destination_path, 'w', encoding='utf-8') as file:
-            json.dump(
-                obj=self.dependency_graph, 
-                fp=file,
-                indent=4,
-                default=lambda o: list(o) if isinstance(o, set) else o
-            )

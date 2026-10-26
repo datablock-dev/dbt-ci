@@ -14,24 +14,6 @@ def google_storage_client():
     """Initialize Google Cloud Storage client."""
     return require(storage, "gcp", "GCS state storage").Client()
 
-def google_upload_json(uri: str, data: dict) -> None:
-    """Upload a JSON object to the specified GCS URI."""
-    if not uri.startswith("gs://"):
-        raise ValueError(f"Invalid GCS URI: {uri}. Must start with 'gs://'.")
-    
-    # Parse bucket name and blob name from URI
-    path_parts = uri[5:].split("/", 1)
-    bucket_name = path_parts[0]
-    blob_name = path_parts[1] if len(path_parts) > 1 else ""
-
-    try:
-        client = google_storage_client()
-        bucket = client.bucket(bucket_name)
-        blob = bucket.blob(blob_name)
-        blob.upload_from_string(json.dumps(data), content_type="application/json")
-        print(f"Successfully uploaded JSON to {uri}")
-    except Exception as e:
-        raise RuntimeError(f"Failed to upload JSON to {uri}: {e}")
 
 def google_upload(uri: str, data: Any, content_type: str = "application/json") -> None:
     """Upload data to the specified GCS URI with the given content type."""

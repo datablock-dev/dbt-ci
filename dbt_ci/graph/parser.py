@@ -1,9 +1,8 @@
 """Module for parsing dbt manifest files and generating dependency graphs."""
 import sys
-import json
 import logging
 from typing import Literal, cast
-from dbt_ci.schema import MANIFEST_KEY_MAPPING, DBTManifest, DbtNode, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType, Macro, Node, Source
+from dbt_ci.schema import MANIFEST_KEY_MAPPING, DBTManifest, DbtNode, DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +144,6 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             "indirect_downstream_dependencies": skeleton_dependencies_structure(),
         }
 
-        #print(full_item.get("depends_on", {}).get("macros", []))
         append_depends_on_nodes(
             dependency_graph=dependency_graph,
             node_type=node_type,
@@ -233,15 +231,6 @@ def append_depends_on_nodes(
             if dep_category in upstream["dependencies_by_type"]:
                 upstream["dependencies_by_type"][dep_category].add(dep_id)
 
-def output_dependency_graph(dependency_graph: DependencyGraph, output_path: str) -> None:
-    """Output the dependency graph to a JSON file."""
-    with open(output_path, "w", encoding="utf-8") as file:
-        json.dump(
-            obj=dependency_graph, 
-            fp=file, 
-            indent=4, 
-            default=lambda o: list(o) if isinstance(o, set) else o
-        )
 
 def index_nodes_by_id(dependency_graph: DependencyGraph) -> dict[str, DependencyGraphNode]:
     """Build an id -> node lookup so dependency resolution doesn't rescan the graph."""

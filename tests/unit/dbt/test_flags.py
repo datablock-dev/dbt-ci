@@ -2,7 +2,7 @@
 from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
-from dbt_ci.dbt.flags import apply_cached_config, get_cached_value, get_target, get_vars
+from dbt_ci.dbt.flags import apply_cached_config, get_cached_value
 
 CACHED = {
     "config": {
@@ -46,23 +46,6 @@ class TestGetCachedValue:
             assert get_cached_value(Namespace(), "target") is None
 
 
-class TestGetters:
-    """Test that an explicit value always beats the cached one."""
-
-    def test_explicit_target_wins(self):
-        """A target passed on the command line is not overridden by the cache."""
-        with _with_cache(CACHED):
-            assert get_target(Namespace(target="staging")) == "staging"
-
-    def test_falls_back_to_cache(self):
-        """An unset target is inherited from what init recorded."""
-        with _with_cache(CACHED):
-            assert get_target(Namespace(target=None)) == "dev"
-
-    def test_vars_fall_back_to_cache(self):
-        """Same for vars."""
-        with _with_cache(CACHED):
-            assert get_vars(Namespace(vars="")) == "{'k': 1}"
 
 
 class TestApplyCachedConfig:

@@ -7,7 +7,7 @@ import re
 
 import pytest
 
-from dbt_ci.notifications.slack import SLACK_SECTION_TEXT_LIMIT, SlackClient, truncate_for_slack
+from dbt_ci.notifications.slack import SLACK_SECTION_TEXT_LIMIT, SlackClient
 from dbt_ci.notifications.slack_summary import build_init_summary_message
 
 
@@ -117,13 +117,6 @@ class TestSlackMessage:
         assert "<https://github.com/org/repo/actions/runs/42|CI run>" in text
         assert "hybrid comparison" in text
 
-    def test_no_empty_block_without_a_header(self):
-        """An empty header no longer produces a null block, which Slack rejects."""
-        with patch("dbt_ci.notifications.slack.WebhookClient") as mock_client:
-            mock_client.return_value.send_dict.return_value = MagicMock(status_code=200)
-            SlackClient(Namespace(slack_webhook="https://hooks.example/x")).send_message("", "body")
-        blocks = mock_client.return_value.send_dict.call_args[0][0]["blocks"]
-        assert blocks == [{"type": "section", "text": {"type": "mrkdwn", "text": "body"}}]
 
     def test_send_blocks_includes_fallback_text(self):
         """Blocks are sent as given, with the plain-text fallback for notifications."""

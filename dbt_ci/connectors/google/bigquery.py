@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from argparse import Namespace
 from typing import Any, cast
-from dbt_ci.schema import DeleteMapNode, EphemeralMapNode, MigrationMap
+from dbt_ci.schema import DeleteMapNode, MigrationMap
 from dbt_ci.utilities.optional_imports import require
 
 try:  # google-cloud-bigquery ships in the optional "gcp" extra.
@@ -62,133 +62,11 @@ def bigquery_client(args: Namespace) -> bigquery.Client:
     return client
 
 
-def bigquery_query(client: bigquery.Client, query: str):
-    """Execute a BigQuery query and return the results <add value>."""
-    query_job = client.query(query)
-    results = query_job.result()
-
-    if query_job.errors:
-        raise RuntimeError(
-            f"BigQuery query failed with errors: {query_job.errors}")
-    else:
-        return results.job_id
 
 
-def bigquery_ephemeral_strategy(
-    ephemeral_map: dict[str, EphemeralMapNode],
-    args: Namespace
-) -> None:
-    """Strategy for handling ephemeral run towards BigQuery."""
-    def get_full_config(config: EphemeralMapNode | None) -> tuple[str | None, str | None, str | None]:
-        """Extract (database, schema, name) from a config dict."""
-        if config is None:
-            return None, None, None
-        return config.get("database"), config.get("schema"), config.get("name")
 
-    # In BigQuery, ephemeral models can be materialized as temporary tables or CTEs.
-    # For this implementation, we will materialize them as CTEs to avoid unnecessary storage costs.
-    try:
-        client = bigquery_client(args)
-        profile = get_profile(args)
-        threads = profile.get("threads", 5)
 
-        datasets_to_create: set[str] = set()
-        # Stored as {node_name: {"ephemeral_table_id": str, "reference_table_id": str }}
-        clone_map: dict[str, dict[str, str]] = {}
-        for node_metadata in ephemeral_map.values():
-            if node_metadata["ephemeral_config"] is None or node_metadata["reference_config"] is None:
-                logger.info(
-                    f"Skipping node '{node_metadata['name']}' since it does not have both ephemeral and reference configurations.")
-                continue
-            ephemeral_database, ephemeral_schema, ephemeral_table = get_full_config(
-                node_metadata["ephemeral_config"])
-            reference_database, reference_schema, reference_table = get_full_config(
-                node_metadata["reference_config"])
-            dataset_id = f"{ephemeral_database}.{ephemeral_schema}"
 
-            target_table_id = f"{ephemeral_database}.{ephemeral_schema}.{ephemeral_table}"
-            reference_table_id = f"{reference_database}.{reference_schema}.{reference_table}"
-
-            if target_table_id != reference_table_id:
-                datasets_to_create.add(dataset_id)
-                clone_map[node_metadata["name"]] = {
-                    "ephemeral_table_id": f"{ephemeral_database}.{ephemeral_schema}.{ephemeral_table}",
-                    "reference_table_id": f"{reference_database}.{reference_schema}.{reference_table}"
-                }
-
-        logger.info("Running ephemeral strategy for BigQuery...")
-        bigquery_create_datasets(client, datasets_to_create, dry_run=False, threads=threads)
-        clone_tables(client, clone_map, threads)
-        return
-    except Exception as e:
-        raise RuntimeError(f"Error in BigQuery ephemeral strategy: {e}")
-
-def create_ephemeral_datasets(
-    client: bigquery.Client,
-    datasets_to_create: set[str],
-    threads: int = 5
-) -> None:
-    """Create ephemeral datasets in BigQuery if needed."""
-    # This function can be used to create temporary datasets for ephemeral models if we choose to materialize them as tables instead of CTEs.
-    if len(datasets_to_create) == 0:
-        logger.info("No ephemeral datasets to create. Exiting ephemeral strategy.")
-        return
-    logger.info("Creating ephemeral datasets in BigQuery:")
-    for dataset_id in datasets_to_create:
-        logger.info(f"\n  - {dataset_id}")
-
-    # Pass to multi_thread module
-    func_list = [
-        lambda dataset_id=dataset_id: create_dataset(client, dataset_id)
-        for dataset_id in datasets_to_create
-    ]
-    run_multithreaded(
-        func_list=func_list,
-        threads=threads,
-        exit_on_exception=True
-    )
-
-def bigquery_create_datasets(
-    client: bigquery.Client,
-    datasets_to_create: set[str],
-    dry_run: bool = False,
-    threads: int = 5
-) -> None:
-    """Create datasets in BigQuery."""
-    if len(datasets_to_create) == 0:
-        logger.info("No datasets to create. Exiting dataset creation step.")
-        return
-    logger.info("Creating datasets in BigQuery:")
-    for dataset_id in datasets_to_create:
-        logger.info(f"\n  - {dataset_id}")
-
-    if dry_run:
-        logger.info("\nDry run mode enabled - no datasets will actually be created.")
-        return
-
-    # Pass to multi_thread module
-    func_list = [
-        lambda dataset_id=dataset_id: create_dataset(client, dataset_id)
-        for dataset_id in datasets_to_create
-    ]
-    run_multithreaded(
-        func_list=func_list,
-        threads=threads,
-        exit_on_exception=True
-    )
-
-def create_dataset(client: bigquery.Client, dataset_id: str) -> None:
-    """Create a BigQuery dataset if it does not already exist."""
-    dataset = bigquery.Dataset(dataset_id)
-    dataset.location = client.location
-    try:
-        result = client.create_dataset(dataset, exists_ok=True)
-        if result.created:
-            logger.info(f"Dataset '{dataset_id}' created successfully.")
-        else:
-            logger.info(f"Dataset '{dataset_id}' already exists.")
-    except Exception as e:
-        raise RuntimeError(f"Failed to create dataset '{dataset_id}': {e}")
 
 def bigquery_delete_datasets(
     client: bigquery.Client,
@@ -227,31 +105,6 @@ def delete_dataset(client: bigquery.Client, dataset_id: str) -> None:
     except Exception as e:
         raise RuntimeError(f"Failed to delete dataset '{dataset_id}': {e}")
 
-def clone_tables(
-    client: bigquery.Client,
-    clone_map: dict[str, dict[str, str]],
-    threads: int = 5
-) -> None:
-    """Clone reference tables to ephemeral tables in BigQuery."""
-    logger.info("Cloning reference tables to ephemeral tables in BigQuery:")
-    for node_name, table_ids in clone_map.items():
-        logger.info(
-            f"\n  - Cloning '{table_ids['reference_table_id']}' to '{table_ids['ephemeral_table_id']}' for node '{node_name}'")
-
-    func_list = [
-        lambda table_ids=table_ids: bigquery_query(client=client, 
-        query=f"""
-            CREATE OR REPLACE TABLE `{table_ids['ephemeral_table_id']}`
-            CLONE `{table_ids['reference_table_id']}`
-            """
-        )
-        for table_ids in clone_map.values()
-    ]
-    run_multithreaded(
-        func_list=func_list,
-        threads=threads,
-        exit_on_exception=True
-    )
 
 
 def bigquery_delete_strategy(delete_map: dict[str, DeleteMapNode], args: Namespace) -> None:
@@ -311,29 +164,6 @@ def bigquery_delete_tables(
         exit_on_exception=True
     )
 
-def delete_table(table_id: str, args: Namespace) -> None:
-    """
-    Delete a single BigQuery table and its dbt temporary table.
-
-    Args:
-        table_id: Full table identifier (project.dataset.table)
-        args: Namespace with dbt configuration (used to get BigQuery client)
-
-    Returns:
-        None
-
-    Note:
-        This function is designed to be called in parallel via multithreading.
-        Each invocation deletes one table independently.
-    """
-    client = bigquery_client(args)
-
-    try:
-        client.delete_table(table_id, not_found_ok=True)
-        logger.info(f"Deleted {table_id} from BigQuery")
-    except Exception as e:
-        logger.error(f"Error deleting {table_id} from BigQuery: {e}")
-        raise
 
 
 def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) -> None:
@@ -493,40 +323,4 @@ def render_bigquery_partition_clause(partition_by: dict[str, Any]) -> str:
 
     raise ValueError("Unsupported partitioning configuration. No PARTITION BY clause will be applied.")
 
-def bigquery_create_tables(
-    client: bigquery.Client,
-    tables_to_create: set[str],
-    dry_run: bool = False,
-    threads: int = 5
-) -> None:
-    """Create tables in BigQuery."""
-    if len(tables_to_create) == 0:
-        logger.info("No tables to create. Exiting table creation step.")
-        return
-    logger.info("Creating tables in BigQuery:")
-    for table_id in tables_to_create:
-        logger.info(f"\n  - {table_id}")
 
-    if dry_run:
-        logger.info("\nDry run mode enabled - no tables will actually be created.")
-        return
-
-    func_list = [
-        lambda table_id=table_id: create_table(client, table_id)
-        for table_id in tables_to_create
-    ]
-    run_multithreaded(
-        func_list=func_list,
-        threads=threads,
-        exit_on_exception=True
-    )
-
-def create_table(client: bigquery.Client, table_id: str) -> None:
-    """Create a BigQuery table."""
-    # This function can be implemented to create a single table in BigQuery if needed for the create strategy.
-    try:
-        table = bigquery.Table(table_id)
-        client.create_table(table, exists_ok=True)
-        logger.info(f"Table '{table_id}' created successfully.")
-    except Exception as e:
-        raise RuntimeError(f"Failed to create table '{table_id}': {e}")

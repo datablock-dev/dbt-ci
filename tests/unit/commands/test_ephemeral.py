@@ -9,7 +9,6 @@ from dbt_ci.commands.ephemeral.index import ephemeral
 class TestEphemeralCommand:
     """Test the ephemeral command."""
     
-    @patch('dbt_ci.commands.ephemeral.index.get_profile')
     @patch('dbt_ci.commands.ephemeral.index.DbtGraph')
     @patch('dbt_ci.commands.ephemeral.index.CacheManager')
     @patch('dbt_ci.commands.ephemeral.index.click.secho')
@@ -19,12 +18,10 @@ class TestEphemeralCommand:
         mock_echo,
         mock_secho,
         mock_cache,
-        mock_graph,
-        mock_get_profile
+        mock_graph
     ):
         """Test ephemeral command exits when no cache is found."""
         # Setup mocks
-        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = None
         mock_cache.return_value = mock_cache_instance
@@ -42,7 +39,6 @@ class TestEphemeralCommand:
         
         assert exc_info.value.code == 1
     
-    @patch('dbt_ci.commands.ephemeral.index.get_profile')
     @patch('dbt_ci.commands.ephemeral.index.DbtGraph')
     @patch('dbt_ci.commands.ephemeral.index.CacheManager')
     @patch('dbt_ci.commands.ephemeral.index.get_node_ids_from_structured_nodes')
@@ -56,12 +52,10 @@ class TestEphemeralCommand:
         mock_secho,
         mock_get_nodes,
         mock_cache,
-        mock_graph,
-        mock_get_profile
+        mock_graph
     ):
         """Test ephemeral command when no modified nodes are found."""
         # Setup mocks
-        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": None,
@@ -84,15 +78,11 @@ class TestEphemeralCommand:
         
         assert exc_info.value.code == 0
     
-    @patch('dbt_ci.commands.ephemeral.index.get_profile')
     @patch('dbt_ci.commands.ephemeral.index.CacheManager')
     @patch('dbt_ci.commands.ephemeral.index.DbtGraph')
-    @patch('dbt_ci.commands.ephemeral.index.DB_CONNECTORS', {'bigquery': 'bigquery'})
     @patch('dbt_ci.commands.ephemeral.index.clone_command')
     @patch('dbt_ci.commands.ephemeral.index.get_node_ids_from_structured_nodes')
     @patch('dbt_ci.commands.ephemeral.index.get_nodes')
-    @patch('dbt_ci.commands.ephemeral.index.get_upstream_dependencies')
-    @patch('dbt_ci.commands.ephemeral.index.get_downstream_dependencies')
     @patch('dbt_ci.commands.ephemeral.index.click.secho')
     @patch('dbt_ci.commands.ephemeral.index.click.echo')
     @patch('dbt_ci.commands.ephemeral.index.sys.exit')
@@ -101,18 +91,14 @@ class TestEphemeralCommand:
         mock_exit,
         mock_echo,
         mock_secho,
-        mock_downstream,
-        mock_upstream,
         mock_get_nodes_util,
         mock_get_node_ids,
         mock_clone_command,
         mock_graph,
-        mock_cache,
-        mock_get_profile
+        mock_cache
     ):
         """Test ephemeral command with modified nodes."""
         # Setup mocks
-        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": {"model": {"model.project.model1": {}}},
@@ -136,9 +122,6 @@ class TestEphemeralCommand:
             }
         }
         
-        mock_downstream.return_value = []
-        mock_upstream.return_value = []
-        
         mock_graph_instance = MagicMock()
         mock_graph_instance.to_dict.return_value = {}
         mock_graph.return_value = mock_graph_instance
@@ -157,7 +140,6 @@ class TestEphemeralCommand:
         # Verify success exit
         mock_exit.assert_called_with(0)
     
-    @patch('dbt_ci.commands.ephemeral.index.get_profile')
     @patch('dbt_ci.commands.ephemeral.index.CacheManager')
     @patch('dbt_ci.commands.ephemeral.index.DbtGraph')
     @patch('dbt_ci.commands.ephemeral.index.get_node_ids_from_structured_nodes')
@@ -171,12 +153,10 @@ class TestEphemeralCommand:
         mock_secho,
         mock_get_node_ids,
         mock_graph,
-        mock_cache,
-        mock_get_profile
+        mock_cache
     ):
         """Test ephemeral command calls clone_command regardless of connector type."""
         # Setup mocks
-        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": {"model": {"model.project.model1": {}}},
@@ -198,33 +178,25 @@ class TestEphemeralCommand:
         # Verify success exit
         mock_exit.assert_called_with(0)
     
-    @patch('dbt_ci.commands.ephemeral.index.get_profile')
     @patch('dbt_ci.commands.ephemeral.index.CacheManager')
     @patch('dbt_ci.commands.ephemeral.index.DbtGraph')
-    @patch('dbt_ci.commands.ephemeral.index.DB_CONNECTORS', {'bigquery': 'bigquery'})
     @patch('dbt_ci.commands.ephemeral.index.clone_command')
     @patch('dbt_ci.commands.ephemeral.index.get_node_ids_from_structured_nodes')
     @patch('dbt_ci.commands.ephemeral.index.get_nodes')
-    @patch('dbt_ci.commands.ephemeral.index.get_upstream_dependencies')
-    @patch('dbt_ci.commands.ephemeral.index.get_downstream_dependencies')
     @patch('dbt_ci.commands.ephemeral.index.click.secho')
     @patch('dbt_ci.commands.ephemeral.index.click.echo')
     def test_ephemeral_dry_run(
         self,
         mock_echo,
         mock_secho,
-        mock_downstream,
-        mock_upstream,
         mock_get_nodes_util,
         mock_get_node_ids,
         mock_clone_command,
         mock_graph,
-        mock_cache,
-        mock_get_profile
+        mock_cache
     ):
         """Test ephemeral command in dry run mode."""
         # Setup mocks
-        mock_get_profile.return_value = {"type": "bigquery"}
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": {"model": {"model.project.model1": {}}},
@@ -243,9 +215,6 @@ class TestEphemeralCommand:
                 'config': {}
             }
         }
-        
-        mock_downstream.return_value = []
-        mock_upstream.return_value = []
         
         mock_graph_instance = MagicMock()
         mock_graph.return_value = mock_graph_instance

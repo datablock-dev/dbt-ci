@@ -12,7 +12,7 @@ from dbt_ci.schema import MigrationMap, SupportedConnectors
 from dbt_ci.connectors import get_connector
 from dbt_ci.utilities.paths import get_profile
 from dbt_ci.graph.graph_utils import (
-    filter_node_ids_by_multiple_types,
+    filter_node_ids_by_type,
     get_node_ids_from_structured_nodes,
     get_nodes,
     get_relation_name
@@ -98,10 +98,10 @@ def generate_migration_map(
         "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
     }
 
-    selected_nodes = filter_node_ids_by_multiple_types(
+    selected_nodes = filter_node_ids_by_type(
         dependency_graph=target_graph.to_dict(), 
         node_ids=modified_nodes_dict["modified_nodes"], 
-        node_types=["model"]
+        node_type=["model"]
     )
     if len(selected_nodes) == 0:
         logger.info("No modified models found in cache, skipping...")

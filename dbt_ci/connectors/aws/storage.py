@@ -15,22 +15,6 @@ def aws_storage_client():
     """Initialize AWS S3 client."""
     return require(boto3, "aws", "S3 state storage").client("s3")
 
-def aws_upload_json(uri: str, data: dict) -> None:
-    """Upload a JSON object to the specified S3 URI."""
-    if not uri.startswith("s3://"):
-        raise ValueError(f"Invalid S3 URI: {uri}. Must start with 's3://'.")
-    
-    # Parse bucket name and key from URI
-    path_parts = uri[5:].split("/", 1)
-    bucket_name = path_parts[0]
-    key = path_parts[1] if len(path_parts) > 1 else ""
-
-    try:
-        client = aws_storage_client()
-        client.put_object(Bucket=bucket_name, Key=key, Body=json.dumps(data), ContentType="application/json")
-        print(f"Successfully uploaded JSON to {uri}")
-    except Exception as e:
-        raise RuntimeError(f"Failed to upload JSON to {uri}: {e}")
     
 def aws_upload(uri: str, data: Any, content_type: str = "application/json") -> None:
     """Upload data to the specified S3 URI with the given content type."""
