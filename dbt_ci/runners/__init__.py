@@ -1,10 +1,19 @@
 """Central dispatcher for running dbt commands across different runners."""
+
 import subprocess
 import venv
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from argparse import Namespace
 from typing import Callable, cast
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - not available on Windows
+    fcntl = None  # type: ignore[assignment]
+from dbt_ci.errors import ConfigurationError
 from dbt_ci.schema import RunnerConfig, Runners
 from dbt_ci.dbt.versions import get_dbt_distribution, is_dbt_v2
 from dbt_ci.runners.dbt import dbt_runner
@@ -19,27 +28,31 @@ RUNNERS: dict[Runners, Callable[[list[str], RunnerConfig], subprocess.CompletedP
     "local": local_runner,
     "dbt": dbt_runner,
     "docker": docker_runner,
-    "bash": bash_runner
+    "bash": bash_runner,
 }
 
+
 def run_dbt_command(
-    command_args: list[str],
-    runner_config: RunnerConfig
+    command_args: list[str], runner_config: RunnerConfig
 ) -> subprocess.CompletedProcess | None:
     """
     Central dispatcher for running dbt commands across any runner.
-    
+
     Handles:
     - Runner routing (local, docker, bash)
     - Path resolution based on runner requirements
     - Consistent error handling
-    
+
     Args:
         command_args: dbt command arguments (e.g., ['ls', '--select', 'state:modified+'])
         runner_config: Configuration containing runner type, paths, and runner-specific settings
     Returns:
         CompletedProcess from subprocess, or None if dry_run
-    
+
+    Raises:
+        DbtCommandError: dbt failed. Every runner raises it, so callers never need to
+            inspect the return code.
+
     Example:
         config = {
             'runner': 'local',
@@ -49,18 +62,21 @@ def run_dbt_command(
         }
         output = run_dbt_command(['ls', '--select', 'state:modified+'], config)
     """
-    runner = runner_config['runner']
+    runner = runner_config["runner"]
     if runner not in RUNNERS:
-        raise ValueError(f"Unsupported runner: {runner}")
+        raise ConfigurationError(f"Unsupported runner: {runner}")
 
     # A dry run only prints the command, so it must not install a pinned dbt version
-    dbt_binary = None if runner_config.get("dry_run", False) else resolve_pinned_dbt_binary(runner_config)
+    dbt_binary = (
+        None if runner_config.get("dry_run", False) else resolve_pinned_dbt_binary(runner_config)
+    )
     if dbt_binary is not None:
         # local_runner prefixes the command with `entrypoint`, so pointing it at the
         # pinned virtual environment's dbt is what actually makes the pin take effect.
         runner_config = cast(RunnerConfig, {**runner_config, "entrypoint": dbt_binary})
 
     return RUNNERS[runner](command_args, runner_config)
+
 
 def resolve_pinned_dbt_binary(runner_config: RunnerConfig) -> str | None:
     """
@@ -91,10 +107,29 @@ def resolve_pinned_dbt_binary(runner_config: RunnerConfig) -> str | None:
         return None
 
     venv_dir = get_dbt_venv_dir(dbt_version, adapter)
-    if not dbt_venv_is_ready(venv_dir):
-        create_dbt_venv(venv_dir, dbt_version, adapter)
+    # Concurrent jobs on one runner share the cache, and create_dbt_venv clears the
+    # directory first, so only one of them may check and build it at a time.
+    with venv_lock(venv_dir):
+        if not dbt_venv_is_ready(venv_dir):
+            create_dbt_venv(venv_dir, dbt_version, adapter)
 
     return str(venv_dir / "bin" / "dbt")
+
+
+@contextmanager
+def venv_lock(venv_dir: Path) -> Iterator[None]:
+    """Hold an exclusive lock on a cached virtual environment while it is checked or built."""
+    venv_dir.parent.mkdir(parents=True, exist_ok=True)
+    with open(venv_dir.with_name(f"{venv_dir.name}.lock"), "w") as lock_file:
+        if fcntl is None:  # pragma: no cover - Windows, where the venv layout differs anyway
+            yield
+            return
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
+
 
 def get_dbt_venv_dir(dbt_version: str | None, adapter: str | None) -> Path:
     """Return the cache directory holding the virtual environment for this version/adapter pair."""
@@ -104,6 +139,7 @@ def get_dbt_venv_dir(dbt_version: str | None, adapter: str | None) -> Path:
         parts.append(f"{name}-{version}" if version else name)
     return Path.home() / ".cache" / "dbt-ci" / "venvs" / "+".join(parts)
 
+
 def dbt_venv_is_ready(venv_dir: Path) -> bool:
     """
     Check whether a cached virtual environment finished installing successfully.
@@ -112,6 +148,7 @@ def dbt_venv_is_ready(venv_dir: Path) -> bool:
     or failed install is rebuilt instead of being reused in a broken state.
     """
     return (venv_dir / ".dbt-ci-ready").is_file() and (venv_dir / "bin" / "dbt").is_file()
+
 
 def create_dbt_venv(venv_dir: Path, dbt_version: str | None, adapter: str | None) -> None:
     """Create a virtual environment containing the requested dbt version and adapter."""
@@ -128,6 +165,7 @@ def create_dbt_venv(venv_dir: Path, dbt_version: str | None, adapter: str | None
     subprocess.run([str(dbt_bin), "--version"], check=True)
 
     (venv_dir / ".dbt-ci-ready").write_text("\n".join(packages), encoding="utf-8")
+
 
 def get_dbt_venv_packages(dbt_version: str | None, adapter: str | None) -> list[str]:
     """
@@ -150,6 +188,7 @@ def get_dbt_venv_packages(dbt_version: str | None, adapter: str | None) -> list[
             name, version = parse_adapter(adapter)
             packages.append(f"{name}=={version}" if version else name)
     return packages
+
 
 def parse_adapter(adapter: str) -> tuple[str, str | None]:
     """
@@ -175,33 +214,7 @@ def parse_adapter(adapter: str) -> tuple[str, str | None]:
 
     return name, version or None
 
-def append_dbt_variables_to_command(
-    command_args: list[str],
-    args: Namespace,
-    skip_target: bool = False,
-) -> list[str]:
-    """Append dbt variables to command arguments."""
-    commands = command_args.copy()
-    dbt_variables = {
-        "target": "--target",
-        "vars": "--vars",
-        "dbt_project_dir": "--project-dir",
-        "profiles_dir": "--profiles-dir",
-    }
 
-    for var, dbt_flag in dbt_variables.items():
-        if skip_target and var == "target":
-            continue  # Skip adding target if skip_target is True
-        if dbt_flag in commands:
-            continue  # Skip if already in command args
-
-        value = getattr(args, var, None)
-        if value is not None and value != "":
-            commands.extend([str(dbt_flag), str(value)])
-
-    return commands
-
-# To replace append_dbt_variables_to_command
 def resolve_dbt_commands(
     command_args: list[str],
     args: Namespace,
@@ -210,13 +223,13 @@ def resolve_dbt_commands(
     """Resolve dbt command arguments"""
     commands = command_args.copy()
     runner = getattr(args, "runner", None)
-    
+
     # Regular dbt variables with values
     dbt_variables = {
         "target": "--target",
         "vars": "--vars",
     }
-    
+
     # Boolean flags (no value needed)
     boolean_flags = {
         "defer": "--defer",
@@ -228,7 +241,7 @@ def resolve_dbt_commands(
         "profiles_dir": "--profiles-dir",
         "reference_state": "--state",
     }
-    
+
     # Runners that execute on the host (including a bash wrapper script) need absolute paths
     if runner in ["local", "dbt", "bash"]:
         for var, flag in path_flags.items():
@@ -236,12 +249,12 @@ def resolve_dbt_commands(
             if value is not None and value != "":
                 absolute_path = get_absolute_path(value)
                 commands.extend([flag, absolute_path])
-    
+
     # Docker runner needs container paths from docker-env
     elif runner == "docker":
         # Use the shared function to get container path mappings
-        container_path_map = get_container_paths(args.__dict__)
-        
+        container_path_map = get_container_paths(cast(RunnerConfig, args.__dict__))
+
         for var, flag in path_flags.items():
             container_path = container_path_map.get(var)
             if container_path:
@@ -257,14 +270,14 @@ def resolve_dbt_commands(
         value = getattr(args, var, None)
         if value is not None and value != "":
             commands.extend([str(dbt_flag), str(value)])
-    
+
     # Handle boolean flags (only add flag if True)
     for var, dbt_flag in boolean_flags.items():
         if ignore_keys and var in ignore_keys:
             continue  # Skip adding variable if it's in the ignore_keys list
         if dbt_flag in commands:
             continue  # Skip if already in command args
-        
+
         value = getattr(args, var, None)
         if value is True:
             commands.append(dbt_flag)
@@ -278,6 +291,6 @@ def resolve_dbt_commands(
             commands.append("--no-defer")
 
     if runner is None:
-        raise ValueError("Runner not specified")
+        raise ConfigurationError("Runner not specified")
 
     return commands

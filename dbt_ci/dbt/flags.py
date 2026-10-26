@@ -7,9 +7,10 @@ they had to be repeated - and a state path init had defaulted was lost entirely.
 helpers close that gap - an explicitly provided value still wins, the cache only fills
 in what was left unset.
 """
+
 import logging
 from argparse import Namespace
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from dbt_ci.schema import DbtCiManifest
 from dbt_ci.utilities.cache import CacheManager
@@ -18,9 +19,6 @@ logger = logging.getLogger(__name__)
 
 # Settings recorded by init that later commands can inherit, mapped to where they live
 # in the cached config block.
-type CachedTargetKey = Literal["target", "reference_target"]
-type CachedVarsKey = Literal["vars", "reference_vars"]
-
 CONFIG_SECTION: dict[str, str] = {
     "target": "target",
     "vars": "target",
@@ -35,7 +33,7 @@ def get_cached_config(args: Namespace) -> dict[str, Any]:
     cache_manifest = cast(DbtCiManifest | None, CacheManager(args).get_cache())
     if not cache_manifest:
         return {}
-    return cache_manifest.get("config") or {}
+    return cast(dict[str, Any], cache_manifest.get("config") or {})
 
 
 def get_cached_value(args: Namespace, key: str) -> Any:
@@ -48,16 +46,6 @@ def get_cached_value(args: Namespace, key: str) -> Any:
     # Within a section the keys are unprefixed: reference_target -> reference.target
     field = key.replace("reference_", "")
     return section.get(field)
-
-
-def get_target(args: Namespace, target: CachedTargetKey = "target") -> str | None:
-    """Return the dbt target, preferring an explicit value over the cached one."""
-    return getattr(args, target, None) or get_cached_value(args, target)
-
-
-def get_vars(args: Namespace, key: CachedVarsKey = "vars") -> str | None:
-    """Return the dbt vars, preferring an explicit value over the cached one."""
-    return getattr(args, key, None) or get_cached_value(args, key)
 
 
 def apply_cached_config(args: Namespace) -> Namespace:

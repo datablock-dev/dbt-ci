@@ -11,6 +11,7 @@ How the e2e tests reach dbt: a local binary, or a Docker image through the Docke
 Tests mount their temporary directory into the container at the same path, so paths
 in profiles.yml, the project and the state are identical inside and outside it.
 """
+
 import os
 import subprocess
 import sys
@@ -27,12 +28,19 @@ SKIP_REASON = "neither DBT_CI_E2E_DOCKER_IMAGE nor DBT_CI_E2E_DBT_BINARY is set"
 def docker_run_prefix(mount: Path, workdir: Path) -> list[str]:
     """Return the `docker run` arguments that run the test image as the current user."""
     return [
-        "docker", "run", "--rm",
-        "--user", f"{os.getuid()}:{os.getgid()}",
-        "--env", "HOME=/tmp",
-        "--network", "host",
-        "--volume", f"{mount}:{mount}",
-        "--workdir", str(workdir),
+        "docker",
+        "run",
+        "--rm",
+        "--user",
+        f"{os.getuid()}:{os.getgid()}",
+        "--env",
+        "HOME=/tmp",
+        "--network",
+        "host",
+        "--volume",
+        f"{mount}:{mount}",
+        "--workdir",
+        str(workdir),
         str(DOCKER_IMAGE),
     ]
 
@@ -58,25 +66,38 @@ def runner_args(mount: Path, profiles_dir: Path) -> list[str]:
     """Return the dbt-ci flags that select the runner under test."""
     if DOCKER_IMAGE:
         return [
-            "--runner", "docker",
-            "--docker-image", str(DOCKER_IMAGE),
-            "--docker-volumes", f"{mount}:{mount}",
-            "--docker-env", f"DBT_PROFILES_DIR={profiles_dir}",
-            "--docker-env", "HOME=/tmp",
+            "--runner",
+            "docker",
+            "--docker-image",
+            str(DOCKER_IMAGE),
+            "--docker-volumes",
+            f"{mount}:{mount}",
+            "--docker-env",
+            f"DBT_PROFILES_DIR={profiles_dir}",
+            "--docker-env",
+            "HOME=/tmp",
         ]
     return ["--runner", "local", "--entrypoint", str(DBT_BINARY)]
 
 
-def dbt_ci(repo: Path, cache_dir: Path, mount: Path, *args: str, target: str = "dev") -> subprocess.CompletedProcess:
+def dbt_ci(
+    repo: Path, cache_dir: Path, mount: Path, *args: str, target: str = "dev"
+) -> subprocess.CompletedProcess:
     """Run the dbt-ci CLI against the runner and dbt under test, on the given target."""
     env = {**os.environ, "DBT_CI_CACHE_DIR": str(cache_dir)}
     return subprocess.run(
         [
-            sys.executable, "-c", "from dbt_ci.main import cli; cli()", *args,
+            sys.executable,
+            "-c",
+            "from dbt_ci.main import cli; cli()",
+            *args,
             *runner_args(mount, repo / "dbt"),
-            "--dbt-project-dir", "dbt",
-            "--profiles-dir", "dbt",
-            "--target", target,
+            "--dbt-project-dir",
+            "dbt",
+            "--profiles-dir",
+            "dbt",
+            "--target",
+            target,
         ],
         cwd=repo,
         env=env,

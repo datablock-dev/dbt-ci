@@ -10,6 +10,7 @@ The macros log every drop and every relation they find missing, so a second run
 reporting a relation as missing proves the first one really dropped it. That keeps the
 test independent of the duckdb version that wrote the file.
 """
+
 import shutil
 import subprocess
 from pathlib import Path
@@ -70,7 +71,15 @@ def project(tmp_path: Path) -> Path:
     git(repo, "commit", "-qm", "base")
 
     build = run_dbt(
-        ["build", "--project-dir", str(dbt_dir), "--profiles-dir", str(dbt_dir), "--target", "prod"],
+        [
+            "build",
+            "--project-dir",
+            str(dbt_dir),
+            "--profiles-dir",
+            str(dbt_dir),
+            "--target",
+            "prod",
+        ],
         cwd=repo,
         mount=tmp_path,
         binary=REFERENCE_DBT_BINARY,
@@ -101,8 +110,16 @@ def output(result: subprocess.CompletedProcess) -> str:
 def init(project: Path, cache_dir: Path, tmp_path: Path) -> None:
     """Run init against the production state and check it succeeded."""
     result = dbt_ci(
-        project, cache_dir, tmp_path, "init",
-        "--state", "state", "--reference-target", "prod", "--base-ref", "main",
+        project,
+        cache_dir,
+        tmp_path,
+        "init",
+        "--state",
+        "state",
+        "--reference-target",
+        "prod",
+        "--base-ref",
+        "main",
     )
     assert result.returncode == 0, output(result)
 
@@ -124,7 +141,9 @@ def test_delete_drops_the_removed_model(project: Path, tmp_path: Path):
     assert "main.legacy does not exist, skipping" in output(again), output(again)
 
     # The helper project stays out of the user's git status
-    status = subprocess.run(["git", "status", "--porcelain"], cwd=project, capture_output=True, text=True)
+    status = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=project, capture_output=True, text=True
+    )
     assert "dbt_ci_operations" not in status.stdout, status.stdout
 
 
@@ -137,7 +156,9 @@ def test_ephemeral_destroy_drops_the_ci_schema(project: Path, tmp_path: Path):
     if create.returncode != 0 and "materialization_view_duckdb" in output(create):
         # dbt v2 (2.0.9) cannot `dbt clone` on DuckDB at all: its clone materialization
         # dispatches to a view materialization the DuckDB adapter does not ship.
-        pytest.skip("dbt clone is broken on DuckDB in this dbt version, so there is nothing to tear down")
+        pytest.skip(
+            "dbt clone is broken on DuckDB in this dbt version, so there is nothing to tear down"
+        )
     assert create.returncode == 0, output(create)
 
     destroy = dbt_ci(project, cache_dir, tmp_path, "ephemeral", "destroy", "--state", "state")
@@ -146,7 +167,7 @@ def test_ephemeral_destroy_drops_the_ci_schema(project: Path, tmp_path: Path):
     # init compiles against the production target; the clone's own manifest still tells
     # destroy that the clones live in the `ci` schema
     assert 'dbt-ci: dropped schema "warehouse"."ci"' in destroy_output, destroy_output
-    assert "dropped schema \"warehouse\".\"main\"" not in destroy_output, destroy_output
+    assert 'dropped schema "warehouse"."main"' not in destroy_output, destroy_output
 
     # Production is untouched: its table is still there for delete to drop
     delete = dbt_ci(project, cache_dir, tmp_path, "delete", "--state", "state", target="prod")

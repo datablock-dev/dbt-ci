@@ -1,4 +1,5 @@
 """Unit tests for the cache directory manager."""
+
 import json
 from argparse import Namespace
 from unittest.mock import patch
@@ -92,7 +93,9 @@ class TestTrackReport:
         """Read the status of a report entry."""
         return cache.get_cache("report.json")[command]["status"]
 
-    @pytest.mark.parametrize("code, expected", [(0, "completed"), (None, "completed"), (1, "failed"), ("boom", "failed")])
+    @pytest.mark.parametrize(
+        "code, expected", [(0, "completed"), (None, "completed"), (1, "failed"), ("boom", "failed")]
+    )
     def test_sys_exit_closes_the_entry(self, tmp_path, code, expected):
         """Dry runs and "nothing to do" paths exit with 0; failures exit non-zero."""
         cache = self.make_cache(tmp_path)
@@ -149,7 +152,7 @@ class TestWriteCacheConfig:
         return json.loads((tmp_path / "cache" / "cache.json").read_text(encoding="utf-8"))["config"]
 
     def test_records_state_as_absolute_path(self, tmp_path, monkeypatch):
-        """The state directory init used is recorded absolute, so later commands can pass it as --state."""
+        """init records its state directory as absolute, so later commands can pass it on."""
         monkeypatch.chdir(tmp_path)
         config = self._write(tmp_path, reference_state="dbt/.dbtstate")
 

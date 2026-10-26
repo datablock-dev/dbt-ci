@@ -1,4 +1,5 @@
 """Tests for dropping relations and schemas through dbt run-operation."""
+
 import json
 from argparse import Namespace
 from subprocess import CompletedProcess
@@ -8,8 +9,14 @@ import pytest
 import yaml
 
 from dbt_ci.connectors import get_connector
+from dbt_ci.errors import DbtCommandError
 from dbt_ci.dbt import operations
-from dbt_ci.dbt.operations import drop_relations, drop_schemas, operation_command, write_operations_project
+from dbt_ci.dbt.operations import (
+    drop_relations,
+    drop_schemas,
+    operation_command,
+    write_operations_project,
+)
 
 
 @pytest.fixture
@@ -54,7 +61,9 @@ def test_command_points_at_the_helper_project_on_the_host(project):
     command = operation_command(args_for(project), "dbt_ci_drop_schemas", {"schemas": []})
 
     assert command[:4] == ["run-operation", "dbt_ci_drop_schemas", "--args", '{"schemas": []}']
-    assert command[command.index("--project-dir") + 1] == str((project / "target" / "dbt_ci_operations").resolve())
+    assert command[command.index("--project-dir") + 1] == str(
+        (project / "target" / "dbt_ci_operations").resolve()
+    )
     assert command[command.index("--profiles-dir") + 1] == str(project.resolve())
     assert command[command.index("--target") + 1] == "ci"
     assert "--state" not in command and "--no-defer" not in command and "--defer" not in command
@@ -62,7 +71,9 @@ def test_command_points_at_the_helper_project_on_the_host(project):
 
 def test_command_uses_the_container_path_with_docker(project):
     """With Docker, the helper path is derived from the project's path inside the container."""
-    args = args_for(project, runner="docker", docker_volumes=[f"{project}:/workspace/dbt"], docker_env=[])
+    args = args_for(
+        project, runner="docker", docker_volumes=[f"{project}:/workspace/dbt"], docker_env=[]
+    )
     command = operation_command(args, "dbt_ci_drop_schemas", {"schemas": []})
 
     assert command[command.index("--project-dir") + 1] == "/workspace/dbt/target/dbt_ci_operations"
@@ -89,8 +100,9 @@ def test_drop_relations_runs_the_macro_with_its_arguments(project):
 
 def test_failed_operation_raises(project):
     """A failing macro fails the command instead of passing silently."""
-    with patch.object(operations, "run_dbt_command", return_value=CompletedProcess([], 1)):
-        with pytest.raises(RuntimeError, match="dbt_ci_drop_schemas failed"):
+    failure = DbtCommandError(["run-operation", "dbt_ci_drop_schemas"], returncode=1)
+    with patch.object(operations, "run_dbt_command", side_effect=failure):
+        with pytest.raises(DbtCommandError, match="dbt run-operation failed"):
             drop_schemas(args_for(project), [{"database": None, "schema": "ci"}])
 
 
@@ -117,8 +129,12 @@ class TestDeleteFallback:
 
         delete_map = {
             "model.shop.legacy": {
-                "type": "model", "name": "legacy", "table_id": "db.main.legacy",
-                "database": "db", "schema": "main", "identifier": "legacy",
+                "type": "model",
+                "name": "legacy",
+                "table_id": "db.main.legacy",
+                "database": "db",
+                "schema": "main",
+                "identifier": "legacy",
             }
         }
         with patch("dbt_ci.commands.delete.index.drop_relations") as drop:
@@ -133,8 +149,14 @@ class TestDeleteFallback:
         """Adapters without databases (e.g. Spark) are identified by schema and alias."""
         from dbt_ci.commands.delete.index import get_table_id
 
-        assert get_table_id({"database": None, "schema": "main", "name": "a", "config": {}}) == "main.a"
-        assert get_table_id({"database": "db", "schema": "main", "name": "a", "config": {}}) == "db.main.a"
+        assert (
+            get_table_id({"database": None, "schema": "main", "name": "a", "config": {}})
+            == "main.a"
+        )
+        assert (
+            get_table_id({"database": "db", "schema": "main", "name": "a", "config": {}})
+            == "db.main.a"
+        )
         assert get_table_id({"database": "db", "schema": None, "name": "a", "config": {}}) is None
 
 
@@ -143,12 +165,14 @@ class TestDestroyFallback:
 
     EPHEMERAL_MAP = {
         "model.shop.a": {
-            "name": "a", "resource_type": "model",
+            "name": "a",
+            "resource_type": "model",
             "ephemeral_config": {"database": "db", "schema": "ci", "name": "a", "alias": "a"},
             "reference_config": {"database": "db", "schema": "main", "name": "a", "alias": "a"},
         },
         "model.shop.b": {
-            "name": "b", "resource_type": "model",
+            "name": "b",
+            "resource_type": "model",
             "ephemeral_config": {"database": "db", "schema": "main", "name": "b", "alias": "b"},
             "reference_config": {"database": "db", "schema": "main", "name": "b", "alias": "b"},
         },
@@ -159,10 +183,18 @@ class TestDestroyFallback:
         from dbt_ci.commands.ephemeral.destroy import clean_up_ephemeral
 
         cache = MagicMock()
-        cache.get_cache.side_effect = lambda name: self.EPHEMERAL_MAP if name == "ephemeral_map.json" else {}
-        with patch("dbt_ci.commands.ephemeral.destroy.get_profile", return_value={"type": "snowflake"}), \
-             patch("dbt_ci.commands.ephemeral.destroy.get_reference_datasets", return_value={"db.main"}), \
-             patch("dbt_ci.commands.ephemeral.destroy.drop_schemas") as drop:
+        cache.get_cache.side_effect = lambda name: (
+            self.EPHEMERAL_MAP if name == "ephemeral_map.json" else {}
+        )
+        with (
+            patch(
+                "dbt_ci.commands.ephemeral.destroy.get_profile", return_value={"type": "snowflake"}
+            ),
+            patch(
+                "dbt_ci.commands.ephemeral.destroy.get_reference_datasets", return_value={"db.main"}
+            ),
+            patch("dbt_ci.commands.ephemeral.destroy.drop_schemas") as drop,
+        ):
             clean_up_ephemeral(Namespace(dry_run=dry_run), cache)
         return drop
 
@@ -176,10 +208,18 @@ class TestDestroyFallback:
         from dbt_ci.commands.ephemeral.destroy import clean_up_ephemeral
 
         cache = MagicMock()
-        cache.get_cache.side_effect = lambda name: self.EPHEMERAL_MAP if name == "ephemeral_map.json" else {}
-        with patch("dbt_ci.commands.ephemeral.destroy.get_profile", return_value={"type": "snowflake"}), \
-             patch("dbt_ci.commands.ephemeral.destroy.get_reference_datasets", return_value={"DB.CI"}), \
-             patch("dbt_ci.commands.ephemeral.destroy.drop_schemas") as drop:
+        cache.get_cache.side_effect = lambda name: (
+            self.EPHEMERAL_MAP if name == "ephemeral_map.json" else {}
+        )
+        with (
+            patch(
+                "dbt_ci.commands.ephemeral.destroy.get_profile", return_value={"type": "snowflake"}
+            ),
+            patch(
+                "dbt_ci.commands.ephemeral.destroy.get_reference_datasets", return_value={"DB.CI"}
+            ),
+            patch("dbt_ci.commands.ephemeral.destroy.drop_schemas") as drop,
+        ):
             clean_up_ephemeral(Namespace(dry_run=False), cache)
         drop.assert_not_called()
 

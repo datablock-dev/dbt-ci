@@ -10,18 +10,20 @@ from dbt_ci.commands.report.index import report
 @cli.command(name="report")
 @common_options
 @click.option(
-    "--output", "-o",
+    "--output",
+    "-o",
     envvar=["DBT_REPORT_OUTPUT"],
     default=None,
     type=str,
     callback=make_config_callback("DBT_REPORT_OUTPUT"),
     help=(
-        "Where to write the report. Defaults to $GITHUB_STEP_SUMMARY when set, "
-        "otherwise stdout."
+        "Where to write the report. Defaults to $GITHUB_STEP_SUMMARY when set, " "otherwise stdout."
     ),
 )
 @click.option(
-    "--format", "-F", "format",
+    "--format",
+    "-F",
+    "format",
     envvar=["DBT_REPORT_FORMAT"],
     type=click.Choice(["markdown", "json"], case_sensitive=False),
     default="markdown",
@@ -44,16 +46,20 @@ def report_cmd(**kwargs):
     Renders the change set from 'init' and the status of each command that has run so
     far. In GitHub Actions the report is appended to the job summary automatically.
 
+    \b
     Examples:
         # Append to the GitHub Actions job summary
         dbt-ci report
 
+    \b
         # Write markdown to a file, e.g. to post as a pull request comment
         dbt-ci report --output report.md
 
+    \b
         # Machine-readable output
         dbt-ci report --format json
 
+    \b
         # Also post (or update) a comment on the pull request
         dbt-ci report --pr-comment
     """

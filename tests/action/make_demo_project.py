@@ -7,19 +7,23 @@ the git comparison can fetch from, and a checked-out `feature` branch that modif
 
 Usage: python tests/action/make_demo_project.py <directory>   (needs dbt-duckdb on PATH)
 """
+
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 FILES = {
-    "dbt/dbt_project.yml": "name: demo\nversion: 1.0.0\nprofile: demo\nmodel-paths: [models]\nseed-paths: [seeds]\n",
+    "dbt/dbt_project.yml": (
+        "name: demo\nversion: 1.0.0\nprofile: demo\nmodel-paths: [models]\nseed-paths: [seeds]\n"
+    ),
     "dbt/seeds/raw.csv": "id,name\n1,a\n2,b\n",
     "dbt/models/stg.sql": "select * from {{ ref('raw') }}\n",
     "dbt/models/agg.sql": "select count(*) as n from {{ ref('stg') }}\n",
     "dbt/models/other.sql": "select 1 as x\n",
     "dbt/models/schema.yml": (
-        "version: 2\nmodels:\n  - name: stg\n    columns:\n      - name: id\n        data_tests: [not_null]\n"
+        "version: 2\nmodels:\n  - name: stg\n    columns:\n      - name: id\n        data_tests: "
+        "[not_null]\n"
     ),
     ".gitignore": "target/\nlogs/\ndbt_packages/\n",
 }
@@ -63,12 +67,16 @@ def make_demo_project(root: Path) -> Path:
     shutil.copy(repo / "dbt" / "target" / "manifest.json", repo / "state" / "manifest.json")
     shutil.rmtree(repo / "dbt" / "target")
 
-    subprocess.run(["git", "clone", "-q", "--bare", str(repo), str(root / "origin.git")], check=True)
+    subprocess.run(
+        ["git", "clone", "-q", "--bare", str(repo), str(root / "origin.git")], check=True
+    )
     git(repo, "remote", "add", "origin", str(root / "origin.git"))
     git(repo, "fetch", "-q", "origin")
 
     git(repo, "checkout", "-qb", "feature")
-    (repo / "dbt" / "models" / "stg.sql").write_text("select id, upper(name) as name from {{ ref('raw') }}\n")
+    (repo / "dbt" / "models" / "stg.sql").write_text(
+        "select id, upper(name) as name from {{ ref('raw') }}\n"
+    )
     git(repo, "commit", "-qam", "change stg")
     return repo
 

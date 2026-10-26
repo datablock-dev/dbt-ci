@@ -1,4 +1,5 @@
 """Run the dbt-ci commands listed in the action's `commands` input."""
+
 from __future__ import annotations
 
 import os
@@ -53,7 +54,9 @@ def warn_if_shallow(steps: List[Step], inputs: Inputs) -> None:
         )
 
 
-def run_steps(executable: str, steps: List[Step], inputs: Inputs, env: Mapping[str, str]) -> Optional[Step]:
+def run_steps(
+    executable: str, steps: List[Step], inputs: Inputs, env: Mapping[str, str]
+) -> Optional[Step]:
     """
     Run the steps in order and return the first one that failed, if any.
 
@@ -88,14 +91,18 @@ def main() -> int:
 
     executable = os.environ.get("DBT_CI_EXECUTABLE") or shutil.which("dbt-ci")
     if not executable:
-        workflow.error("dbt-ci is not installed. Leave 'install' enabled, or install it in an earlier step.")
+        workflow.error(
+            "dbt-ci is not installed. Leave 'install' enabled, or install it in an earlier step."
+        )
         return 2
 
     env = build_env(inputs, os.environ)
     warn_if_shallow(steps, inputs)
     failed = run_steps(executable, steps, inputs, env)
 
-    report_path = os.path.join(env.get("RUNNER_TEMP") or tempfile.gettempdir(), "dbt-ci-report.json")
+    report_path = os.path.join(
+        env.get("RUNNER_TEMP") or tempfile.gettempdir(), "dbt-ci-report.json"
+    )
     write_change_outputs(executable, common_flags(inputs), env, report_path)
     return 1 if failed else 0
 

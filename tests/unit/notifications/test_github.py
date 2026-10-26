@@ -1,4 +1,5 @@
 """Unit tests for posting the report as a GitHub pull request comment."""
+
 import io
 import json
 import logging
@@ -17,7 +18,12 @@ from dbt_ci.notifications.github import (
 )
 
 GITHUB_VARIABLES = (
-    "GITHUB_REPOSITORY", "GITHUB_EVENT_PATH", "GITHUB_REF", "GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_URL",
+    "GITHUB_REPOSITORY",
+    "GITHUB_EVENT_PATH",
+    "GITHUB_REF",
+    "GITHUB_TOKEN",
+    "GH_TOKEN",
+    "GITHUB_API_URL",
 )
 
 
@@ -106,7 +112,10 @@ class TestPostPrComment:
         with patch("urllib.request.urlopen", side_effect=[response([]), response({})]) as urlopen:
             assert post_pr_comment("## report") is True
         calls = requests_made(urlopen)
-        assert calls[0][:2] == ("GET", f"https://api.github.com/repos/org/repo/issues/7/comments?per_page={PAGE_SIZE}&page=1")
+        assert calls[0][:2] == (
+            "GET",
+            f"https://api.github.com/repos/org/repo/issues/7/comments?per_page={PAGE_SIZE}&page=1",
+        )
         assert calls[1][:2] == ("POST", "https://api.github.com/repos/org/repo/issues/7/comments")
         assert calls[1][2]["body"].startswith(COMMENT_MARKER)
 
@@ -115,11 +124,15 @@ class TestPostPrComment:
         first_page = [{"id": i, "body": "unrelated"} for i in range(PAGE_SIZE)]
         second_page = [{"id": 999, "body": f"{COMMENT_MARKER}\nold report"}]
         with patch(
-            "urllib.request.urlopen", side_effect=[response(first_page), response(second_page), response({})]
+            "urllib.request.urlopen",
+            side_effect=[response(first_page), response(second_page), response({})],
         ) as urlopen:
             assert post_pr_comment("## new report") is True
         method, url, payload = requests_made(urlopen)[-1]
-        assert (method, url) == ("PATCH", "https://api.github.com/repos/org/repo/issues/comments/999")
+        assert (method, url) == (
+            "PATCH",
+            "https://api.github.com/repos/org/repo/issues/comments/999",
+        )
         assert "new report" in payload["body"]
 
     def test_uses_github_api_url(self, pull_request_env, monkeypatch):
@@ -147,7 +160,9 @@ class TestPostPrComment:
 
     def test_api_errors_do_not_raise(self, pull_request_env, caplog):
         """A rejected request (e.g. a fork's read-only token) is logged, not raised."""
-        error = urllib.error.HTTPError("url", 403, "Forbidden", {}, io.BytesIO(b'{"message": "Resource not accessible"}'))
+        error = urllib.error.HTTPError(
+            "url", 403, "Forbidden", {}, io.BytesIO(b'{"message": "Resource not accessible"}')
+        )
         with patch("urllib.request.urlopen", side_effect=error), caplog.at_level(logging.WARNING):
             assert post_pr_comment("## report") is False
         assert "403" in caplog.text

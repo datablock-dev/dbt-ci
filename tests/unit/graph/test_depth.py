@@ -1,4 +1,5 @@
 """Unit tests for depth-limited dependency selection."""
+
 from dbt_ci.graph.graph_utils import (
     collect_dependencies_to_depth,
     get_downstream_dependencies,
@@ -12,7 +13,10 @@ def _node(unique_id: str, downstream: list[str], upstream: list[str]) -> dict:
         "id": unique_id,
         "name": unique_id.split(".")[-1],
         "resource_type": unique_id.split(".")[0],
-        "downstream_dependencies": {"node_dependencies": set(downstream), "dependencies_by_type": {}},
+        "downstream_dependencies": {
+            "node_dependencies": set(downstream),
+            "dependencies_by_type": {},
+        },
         "upstream_dependencies": {"node_dependencies": set(upstream), "dependencies_by_type": {}},
     }
 
@@ -38,7 +42,9 @@ class TestCollectDependenciesToDepth:
 
     def test_depth_zero_selects_nothing(self):
         """Depth 0 means "only what changed" - no dependencies at all."""
-        assert collect_dependencies_to_depth(_chain_graph(), ["model.p.a"], "downstream", 0) == set()
+        assert (
+            collect_dependencies_to_depth(_chain_graph(), ["model.p.a"], "downstream", 0) == set()
+        )
 
     def test_depth_one_selects_direct_children_only(self):
         """One hop reaches both branches but goes no further."""
@@ -56,7 +62,11 @@ class TestCollectDependenciesToDepth:
         graph = _chain_graph()
         deep = collect_dependencies_to_depth(graph, ["model.p.a"], "downstream", 99)
         assert deep == {
-            "model.p.b", "model.p.c", "model.p.d", "model.p.e", "test.p.b_is_valid",
+            "model.p.b",
+            "model.p.c",
+            "model.p.d",
+            "model.p.e",
+            "test.p.b_is_valid",
         }
 
     def test_upstream_direction(self):
@@ -66,7 +76,10 @@ class TestCollectDependenciesToDepth:
 
     def test_unknown_start_node_is_skipped(self):
         """A node id absent from the graph contributes nothing and does not raise."""
-        assert collect_dependencies_to_depth(_chain_graph(), ["model.p.ghost"], "downstream", 3) == set()
+        assert (
+            collect_dependencies_to_depth(_chain_graph(), ["model.p.ghost"], "downstream", 3)
+            == set()
+        )
 
     def test_cycle_terminates(self):
         """A cyclic graph must not loop forever."""
@@ -78,7 +91,8 @@ class TestCollectDependenciesToDepth:
             },
         }
         assert collect_dependencies_to_depth(graph, ["model.p.a"], "downstream", 99) == {
-            "model.p.a", "model.p.b",
+            "model.p.a",
+            "model.p.b",
         }
 
 
@@ -89,7 +103,8 @@ class TestDepthThroughPublicHelpers:
         """levels caps how far a change propagates."""
         graph = _chain_graph()
         assert get_downstream_dependencies(graph, ["model.p.a"], levels=1) == {
-            "model.p.b", "model.p.e",
+            "model.p.b",
+            "model.p.e",
         }
 
     def test_downstream_levels_zero_returns_none(self):
@@ -103,15 +118,27 @@ class TestDepthThroughPublicHelpers:
         assert result == {"test.p.b_is_valid"}
 
     def test_omitting_levels_uses_the_full_closure(self):
-        """Without levels the precomputed closure is used, preserving prior behaviour."""
-        graph = _chain_graph()
-        # The closure lives in indirect_*; provide it for the node under test.
-        graph["model"]["model.p.a"]["indirect_downstream_dependencies"] = {
-            "node_dependencies": {"model.p.b", "model.p.c", "model.p.d", "model.p.e"},
-            "dependencies_by_type": {"model": {"model.p.b", "model.p.c", "model.p.d", "model.p.e"}},
+        """Without levels every node downstream is selected, however far away."""
+        assert get_downstream_dependencies(_chain_graph(), ["model.p.a"]) == {
+            "model.p.b",
+            "model.p.c",
+            "model.p.d",
+            "model.p.e",
+            "test.p.b_is_valid",
         }
-        assert get_downstream_dependencies(graph, ["model.p.a"]) == {
-            "model.p.b", "model.p.c", "model.p.d", "model.p.e",
+
+    def test_full_closure_respects_node_type(self):
+        """Type filtering applies to the full closure as well."""
+        assert get_downstream_dependencies(_chain_graph(), ["model.p.a"], node_type="test") == {
+            "test.p.b_is_valid"
+        }
+
+    def test_full_closure_collects_ancestors(self):
+        """depth=None walks every ancestor."""
+        assert collect_dependencies_to_depth(_chain_graph(), ["model.p.d"], "upstream", None) == {
+            "model.p.a",
+            "model.p.b",
+            "model.p.c",
         }
 
     def test_upstream_levels_filters_by_type(self):

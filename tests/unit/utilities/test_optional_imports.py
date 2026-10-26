@@ -1,4 +1,5 @@
 """Unit tests for optional dependency handling."""
+
 import pytest
 
 from dbt_ci.utilities.optional_imports import require

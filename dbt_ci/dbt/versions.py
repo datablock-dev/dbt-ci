@@ -4,6 +4,7 @@ dbt v2 is distributed on PyPI as `dbt` (or `dbt-oss` for the Apache-2.0 subset) 
 than `dbt-core`, and bundles its adapters, so pinning a version has to pick the right
 distribution and skip the separate adapter install.
 """
+
 from typing import Literal
 
 type DbtDistribution = Literal["dbt-core", "dbt"]

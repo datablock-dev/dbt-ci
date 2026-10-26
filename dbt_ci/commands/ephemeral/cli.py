@@ -9,14 +9,14 @@ from dbt_ci.commands.ephemeral.destroy import destroy
 
 keep_env_option = click.option(
     "--keep-env",
-    envvar=['DBT_KEEP_ENV'],
+    envvar=["DBT_KEEP_ENV"],
     is_flag=True,
     default=False,
     hidden=True,
     help=(
         "DEPRECATED - has no effect. Creating the environment never destroys it; "
         "use 'dbt-ci ephemeral destroy' to tear it down."
-    )
+    ),
 )
 
 
@@ -28,7 +28,7 @@ def run_create(kwargs: dict) -> None:
         ephemeral(args)
 
 
-@cli.group(name='ephemeral', invoke_without_command=True)
+@cli.group(name="ephemeral", invoke_without_command=True)
 @common_options
 @keep_env_option
 @click.pass_context
@@ -37,6 +37,7 @@ def ephemeral_cmd(ctx: click.Context, **kwargs):
 
     Without a subcommand this creates the environment, as 'ephemeral create' does.
 
+    \b
     Examples:
         # Run after init
         dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
@@ -48,7 +49,8 @@ def ephemeral_cmd(ctx: click.Context, **kwargs):
 
     # Options belong to the subcommand; ones given before it would otherwise be dropped.
     misplaced = [
-        param.opts[0] for param in ctx.command.params
+        param.opts[0]
+        for param in ctx.command.params
         if ctx.get_parameter_source(param.name) == click.core.ParameterSource.COMMANDLINE
     ]
     if misplaced:
@@ -58,7 +60,7 @@ def ephemeral_cmd(ctx: click.Context, **kwargs):
         )
 
 
-@ephemeral_cmd.command(name='create')
+@ephemeral_cmd.command(name="create")
 @common_options
 @keep_env_option
 def ephemeral_create_cmd(**kwargs):
@@ -67,6 +69,7 @@ def ephemeral_create_cmd(**kwargs):
     Uses cached state from 'dbt-ci init' to create the ephemeral environment, and records
     the datasets it cloned into so 'dbt-ci ephemeral destroy' can drop them later.
 
+    \b
     Examples:
         dbt-ci ephemeral create --target ci
         dbt-ci ephemeral --target ci   # same thing
@@ -74,7 +77,7 @@ def ephemeral_create_cmd(**kwargs):
     run_create(kwargs)
 
 
-@ephemeral_cmd.command(name='destroy')
+@ephemeral_cmd.command(name="destroy")
 @common_options
 def ephemeral_destroy_cmd(**kwargs):
     """Drop the datasets 'dbt-ci ephemeral' cloned into
@@ -83,6 +86,7 @@ def ephemeral_destroy_cmd(**kwargs):
     Run it in the same job as 'ephemeral', since it reads the list of cloned datasets
     from the dbt-ci cache. The cache is left in place, so a failed teardown can be retried.
 
+    \b
     Examples:
         dbt-ci ephemeral destroy
         dbt-ci ephemeral destroy --dry-run   # list what would be dropped

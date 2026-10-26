@@ -13,7 +13,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = {file = "LICENSE"}
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Build Tools",
     "Programming Language :: Python :: 3",
@@ -46,8 +46,6 @@ all = [
     "dbt-ci[aws]",
     "dbt-ci[docker]",
 ]
-postgres = ["psycopg2-binary>=2.9.0"]
-mysql = ["pymysql>=1.0.0"]
 dev = [
     "dbt-ci[all]",
     "pytest==9.1.1",
@@ -68,6 +66,16 @@ include = ["dbt_ci*"]
 
 [tool.setuptools.package-data]
 dbt_ci = ["py.typed", "**/*.yaml", "**/*.sql"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["dbt_ci"]
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+# Optional SDKs (and PyYAML) ship without type information
+module = ["yaml", "docker", "docker.*", "boto3", "google.cloud", "google.cloud.*"]
+ignore_missing_imports = true
 
 [tool.black]
 line-length = 100

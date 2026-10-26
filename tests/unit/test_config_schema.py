@@ -1,4 +1,5 @@
 """Unit tests for dbt_ci.cli.config.schema validation."""
+
 import pytest
 from dbt_ci.cli.config.schema import validate_config
 
@@ -19,7 +20,9 @@ class TestEnumValidation:
     def test_log_level_uppercase_accepted(self):
         """Uppercase log-level values must not produce errors."""
         for value in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
-            assert validate_config({"log-level": value}) == [], f"log-level: {value!r} should be valid"
+            assert (
+                validate_config({"log-level": value}) == []
+            ), f"log-level: {value!r} should be valid"
 
     def test_log_level_lowercase_accepted(self):
         """Lowercase log-level values should also be accepted (case-insensitive)."""
@@ -32,9 +35,14 @@ class TestEnumValidation:
 
     def test_notifications_section_accepted(self):
         """The notifications section takes a provider, a format and a webhook."""
-        config = {"notifications": {
-            "provider": "slack", "format": "compact", "webhook": "https://hooks.example/x", "pr-comment": True,
-        }}
+        config = {
+            "notifications": {
+                "provider": "slack",
+                "format": "compact",
+                "webhook": "https://hooks.example/x",
+                "pr-comment": True,
+            }
+        }
         assert validate_config(config) == []
 
     def test_notifications_invalid_values(self):
@@ -45,7 +53,9 @@ class TestEnumValidation:
 
     def test_pr_comment_must_be_boolean(self):
         """notifications.pr-comment takes true or false."""
-        assert any("pr-comment" in e for e in validate_config({"notifications": {"pr-comment": "yes"}}))
+        assert any(
+            "pr-comment" in e for e in validate_config({"notifications": {"pr-comment": "yes"}})
+        )
 
     def test_slack_format_is_not_a_top_level_key(self):
         """The layout lives under notifications, not at the top level."""
@@ -81,13 +91,16 @@ class TestEnumValidation:
 class TestSchemaCoverage:
     """Test that every option the code reads from the config file is accepted by both schemas."""
 
-    @pytest.mark.parametrize("config", [
-        {"dbt-version": "1.10.13"},
-        {"DBT_VERSION": "1.10.13"},
-        {"report": {"format": "json", "output": "report.md"}},
-        {"run": {"downstream-depth": 2}},
-        {"DBT_DOCKER_IMAGE": "img", "DBT_DOCKER_PLATFORM": "linux/amd64"},
-    ])
+    @pytest.mark.parametrize(
+        "config",
+        [
+            {"dbt-version": "1.10.13"},
+            {"DBT_VERSION": "1.10.13"},
+            {"report": {"format": "json", "output": "report.md"}},
+            {"run": {"downstream-depth": 2}},
+            {"DBT_DOCKER_IMAGE": "img", "DBT_DOCKER_PLATFORM": "linux/amd64"},
+        ],
+    )
     def test_keys_are_accepted(self, config):
         """These keys used to be rejected as unknown even though the code reads them."""
         assert validate_config(config) == []
@@ -102,7 +115,9 @@ class TestSchemaCoverage:
         from pathlib import Path
         from dbt_ci.cli.config.schema import SCHEMA, _flat_section_aliases
 
-        json_schema = json.loads(Path(__file__).parents[2].joinpath("dbt-ci.config.schema.json").read_text())
+        json_schema = json.loads(
+            Path(__file__).parents[2].joinpath("dbt-ci.config.schema.json").read_text()
+        )
         properties = json_schema["properties"]
         missing = []
         for key, rule in SCHEMA.items():
@@ -111,7 +126,10 @@ class TestSchemaCoverage:
             if rule["type"] == "section":
                 section = properties.get(key, {}).get("properties", {})
                 for field, field_rule in rule["fields"].items():
-                    field_names = [field, *[a for a in field_rule.get("aliases", []) if not a.startswith("DBT_")]]
+                    field_names = [
+                        field,
+                        *[a for a in field_rule.get("aliases", []) if not a.startswith("DBT_")],
+                    ]
                     missing += [f"{key}.{name}" for name in field_names if name not in section]
         missing += [name for name in _flat_section_aliases(SCHEMA) if name not in properties]
         assert missing == []
@@ -124,7 +142,9 @@ class TestFlattenConfig:
         """docker: {DBT_DOCKER_PLATFORM: x} maps to DBT_DOCKER_PLATFORM, not a doubled prefix."""
         from dbt_ci.cli.config.parser import _flatten_config
 
-        assert _flatten_config({"docker": {"DBT_DOCKER_PLATFORM": "linux/amd64", "image": "img"}}) == {
+        assert _flatten_config(
+            {"docker": {"DBT_DOCKER_PLATFORM": "linux/amd64", "image": "img"}}
+        ) == {
             "DBT_DOCKER_PLATFORM": "linux/amd64",
             "DBT_DOCKER_IMAGE": "img",
         }

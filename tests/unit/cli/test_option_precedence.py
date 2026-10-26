@@ -5,6 +5,7 @@ Options are only wired into the config file if they carry make_config_callback, 
 missing callback silently drops that option's config key — these tests pin the behaviour
 per command rather than trusting the option definitions to stay consistent.
 """
+
 import os
 from unittest.mock import patch
 
@@ -17,6 +18,8 @@ CONFIG = """
 runner: bash
 run:
   nodes: models
+  filters:
+    - snapshots
 finalize:
   artifacts-uri: s3://from-config/
   clean-ephemeral: true
@@ -43,7 +46,9 @@ def resolve(command: str, attribute: str, patch_path: str, cli_args=(), env=None
         captured["value"] = getattr(args, attribute, None)
 
     with patch(patch_path, side_effect=capture):
-        result = CliRunner().invoke(cli, [command, *cli_args], env=env or {}, catch_exceptions=False)
+        result = CliRunner().invoke(
+            cli, [command, *cli_args], env=env or {}, catch_exceptions=False
+        )
 
     assert result.exit_code in (0, None), result.output
     return captured.get("value")
@@ -58,9 +63,7 @@ class TestCommonOptionPrecedence:
 
     def test_config_file_beats_shell_environment(self, project):
         """A committed config value outranks whatever the runner happens to export."""
-        value = resolve(
-            "run", "runner", "dbt_ci.commands.run.cli.run", env={"DBT_RUNNER": "local"}
-        )
+        value = resolve("run", "runner", "dbt_ci.commands.run.cli.run", env={"DBT_RUNNER": "local"})
         assert value == "bash"
 
     def test_cli_flag_wins(self, project):
@@ -77,9 +80,7 @@ class TestCommonOptionPrecedence:
     def test_environment_applies_without_a_config_entry(self, tmp_path, monkeypatch):
         """With no config file the environment variable is still honoured."""
         monkeypatch.chdir(tmp_path)
-        value = resolve(
-            "run", "runner", "dbt_ci.commands.run.cli.run", env={"DBT_RUNNER": "local"}
-        )
+        value = resolve("run", "runner", "dbt_ci.commands.run.cli.run", env={"DBT_RUNNER": "local"})
         assert value == "local"
 
 
@@ -93,6 +94,21 @@ class TestCommandSectionsReachTheirOptions:
     def test_run_nodes(self, project):
         """run.nodes selects the run mode."""
         assert resolve("run", "nodes", "dbt_ci.commands.run.cli.run") == "models"
+
+    def test_run_filters(self, project):
+        """run.filters reaches --filters; the option used to be command-line only."""
+        assert list(resolve("run", "filters", "dbt_ci.commands.run.cli.run")) == ["snapshots"]
+
+    def test_run_filters_from_environment(self, tmp_path, monkeypatch):
+        """DBT_RUN_FILTERS sets --filters, one resource type per whitespace-separated word."""
+        monkeypatch.chdir(tmp_path)
+        value = resolve(
+            "run",
+            "filters",
+            "dbt_ci.commands.run.cli.run",
+            env={"DBT_RUN_FILTERS": "snapshots seeds"},
+        )
+        assert list(value) == ["snapshots", "seeds"]
 
     def test_finalize_artifacts_uri(self, project):
         """finalize.artifacts-uri selects the upload destination."""
@@ -124,8 +140,13 @@ class TestNotifications:
     def clean_env(self, tmp_path, monkeypatch):
         """Run without a config file and without inherited notification variables."""
         monkeypatch.chdir(tmp_path)
-        for key in ("DBT_NOTIFICATIONS_FORMAT", "DBT_NOTIFICATIONS_PROVIDER", "DBT_NOTIFICATIONS_WEBHOOK",
-                    "SLACK_WEBHOOK", "SLACK_WEBHOOK_URL"):
+        for key in (
+            "DBT_NOTIFICATIONS_FORMAT",
+            "DBT_NOTIFICATIONS_PROVIDER",
+            "DBT_NOTIFICATIONS_WEBHOOK",
+            "SLACK_WEBHOOK",
+            "SLACK_WEBHOOK_URL",
+        ):
             monkeypatch.delenv(key, raising=False)
 
     def write_config(self, tmp_path, text):
@@ -139,14 +160,23 @@ class TestNotifications:
 
     def test_config_section_is_used(self, tmp_path):
         """provider, format and webhook are read from the notifications section."""
-        self.write_config(tmp_path, "notifications:\n  provider: slack\n  format: json\n  webhook: https://hooks.example/new\n")
+        self.write_config(
+            tmp_path,
+            "notifications:\n  provider: slack\n  format: json\n  webhook: "
+            "https://hooks.example/new\n",
+        )
         assert resolve("init", "notifications_format", self.INIT) == "json"
         assert resolve("init", "slack_webhook", self.INIT) == "https://hooks.example/new"
 
     def test_cli_flag_wins(self, tmp_path):
         """--notifications-format overrides the config file."""
         self.write_config(tmp_path, "notifications:\n  format: json\n")
-        value = resolve("init", "notifications_format", self.INIT, cli_args=["--notifications-format", "compact"])
+        value = resolve(
+            "init",
+            "notifications_format",
+            self.INIT,
+            cli_args=["--notifications-format", "compact"],
+        )
         assert value == "compact"
 
     def test_legacy_top_level_webhook_still_works(self, tmp_path):
@@ -167,7 +197,8 @@ class TestNotifications:
         """When both spellings are present, notifications.webhook is used."""
         self.write_config(
             tmp_path,
-            "slack-webhook: https://hooks.example/old\nnotifications:\n  webhook: https://hooks.example/new\n",
+            "slack-webhook: https://hooks.example/old\nnotifications:\n  webhook: "
+            "https://hooks.example/new\n",
         )
         assert resolve("init", "slack_webhook", self.INIT) == "https://hooks.example/new"
 
@@ -200,7 +231,9 @@ class TestDeferFlagFallback:
 
     def test_dbt_defer_wins(self):
         """DBT_DEFER is the documented variable, so it outranks DEFER_FLAG."""
-        value = resolve("run", "defer", self.RUN, env={"DBT_DEFER": "false", "DEFER_FLAG": "--defer"})
+        value = resolve(
+            "run", "defer", self.RUN, env={"DBT_DEFER": "false", "DEFER_FLAG": "--defer"}
+        )
         assert value is False
 
     def test_config_file_wins(self, tmp_path):
@@ -224,9 +257,15 @@ class TestDeferFlagFallback:
 class TestDbtLogLevel:
     """Test that dbt-ci's log level never leaves DBT_LOG_LEVEL in a form dbt rejects."""
 
-    @pytest.mark.parametrize("value, expected", [
-        ("WARNING", "warn"), ("CRITICAL", "error"), ("INFO", "info"), ("debug", "debug"),
-    ])
+    @pytest.mark.parametrize(
+        "value, expected",
+        [
+            ("WARNING", "warn"),
+            ("CRITICAL", "error"),
+            ("INFO", "info"),
+            ("debug", "debug"),
+        ],
+    )
     def test_environment_is_rewritten_for_dbt(self, value, expected, monkeypatch):
         """dbt only accepts debug/info/warn/error/none in DBT_LOG_LEVEL."""
         from dbt_ci.cli.common_options import normalise_log_level
@@ -264,18 +303,28 @@ class TestDockerEnvSplitting:
 
     def test_spaces_in_an_environment_value_are_kept(self):
         """click used to split the variable on whitespace, dropping 'world'."""
-        value = resolve("run", "docker_env", "dbt_ci.commands.run.cli.run", env={"DBT_DOCKER_ENV": "A=hello world"})
+        value = resolve(
+            "run",
+            "docker_env",
+            "dbt_ci.commands.run.cli.run",
+            env={"DBT_DOCKER_ENV": "A=hello world"},
+        )
         assert value == ("A=hello world",)
 
     def test_commas_and_newlines_still_separate_entries(self):
         """The documented comma and newline separators keep working."""
-        value = resolve("run", "docker_env", "dbt_ci.commands.run.cli.run", env={"DBT_DOCKER_ENV": "A=1,B=2\nC=3"})
+        value = resolve(
+            "run",
+            "docker_env",
+            "dbt_ci.commands.run.cli.run",
+            env={"DBT_DOCKER_ENV": "A=1,B=2\nC=3"},
+        )
         assert value == ("A=1", "B=2", "C=3")
 
     def test_commas_inside_a_value_are_kept(self, tmp_path):
         """A single config entry containing commas is not split."""
         (tmp_path / "dbt-ci.config.yaml").write_text(
-            "docker:\n  env:\n    - 'DBT_VARS={\"a\": 1, \"b\": 2}'\n", encoding="utf-8"
+            'docker:\n  env:\n    - \'DBT_VARS={"a": 1, "b": 2}\'\n', encoding="utf-8"
         )
         value = resolve("run", "docker_env", "dbt_ci.commands.run.cli.run")
         assert value == ('DBT_VARS={"a": 1, "b": 2}',)

@@ -1,9 +1,5 @@
-from dbt_ci.schema import ConnectorConfig, StorageConnectorConfig
-from dbt_ci.connectors.aws.storage import (
-    aws_download_json,
-    aws_storage_client,
-    aws_upload
-)
+from dbt_ci.schema import StorageConnectorConfig
+from dbt_ci.connectors.aws.storage import aws_download_json, aws_storage_client, aws_upload
 
 aws_storage_connector: StorageConnectorConfig = {
     "name": "AWS S3",
@@ -12,6 +8,6 @@ aws_storage_connector: StorageConnectorConfig = {
     "download": aws_download_json,
 }
 
-__init__ = [
+__all__ = [
     "aws_storage_connector",
 ]

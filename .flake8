@@ -1,0 +1,5 @@
+[flake8]
+# Matches black: same line length, and E203 (whitespace before ":") conflicts with it
+max-line-length = 100
+extend-ignore = E203
+exclude = .git,__pycache__,build,*.egg-info,.venv,venv

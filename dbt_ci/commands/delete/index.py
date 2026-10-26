@@ -1,5 +1,5 @@
 """
-    Delete command for dbt-ci
+Delete command for dbt-ci
 """
 
 import sys
@@ -9,15 +9,22 @@ from argparse import Namespace
 import click
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.dbt.flags import apply_cached_config
-from dbt_ci.utilities.logging import redact_namespace
+from dbt_ci.errors import DbtCiError
+from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.connectors import get_connector
 from dbt_ci.dbt.operations import RelationRef, drop_relations
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.schema import DeleteMapNode, DependencyGraph, DependencyGraphNode, SupportedConnectors
-from dbt_ci.graph.graph_utils import get_node, get_node_ids_from_structured_nodes, get_nodes, get_relation_name
+from dbt_ci.graph.graph_utils import (
+    get_node,
+    get_node_ids_from_structured_nodes,
+    get_nodes,
+    get_relation_name,
+)
 from dbt_ci.utilities.paths import get_profile
 
 logger = logging.getLogger(__name__)
+
 
 def delete(args: Namespace):
     """Delete deleted dbt models"""
@@ -56,8 +63,9 @@ def delete(args: Namespace):
     except Exception as e:
         cache = CacheManager(args)
         cache.update_report("delete", "failed", comment=str(e))
-        logger.error(f"An error occurred during the delete process: {str(e)}")
+        print_exception(e, "Delete failed")
         sys.exit(1)
+
 
 def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, DeleteMapNode]:
     """Generate a map of nodes to be deleted based on the cache and reference graph."""
@@ -70,7 +78,10 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
     prev_cache = cache.get_cache()
     if prev_cache is None:
         # Nothing was compared, so passing here would hide a skipped or failed init.
-        raise RuntimeError("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
+        raise DbtCiError(
+            "No cache found, please run 'dbt-ci init' first to generate the necessary manifest "
+            "files and cache for comparison."
+        )
     logger.info("Cache successfully found - using cached state for comparison")
 
     deleted_nodes = get_node_ids_from_structured_nodes(prev_cache.get("deleted_nodes", None)) or []
@@ -90,10 +101,13 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
     nodes = get_nodes(reference_graph.to_dict(), deleted_nodes)
     if nodes is None or len(nodes) == 0:
         logger.info("No deleted nodes found in manifest, skipping...")
-        sys.exit(0)
+        return {}
 
     if cache.get_cache("target_manifest.json") is None:
-        raise RuntimeError("No target manifest found in cache, so deleted nodes cannot be verified against the current project. Run 'dbt-ci init' first.")
+        raise DbtCiError(
+            "No target manifest found in cache, so deleted nodes cannot be verified against the "
+            "current project. Run 'dbt-ci init' first."
+        )
     target_graph = DbtGraph(args).to_dict()
     target_table_ids = get_target_table_ids(target_graph)
 
@@ -103,16 +117,24 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
 
         table_id = get_table_id(node_data)
         if table_id is None:
-            logger.warning(f"Missing schema or name for node {node_id}. Skipping deletion for this node.")
+            logger.warning(
+                f"Missing schema or name for node {node_id}. Skipping deletion for this node."
+            )
             continue
 
         # A moved or renamed file shows up in git as delete + add, but the node itself
         # keeps its unique_id and relation. Dropping it would destroy a live table.
         if get_node(target_graph, node_id) is not None:
-            logger.warning(f"Node {node_id} still exists in the target manifest (e.g. its file was moved). Skipping deletion of {table_id}.")
+            logger.warning(
+                f"Node {node_id} still exists in the target manifest (e.g. its file was moved). "
+                f"Skipping deletion of {table_id}."
+            )
             continue
         if table_id in target_table_ids:
-            logger.warning(f"Relation {table_id} is still used by a node in the target manifest. Skipping deletion for {node_id}.")
+            logger.warning(
+                f"Relation {table_id} is still used by a node in the target manifest. Skipping "
+                f"deletion for {node_id}."
+            )
             continue
 
         delete_map[node_id] = {
@@ -132,7 +154,13 @@ def dbt_delete_strategy(delete_map: dict[str, DeleteMapNode], args: Namespace) -
     relations: list[RelationRef] = []
     for node in delete_map.values():
         for identifier in (node["identifier"], f"{node['identifier']}__dbt_tmp"):
-            relations.append({"database": node.get("database"), "schema": node["schema"], "identifier": identifier})
+            relations.append(
+                {
+                    "database": node.get("database"),
+                    "schema": node["schema"],
+                    "identifier": identifier,
+                }
+            )
     drop_relations(args, relations)
 
 
@@ -152,7 +180,7 @@ def get_table_id(node_data: DependencyGraphNode) -> str | None:
 
 
 def get_target_table_ids(target_graph: DependencyGraph) -> set[str]:
-    """Collect the relations of every model and snapshot that still exists in the target manifest."""
+    """Collect the relations of every model and snapshot still in the target manifest."""
     table_ids: set[str] = set()
     for node_type in ("model", "snapshot"):
         for node_data in (target_graph.get(node_type) or {}).values():

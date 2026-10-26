@@ -1,9 +1,7 @@
 """Unit tests for dependency graph construction."""
-from dbt_ci.graph.parser import (
-    compute_transitive_closure,
-    generate_dependency_graph,
-    normalize_node_ids,
-)
+
+from dbt_ci.graph.graph_utils import collect_dependencies_to_depth, get_downstream_dependencies
+from dbt_ci.graph.parser import generate_dependency_graph, normalize_node_ids
 
 
 def _model(name: str, parents: list[str]) -> dict:
@@ -41,50 +39,30 @@ def _manifest(edges: dict[str, list[str]]) -> dict:
     }
 
 
-class TestTransitiveClosure:
-    """Test the memoised closure used for indirect dependencies."""
+class TestTransitiveDependencies:
+    """Closures are walked on demand over the direct edges the parser records."""
+
+    def upstream(self, edges: dict[str, list[str]], node: str) -> set[str]:
+        """Return every ancestor of a node in a graph built from {node: [parents]}."""
+        graph = generate_dependency_graph(_manifest(edges))
+        return collect_dependencies_to_depth(graph, [f"model.pkg.{node}"], "upstream", None)
 
     def test_linear_chain_collects_every_ancestor(self):
-        """a -> b -> c means c's indirect upstream contains both b and a."""
-        graph = generate_dependency_graph(_manifest({"a": [], "b": ["a"], "c": ["b"]}))
-
-        upstream = graph["model"]["model.pkg.c"]["indirect_upstream_dependencies"]["node_dependencies"]
-
-        assert upstream == {"model.pkg.b", "model.pkg.a"}
-
-    def test_closure_includes_direct_dependencies(self):
-        """The 'indirect' set is the full closure, direct dependencies included."""
-        graph = generate_dependency_graph(_manifest({"a": [], "b": ["a"]}))
-
-        assert graph["model"]["model.pkg.b"]["indirect_upstream_dependencies"]["node_dependencies"] == {
-            "model.pkg.a"
+        """a -> b -> c means c's ancestors are both b and a."""
+        assert self.upstream({"a": [], "b": ["a"], "c": ["b"]}, "c") == {
+            "model.pkg.a",
+            "model.pkg.b",
         }
 
     def test_downstream_closure(self):
-        """a's indirect downstream contains everything that reads from it, transitively."""
+        """a's descendants include everything that reads from it, transitively."""
         graph = generate_dependency_graph(_manifest({"a": [], "b": ["a"], "c": ["b"]}))
+        assert get_downstream_dependencies(graph, ["model.pkg.a"]) == {"model.pkg.b", "model.pkg.c"}
 
-        downstream = graph["model"]["model.pkg.a"]["indirect_downstream_dependencies"]["node_dependencies"]
-
-        assert downstream == {"model.pkg.b", "model.pkg.c"}
-
-    def test_diamond_is_not_double_counted(self):
-        """A node reachable by two paths appears once."""
-        graph = generate_dependency_graph(
-            _manifest({"a": [], "b": ["a"], "c": ["a"], "d": ["b", "c"]})
-        )
-
-        upstream = graph["model"]["model.pkg.d"]["indirect_upstream_dependencies"]["node_dependencies"]
-
-        assert upstream == {"model.pkg.b", "model.pkg.c", "model.pkg.a"}
-
-    def test_dependencies_by_type_is_populated(self):
-        """Closure members are also grouped by resource type, keyed by node name."""
-        graph = generate_dependency_graph(_manifest({"a": [], "b": ["a"], "c": ["b"]}))
-
-        by_type = graph["model"]["model.pkg.c"]["indirect_upstream_dependencies"]["dependencies_by_type"]
-
-        assert by_type["model"] == {"model.pkg.a", "model.pkg.b"}
+    def test_diamond_is_collected_once(self):
+        """Converging paths reach a shared ancestor once."""
+        edges = {"a": [], "b": ["a"], "c": ["a"], "d": ["b", "c"]}
+        assert self.upstream(edges, "d") == {"model.pkg.a", "model.pkg.b", "model.pkg.c"}
 
     def test_deep_chain_does_not_exhaust_the_recursion_limit(self):
         """A chain deeper than Python's recursion limit must still resolve."""
@@ -93,30 +71,19 @@ class TestTransitiveClosure:
         for i in range(1, depth):
             edges[f"m{i}"] = [f"m{i - 1}"]
 
-        graph = generate_dependency_graph(_manifest(edges))
-
-        deepest = graph["model"][f"model.pkg.m{depth - 1}"]
-        assert len(deepest["indirect_upstream_dependencies"]["node_dependencies"]) == depth - 1
+        assert len(self.upstream(edges, f"m{depth - 1}")) == depth - 1
 
     def test_cycle_terminates(self):
         """A cyclic manifest must not loop forever, even though dbt DAGs are acyclic."""
-        graph = generate_dependency_graph(_manifest({"a": ["b"], "b": ["a"]}))
+        assert "model.pkg.b" in self.upstream({"a": ["b"], "b": ["a"]}, "a")
 
-        upstream = graph["model"]["model.pkg.a"]["indirect_upstream_dependencies"]["node_dependencies"]
+    def test_parser_stores_direct_edges_only(self):
+        """No closure is precomputed, which was quadratic in the size of the project."""
+        graph = generate_dependency_graph(_manifest({"a": [], "b": ["a"], "c": ["b"]}))
+        node = graph["model"]["model.pkg.c"]
 
-        assert "model.pkg.b" in upstream
-
-    def test_memo_is_reused_across_calls(self):
-        """A populated memo short-circuits repeated closure computation."""
-        adjacency = {"a": {"b"}, "b": {"c"}, "c": set()}
-        memo: dict[str, set[str]] = {}
-
-        first = compute_transitive_closure("a", adjacency, memo)
-
-        assert first == {"b", "c"}
-        assert memo["b"] == {"c"}
-        # Serving from the memo must not depend on the adjacency map any more.
-        assert compute_transitive_closure("a", {}, memo) == {"b", "c"}
+        assert node["upstream_dependencies"]["node_dependencies"] == {"model.pkg.b"}
+        assert not any(key.startswith("indirect_") for key in node)
 
     def test_unknown_dependency_ids_are_retained(self):
         """Dependencies on nodes absent from the graph are still recorded."""
@@ -127,7 +94,7 @@ class TestTransitiveClosure:
         graph = generate_dependency_graph(manifest)
 
         assert "operation.pkg.hook" in (
-            graph["model"]["model.pkg.a"]["indirect_upstream_dependencies"]["node_dependencies"]
+            graph["model"]["model.pkg.a"]["upstream_dependencies"]["node_dependencies"]
         )
 
     def test_null_manifest_sections_are_treated_as_empty(self):

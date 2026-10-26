@@ -7,57 +7,66 @@ from dbt_ci.cli.namespace import to_namespace
 from dbt_ci.utilities.logging import setup_logging
 from dbt_ci.commands.run.index import run
 
-@cli.command(name='run')
+
+@cli.command(name="run")
 @common_options
 @click.option(
-    '--nodes', '-n',
-    '--mode', '-m',
-    envvar=['DBT_NODES'],
-    type=click.Choice([
-        "all",
-        "models",
-        "seeds",
-        "snapshots",
-        "tests",
-        #"analyses" --> Not yet supported
-    ], case_sensitive=False),
-    default='all',
+    "--nodes",
+    "-n",
+    "--mode",
+    "-m",
+    envvar=["DBT_NODES"],
+    type=click.Choice(
+        [
+            "all",
+            "models",
+            "seeds",
+            "snapshots",
+            "tests",
+            # "analyses" --> Not yet supported
+        ],
+        case_sensitive=False,
+    ),
+    default="all",
     callback=make_config_callback("DBT_RUN_NODES"),
-    help='Run mode for dbt-ci (default: all)'
+    help="Run mode for dbt-ci (default: all)",
 )
 @click.option(
-    '--downstream-depth',
-    envvar=['DBT_DOWNSTREAM_DEPTH'],
+    "--downstream-depth",
+    envvar=["DBT_DOWNSTREAM_DEPTH"],
     type=int,
     default=None,
     callback=make_config_callback("DBT_RUN_DOWNSTREAM_DEPTH"),
     help=(
-        'How many levels of downstream dependencies to include (dbt\'s model+N). '
-        'Omit for the full downstream graph; 0 runs only what changed.'
-    )
+        "How many levels of downstream dependencies to include (dbt's model+N). "
+        "Omit for the full downstream graph; 0 runs only what changed."
+    ),
 )
 @click.option(
-    '--filters', '-f',
-    type=click.Choice([
-        'models', 
-        'seeds', 
-        'snapshots', 
-        'tests'
-    ], case_sensitive=False),
+    "--filters",
+    "-f",
+    envvar=["DBT_RUN_FILTERS"],
+    type=click.Choice(["models", "seeds", "snapshots", "tests"], case_sensitive=False),
     multiple=True,
     default=None,
-    help="Extra filters to apply for tests, dbt-lineage run -m tests -f snapshots to run tests that has a snapshot dependency"
+    callback=make_config_callback("DBT_RUN_FILTERS"),
+    help=(
+        "Only run the tests that depend on one of these resource types. Repeatable, e.g. "
+        "'dbt-ci run --mode tests -f snapshots' runs the tests that read a snapshot."
+    ),
 )
 def run_cmd(**kwargs):
     """Run modified dbt models
-    
+
     Uses cached state from 'dbt-ci init' to detect and run modified models.
-    
+
+    \b
     Examples:
         # Run after init
         dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
         dbt-ci run --runner docker
-        
+
+    \b
         # Simple local run
         dbt-ci run
     """

@@ -86,9 +86,6 @@ The config file sits **above** shell environment variables: a value you commit t
 export is not. To override a config value per-run, pass the flag rather than setting the
 environment variable.
 
-`--filters` on `run` is command-line only — it has no environment variable or config
-file key.
-
 The config file is validated on load. dbt-ci will exit with a clear error message if it contains unknown keys, invalid enum values (e.g. `runner: kubernetes`), or wrong types (e.g. `defer: "yes"` instead of a boolean).
 
 `${VAR_NAME}` references inside the config file are resolved from the shell environment at load time.
@@ -100,7 +97,7 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
 | `--dbt-project-dir` | | `DBT_PROJECT_DIR` | `.` | Path to the dbt project directory |
-| `--profiles-dir` | | `DBT_PROFILES_DIR` | Auto-detect | Path to the directory containing `profiles.yml` |
+| `--profiles-dir` | | `DBT_PROFILES_DIR` | Auto-detect | Path to the directory containing `profiles.yml`. When unset, dbt-ci looks in the project directory, then the working directory, then `~/.dbt` |
 | `--reference-state` | `--state` | `DBT_STATE` | `None` | Local path to the reference state directory (where `manifest.json` is stored) |
 | `--target` | `-t` | `DBT_TARGET` | From `profiles.yml` | dbt target to use |
 | `--vars` | `-v` | `DBT_VARS` | `""` | YAML string or path to a YAML file with dbt variables |

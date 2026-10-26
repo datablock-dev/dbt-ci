@@ -1,4 +1,5 @@
 """GitHub Actions workflow commands: log groups, annotations, step outputs and job env."""
+
 from __future__ import annotations
 
 import os

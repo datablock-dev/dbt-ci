@@ -1,6 +1,7 @@
 """
 Module for Git-related utilities, such as cloning repositories and managing branches.
 """
+
 import logging
 import os
 import subprocess
@@ -24,14 +25,12 @@ type GitChangeType = Literal["modified", "added", "deleted"]
 class GitAdapter:
     """Adapter for git operations used during state comparison."""
 
-    provider = os.getenv("GIT_PROVIDER", "github").lower()
-
     def __init__(self, args: Namespace):
         self.args: Namespace = args
-        self.head_branch = self._resolve_head_branch()
+        self.base_branch = self._resolve_base_branch()
 
         subprocess.run(
-            ["git", "fetch", "origin", self.head_branch],
+            ["git", "fetch", "origin", self.base_branch],
             check=True,
             capture_output=False,
         )
@@ -47,7 +46,7 @@ class GitAdapter:
         branch point as (reversed) changes, inflating the change set. Shallow clones may
         not contain the merge base, so the two-dot form is kept as a fallback.
         """
-        base = f"origin/{self.head_branch}"
+        base = f"origin/{self.base_branch}"
         attempts = [
             ["git", "diff", "--name-status", f"{base}...HEAD"],
             ["git", "diff", "--name-status", base, "HEAD"],
@@ -65,11 +64,11 @@ class GitAdapter:
             )
 
         raise RuntimeError(
-            f"Could not diff against 'origin/{self.head_branch}'. Ensure the base branch has "
+            f"Could not diff against 'origin/{self.base_branch}'. Ensure the base branch has "
             "been fetched and that the repository has enough history."
         )
 
-    def _resolve_head_branch(self) -> str:
+    def _resolve_base_branch(self) -> str:
         """Resolve the base branch to diff against, in priority order:
         1. --base-ref / config file / DBT_CI_BASE_REF (via args)
         2. GITHUB_BASE_REF (set by GitHub Actions on pull_request events)
@@ -123,7 +122,7 @@ class GitAdapter:
     def get_changed_files(
         self,
         remove_extensions: bool = False,
-        extensions: list[Literal[".sql", ".yml", ".yaml", ".py"]] | None = None
+        extensions: list[Literal[".sql", ".yml", ".yaml", ".py"]] | None = None,
     ) -> dict[GitChangeType, list[str]]:
         """Return a list of changed files with their change types."""
         dbt_project_dir: str | None = getattr(self.args, "dbt_project_dir", None)
@@ -139,7 +138,7 @@ class GitAdapter:
             if project_prefix:
                 if not file_path.startswith(f"{project_prefix}/"):
                     continue
-                file_name = file_path[len(project_prefix) + 1:]
+                file_name = file_path[len(project_prefix) + 1 :]
             else:
                 file_name = file_path
             if extensions is None or any(file_name.endswith(ext) for ext in extensions):
@@ -215,7 +214,9 @@ class GitAdapter:
 
         return classified
 
-    def remove_extensions(self, files: dict[GitChangeType, list[str]]) -> dict[GitChangeType, list[str]]:
+    def remove_extensions(
+        self, files: dict[GitChangeType, list[str]]
+    ) -> dict[GitChangeType, list[str]]:
         """Remove file extensions from a list of file paths."""
         for change_type, file_list in files.items():
             files[change_type] = [os.path.splitext(file_name)[0] for file_name in file_list]

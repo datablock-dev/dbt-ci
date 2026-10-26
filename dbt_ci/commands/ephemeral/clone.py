@@ -1,5 +1,4 @@
 from itertools import chain
-import sys
 import logging
 from argparse import Namespace
 from typing import cast
@@ -11,126 +10,141 @@ from dbt_ci.graph.graph_utils import (
     get_upstream_dependencies,
 )
 from dbt_ci.schema import RunnerConfig
-from dbt_ci.utilities.logging import print_exception
 from dbt_ci.utilities.paths import get_profile
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
 
 logger = logging.getLogger(__name__)
 
-def clone_command(
-    changed_nodes_dict: dict[str, list[str]],
-    args: Namespace
-) -> list[str]:
-    """
-        Helper function to run the dbt command that will create the ephemeral models based on the selected nodes.
-        
-        Please observe that we only clone models and snapshots, even if tests are modified.
-        This is because Dbt only creates ephemeral versions of models and snapshots.
 
-        Returns the ids of the models and snapshots the clone selection covers, so the
-        environment can be torn down again by `finalize --clean-ephemeral`.
+def clone_command(changed_nodes_dict: dict[str, list[str]], args: Namespace) -> list[str] | None:
     """
+    Run dbt clone for the models and snapshots the change set needs in the PR environment.
+
+    Only models and snapshots are cloned, even when tests changed, since they are the
+    only nodes dbt clone creates.
+
+    Returns the ids of the models and snapshots the clone selection covers, so the
+    environment can be torn down again by `finalize --clean-ephemeral`, or None when
+    nothing was cloned: the change set holds no models or snapshots, or this is a dry run.
+    """
+
     def _filter_models_and_snapshots(target_graph: DbtGraph, node_ids: list[str]) -> list[str]:
+        """Keep only the models and snapshots, the node types dbt clone creates."""
         return filter_node_ids_by_type(
             dependency_graph=target_graph.to_dict(),
             node_type=["model", "snapshot"],
-            node_ids=node_ids
+            node_ids=node_ids,
         )
 
-    try:
-        node_selector: set[str] = set()
-        profile = get_profile(args)
-        threads = profile.get("threads", 5)
-        target_graph = DbtGraph(args)
+    node_selector: set[str] = set()
+    profile = get_profile(args)
+    threads = profile.get("threads", 5)
+    target_graph = DbtGraph(args)
 
-        changed_nodes = list(set(chain(
-            changed_nodes_dict["modified_nodes"],
-            changed_nodes_dict["new_nodes"]
-        )))
+    changed_nodes = list(
+        set(chain(changed_nodes_dict["modified_nodes"], changed_nodes_dict["new_nodes"]))
+    )
 
-        descendants = list(get_downstream_dependencies(target_graph.to_dict(), changed_nodes) or set())
+    descendants = list(get_downstream_dependencies(target_graph.to_dict(), changed_nodes) or set())
 
-        dependent_nodes = list(set(chain(
-            # 1. 1st level ancestors of all descendants of changed nodes.
-            #    Descendants need their direct parents cloned to execute correctly.
-            get_upstream_dependencies(
-                dependency_graph=target_graph.to_dict(),
-                node_ids=descendants,
-                node_type=["model", "snapshot"]
-            ) or set(),
-            # 2. 1st level ancestors of any tests or snapshots in changed nodes.
-            #    Tests/snapshots reference their direct parents which must be available.
-            get_upstream_dependencies(
-                dependency_graph=target_graph.to_dict(),
-                node_ids=filter_node_ids_by_type(target_graph.to_dict(), changed_nodes, ["test", "snapshot"]),
-                node_type=["model", "snapshot"]
-            ) or set()
-        )))
+    dependent_nodes = list(
+        set(
+            chain(
+                # 1. 1st level ancestors of all descendants of changed nodes.
+                #    Descendants need their direct parents cloned to execute correctly.
+                get_upstream_dependencies(
+                    dependency_graph=target_graph.to_dict(),
+                    node_ids=descendants,
+                    node_type=["model", "snapshot"],
+                )
+                or set(),
+                # 2. 1st level ancestors of any tests or snapshots in changed nodes.
+                #    Tests/snapshots reference their direct parents which must be available.
+                get_upstream_dependencies(
+                    dependency_graph=target_graph.to_dict(),
+                    node_ids=filter_node_ids_by_type(
+                        target_graph.to_dict(), changed_nodes, ["test", "snapshot"]
+                    ),
+                    node_type=["model", "snapshot"],
+                )
+                or set(),
+            )
+        )
+    )
 
-        # 1st level ancestors of changed nodes. `run` passes --no-defer, so their refs resolve
-        # to the ephemeral schema even when the changed node has no descendants to pull them in.
-        changed_parents = list(get_upstream_dependencies(
+    # 1st level ancestors of changed nodes. `run` passes --no-defer, so their refs resolve
+    # to the ephemeral schema even when the changed node has no descendants to pull them in.
+    changed_parents = list(
+        get_upstream_dependencies(
             dependency_graph=target_graph.to_dict(),
             node_ids=changed_nodes,
-            node_type=["model", "snapshot"]
-        ) or set())
-
-        # `run` seeds changed seeds and the seed parents of changed nodes itself. Cloning them
-        # as well builds them twice, and where dbt clones as views (e.g. Postgres, DuckDB)
-        # `dbt seed` then fails with "Cannot seed to ..., it is a view".
-        seeds_built_by_run = list(set(chain(
-            filter_node_ids_by_type(target_graph.to_dict(), changed_nodes, ["seed"]),
-            get_upstream_dependencies(
-                dependency_graph=target_graph.to_dict(),
-                node_ids=changed_nodes,
-                node_type=["seed"]
-            ) or set()
-        )))
-
-        # We add all changed nodes + their 1st level parents + their downstream dependencies
-        # to the clone selection.
-        # Selectors are fqn paths rather than unique_ids, which dbt's --select cannot resolve.
-        for selector in get_selectors(target_graph.to_dict(), _filter_models_and_snapshots(target_graph, changed_nodes)):
-            node_selector.add(f"1+{selector}+")
-
-        exclude_selector = get_selectors(target_graph.to_dict(), seeds_built_by_run)
-
-        # Downstream dependencies need to be included and to have their
-        # 1st level upstream dependencies included to ensure the graph can be built and run successfully
-        for selector in get_selectors(target_graph.to_dict(), _filter_models_and_snapshots(target_graph, dependent_nodes)):
-            node_selector.add(f"1+{selector}")
-
-        # Only models and snapshots are cloned, so decide on the selection itself: a change to
-        # seeds and their tests alone leaves nothing to clone, since `run` seeds them itself
-        if len(node_selector) == 0:
-            logger.info("No models or snapshots to clone for the ephemeral environment, skipping...")
-            sys.exit(0)
-
-        command = resolve_dbt_commands(
-            command_args=[
-                "clone", "--select", *node_selector,
-                *(["--exclude", *exclude_selector] if exclude_selector else []),
-                "--threads", str(threads)
-            ],
-            args=args
+            node_type=["model", "snapshot"],
         )
+        or set()
+    )
 
-        logger.debug(f"Running dbt clone command with arguments: {command}")
-
-        if getattr(args, "dry_run", False):
-            logger.info("Dry run enabled - no actual ephemeral environment will be created.")
-            sys.exit(0)
-
-        result = run_dbt_command(
-            command_args=command,
-            runner_config=cast(RunnerConfig, args.__dict__)
+    # `run` seeds changed seeds and the seed parents of changed nodes itself. Cloning them
+    # as well builds them twice, and where dbt clones as views (e.g. Postgres, DuckDB)
+    # `dbt seed` then fails with "Cannot seed to ..., it is a view".
+    seeds_built_by_run = list(
+        set(
+            chain(
+                filter_node_ids_by_type(target_graph.to_dict(), changed_nodes, ["seed"]),
+                get_upstream_dependencies(
+                    dependency_graph=target_graph.to_dict(),
+                    node_ids=changed_nodes,
+                    node_type=["seed"],
+                )
+                or set(),
+            )
         )
-        # The in-process dbt runner reports failed nodes through the return code instead
-        # of raising, so a failed clone has to be caught here.
-        if result is not None and result.returncode != 0:
-            raise RuntimeError(f"dbt clone failed with exit code {result.returncode}")
+    )
 
-        cloned_nodes = set(chain(
+    # We add all changed nodes + their 1st level parents + their downstream dependencies
+    # to the clone selection.
+    # Selectors are fqn paths rather than unique_ids, which dbt's --select cannot resolve.
+    for selector in get_selectors(
+        target_graph.to_dict(), _filter_models_and_snapshots(target_graph, changed_nodes)
+    ):
+        node_selector.add(f"1+{selector}+")
+
+    exclude_selector = get_selectors(target_graph.to_dict(), seeds_built_by_run)
+
+    # Downstream dependencies need to be included and to have their
+    # 1st level upstream dependencies included to ensure the graph can be built and run successfully
+    for selector in get_selectors(
+        target_graph.to_dict(), _filter_models_and_snapshots(target_graph, dependent_nodes)
+    ):
+        node_selector.add(f"1+{selector}")
+
+    # Only models and snapshots are cloned, so decide on the selection itself: a change to
+    # seeds and their tests alone leaves nothing to clone, since `run` seeds them itself
+    if len(node_selector) == 0:
+        logger.info("No models or snapshots to clone for the ephemeral environment, skipping...")
+        return None
+
+    command = resolve_dbt_commands(
+        command_args=[
+            "clone",
+            "--select",
+            *node_selector,
+            *(["--exclude", *exclude_selector] if exclude_selector else []),
+            "--threads",
+            str(threads),
+        ],
+        args=args,
+    )
+
+    logger.debug(f"Running dbt clone command with arguments: {command}")
+
+    if getattr(args, "dry_run", False):
+        logger.info("Dry run enabled - no actual ephemeral environment will be created.")
+        return None
+
+    run_dbt_command(command_args=command, runner_config=cast(RunnerConfig, args.__dict__))
+
+    cloned_nodes = set(
+        chain(
             changed_nodes,
             changed_parents,
             descendants,
@@ -138,11 +152,9 @@ def clone_command(
             get_upstream_dependencies(
                 dependency_graph=target_graph.to_dict(),
                 node_ids=dependent_nodes,
-                node_type=["model", "snapshot"]
-            ) or set()
-        ))
-        return _filter_models_and_snapshots(target_graph, list(cloned_nodes))
-    except Exception as e:
-        logger.error(f"Error running dbt clone command: {str(e)}")
-        print_exception(e)
-        sys.exit(1)
+                node_type=["model", "snapshot"],
+            )
+            or set(),
+        )
+    )
+    return _filter_models_and_snapshots(target_graph, list(cloned_nodes))

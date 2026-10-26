@@ -10,15 +10,14 @@ import click
 from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.dbt.dbt_commands import DbtCommands
-from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.connectors import init_storage_connector
 from dbt_ci.commands.init.state_modified import StateModified
-from dbt_ci.graph.graph_utils import get_display_name, get_downstream_dependencies, get_node
 from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
 
 logger = logging.getLogger(__name__)
+
 
 def init(args: Namespace):
     """
@@ -29,7 +28,8 @@ def init(args: Namespace):
     The tool by default compiles the DBT project with production settings but can be overriden.
     The tool generates two manifest.json files:
     1. The reference manifest.json with target equal to the current target
-    2. "Production" reference manifest.json with target equal to the production target (if specified and different from current target)
+    2. "Production" reference manifest.json with target equal to the production target
+       (if specified and different from current target)
     """
     try:
         # Convert kwargs to Namespace and resolve configuration
@@ -44,7 +44,7 @@ def init(args: Namespace):
         dbt_commands = DbtCommands(args)
         cache = CacheManager(args)
         state_modified = StateModified(args)
-        cache.clear_cache() # Clear cache at the start of init to avoid stale data issues
+        cache.clear_cache()  # Clear cache at the start of init to avoid stale data issues
         cache.start_report("init", args)
         dbt_project_dir = getattr(args, "dbt_project_dir", None)
         reference_target = getattr(args, "reference_target", None)
@@ -53,7 +53,10 @@ def init(args: Namespace):
 
         # Exit if dbt_project_dir is not provided
         if dbt_project_dir is None:
-            logger.error("No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument.")
+            logger.error(
+                "No dbt_project_dir specified. Please provide the path to your DBT project using "
+                "the --dbt-project-dir argument."
+            )
             sys.exit(1)
 
         if resolved_storage is not None:
@@ -73,9 +76,8 @@ def init(args: Namespace):
                 cache.write_reference_manifest(get_reference_manifest_file(reference_state_path))
             except FileNotFoundError:
                 logger.debug(f"No reference manifest at '{reference_state_path}' to cache yet.")
-        
+
         # Compile dbt and generate reference manifest.json file
-        #run_multiprocessed
         dbt_commands.reference_compile()
 
         target_manifest_file = get_manifest_file(dbt_project_dir)
@@ -94,7 +96,9 @@ def init(args: Namespace):
             cache.write_target_manifest(target_manifest_file)
 
             if cache.get_cache("reference_manifest.json") is None:
-                logger.debug("No reference state available. Using the target manifest as the reference.")
+                logger.debug(
+                    "No reference state available. Using the target manifest as the reference."
+                )
                 cache.write_reference_manifest(target_manifest_file)
 
         # Will generate summary and output it in the logs. It also covers:
@@ -103,9 +107,7 @@ def init(args: Namespace):
         init_summary(state_change_summary, args)
 
         # Deleted-node dependency validation is left to dbt: compiling the project
-        # already fails when a ref()/source() points at a node removed in this change
-        # set. Re-enable the call below if standalone reporting is ever needed.
-        # detect_deleted_models_with_downstream_dependencies(state_change_summary, args)
+        # already fails when a ref()/source() points at a node removed in this change set.
 
         # Compile with the actual target (not reference target)
         # Use the user-specified target, or let dbt use the default from dbt_project.yml
@@ -113,25 +115,25 @@ def init(args: Namespace):
 
         cache.update_report(command="init", status="completed")
         logger.info("Initialization complete. Cache updated with current state(s).")
-        logger.info("You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state.")
+        logger.info(
+            "You can now run `dbt-ci run --mode <mode>` to execute modified models based on the "
+            "generated state."
+        )
     except Exception as e:
         cache = CacheManager(args)
         cache.update_report(command="init", status="failed")
         print_exception(e, "Error during initialization")
         sys.exit(1)
 
+
 def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> None:
     """
-        The following method will call the following steps to generate a summary of changes,
-        but also migration, ephemeral:
-        1. Generate summary of modified, deleted, and new nodes with their resource types
-        2. Generate migration plan for modified nodes with partitioning changes
-        3. Generate ephemeral plan for modified nodes with non-partitioning changes
+    The following method will call the following steps to generate a summary of changes,
+    but also migration, ephemeral:
+    1. Generate summary of modified, deleted, and new nodes with their resource types
+    2. Generate migration plan for modified nodes with partitioning changes
+    3. Generate ephemeral plan for modified nodes with non-partitioning changes
     """
-    #slack = SlackClient(args)
-    #migration_map = generate_migration_map(args, cache)
-    #ephemeral_map = generate_ephemeral_map(args, cache)
-
     logger.info("\n------------------------------------------------------")
     logger.info("State Change Summary:")
     for change_type, values in state_change_summary.items():
@@ -151,76 +153,15 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
     slack_webhook = getattr(args, "slack_webhook", None)
     if not slack_webhook or (getattr(args, "notifications_provider", None) or "slack") != "slack":
         return
+    if getattr(args, "dry_run", False):
+        logger.info("Dry run: not posting the summary to Slack.")
+        return
 
     try:
         from dbt_ci.notifications.slack import SlackClient
         from dbt_ci.notifications.slack_summary import build_init_summary_message
+
         blocks, fallback_text = build_init_summary_message(state_change_summary, args)
         SlackClient(args).send_blocks(blocks, fallback_text)
     except Exception as e:
         logger.error(f"Failed to send Slack message: {e}")
-
-def detect_deleted_models_with_downstream_dependencies(
-    state_change_summary: StateChangeSummary,
-    args: Namespace
-) -> None:
-    """
-    Detect nodes that still depend on nodes deleted in this change set.
-
-    For every deleted node we resolve its downstream dependencies (the nodes that
-    consume it) from the reference graph and build a mapping of each surviving
-    dependent to the specific deleted node(s) it relies on, so the report can name
-    exactly which deleted node breaks each dependent.
-    """
-    deleted_nodes = state_change_summary.get("deleted_nodes", None)
-
-    # If there are no deleted nodes, we can skip this step entirely
-    if deleted_nodes is None or len(deleted_nodes) == 0:
-        return
-
-    reference_graph = DbtGraph(args, is_reference=True)
-    reference_dict = reference_graph.to_dict()
-
-    # deleted_nodes is structured as {type: {short_name: node_data}} — flatten to a set of short names
-    deleted_node_ids = {
-        node_name
-        for node_type_nodes in deleted_nodes.values()
-        for node_name in node_type_nodes.keys()
-    }
-
-    # Map each surviving dependent -> the deleted node(s) it depends on. Resolving
-    # downstream dependencies one deleted node at a time preserves the attribution
-    # that a single flattened union would otherwise lose.
-    dependents_to_deleted: dict[str, set[str]] = {}
-    for deleted_node_id in deleted_node_ids:
-        downstream_dependencies = get_downstream_dependencies(
-            dependency_graph=reference_dict,
-            node_ids=[deleted_node_id]
-        )
-        if not downstream_dependencies:
-            continue
-
-        for dependent_id in downstream_dependencies:
-            # Skip downstream nodes that are themselves deleted — those are safe to ignore
-            if dependent_id in deleted_node_ids:
-                continue
-            dependents_to_deleted.setdefault(dependent_id, set()).add(deleted_node_id)
-
-    if not dependents_to_deleted:
-        return
-
-    logger.error("\n------------------------------------------------------")
-    click.secho("Deleted Nodes with Downstream Dependencies Detected:", fg="red", bold=True)
-    for dependent_id in sorted(dependents_to_deleted):
-        node = get_node(reference_dict, dependent_id)
-        resource_type = node.get("resource_type", "unknown") if node else "unknown"
-        deleted_deps = ", ".join(sorted(
-            get_display_name(reference_dict, deleted_id)
-            for deleted_id in dependents_to_deleted[dependent_id]
-        ))
-        dependent_name = get_display_name(reference_dict, dependent_id)
-        logger.error(f"  • {dependent_name} ({resource_type}) depends on deleted node(s): {deleted_deps}")
-    logger.error("------------------------------------------------------\n")
-    logger.error("Please review the above nodes and consider deleting them or modifying them to remove dependencies on deleted nodes.")
-    # Advisory only — dbt's own compile is the source of truth for broken references,
-    # so this check reports the finding without failing the run.

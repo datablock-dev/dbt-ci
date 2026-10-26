@@ -1,4 +1,5 @@
 """Unit tests for the ephemeral create/destroy command group."""
+
 import os
 from argparse import Namespace
 from unittest.mock import patch
@@ -21,9 +22,11 @@ def clean_env(tmp_path, monkeypatch):
 
 def invoke(*cli_args):
     """Invoke dbt-ci with the create and destroy implementations stubbed out."""
-    with patch("dbt_ci.commands.ephemeral.cli.ephemeral") as mock_create, \
-         patch("dbt_ci.commands.ephemeral.cli.destroy") as mock_destroy, \
-         patch("dbt_ci.commands.ephemeral.cli.CacheManager"):
+    with (
+        patch("dbt_ci.commands.ephemeral.cli.ephemeral") as mock_create,
+        patch("dbt_ci.commands.ephemeral.cli.destroy") as mock_destroy,
+        patch("dbt_ci.commands.ephemeral.cli.CacheManager"),
+    ):
         result = CliRunner().invoke(cli, ["ephemeral", *cli_args])
     return result, mock_create, mock_destroy
 
@@ -32,7 +35,7 @@ class TestEphemeralGroup:
     """Test which implementation each form of the command reaches."""
 
     def test_bare_command_still_creates(self):
-        """'dbt-ci ephemeral --target ci', as existing CI calls it, keeps creating the environment."""
+        """'dbt-ci ephemeral --target ci', as existing CI runs it, still creates the environment."""
         result, mock_create, mock_destroy = invoke("--target", "ci", "--vars", "{'a': 1}")
         assert result.exit_code == 0, result.output
         mock_create.assert_called_once()
@@ -79,12 +82,17 @@ class TestDestroy:
 
     def run_destroy(self, cleanup_side_effect=None):
         """Run destroy with the teardown stubbed, returning the exit code and the mocks."""
-        with patch("dbt_ci.commands.ephemeral.destroy.clean_up_ephemeral", side_effect=cleanup_side_effect) as mock_cleanup, \
-             patch("dbt_ci.commands.ephemeral.destroy.CacheManager") as mock_cm, \
-             patch("dbt_ci.commands.ephemeral.destroy.apply_cached_config") as mock_apply, \
-             patch("dbt_ci.commands.ephemeral.destroy.print_exception"), \
-             patch("dbt_ci.commands.ephemeral.destroy.click.secho"), \
-             pytest.raises(SystemExit) as exc_info:
+        with (
+            patch(
+                "dbt_ci.commands.ephemeral.destroy.clean_up_ephemeral",
+                side_effect=cleanup_side_effect,
+            ) as mock_cleanup,
+            patch("dbt_ci.commands.ephemeral.destroy.CacheManager") as mock_cm,
+            patch("dbt_ci.commands.ephemeral.destroy.apply_cached_config") as mock_apply,
+            patch("dbt_ci.commands.ephemeral.destroy.print_exception"),
+            patch("dbt_ci.commands.ephemeral.destroy.click.secho"),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             destroy(Namespace(target=None, dry_run=False))
         return exc_info.value.code, mock_cleanup, mock_cm.return_value, mock_apply
 
@@ -108,9 +116,11 @@ class TestFinalizeCleanEphemeralDeprecation:
 
     def test_warns_and_still_cleans_up(self):
         """The flag still reaches finalize, with a deprecation warning."""
-        with patch("dbt_ci.commands.finalize.cli.finalize") as mock_finalize, \
-             patch("dbt_ci.commands.finalize.cli.CacheManager"), \
-             patch("dbt_ci.commands.finalize.cli.logger") as mock_logger:
+        with (
+            patch("dbt_ci.commands.finalize.cli.finalize") as mock_finalize,
+            patch("dbt_ci.commands.finalize.cli.CacheManager"),
+            patch("dbt_ci.commands.finalize.cli.logger") as mock_logger,
+        ):
             result = CliRunner().invoke(cli, ["finalize", "--clean-ephemeral"])
         assert result.exit_code == 0, result.output
         assert mock_finalize.call_args[0][0].clean_ephemeral is True
@@ -118,9 +128,10 @@ class TestFinalizeCleanEphemeralDeprecation:
 
     def test_no_warning_without_the_flag(self):
         """Plain finalize stays quiet."""
-        with patch("dbt_ci.commands.finalize.cli.finalize"), \
-             patch("dbt_ci.commands.finalize.cli.CacheManager"), \
-             patch("dbt_ci.commands.finalize.cli.logger") as mock_logger:
+        with (
+            patch("dbt_ci.commands.finalize.cli.finalize"),
+            patch("dbt_ci.commands.finalize.cli.CacheManager"),
+            patch("dbt_ci.commands.finalize.cli.logger") as mock_logger,
+        ):
             CliRunner().invoke(cli, ["finalize"])
         mock_logger.warning.assert_not_called()
-

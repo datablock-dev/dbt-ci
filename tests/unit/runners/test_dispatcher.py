@@ -1,4 +1,7 @@
 """Unit tests for the runner dispatcher and dbt version/adapter pinning."""
+
+import threading
+import time
 from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
@@ -142,8 +145,10 @@ class TestResolvePinnedDbtBinary:
         config = mock_runner_config({"runner": "local", "dbt_version": "1.10.13"})
         venv_dir = tmp_path / "dbt-1.10.13"
 
-        with patch("dbt_ci.runners.get_dbt_venv_dir", return_value=venv_dir), \
-             patch("dbt_ci.runners.dbt_venv_is_ready", return_value=True):
+        with (
+            patch("dbt_ci.runners.get_dbt_venv_dir", return_value=venv_dir),
+            patch("dbt_ci.runners.dbt_venv_is_ready", return_value=True),
+        ):
             result = resolve_pinned_dbt_binary(config)
 
         assert result == str(venv_dir / "bin" / "dbt")
@@ -153,12 +158,42 @@ class TestResolvePinnedDbtBinary:
         config = mock_runner_config({"runner": "local", "adapter": "dbt-duckdb=1.10.0"})
         venv_dir = tmp_path / "env"
 
-        with patch("dbt_ci.runners.get_dbt_venv_dir", return_value=venv_dir), \
-             patch("dbt_ci.runners.dbt_venv_is_ready", return_value=False), \
-             patch("dbt_ci.runners.create_dbt_venv") as mock_create:
+        with (
+            patch("dbt_ci.runners.get_dbt_venv_dir", return_value=venv_dir),
+            patch("dbt_ci.runners.dbt_venv_is_ready", return_value=False),
+            patch("dbt_ci.runners.create_dbt_venv") as mock_create,
+        ):
             resolve_pinned_dbt_binary(config)
 
         mock_create.assert_called_once_with(venv_dir, None, "dbt-duckdb=1.10.0")
+
+    def test_concurrent_resolutions_build_the_environment_once(self, mock_runner_config, tmp_path):
+        """Two jobs on one runner must not both clear and rebuild the shared environment."""
+        config = mock_runner_config({"runner": "local", "dbt_version": "1.10.13"})
+        venv_dir = tmp_path / "dbt-1.10.13"
+        ready = threading.Event()
+        builds = []
+
+        def create(*_):
+            """Build slowly, so the second resolution arrives while the first is building."""
+            builds.append(1)
+            time.sleep(0.2)
+            ready.set()
+
+        with (
+            patch("dbt_ci.runners.get_dbt_venv_dir", return_value=venv_dir),
+            patch("dbt_ci.runners.dbt_venv_is_ready", side_effect=lambda _: ready.is_set()),
+            patch("dbt_ci.runners.create_dbt_venv", side_effect=create),
+        ):
+            threads = [
+                threading.Thread(target=resolve_pinned_dbt_binary, args=(config,)) for _ in range(2)
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+
+        assert len(builds) == 1
 
 
 class TestRunDbtCommand:
@@ -177,8 +212,10 @@ class TestRunDbtCommand:
         config = mock_runner_config({"runner": "local", "dbt_version": "1.10.13"})
         fake_runner = MagicMock(return_value=None)
 
-        with patch("dbt_ci.runners.resolve_pinned_dbt_binary", return_value="/venv/bin/dbt"), \
-             patch.dict("dbt_ci.runners.RUNNERS", {"local": fake_runner}):
+        with (
+            patch("dbt_ci.runners.resolve_pinned_dbt_binary", return_value="/venv/bin/dbt"),
+            patch.dict("dbt_ci.runners.RUNNERS", {"local": fake_runner}),
+        ):
             run_dbt_command(["compile"], config)
 
         _, forwarded_config = fake_runner.call_args[0]
@@ -188,8 +225,10 @@ class TestRunDbtCommand:
         """Overriding the entrypoint must not leak into the caller's args namespace."""
         config = mock_runner_config({"runner": "local", "dbt_version": "1.10.13"})
 
-        with patch("dbt_ci.runners.resolve_pinned_dbt_binary", return_value="/venv/bin/dbt"), \
-             patch.dict("dbt_ci.runners.RUNNERS", {"local": MagicMock(return_value=None)}):
+        with (
+            patch("dbt_ci.runners.resolve_pinned_dbt_binary", return_value="/venv/bin/dbt"),
+            patch.dict("dbt_ci.runners.RUNNERS", {"local": MagicMock(return_value=None)}),
+        ):
             run_dbt_command(["compile"], config)
 
         assert config["entrypoint"] == "dbt"
@@ -205,18 +244,24 @@ class TestBashRunner:
         for flag in ("--project-dir", "--profiles-dir", "--state", "--no-defer"):
             assert flag in commands
 
-    @pytest.mark.parametrize("shell_path, expected", [
-        ("/bin/bash", ["/bin/bash", "-c", "dbt ls --select 'tag:a b'"]),
-        ("/usr/bin/sh", ["/usr/bin/sh", "-c", "dbt ls --select 'tag:a b'"]),
-        ("bin/dbt-wrapper", ["bin/dbt-wrapper", "ls", "--select", "tag:a b"]),
-    ])
+    @pytest.mark.parametrize(
+        "shell_path, expected",
+        [
+            ("/bin/bash", ["/bin/bash", "-c", "dbt ls --select 'tag:a b'"]),
+            ("/usr/bin/sh", ["/usr/bin/sh", "-c", "dbt ls --select 'tag:a b'"]),
+            ("bin/dbt-wrapper", ["bin/dbt-wrapper", "ls", "--select", "tag:a b"]),
+        ],
+    )
     def test_shell_runs_the_entrypoint(self, shell_path, expected):
         """A plain shell runs the dbt entrypoint; a wrapper script gets the dbt arguments."""
         from dbt_ci.runners.bash import bash_runner
 
-        with patch("dbt_ci.runners.bash.subprocess.run") as mock_run:
-            bash_runner(["ls", "--select", "tag:a b"], {"shell_path": shell_path, "entrypoint": "dbt", "quiet": True})
-        assert mock_run.call_args.kwargs["args"] == expected
+        with patch("dbt_ci.runners.common.subprocess.run") as mock_run:
+            bash_runner(
+                ["ls", "--select", "tag:a b"],
+                {"shell_path": shell_path, "entrypoint": "dbt", "quiet": True},
+            )
+        assert mock_run.call_args.args[0] == expected
 
 
 class TestDryRunSkipsPinnedInstall:
@@ -227,8 +272,10 @@ class TestDryRunSkipsPinnedInstall:
         from dbt_ci.runners import run_dbt_command
 
         runner = MagicMock(return_value=None)
-        with patch.dict("dbt_ci.runners.RUNNERS", {"local": runner}), \
-             patch("dbt_ci.runners.resolve_pinned_dbt_binary") as mock_resolve:
+        with (
+            patch.dict("dbt_ci.runners.RUNNERS", {"local": runner}),
+            patch("dbt_ci.runners.resolve_pinned_dbt_binary") as mock_resolve,
+        ):
             run_dbt_command(["ls"], {"runner": "local", "dry_run": True, "dbt_version": "1.10.13"})
         mock_resolve.assert_not_called()
         runner.assert_called_once()

@@ -98,7 +98,9 @@ def parse_env_option(value):
     entries: list[str] = []
     for item in (value if isinstance(value, (list, tuple)) else [value]):
         for line in str(item).split("\n"):
-            entries.extend(part.strip() for part in _ENV_ENTRY_SEPARATOR.split(line) if part.strip())
+            entries.extend(
+                part.strip() for part in _ENV_ENTRY_SEPARATOR.split(line) if part.strip()
+            )
     return tuple(entries)
 
 
@@ -114,21 +116,27 @@ def parse_multiple_option(value):
     """
     if not value:
         return value
-    if isinstance(value, (list, tuple)) and len(value) == 1 and (',' in value[0] or '\n' in value[0]):
-        return tuple(p.strip() for p in value[0].replace('\n', ',').split(',') if p.strip())
+    if (
+        isinstance(value, (list, tuple))
+        and len(value) == 1
+        and ("," in value[0] or "\n" in value[0])
+    ):
+        return tuple(p.strip() for p in value[0].replace("\n", ",").split(",") if p.strip())
     return value if isinstance(value, tuple) else tuple(value)
 
 
 COMMON_OPTIONS = [
     click.option(
-        "--config", "-c",
+        "--config",
+        "-c",
         envvar=["DBT_CONFIG"],
         default="dbt-ci.config.yaml",
         is_eager=True,
         callback=load_config_callback,
         help=(
             "Path to dbt-ci configuration file (YAML). Supports flat (DBT_RUNNER: docker) "
-            "and nested (docker: {image: ...}) styles. Precedence: CLI flag > config file > env var > default."
+            "and nested (docker: {image: ...}) styles. Precedence: CLI flag > config file > env "
+            "var > default."
         ),
     ),
     click.option(
@@ -139,7 +147,8 @@ COMMON_OPTIONS = [
         help="Specify a dbt version to use for this command",
     ),
     click.option(
-        "--adapter", "-a",
+        "--adapter",
+        "-a",
         envvar=["DBT_ADAPTER"],
         type=str,
         default=None,
@@ -161,22 +170,28 @@ COMMON_OPTIONS = [
         help="Path to the directory containing the dbt profiles.yml file",
     ),
     click.option(
-        "--reference-state", "--state",
+        "--reference-state",
+        "--state",
         envvar=["DBT_STATE"],
         default=None,
         type=str,
         callback=make_config_callback("DBT_STATE"),
-        help="Path to the reference manifest.json directory (local path where state will be downloaded)",
+        help=(
+            "Path to the reference manifest.json directory (local path where state will be "
+            "downloaded)"
+        ),
     ),
     click.option(
-        "--target", "-t",
+        "--target",
+        "-t",
         envvar=["DBT_TARGET"],
         default=None,
         callback=make_config_callback("DBT_TARGET"),
         help="The dbt target to use (defaults to what is defined in profiles.yml)",
     ),
     click.option(
-        "--vars", "-v",
+        "--vars",
+        "-v",
         envvar=["DBT_VARS"],
         default="",
         callback=make_config_callback("DBT_VARS"),
@@ -189,12 +204,14 @@ COMMON_OPTIONS = [
         default=False,
         callback=make_defer_callback(),
         help=(
-            "Use dbt's --defer flag to defer to the state of the production manifest (only applicable to run and test commands). "
+            "Use dbt's --defer flag to defer to the state of the production manifest (only "
+            "applicable to run and test commands). "
             "Also read from DEFER_FLAG ('--defer', empty or a boolean) when DBT_DEFER is not set"
         ),
     ),
     click.option(
-        "--runner", "-r",
+        "--runner",
+        "-r",
         envvar=["DBT_RUNNER"],
         type=click.Choice(["local", "docker", "bash", "dbt"]),
         default="dbt",
@@ -220,7 +237,9 @@ COMMON_OPTIONS = [
         "--log-level",
         envvar=["DBT_LOG_LEVEL"],
         # WARN and NONE are dbt's spellings, accepted because both tools read DBT_LOG_LEVEL
-        type=click.Choice(["DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL", "NONE"], case_sensitive=False),
+        type=click.Choice(
+            ["DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL", "NONE"], case_sensitive=False
+        ),
         default="INFO",
         callback=make_config_callback("DBT_LOG_LEVEL", then=normalise_log_level),
         help="Logging level",
@@ -323,7 +342,8 @@ COMMON_OPTIONS = [
         help="Path to shell executable for bash runner",
     ),
     click.option(
-        "--quiet", "-q",
+        "--quiet",
+        "-q",
         envvar=["DBT_QUIET"],
         is_flag=True,
         default=False,

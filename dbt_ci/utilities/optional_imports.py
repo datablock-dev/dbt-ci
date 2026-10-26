@@ -5,6 +5,7 @@ them, so they are installed via extras rather than as hard requirements. Modules
 them defensively and call require() at the point of use, which turns a missing extra
 into an actionable message instead of an ImportError traceback at startup.
 """
+
 from typing import Any
 
 EXTRA_INSTALL_HINT = "pip install 'dbt-ci[{extra}]'"

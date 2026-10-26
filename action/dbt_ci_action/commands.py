@@ -1,4 +1,5 @@
 """Parse the `commands` input into the dbt-ci invocations the action runs."""
+
 from __future__ import annotations
 
 import shlex

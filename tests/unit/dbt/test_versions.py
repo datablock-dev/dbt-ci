@@ -1,4 +1,5 @@
 """Unit tests for dbt version helpers."""
+
 import pytest
 
 from dbt_ci.dbt.versions import get_dbt_distribution, get_major_version, is_dbt_v2

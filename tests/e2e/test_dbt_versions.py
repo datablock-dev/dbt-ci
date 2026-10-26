@@ -11,6 +11,7 @@ With DBT_CI_E2E_REFERENCE_DBT_BINARY set, the production state is built with tha
 (e.g. dbt-core 1.x) while the PR runs the dbt under test (e.g. dbt v2). That is the
 mid-upgrade case, where the stored state manifest predates the new dbt version.
 """
+
 import shutil
 import subprocess
 from pathlib import Path
@@ -85,7 +86,15 @@ def project(tmp_path: Path) -> Path:
 
     # Production state: build main against the prod target and keep its manifest.
     build = run_dbt(
-        ["build", "--project-dir", str(dbt_dir), "--profiles-dir", str(dbt_dir), "--target", "prod"],
+        [
+            "build",
+            "--project-dir",
+            str(dbt_dir),
+            "--profiles-dir",
+            str(dbt_dir),
+            "--target",
+            "prod",
+        ],
         cwd=repo,
         mount=tmp_path,
         binary=REFERENCE_DBT_BINARY,
@@ -103,7 +112,9 @@ def project(tmp_path: Path) -> Path:
     git(repo, "fetch", "-q", "origin")
 
     git(repo, "checkout", "-qb", "feature")
-    (dbt_dir / "models" / "stg.sql").write_text("select id, upper(name) as name from {{ ref('raw') }}\n")
+    (dbt_dir / "models" / "stg.sql").write_text(
+        "select id, upper(name) as name from {{ ref('raw') }}\n"
+    )
     git(repo, "commit", "-qam", "change stg")
 
     return repo
@@ -114,10 +125,16 @@ def test_init_and_run_detect_and_build_the_modified_model(project: Path, tmp_pat
     cache_dir = tmp_path / "cache"
 
     init = dbt_ci(
-        project, cache_dir, tmp_path, "init",
-        "--state", "state",
-        "--reference-target", "prod",
-        "--base-ref", "main",
+        project,
+        cache_dir,
+        tmp_path,
+        "init",
+        "--state",
+        "state",
+        "--reference-target",
+        "prod",
+        "--base-ref",
+        "main",
     )
     init_output = init.stdout + init.stderr
     assert init.returncode == 0, init_output

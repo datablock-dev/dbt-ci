@@ -10,6 +10,7 @@ Like test_dbt_versions, it is opt-in and runs against whichever dbt and runner t
 environment selects (see dbt_env). Production and the CI environment share one DuckDB
 file in different schemas, as a warehouse would.
 """
+
 import shutil
 import subprocess
 from pathlib import Path
@@ -79,7 +80,15 @@ def project(tmp_path: Path) -> Path:
     git(repo, "commit", "-qm", "base")
 
     build = run_dbt(
-        ["build", "--project-dir", str(dbt_dir), "--profiles-dir", str(dbt_dir), "--target", "prod"],
+        [
+            "build",
+            "--project-dir",
+            str(dbt_dir),
+            "--profiles-dir",
+            str(dbt_dir),
+            "--target",
+            "prod",
+        ],
         cwd=repo,
         mount=tmp_path,
         binary=REFERENCE_DBT_BINARY,
@@ -113,8 +122,16 @@ def test_seed_only_change_skips_clone_and_runs_the_seed(project: Path, tmp_path:
     cache_dir = tmp_path / "cache"
 
     init = dbt_ci(
-        project, cache_dir, tmp_path, "init",
-        "--state", "state", "--reference-target", "prod", "--base-ref", "main",
+        project,
+        cache_dir,
+        tmp_path,
+        "init",
+        "--state",
+        "state",
+        "--reference-target",
+        "prod",
+        "--base-ref",
+        "main",
     )
     assert init.returncode == 0, output(init)
     assert "items [seed]" in output(init), output(init)

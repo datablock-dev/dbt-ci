@@ -9,13 +9,14 @@ this test compiles a small project with a real dbt binary and checks each field.
 Opt-in like the other e2e tests: see dbt_env for the environment variables that pick
 the dbt under test (a local binary or a Docker image).
 """
+
 import json
 import os
 from pathlib import Path
 
 import pytest
 
-from dbt_ci.graph.graph_utils import get_nodes_from_path
+from dbt_ci.graph.graph_utils import get_downstream_dependencies, get_nodes_from_path
 from dbt_ci.graph.parser import generate_dependency_graph
 from dbt_ci.schema import MANIFEST_KEY_MAPPING
 
@@ -37,8 +38,7 @@ PROJECT_FILES = {
     "macros/upper_name.sql": "{% macro upper_name(col) %}upper({{ col }}){% endmacro %}\n",
     "models/stg.sql": "select id, {{ upper_name('name') }} as name from {{ ref('raw') }}\n",
     "models/agg.sql": (
-        "{{ config(materialized='table') }}\n"
-        "select count(*) as n from {{ ref('stg') }}\n"
+        "{{ config(materialized='table') }}\n" "select count(*) as n from {{ ref('stg') }}\n"
     ),
     "models/from_source.sql": "select * from {{ source('ext', 'events') }}\n",
     "models/schema.yml": (
@@ -79,7 +79,9 @@ def compiled(tmp_path_factory) -> tuple[Path, dict]:
 
     result = run_dbt(
         ["compile", "--project-dir", str(project), "--profiles-dir", str(project)],
-        cwd=project, mount=root, check=False,
+        cwd=project,
+        mount=root,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -158,7 +160,7 @@ def test_dependency_graph_resolves_lineage(compiled):
     assert "seed.demo.raw" in stg["upstream_dependencies"]["node_dependencies"]
     assert "macro.demo.upper_name" in stg["upstream_dependencies"]["dependencies_by_type"]["macro"]
     assert "model.demo.agg" in stg["downstream_dependencies"]["node_dependencies"]
-    assert "exposure.demo.dashboard" in stg["indirect_downstream_dependencies"]["node_dependencies"]
+    assert "exposure.demo.dashboard" in get_downstream_dependencies(graph, ["model.demo.stg"])
 
     from_source = graph["model"]["model.demo.from_source"]
     assert "source.demo.ext.events" in from_source["upstream_dependencies"]["node_dependencies"]

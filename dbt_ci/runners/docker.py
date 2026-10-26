@@ -1,4 +1,5 @@
 """Docker runner for dbt-ci"""
+
 from __future__ import annotations
 
 import logging
@@ -8,6 +9,7 @@ import sys
 from pathlib import PurePath
 from subprocess import CompletedProcess
 from typing import TYPE_CHECKING, Any, cast
+from dbt_ci.errors import ConfigurationError, DbtCiError, DbtCommandError
 from dbt_ci.schema import RunnerConfig
 from dbt_ci.utilities.logging import redact
 from dbt_ci.utilities.optional_imports import require
@@ -25,13 +27,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 def docker_runner(commands: list[str], runner_config: RunnerConfig) -> CompletedProcess | None:
     """
     Execute dbt commands inside a Docker container.
 
     Reads the following keys from runner_config:
         docker_image: Docker image to use
-        docker_platform: Platform for Docker image (e.g., linux/amd64, linux/arm64). Use linux/amd64 on Apple Silicon for compatibility
+        docker_platform: Platform for Docker image (e.g., linux/amd64, linux/arm64).
+            Use linux/amd64 on Apple Silicon for compatibility
         docker_volumes: Volume mounts (host:container[:mode])
         docker_env: Environment variables to pass (KEY=VALUE)
         docker_network: Docker network mode
@@ -48,11 +52,12 @@ def docker_runner(commands: list[str], runner_config: RunnerConfig) -> Completed
     # which cannot be resolved when the SDK is missing.
     require(docker, "docker", "The Docker runner")
 
+    image = runner_config.get("docker_image", "ghcr.io/dbt-labs/dbt-core:latest")
     container: Container | None = None
     try:
         client = docker.client.from_env()
         run_kwargs: dict[str, Any] = {
-            "image": runner_config.get("docker_image", "ghcr.io/dbt-labs/dbt-core:latest"),
+            "image": image,
             "command": commands,
             "detach": True,
             "stdout": True,
@@ -97,29 +102,21 @@ def docker_runner(commands: list[str], runner_config: RunnerConfig) -> Completed
         returncode = exit_status.get("StatusCode", 0)
         stdout = "".join(output_logs)
         if returncode != 0:
-            print(stdout)
-            sys.exit(1)
+            # The container's output was already streamed above, so it isn't repeated
+            raise DbtCommandError(commands, returncode=returncode, stdout=stdout)
 
-        return CompletedProcess(
-            args=commands,
-            returncode=returncode,
-            stdout=stdout,
-            stderr=""
-        )
+        return CompletedProcess(args=commands, returncode=returncode, stdout=stdout, stderr="")
     except errors.ContainerError as e:
-        print(f"Container error: {e}")
-        sys.exit(1)
+        raise DbtCommandError(commands, returncode=e.exit_status, detail=str(e)) from e
     except errors.ImageNotFound as e:
-        print(f"Image not found: {e}")
-        sys.exit(1)
+        raise ConfigurationError(
+            f"Docker image '{image}' was not found: {e}. Check --docker-image."
+        ) from e
     except errors.APIError as e:
-        print(f"Docker API error: {e}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        sys.exit(1)
+        raise DbtCiError(f"Docker API error: {e}") from e
     finally:
         remove_container(container)
+
 
 def remove_container(container: Container | None) -> None:
     """Remove a finished container so repeated CI runs don't leak stopped containers."""
@@ -129,6 +126,7 @@ def remove_container(container: Container | None) -> None:
         container.remove(force=True)
     except Exception as e:
         logger.warning(f"Failed to remove container: {e}")
+
 
 # Translation of the `docker run` CLI flags supported by --docker-args into the
 # keyword arguments understood by the Docker SDK. Flags that take no value map
@@ -148,6 +146,7 @@ DOCKER_ARG_OPTIONS: dict[str, tuple[str, Any]] = {
     "--platform": ("platform", str),
     "--network": ("network_mode", str),
 }
+
 
 def parse_docker_args(runner_config: RunnerConfig) -> dict[str, Any]:
     """
@@ -215,10 +214,13 @@ def parse_docker_args(runner_config: RunnerConfig) -> dict[str, Any]:
             "Ignoring unsupported --docker-args entries: %s. dbt-ci runs Docker through "
             "the SDK, which supports: %s.",
             " ".join(ignored),
-            ", ".join(sorted(set(DOCKER_ARG_FLAGS) | set(DOCKER_ARG_OPTIONS) | {"-e/--env", "--add-host"})),
+            ", ".join(
+                sorted(set(DOCKER_ARG_FLAGS) | set(DOCKER_ARG_OPTIONS) | {"-e/--env", "--add-host"})
+            ),
         )
 
     return kwargs
+
 
 def parse_docker_env(runner_config: RunnerConfig) -> dict:
     """Parse docker_env list into a dictionary."""
@@ -231,6 +233,7 @@ def parse_docker_env(runner_config: RunnerConfig) -> dict:
                 env_dict[key] = value
     return env_dict
 
+
 def parse_docker_volumes(runner_config: RunnerConfig) -> dict:
     """Parse docker_volumes list into a host_path -> container_path mapping."""
     volume_map = {}
@@ -242,6 +245,7 @@ def parse_docker_volumes(runner_config: RunnerConfig) -> dict:
             container_path = parts[1]
             volume_map[host_path] = container_path
     return volume_map
+
 
 def map_host_path_to_container(host_path: str, volume_map: dict[str, str]) -> str | None:
     """
@@ -266,9 +270,10 @@ def map_host_path_to_container(host_path: str, volume_map: dict[str, str]) -> st
         return best[1]
     return f"{best[1].rstrip('/')}/{PurePath(relative_path).as_posix()}"
 
+
 def get_container_paths(runner_config: RunnerConfig) -> dict:
     """Get container paths for dbt configuration variables.
-    
+
     Returns a mapping of variable names to their container paths:
     {
         'dbt_project_dir': '/dbt',
@@ -278,9 +283,9 @@ def get_container_paths(runner_config: RunnerConfig) -> dict:
     """
     env_dict = parse_docker_env(runner_config)
     volume_map = parse_docker_volumes(runner_config)
-    
+
     container_path_map = {}
-    
+
     # For dbt_project_dir: use DBT_PROJECT_DIR env or derive from volume mapping
     if "DBT_PROJECT_DIR" in env_dict:
         container_path_map["dbt_project_dir"] = env_dict["DBT_PROJECT_DIR"]
@@ -292,47 +297,51 @@ def get_container_paths(runner_config: RunnerConfig) -> dict:
     # For profiles_dir: use DBT_PROFILES_DIR env or derive from volume mapping
     if "DBT_PROFILES_DIR" in env_dict:
         container_path_map["profiles_dir"] = env_dict["DBT_PROFILES_DIR"]
-    elif runner_config.get("profiles_dir"):
-        container_path = map_host_path_to_container(runner_config["profiles_dir"], volume_map)
+    elif profiles_dir := runner_config.get("profiles_dir"):
+        container_path = map_host_path_to_container(profiles_dir, volume_map)
         if container_path is not None:
             container_path_map["profiles_dir"] = container_path
 
-    # For reference_state: use DBT_STATE env (translated through volume map) or derive from volume mapping
+    # For reference_state: use DBT_STATE env (translated through the volume map) or derive
+    # it from the volume mapping
     reference_state_host = env_dict.get("DBT_STATE") or runner_config.get("reference_state")
     if reference_state_host:
         container_path = map_host_path_to_container(reference_state_host, volume_map)
         # No volume match — use as-is (e.g. already an absolute container path)
-        container_path_map["reference_state"] = container_path if container_path is not None else reference_state_host
+        container_path_map["reference_state"] = (
+            container_path if container_path is not None else reference_state_host
+        )
 
     return container_path_map
+
 
 def get_docker_env(runner_config: RunnerConfig) -> dict | None:
     """Build Docker environment variables based on runner configuration."""
     # Don't automatically set environment variables - let the command-line flags handle paths
     # and only use user-provided docker_env
     env_dict = {}
-    
+
     # Only use user-provided docker_env
     user_env = parse_docker_env(runner_config)
     env_dict.update(user_env)
-    
+
     return env_dict
 
 
 def get_docker_volumes(runner_config: RunnerConfig) -> dict | None:
     """Build Docker volume bindings based on runner configuration."""
     volume_dict = {}
-    if runner_config.get("docker_volumes", None) is None or len(runner_config["docker_volumes"]) == 0:
+    if (
+        runner_config.get("docker_volumes", None) is None
+        or len(runner_config["docker_volumes"]) == 0
+    ):
         return None
-    
+
     for volume in runner_config.get("docker_volumes", []):
         parts = volume.split(":", 2)
         host_path = get_absolute_path(parts[0])
         container_path = parts[1]
         mode = parts[2] if len(parts) == 3 else "rw"
-        volume_dict[host_path] = {
-            "bind": container_path, 
-            "mode": mode
-        }
-    
+        volume_dict[host_path] = {"bind": container_path, "mode": mode}
+
     return volume_dict

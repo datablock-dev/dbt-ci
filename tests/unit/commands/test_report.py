@@ -1,4 +1,5 @@
 """Unit tests for the report command."""
+
 from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
@@ -106,7 +107,11 @@ class TestFormatDuration:
 
     def test_end_key_follows_the_status(self):
         """The end timestamp key is named after the status, not assumed to be completed_at."""
-        entry = {"status": "failed", "started_at": "2026-01-01T00:00:00", "failed_at": "2026-01-01T00:00:05"}
+        entry = {
+            "status": "failed",
+            "started_at": "2026-01-01T00:00:00",
+            "failed_at": "2026-01-01T00:00:05",
+        }
         assert format_duration(entry) == "5.0s"
 
     def test_missing_timestamps(self):
@@ -115,7 +120,10 @@ class TestFormatDuration:
 
     def test_unparseable_timestamps(self):
         """Malformed timestamps degrade rather than raising."""
-        assert format_duration({"status": "completed", "started_at": "nope", "completed_at": "nope"}) == "-"
+        assert (
+            format_duration({"status": "completed", "started_at": "nope", "completed_at": "nope"})
+            == "-"
+        )
 
 
 class TestWriteReport:
@@ -164,10 +172,14 @@ class TestPrComment:
     def run_report(self, tmp_path, **args):
         """Run report against a stubbed cache and return the post_pr_comment mock."""
         cache = MagicMock()
-        cache.get_cache.side_effect = lambda name=None: RUN_REPORT if name == "report.json" else CACHE
-        with patch("dbt_ci.commands.report.index.CacheManager", return_value=cache), \
-                patch("dbt_ci.commands.report.index.render_exposure_impact", return_value=[]), \
-                patch("dbt_ci.commands.report.index.post_pr_comment") as post:
+        cache.get_cache.side_effect = lambda name=None: (
+            RUN_REPORT if name == "report.json" else CACHE
+        )
+        with (
+            patch("dbt_ci.commands.report.index.CacheManager", return_value=cache),
+            patch("dbt_ci.commands.report.index.render_exposure_impact", return_value=[]),
+            patch("dbt_ci.commands.report.index.post_pr_comment") as post,
+        ):
             report(Namespace(output=str(tmp_path / "report.out"), **args))
         return post
 
@@ -179,7 +191,9 @@ class TestPrComment:
         """With --pr-comment the same markdown that was written is posted."""
         post = self.run_report(tmp_path, format="markdown", pr_comment=True)
         posted = post.call_args.args[0]
-        assert posted.rstrip("\n") == (tmp_path / "report.out").read_text(encoding="utf-8").rstrip("\n")
+        assert posted.rstrip("\n") == (tmp_path / "report.out").read_text(encoding="utf-8").rstrip(
+            "\n"
+        )
         assert "customers" in posted
 
     def test_comment_is_markdown_even_with_json_output(self, tmp_path):
