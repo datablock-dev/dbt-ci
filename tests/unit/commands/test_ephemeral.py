@@ -1,4 +1,5 @@
 """Unit tests for the ephemeral command."""
+import logging
 import pytest
 from unittest.mock import MagicMock, patch
 from argparse import Namespace
@@ -336,6 +337,41 @@ class TestCloneCommand:
         command = mock_resolve.call_args.kwargs["command_args"]
         assert command == ["clone", "--select", "1+pkg.mrt_leaf+", "--exclude", "pkg.lookup", "--threads", "1"]
         assert set(cloned_nodes) == {"model.pkg.mrt_leaf", "model.pkg.itr_a", "model.pkg.itr_b"}
+
+    def test_seed_only_change_skips_clone(self, caplog):
+        """A changed seed with only tests on it leaves nothing to clone, so no dbt clone runs."""
+        from dbt_ci.commands.ephemeral.clone import clone_command
+
+        def node(unique_id, upstream_by_type=None, downstream_by_type=None):
+            """Build a graph node carrying only what clone_command reads."""
+            resource_type, package, name = unique_id.split(".")
+            return {"id": unique_id, "name": name, "resource_type": resource_type, "fqn": [package, name],
+                    "upstream_dependencies": {"dependencies_by_type": upstream_by_type or {}},
+                    "indirect_downstream_dependencies": {"dependencies_by_type": downstream_by_type or {}}}
+
+        tests = ["test.pkg.not_null_items_id", "test.pkg.unique_items_id"]
+        graph = {
+            "seed": {"seed.pkg.items": node("seed.pkg.items", downstream_by_type={"test": tests})},
+            "test": {test_id: node(test_id, {"seed": ["seed.pkg.items"]}) for test_id in tests},
+        }
+        target_graph = MagicMock()
+        target_graph.to_dict.return_value = graph
+
+        with patch("dbt_ci.commands.ephemeral.clone.get_profile", return_value={"threads": 1}), \
+             patch("dbt_ci.commands.ephemeral.clone.DbtGraph", return_value=target_graph), \
+             patch("dbt_ci.commands.ephemeral.clone.resolve_dbt_commands") as mock_resolve, \
+             patch("dbt_ci.commands.ephemeral.clone.run_dbt_command") as mock_run, \
+             caplog.at_level(logging.INFO), \
+             pytest.raises(SystemExit) as exc_info:
+            clone_command(
+                {"modified_nodes": [], "new_nodes": ["seed.pkg.items", *tests], "deleted_nodes": []},
+                Namespace(dry_run=False),
+            )
+
+        assert exc_info.value.code == 0
+        mock_resolve.assert_not_called()
+        mock_run.assert_not_called()
+        assert "No models or snapshots to clone" in caplog.text
 
 
 class TestBuildEphemeralMap:

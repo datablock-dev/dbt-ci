@@ -110,6 +110,11 @@ def clone_command(
         for selector in get_selectors(target_graph.to_dict(), _filter_models_and_snapshots(target_graph, dependent_nodes)):
             node_selector.add(f"1+{selector}")
 
+        # A change to seeds and their tests alone leaves nothing to clone, since `run` seeds them itself
+        if len(node_selector) == 0:
+            logger.info("No models or snapshots to clone for the ephemeral environment, skipping...")
+            sys.exit(0)
+
         command = resolve_dbt_commands(
             command_args=[
                 "clone", "--select", *node_selector,
