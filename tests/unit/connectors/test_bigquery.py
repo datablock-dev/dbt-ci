@@ -5,7 +5,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dbt_ci.connectors.google.bigquery import bigquery_client, bigquery_delete_strategy
+from dbt_ci.connectors.google.bigquery import (
+    bigquery_client,
+    bigquery_delete_datasets,
+    bigquery_delete_strategy,
+    bigquery_delete_tables,
+    render_bigquery_cluster_clause,
+    render_bigquery_partition_clause,
+)
 from dbt_ci.errors import ConfigurationError
 
 PROFILES_YML = """
@@ -117,7 +124,7 @@ class TestMigrationStrategy:
         "partition_expiration_days": 30,
     }
 
-    def migrate(self, fail_on: str | None = None) -> list[str]:
+    def migrate(self, fail_on: str | None = None, dry_run: bool = False) -> list[str]:
         """Run the migration for one table and return the executed SQL statements."""
         from dbt_ci.connectors.google.bigquery import bigquery_migration_strategy
 
@@ -145,7 +152,7 @@ class TestMigrationStrategy:
         ):
             bigquery_migration_strategy(
                 {"connector": "bigquery", "nodes": {"model.pkg.orders": self.NODE}},
-                Namespace(dry_run=False),
+                Namespace(dry_run=dry_run),
             )
         return executed
 
@@ -168,6 +175,112 @@ class TestMigrationStrategy:
         """If the swap fails, the backup is not dropped and the error names it."""
         with pytest.raises(RuntimeError, match="orders__dbt_ci_backup"):
             self.migrate(fail_on="ALTER TABLE `proj.ana.orders_temp_new_partition`")
+
+    def test_dry_run_runs_nothing(self):
+        """A dry run lists the migration without touching any table."""
+        assert self.migrate(dry_run=True) == []
+
+
+class TestDeleteDatasets:
+    """Ephemeral teardown drops whole datasets, contents included."""
+
+    def test_each_dataset_is_dropped_with_its_contents(self):
+        """Every dataset is deleted, and an already missing one is not an error."""
+        client = MagicMock()
+
+        bigquery_delete_datasets(client, {"proj.ci_pr_1", "proj.ci_pr_2"}, threads=2)
+
+        assert sorted(c.args[0] for c in client.delete_dataset.call_args_list) == [
+            "proj.ci_pr_1",
+            "proj.ci_pr_2",
+        ]
+        for call in client.delete_dataset.call_args_list:
+            assert call.kwargs == {"delete_contents": True, "not_found_ok": True}
+
+    def test_failure_names_the_dataset(self):
+        """A failed drop fails teardown, naming the dataset and keeping the cause."""
+        client = MagicMock()
+        cause = PermissionError("403")
+        client.delete_dataset.side_effect = cause
+
+        with pytest.raises(RuntimeError, match="proj.ci_pr_1") as exc_info:
+            bigquery_delete_datasets(client, {"proj.ci_pr_1"})
+        assert exc_info.value.__cause__ is cause
+
+    def test_dry_run_drops_nothing(self):
+        """A dry run only lists the datasets."""
+        client = MagicMock()
+        bigquery_delete_datasets(client, {"proj.ci_pr_1"}, dry_run=True)
+        client.delete_dataset.assert_not_called()
+
+
+def test_delete_tables_dry_run_drops_nothing():
+    """`dbt-ci delete --dry-run` only lists the tables."""
+    client = MagicMock()
+    bigquery_delete_tables(client, {"proj.ana.orders"}, dry_run=True)
+    client.delete_table.assert_not_called()
+
+
+class TestPartitionClause:
+    """The PARTITION BY clause matches what dbt-bigquery builds for each partition_by."""
+
+    @pytest.mark.parametrize(
+        "partition_by, expected",
+        [
+            ({"field": "d", "data_type": "date"}, "PARTITION BY d"),
+            (
+                {"field": "d", "data_type": "date", "granularity": "month"},
+                "PARTITION BY date_trunc(d, month)",
+            ),
+            (
+                {"field": "ts", "data_type": "timestamp", "granularity": "hour"},
+                "PARTITION BY timestamp_trunc(ts, hour)",
+            ),
+            ({"field": "dt", "data_type": "datetime"}, "PARTITION BY datetime_trunc(dt, day)"),
+            (
+                {
+                    "field": "id",
+                    "data_type": "int64",
+                    "range": {"start": 0, "end": 100, "interval": 10},
+                },
+                "PARTITION BY range_bucket(id, generate_array(0, 100, 10))",
+            ),
+            (
+                {"field": "ts", "data_type": "timestamp", "time_ingestion_partitioning": True},
+                "PARTITION BY timestamp_trunc(_PARTITIONTIME, day)",
+            ),
+            (None, ""),
+            ({}, ""),
+        ],
+    )
+    def test_rendering(self, partition_by, expected):
+        """Each supported partition type renders its clause; no config renders none."""
+        assert render_bigquery_partition_clause(partition_by) == expected
+
+    @pytest.mark.parametrize(
+        "partition_by, message",
+        [
+            ({"data_type": "date"}, "field is required"),
+            ({"field": "d", "data_type": "string"}, "data_type must be one of"),
+            (
+                {"field": "d", "data_type": "date", "granularity": "hour"},
+                "Date partitioning supports",
+            ),
+            ({"field": "id", "data_type": "int64"}, "range.start/end/interval required"),
+        ],
+    )
+    def test_invalid_config_raises(self, partition_by, message):
+        """A partition_by BigQuery cannot express fails before any table is touched."""
+        with pytest.raises(ValueError, match=message):
+            render_bigquery_partition_clause(partition_by)
+
+    @pytest.mark.parametrize(
+        "cluster_by, expected",
+        [("a", "CLUSTER BY `a`"), (["a", "b"], "CLUSTER BY `a`, `b`"), (None, ""), ([], "")],
+    )
+    def test_cluster_clause(self, cluster_by, expected):
+        """cluster_by may be one column or a list."""
+        assert render_bigquery_cluster_clause(cluster_by) == expected
 
 
 class TestMigrationTableId:
