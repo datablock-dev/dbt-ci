@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from dbt_ci.connectors.google.bigquery import bigquery_client, bigquery_delete_strategy
+from dbt_ci.errors import ConfigurationError
 
 PROFILES_YML = """
 bq_profile:
@@ -46,12 +47,35 @@ class TestBigQueryClient:
         mock_bigquery.Client.assert_called_once_with(project="my-gcp-project", location="EU")
         assert client is mock_bigquery.Client.return_value
 
-    def test_missing_profile_key_raises(self, bigquery_project, mock_bigquery):
-        """A dbt_project.yml without a profile key raises a clear error."""
+    def test_missing_profile_key_falls_back_to_default(self, bigquery_project, mock_bigquery):
+        """Without a profile key the 'default' profile is used, and its absence is reported."""
         (bigquery_project / "dbt_project.yml").write_text("name: test_project\n")
         args = Namespace(dbt_project_dir=str(bigquery_project), profiles_dir=None, target="prod")
 
-        with pytest.raises(ValueError, match="No 'profile' key found in dbt_project.yml"):
+        with pytest.raises(ConfigurationError, match="Profile 'default' not found"):
+            bigquery_client(args)
+
+    def test_profiles_dir_is_honoured(self, bigquery_project, mock_bigquery, tmp_path):
+        """profiles.yml outside the project is found through --profiles-dir."""
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (bigquery_project / "profiles.yml").rename(profiles_dir / "profiles.yml")
+        args = Namespace(
+            dbt_project_dir=str(bigquery_project), profiles_dir=str(profiles_dir), target=None
+        )
+
+        bigquery_client(args)
+
+        mock_bigquery.Client.assert_called_once_with(project="my-gcp-project", location="EU")
+
+    def test_non_bigquery_output_raises(self, bigquery_project, mock_bigquery):
+        """A target that points at another warehouse cannot build a BigQuery client."""
+        (bigquery_project / "profiles.yml").write_text(
+            PROFILES_YML.replace("type: bigquery", "type: snowflake")
+        )
+        args = Namespace(dbt_project_dir=str(bigquery_project), profiles_dir=None, target="prod")
+
+        with pytest.raises(ConfigurationError, match="target 'prod' is not 'bigquery'"):
             bigquery_client(args)
 
 

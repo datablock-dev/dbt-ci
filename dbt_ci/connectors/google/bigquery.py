@@ -12,50 +12,24 @@ try:  # google-cloud-bigquery ships in the optional "gcp" extra.
     from google.cloud import bigquery
 except ImportError:  # pragma: no cover - exercised only without the extra installed
     bigquery = None
-from dbt_ci.utilities.paths import get_dbt_project_file, get_profile, get_profiles_file
+from dbt_ci.errors import ConfigurationError
+from dbt_ci.utilities.paths import get_profile
 from dbt_ci.utilities.multi_threading import run_multithreaded
 
 logger = logging.getLogger(__name__)
 
 
 def bigquery_client(args: Namespace) -> bigquery.Client:
-    """Create a BigQuery client using credentials from the dbt profiles.yml file."""
-    dbt_project_dir = getattr(args, "dbt_project_dir", None)
-    if dbt_project_dir is None:
-        raise ValueError("dbt_project_dir argument is required to initialize BigQuery client")
-
-    dbt_profile = get_profiles_file(
-        dbt_project_dir=dbt_project_dir, profiles_dir=getattr(args, "profiles_dir", None)
-    )
-
-    # Get the profile name from the project config
-    profile_name = (get_dbt_project_file(dbt_project_dir) or {}).get("profile")
-
-    if not profile_name:
-        raise ValueError("No 'profile' key found in dbt_project.yml")
-
-    profile_config = dbt_profile.get(profile_name, {})
-
-    if not profile_config:
-        raise ValueError(f"Profile '{profile_name}' not found in profiles.yml")
-
-    output = profile_config.get("outputs", {}).get(getattr(args, "target", None), {})
-    if not output:
-        raise ValueError(
-            f"No output configuration found for target '{getattr(args, 'target', None)}' in profiles.yml"
-        )
-    elif output.get("type") != "bigquery":
-        raise ValueError(
-            f"Output type for target '{getattr(args, 'target', None)}' is not 'bigquery' in profiles.yml"
-        )
-    elif output.get("project") is None:
-        raise ValueError(
-            f"No 'project' specified for target '{getattr(args, 'target', None)}' in profiles.yml"
-        )
-    elif output.get("location") is None:
-        raise ValueError(
-            f"No 'location' specified for target '{getattr(args, 'target', None)}' in profiles.yml"
-        )
+    """Create a BigQuery client for the project and location of the dbt target's output."""
+    output = get_profile(args)
+    target = getattr(args, "target", None)
+    target = f"target '{target}'" if target else "the default target"
+    if output.get("type") != "bigquery":
+        raise ConfigurationError(f"Output type for {target} is not 'bigquery' in profiles.yml")
+    if output.get("project") is None:
+        raise ConfigurationError(f"No 'project' specified for {target} in profiles.yml")
+    if output.get("location") is None:
+        raise ConfigurationError(f"No 'location' specified for {target} in profiles.yml")
 
     client = require(bigquery, "gcp", "The BigQuery connector").Client(
         project=output.get("project", ""), location=output.get("location", "")

@@ -5,6 +5,7 @@ import yaml
 import json
 from pathlib import Path
 from argparse import Namespace
+from typing import cast
 from dbt_ci.errors import ConfigurationError
 from dbt_ci.schema import DBTManifest, DBTProfile
 
@@ -53,102 +54,52 @@ def get_reference_manifest_file(reference_state_dir: str) -> DBTManifest:
         return json.load(f)
 
 
-def get_dbt_project_file(dbt_project_dir: str) -> dict:
-    """
-    Get the path to the dbt_project.yml file in the specified directory.
-    Raises a FileNotFoundError if the file does not exist.
-    """
-    file = os.path.join(dbt_project_dir, "dbt_project.yml")
-    if not os.path.isfile(file):
-        raise FileNotFoundError(f"dbt_project.yml not found in {dbt_project_dir}")
-
-    with open(file, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
-
-def get_profiles_file(dbt_project_dir: str, profiles_dir: str | None = None):
-    """
-    Get the path to the profiles.yml file in the specified directory or the default locations.
-    Raises a FileNotFoundError if the file does not exist in any of the expected locations
-    """
-    if profiles_dir:
-        file = os.path.join(profiles_dir, "profiles.yml")
-        if not os.path.isfile(file):
-            raise FileNotFoundError(f"profiles.yml not found in {profiles_dir}")
-
-        with open(file, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f)
-    else:
-        # Check for profiles.yml in the dbt project directory
-        file = os.path.join(dbt_project_dir, "profiles.yml")
-        if os.path.isfile(file):
-            with open(file, "r", encoding="utf-8") as f:
-                return yaml.safe_load(f)
-
-        # Check for profiles.yml in the user's home directory
-        home_dir = os.path.expanduser("~")
-        file = os.path.join(home_dir, ".dbt/profiles.yml")
-        if os.path.isfile(file):
-            with open(file, "r", encoding="utf-8") as f:
-                return yaml.safe_load(f)
-
-        raise FileNotFoundError(
-            "profiles.yml not found in the specified profiles directory, dbt project directory, or ~/.dbt/"
-        )
-
-
-## New methods, review them
 def get_dbt_project_config(dbt_root_path: str) -> dict:
-    """Get the DBT project configuration from the dbt_project.yml file.
-    Raises a FileNotFoundError if the dbt_project.yml file does not exist in the specified directory.
-    """
-    dbt_project_path = get_dbt_project_path(dbt_root_path)
-    dbt_project_path_yaml_path = os.path.join(dbt_project_path, "dbt_project.yml")
-    if not os.path.exists(dbt_project_path_yaml_path):
-        raise ConfigurationError(f"dbt_project.yml not found at {dbt_project_path_yaml_path}")
-    with open(dbt_project_path_yaml_path, "r", encoding="utf-8") as file:
-        project_config = yaml.safe_load(file)
-
-    return project_config
+    """Return the parsed dbt_project.yml of the project at the given path."""
+    project_file = get_dbt_project_path(dbt_root_path) / "dbt_project.yml"
+    if not project_file.is_file():
+        raise ConfigurationError(f"dbt_project.yml not found at {project_file}")
+    with open(project_file, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
 
 
 def get_dbt_project_path(dbt_project_path: str) -> Path:
-    """
-    Get the DBT project root directory path.
-
-    Args:
-        dbt_project_path: Path to the DBT project directory
-
-    Returns:
-        Path: Absolute path to DBT project directory
-    """
+    """Return the absolute path of the dbt project directory."""
     if not dbt_project_path:
         raise ConfigurationError("DBT project path not provided.")
-
-    project_path = Path(dbt_project_path)
-
-    # Convert relative to absolute
-    if not project_path.is_absolute():
-        project_path = Path.cwd() / project_path
-
-    return project_path.resolve()
+    return Path(dbt_project_path).resolve()
 
 
-def get_dbt_profiles_config(dbt_root_path: str) -> dict:
-    """Get the DBT profiles configuration from the profiles.yml file."""
-    dbt_project_path = get_dbt_project_path(dbt_root_path)
-    profiles_path = os.path.join(dbt_project_path, "profiles.yml")
-    if not os.path.exists(profiles_path):
-        raise ConfigurationError(f"profiles.yml not found at {profiles_path}")
+def get_profiles_file(dbt_project_dir: str, profiles_dir: str | None = None) -> dict:
+    """
+    Return the parsed profiles.yml, found where dbt itself would find it.
 
-    with open(profiles_path, "r", encoding="utf-8") as file:
-        profiles = yaml.safe_load(file)
+    An explicit profiles directory (--profiles-dir or DBT_PROFILES_DIR) is the only place
+    looked in. Otherwise the project directory comes first, then dbt's own defaults: the
+    working directory and ~/.dbt.
+    """
+    if profiles_dir:
+        directories = [Path(profiles_dir)]
+    else:
+        directories = [Path(dbt_project_dir), Path.cwd(), Path.home() / ".dbt"]
 
-    return profiles
+    for directory in directories:
+        file = directory / "profiles.yml"
+        if file.is_file():
+            with open(file, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+
+    searched = ", ".join(str(directory) for directory in dict.fromkeys(directories))
+    raise ConfigurationError(f"profiles.yml not found in {searched}")
 
 
 def get_profile(args: Namespace) -> DBTProfile:
-    """Get the DBT profile output configuration based on the provided arguments."""
+    """
+    Return the profiles.yml output for the configured target.
+
+    The profile is the one dbt_project.yml names, and the target is --target or the
+    profile's default target.
+    """
     dbt_root_path = getattr(args, "dbt_project_dir", None)
     if dbt_root_path is None:
         raise ConfigurationError(
@@ -156,31 +107,24 @@ def get_profile(args: Namespace) -> DBTProfile:
             "--dbt-project-dir <path>."
         )
 
-    dbt_project_file = get_dbt_project_config(dbt_root_path)
-    profiles = get_dbt_profiles_config(dbt_root_path)
-    dbt_profile = dbt_project_file.get("profile", None)
-    target = getattr(args, "target", None) or profiles.get(dbt_profile, {}).get("target", None)
-    profile_name = dbt_profile or "default"
-
-    if target is None:
-        raise ConfigurationError(
-            "Target environment not specified in arguments. Please pass the target using "
-            "--target <target>."
-        )
-
-    # Get the default profile (assuming 'default' is the profile name)
-    if profile_name not in profiles:
+    profile_name = get_dbt_project_config(dbt_root_path).get("profile") or "default"
+    profiles = get_profiles_file(dbt_root_path, getattr(args, "profiles_dir", None))
+    profile = profiles.get(profile_name)
+    if not isinstance(profile, dict):
         raise ConfigurationError(f"Profile '{profile_name}' not found in profiles.yml")
 
-    profile = profiles[profile_name]
+    target = getattr(args, "target", None) or profile.get("target")
+    if target is None:
+        raise ConfigurationError(
+            f"No target given and profile '{profile_name}' sets no default target. "
+            "Please pass the target using --target <target>."
+        )
 
-    # Get the output configuration for the target
-    if "outputs" not in profile or target not in profile["outputs"]:
+    outputs = profile.get("outputs") or {}
+    if target not in outputs:
         raise ConfigurationError(f"Target '{target}' not found in profile '{profile_name}'")
 
-    output_config: DBTProfile = profile["outputs"][target]
-
-    return output_config
+    return cast(DBTProfile, outputs[target])
 
 
 def get_absolute_path(path: str) -> str:
