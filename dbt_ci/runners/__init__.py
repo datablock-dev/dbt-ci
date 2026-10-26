@@ -3,9 +3,16 @@
 import subprocess
 import venv
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from argparse import Namespace
 from typing import Callable, cast
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - not available on Windows
+    fcntl = None  # type: ignore[assignment]
 from dbt_ci.errors import ConfigurationError
 from dbt_ci.schema import RunnerConfig, Runners
 from dbt_ci.dbt.versions import get_dbt_distribution, is_dbt_v2
@@ -100,10 +107,28 @@ def resolve_pinned_dbt_binary(runner_config: RunnerConfig) -> str | None:
         return None
 
     venv_dir = get_dbt_venv_dir(dbt_version, adapter)
-    if not dbt_venv_is_ready(venv_dir):
-        create_dbt_venv(venv_dir, dbt_version, adapter)
+    # Concurrent jobs on one runner share the cache, and create_dbt_venv clears the
+    # directory first, so only one of them may check and build it at a time.
+    with venv_lock(venv_dir):
+        if not dbt_venv_is_ready(venv_dir):
+            create_dbt_venv(venv_dir, dbt_version, adapter)
 
     return str(venv_dir / "bin" / "dbt")
+
+
+@contextmanager
+def venv_lock(venv_dir: Path) -> Iterator[None]:
+    """Hold an exclusive lock on a cached virtual environment while it is checked or built."""
+    venv_dir.parent.mkdir(parents=True, exist_ok=True)
+    with open(venv_dir.with_name(f"{venv_dir.name}.lock"), "w") as lock_file:
+        if fcntl is None:  # pragma: no cover - Windows, where the venv layout differs anyway
+            yield
+            return
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
 def get_dbt_venv_dir(dbt_version: str | None, adapter: str | None) -> Path:

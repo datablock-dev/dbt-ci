@@ -1,5 +1,7 @@
 """Unit tests for the runner dispatcher and dbt version/adapter pinning."""
 
+import threading
+import time
 from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
@@ -164,6 +166,34 @@ class TestResolvePinnedDbtBinary:
             resolve_pinned_dbt_binary(config)
 
         mock_create.assert_called_once_with(venv_dir, None, "dbt-duckdb=1.10.0")
+
+    def test_concurrent_resolutions_build_the_environment_once(self, mock_runner_config, tmp_path):
+        """Two jobs on one runner must not both clear and rebuild the shared environment."""
+        config = mock_runner_config({"runner": "local", "dbt_version": "1.10.13"})
+        venv_dir = tmp_path / "dbt-1.10.13"
+        ready = threading.Event()
+        builds = []
+
+        def create(*_):
+            """Build slowly, so the second resolution arrives while the first is building."""
+            builds.append(1)
+            time.sleep(0.2)
+            ready.set()
+
+        with (
+            patch("dbt_ci.runners.get_dbt_venv_dir", return_value=venv_dir),
+            patch("dbt_ci.runners.dbt_venv_is_ready", side_effect=lambda _: ready.is_set()),
+            patch("dbt_ci.runners.create_dbt_venv", side_effect=create),
+        ):
+            threads = [
+                threading.Thread(target=resolve_pinned_dbt_binary, args=(config,)) for _ in range(2)
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+
+        assert len(builds) == 1
 
 
 class TestRunDbtCommand:
