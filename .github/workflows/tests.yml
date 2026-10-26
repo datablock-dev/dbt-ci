@@ -8,6 +8,32 @@ on:
       - '**.md'
 
 jobs:
+  lint:
+    # Formatting, lint and type checks, configured in pyproject.toml and .flake8
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Check formatting
+      run: black --check dbt_ci action tests
+
+    - name: Lint
+      run: flake8 dbt_ci action tests
+
+    - name: Type check
+      run: mypy
+
   test:
     runs-on: ubuntu-24.04
     strategy:

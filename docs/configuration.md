@@ -97,7 +97,7 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
 | `--dbt-project-dir` | | `DBT_PROJECT_DIR` | `.` | Path to the dbt project directory |
-| `--profiles-dir` | | `DBT_PROFILES_DIR` | Auto-detect | Path to the directory containing `profiles.yml` |
+| `--profiles-dir` | | `DBT_PROFILES_DIR` | Auto-detect | Path to the directory containing `profiles.yml`. When unset, dbt-ci looks in the project directory, then the working directory, then `~/.dbt` |
 | `--reference-state` | `--state` | `DBT_STATE` | `None` | Local path to the reference state directory (where `manifest.json` is stored) |
 | `--target` | `-t` | `DBT_TARGET` | From `profiles.yml` | dbt target to use |
 | `--vars` | `-v` | `DBT_VARS` | `""` | YAML string or path to a YAML file with dbt variables |
