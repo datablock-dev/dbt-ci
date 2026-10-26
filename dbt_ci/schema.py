@@ -323,15 +323,8 @@ type DependencyGraphNodeType = Literal[
 ]
 
 
-class DependenciesByType(TypedDict):
-    model: Set[str]
-    macro: Set[str]
-    source: Set[str]
-    seed: Set[str]
-    snapshot: Set[str]
-    test: Set[str]
-    exposure: Set[str]
-    unit_test: Set[str]
+# A node's dependencies grouped by resource type, keyed by DependencyGraphNodeType
+type DependenciesByType = dict[str, Set[str]]
 
 
 class DependencyGraphDownstreamDependency(TypedDict):
@@ -356,34 +349,28 @@ class DependencyGraphNode(TypedDict):
     name: str
     id: str
     fqn: list[str] | None
-    database: str
-    schema: str
+    # Macros have no relation, and nothing is compiled until dbt compiles the node
+    database: Optional[str]
+    schema: Optional[str]
     alias: Optional[str]
     resource_type: DependencyGraphNodeType
-    original_file_path: str
+    original_file_path: Optional[str]
     patch_path: Optional[str]
-    compiled_path: str
-    compiled_code: str
+    compiled_path: Optional[str]
+    compiled_code: Optional[str]
     config: Config
     columns: Set[str]
-    materialized: DBTMaterialized
+    materialized: Optional[DBTMaterialized]
     incremental_strategy: Optional[str]
     downstream_dependencies: DependencyGraphDownstreamDependency
     upstream_dependencies: DependencyGraphDownstreamDependency
 
 
-class DependencyGraph(TypedDict):
-    """Complete dependency graph for dbt resources."""
-
-    metadata: Metadata
-    model: dict[str, DependencyGraphNode]
-    macro: dict[str, DependencyGraphNode]
-    seed: dict[str, DependencyGraphNode]
-    snapshot: dict[str, DependencyGraphNode]
-    source: dict[str, DependencyGraphNode]
-    test: dict[str, DependencyGraphNode]
-    exposure: dict[str, DependencyGraphNode]
-    unit_test: dict[str, DependencyGraphNode]
+# The dependency graph of a manifest: resource type -> unique_id -> node. Every bucket is
+# a resource type, which is also the first segment of the unique_ids it holds.
+type DependencyGraph = dict[str, dict[str, DependencyGraphNode]]
+# Graph nodes keyed by unique_id, across resource types
+type NodesById = dict[str, DependencyGraphNode]
 
 
 type Runners = Literal["local", "docker", "bash", "dbt"]

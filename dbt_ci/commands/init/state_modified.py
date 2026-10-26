@@ -94,7 +94,14 @@ def reconcile_with_graphs(
             git_modified_nodes["modified"].add(node_id)
 
 
+def empty_change_set() -> dict[GitChangeType, set[str]]:
+    """Return an empty set of ids (or paths) per git change type."""
+    return {"modified": set(), "added": set(), "deleted": set()}
+
+
 class CommonStateChangeSummary(TypedDict):
+    """The unique_ids dbt's state:modified comparison reports, before any git filtering."""
+
     modified_node_ids: set[str]
     deleted_node_ids: set[str]
     new_node_ids: set[str]
@@ -150,7 +157,7 @@ class StateModified:
         reference_dict = self.reference_graph
         changed_files = git.get_changed_files()
 
-        git_modified_nodes = {"modified": set(), "added": set(), "deleted": set()}
+        git_modified_nodes = empty_change_set()
 
         # Get modified nodes based on git diff
         for change_type, files in changed_files.items():
@@ -197,9 +204,9 @@ class StateModified:
         changed_files = git.get_changed_files()
         new_nodes = get_new_nodes(reference_graph, target_graph)
 
-        git_modified_nodes = {"modified": set(), "added": set(), "deleted": set()}
+        git_modified_nodes = empty_change_set()
 
-        unmatched_nodes = {"modified": set(), "added": set(), "deleted": set()}
+        unmatched_files = empty_change_set()
 
         # Get modified nodes based on git diff
         for change_type, files in changed_files.items():
@@ -218,7 +225,7 @@ class StateModified:
                 # And see if the changed node in dbt has the same path
                 # as the changed file in git. If yes, we consider it truly modified.
                 else:
-                    unmatched_nodes[change_type].add(file_path)
+                    unmatched_files[change_type].add(file_path)
 
         # Structure the nodes from the output of Dbt
         # We want to filter out the nodes that already exists in
@@ -259,13 +266,13 @@ class StateModified:
             "new_nodes": "added",
             "deleted_nodes": "deleted",
         }
-        for change_type, files in unmatched_nodes.items():
-            for file_path in list(files):  # copy — we mutate the set inside
+        for unmatched_type, unmatched_paths in unmatched_files.items():
+            for file_path in list(unmatched_paths):  # copy — we mutate the set inside
                 found = False
                 for dbt_key, target_git_key in dbt_key_to_git_key.items():
                     current_data = structured_modified_nodes_dbt.get(dbt_key) or {}
-                    for node_id, node_info in current_data.items():
-                        if node_info.get("original_file_path") == file_path:
+                    for node_id, dbt_node in current_data.items():
+                        if dbt_node.get("original_file_path") == file_path:
                             if new_nodes and node_id in new_nodes:
                                 # If the node is new according to dbt, we classify it as added, even if the file was modified according to git
                                 git_modified_nodes["added"].add(node_id)
@@ -275,7 +282,7 @@ class StateModified:
                             found = True
                             # Don't break — multiple nodes can share one file (schema.yml)
                 if found:
-                    unmatched_nodes[change_type].discard(file_path)
+                    unmatched_files[unmatched_type].discard(file_path)
 
         # A model's properties (config, contract, columns) live in its YAML patch file,
         # not in its .sql file. When git changed that YAML and dbt flagged the model,
@@ -290,9 +297,11 @@ class StateModified:
         reconcile_with_graphs(git_modified_nodes, target_graph, reference_graph)
 
         # Now lets see if there are any unmatched nodes left
-        for change_type, files in unmatched_nodes.items():
-            if len(files) > 0:
-                logger.debug(f"Unmatched files for change type '{change_type}': {files}")
+        for unmatched_type, unmatched_paths in unmatched_files.items():
+            if unmatched_paths:
+                logger.debug(
+                    f"Unmatched files for change type '{unmatched_type}': {unmatched_paths}"
+                )
 
         # If git produced no hits at all, fall back entirely to dbt's output.
         # This happens when the working tree is clean (e.g. manifest was updated

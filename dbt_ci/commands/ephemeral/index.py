@@ -16,7 +16,7 @@ from dbt_ci.dbt.flags import apply_cached_config
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.graph.parser import generate_dependency_graph
 from dbt_ci.utilities.logging import print_exception, redact_namespace
-from dbt_ci.schema import DependencyGraph, EphemeralMapNode, StateChangeSummary
+from dbt_ci.schema import DependencyGraph, EphemeralMapNode, NodeConfig, StateChangeSummary
 from dbt_ci.commands.ephemeral.clone import clone_command
 from dbt_ci.utilities.paths import get_manifest_file
 from dbt_ci.graph.graph_utils import (
@@ -131,7 +131,7 @@ def build_ephemeral_map(args: Namespace, node_ids: list[str]) -> dict[str, Ephem
         # Ephemeral models are never materialised, so they have no relation to clean up
         if target_node.get("materialized") == "ephemeral":
             continue
-        reference_node = reference_nodes.get(node_id) or {}
+        reference_node = reference_nodes.get(node_id)
         ephemeral_map[node_id] = {
             "name": target_node["name"],
             "resource_type": target_node["resource_type"],
@@ -141,11 +141,15 @@ def build_ephemeral_map(args: Namespace, node_ids: list[str]) -> dict[str, Ephem
                 name=target_node.get("name", None),
                 alias=get_relation_name(target_node),
             ),
-            "reference_config": full_config_or_none(
-                database=reference_node.get("database", None),
-                schema=reference_node.get("schema", None),
-                name=reference_node.get("name", None),
-                alias=get_relation_name(reference_node) if reference_node else None,
+            "reference_config": (
+                full_config_or_none(
+                    database=reference_node.get("database", None),
+                    schema=reference_node.get("schema", None),
+                    name=reference_node.get("name", None),
+                    alias=get_relation_name(reference_node),
+                )
+                if reference_node
+                else None
             ),
         }
     return ephemeral_map
@@ -153,7 +157,7 @@ def build_ephemeral_map(args: Namespace, node_ids: list[str]) -> dict[str, Ephem
 
 def full_config_or_none(
     database: Optional[str], schema: Optional[str], name: Optional[str], alias: Optional[str] = None
-) -> dict[str, Optional[str]] | None:
+) -> NodeConfig | None:
     """Helper function to return full config dict if all values are present, otherwise None."""
     if any(v is None for v in (database, schema, name)):
         return None

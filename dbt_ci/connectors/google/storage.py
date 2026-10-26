@@ -7,9 +7,9 @@ from dbt_ci.schema import DBTManifest
 from dbt_ci.utilities.optional_imports import require
 
 try:  # google-cloud-storage ships in the optional "gcp" extra.
-    from google.cloud import storage
+    from google.cloud import storage  # type: ignore[attr-defined]
 except ImportError:  # pragma: no cover - exercised only without the extra installed
-    storage = None
+    storage = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 

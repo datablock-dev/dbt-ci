@@ -328,7 +328,12 @@ def log_nodes_to_run(
     target_graph: DbtGraph | None = None,
 ) -> None:
     """Print the nodes about to run, grouped by why they were selected."""
-    mapping = {"new": set(), "modified": set(), "deleted": set(), "dependency": set()}
+    mapping: dict[str, set[str]] = {
+        "new": set(),
+        "modified": set(),
+        "deleted": set(),
+        "dependency": set(),
+    }
 
     for node in nodes_to_run:
         if node in changed_nodes_dict.get("modified_nodes", []):

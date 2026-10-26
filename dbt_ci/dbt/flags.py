@@ -33,7 +33,7 @@ def get_cached_config(args: Namespace) -> dict[str, Any]:
     cache_manifest = cast(DbtCiManifest | None, CacheManager(args).get_cache())
     if not cache_manifest:
         return {}
-    return cache_manifest.get("config") or {}
+    return cast(dict[str, Any], cache_manifest.get("config") or {})
 
 
 def get_cached_value(args: Namespace, key: str) -> Any:

@@ -67,7 +67,7 @@ def upload_logs(
     # Records still sitting in the handler's buffer would otherwise be missing from the
     # uploaded copy, since the handler stays attached for the rest of the command.
     flush_log_file()
-    logs = cast(str | None, cache.get_cache(LOG_FILE_NAME, "txt"))
+    logs = cache.get_cache_text(LOG_FILE_NAME)
     if not logs:
         return logger.warning("No logs found for upload, skipping...")
     storage_function(f"{artifacts_uri}/logs.txt", logs, "text/plain")

@@ -1,10 +1,11 @@
 """Utility functions for multithreading."""
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Any
+from collections.abc import Callable, Sequence
+from typing import Any
 
 
-def run_multithreaded(func_list: list[Callable[[], Any]], threads: int = 4) -> list[Any]:
+def run_multithreaded(func_list: Sequence[Callable[[], Any]], threads: int = 4) -> list[Any]:
     """
     Run zero-argument functions concurrently and return their results in order.
 

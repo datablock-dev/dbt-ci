@@ -296,8 +296,8 @@ def get_container_paths(runner_config: RunnerConfig) -> dict:
     # For profiles_dir: use DBT_PROFILES_DIR env or derive from volume mapping
     if "DBT_PROFILES_DIR" in env_dict:
         container_path_map["profiles_dir"] = env_dict["DBT_PROFILES_DIR"]
-    elif runner_config.get("profiles_dir"):
-        container_path = map_host_path_to_container(runner_config["profiles_dir"], volume_map)
+    elif profiles_dir := runner_config.get("profiles_dir"):
+        container_path = map_host_path_to_container(profiles_dir, volume_map)
         if container_path is not None:
             container_path_map["profiles_dir"] = container_path
 

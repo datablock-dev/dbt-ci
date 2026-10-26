@@ -1,12 +1,12 @@
 """Module for parsing dbt manifest files and generating dependency graphs."""
 
 import logging
-from typing import cast
+from collections.abc import Mapping
+from typing import Any, cast
 from dbt_ci.errors import ManifestError
 from dbt_ci.schema import (
     MANIFEST_KEY_MAPPING,
     DBTManifest,
-    DbtNode,
     DependencyGraph,
     DependencyGraphNodeType,
 )
@@ -67,13 +67,15 @@ def column_names(columns) -> set[str]:
 
 
 def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
-    """Generate dependency graph from manifest file.
-    Args:
-        manifest_file: DBTManifest object representing the manifest file
     """
-    child_map = manifest_file.get("child_map") or {}
+    Build the dependency graph of a manifest.
+
+    Every entry is read defensively, as a plain mapping: manifests differ between dbt
+    versions, and dbt v2 writes some fields in other shapes than dbt-core does.
+    """
+    manifest = cast(dict[str, Any], manifest_file)
+    child_map = manifest.get("child_map") or {}
     dependency_graph: DependencyGraph = {
-        "metadata": manifest_file.get("metadata", {}),
         "model": {},
         "seed": {},
         "snapshot": {},
@@ -88,8 +90,8 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
         downstream_dependencies = normalize_node_ids(raw_downstream_dependencies)
         node_type: DependencyGraphNodeType = cast(DependencyGraphNodeType, key.split(".")[0])
         manifest_key = MANIFEST_KEY_MAPPING.get(node_type)
-        full_item: DbtNode | None = (
-            (manifest_file.get(manifest_key) or {}).get(key, None) if manifest_key else None
+        full_item: dict[str, Any] | None = (
+            (manifest.get(manifest_key) or {}).get(key, None) if manifest_key else None
         )
 
         # Skip if the node type is not recognized (e.g., "analysis", "docs", etc.)
@@ -103,9 +105,9 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             )
             continue
 
-        name = full_item.get("name", None)
-        compiled_code = full_item.get("compiled_code", None)
-        original_file_path = full_item.get("original_file_path", None)
+        name = full_item.get("name") or key.split(".")[-1]
+        compiled_code = full_item.get("compiled_code")
+        original_file_path = full_item.get("original_file_path")
         config = full_item.get("config", {})
 
         node_type_map: dict[str, set] = {
@@ -127,15 +129,15 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
         dependency_graph[node_type][key] = {
             "name": name,
             "id": key,
-            "fqn": full_item.get("fqn", None),
-            "database": full_item.get("database", None),
-            "schema": full_item.get("schema", None),
+            "fqn": full_item.get("fqn"),
+            "database": full_item.get("database"),
+            "schema": full_item.get("schema"),
             # The relation name dbt resolved, including custom generate_alias_name macros
-            "alias": full_item.get("alias", None),
-            "resource_type": full_item.get("resource_type", None),
+            "alias": full_item.get("alias"),
+            "resource_type": full_item.get("resource_type") or node_type,
             "original_file_path": original_file_path,
             "patch_path": normalize_patch_path(full_item.get("patch_path", None)),
-            "compiled_path": full_item.get("compiled_path", None),
+            "compiled_path": full_item.get("compiled_path"),
             "compiled_code": compiled_code,
             "config": config,
             "columns": column_names(full_item.get("columns")),
@@ -166,7 +168,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
 
     # Macros don't appear as keys in child_map, so populate them directly from
     # the manifest's macros section so path-based lookups can find them.
-    for macro_id, macro_item in (manifest_file.get("macros") or {}).items():
+    for macro_id, macro_item in (manifest.get("macros") or {}).items():
         macro_name = macro_item.get("name")
         if macro_name and macro_id not in dependency_graph["macro"]:
             dependency_graph["macro"][macro_id] = {
@@ -175,6 +177,7 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
                 "fqn": macro_item.get("fqn", None),
                 "database": None,
                 "schema": None,
+                "alias": None,
                 "resource_type": "macro",
                 "original_file_path": macro_item.get("original_file_path"),
                 "patch_path": None,
@@ -217,7 +220,7 @@ def append_depends_on_nodes(
     dependency_graph: DependencyGraph,
     node_type: DependencyGraphNodeType,
     node_id: str,
-    dependencies: dict[str, list[str]],
+    dependencies: Mapping[str, Any],
 ) -> None:
     """Append dependencies from the "depends_on" section of the manifest file to the dependency graph."""
     upstream = dependency_graph[node_type][node_id]["upstream_dependencies"]

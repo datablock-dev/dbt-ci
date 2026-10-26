@@ -4,7 +4,7 @@ import json
 import os
 from argparse import Namespace
 from typing import Any, Literal, cast
-from dbt_ci.schema import StateChangeSummary, StateChangeSummaryKeys
+from dbt_ci.schema import DependencyGraphNode, StateChangeSummary, StateChangeSummaryKeys
 from dbt_ci.notifications.slack import SLACK_SECTION_TEXT_LIMIT, truncate_for_slack
 
 type NotificationFormat = Literal["default", "compact", "json"]
@@ -24,14 +24,14 @@ def escape_mrkdwn(text: str) -> str:
 
 def get_summary_nodes(
     state_change_summary: StateChangeSummary, key: StateChangeSummaryKeys
-) -> list[dict]:
+) -> list[DependencyGraphNode]:
     """Flatten one bucket of the change set into nodes sorted by resource type, then name."""
     buckets = state_change_summary.get(key) or {}
     nodes = [node for node_dict in buckets.values() for node in node_dict.values()]
     return sorted(nodes, key=lambda n: (n.get("resource_type") or "", n.get("name") or ""))
 
 
-def format_node_list(label: str, nodes: list[dict]) -> str:
+def format_node_list(label: str, nodes: list[DependencyGraphNode]) -> str:
     """Render one change type as a mrkdwn bullet list of node names and resource types."""
     lines = [f"*{label} nodes ({len(nodes)})*"]
     for node in nodes:
@@ -41,7 +41,9 @@ def format_node_list(label: str, nodes: list[dict]) -> str:
     return truncate_for_slack("\n".join(lines))
 
 
-def format_json_summary(nodes_by_type: dict[StateChangeSummaryKeys, list[dict]]) -> str:
+def format_json_summary(
+    nodes_by_type: dict[StateChangeSummaryKeys, list[DependencyGraphNode]],
+) -> str:
     """Render the change set as a JSON code block of unique_ids per change type."""
     payload = {
         key: [node.get("id") or node.get("name") for node in nodes_by_type[key]]

@@ -67,6 +67,16 @@ include = ["dbt_ci*"]
 [tool.setuptools.package-data]
 dbt_ci = ["py.typed", "**/*.yaml", "**/*.sql"]
 
+[tool.mypy]
+python_version = "3.12"
+files = ["dbt_ci"]
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+# Optional SDKs (and PyYAML) ship without type information
+module = ["yaml", "docker", "docker.*", "boto3", "google.cloud", "google.cloud.*"]
+ignore_missing_imports = true
+
 [tool.black]
 line-length = 100
 target-version = ['py312']

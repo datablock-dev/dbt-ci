@@ -283,7 +283,7 @@ class TestUploadLogs:
     def test_uploads_logs_as_plain_text(self):
         storage_fn = _make_storage_function()
         cache = MagicMock()
-        cache.get_cache.return_value = "some log content"
+        cache.get_cache_text.return_value = "some log content"
 
         upload_logs("gs://bucket/path", cache, storage_fn)
 
@@ -295,17 +295,17 @@ class TestUploadLogs:
         """The log handler writes dbt-ci.log, so reading any other name uploads nothing."""
         storage_fn = _make_storage_function()
         cache = MagicMock()
-        cache.get_cache.return_value = "some log content"
+        cache.get_cache_text.return_value = "some log content"
 
         upload_logs("gs://bucket/path", cache, storage_fn)
 
-        cache.get_cache.assert_called_once_with(LOG_FILE_NAME, "txt")
+        cache.get_cache_text.assert_called_once_with(LOG_FILE_NAME)
 
     def test_flushes_buffered_records_before_reading(self):
         """Records still buffered by the handler would otherwise be missing."""
         storage_fn = _make_storage_function()
         cache = MagicMock()
-        cache.get_cache.return_value = "some log content"
+        cache.get_cache_text.return_value = "some log content"
 
         with patch("dbt_ci.commands.finalize.upload.flush_log_file") as mock_flush:
             upload_logs("gs://bucket/path", cache, storage_fn)
@@ -315,7 +315,7 @@ class TestUploadLogs:
     def test_skips_when_no_logs(self):
         storage_fn = _make_storage_function()
         cache = MagicMock()
-        cache.get_cache.return_value = None
+        cache.get_cache_text.return_value = None
 
         with patch("dbt_ci.commands.finalize.upload.logger") as mock_logger:
             upload_logs("gs://bucket/path", cache, storage_fn)

@@ -253,7 +253,7 @@ def resolve_dbt_commands(
     # Docker runner needs container paths from docker-env
     elif runner == "docker":
         # Use the shared function to get container path mappings
-        container_path_map = get_container_paths(args.__dict__)
+        container_path_map = get_container_paths(cast(RunnerConfig, args.__dict__))
 
         for var, flag in path_flags.items():
             container_path = container_path_map.get(var)

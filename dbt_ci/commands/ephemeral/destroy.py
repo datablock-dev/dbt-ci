@@ -48,11 +48,11 @@ def clean_up_ephemeral(args: Namespace, cache: CacheManager):
     """
     logger.info("Cleaning up ephemeral environment...")
     profile = get_profile(args)
-    threads = profile.get("threads", 5)
+    threads = profile.get("threads") or 5
     connector_type = profile["type"]
     connector = get_connector(connector_type)
     # Adapters without a native connector drop their schemas through dbt instead
-    delete_datasets_function = (connector or {}).get("methods", {}).get("delete_datasets")
+    delete_datasets_function = connector["methods"].get("delete_datasets") if connector else None
 
     ephemeral_map = cast(dict[str, EphemeralMapNode] | None, cache.get_cache("ephemeral_map.json"))
     if ephemeral_map is None:

@@ -1,7 +1,7 @@
 """The dependency graph of a dbt manifest, as the commands load it."""
 
 from argparse import Namespace
-from typing import cast
+from typing import Any, cast
 from dbt_ci.errors import DbtCiError
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.schema import DBTManifest, DependencyGraph
@@ -22,6 +22,7 @@ class DbtGraph:
         self.args = args
         self.is_reference = is_reference
 
+        manifest: DBTManifest | dict[str, Any] | None
         if getattr(args, "command", None) == "init":
             manifest = (
                 get_reference_manifest_file(args.reference_state)

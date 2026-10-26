@@ -3,7 +3,7 @@
 import sys
 import logging
 from argparse import Namespace
-from typing import cast
+from typing import Any, cast
 import click
 from dbt_ci.errors import DbtCiError
 from dbt_ci.utilities.cache import CacheManager
@@ -105,9 +105,7 @@ def generate_migration_map(
     logger.info("Cache successfully found - using cached state for comparison")
 
     modified_nodes_dict = {
-        "modified_nodes": get_node_ids_from_structured_nodes(
-            cache.get_cache().get("modified_nodes", None)
-        )
+        "modified_nodes": get_node_ids_from_structured_nodes(prev_cache.get("modified_nodes"))
         or [],
     }
 
@@ -125,11 +123,11 @@ def generate_migration_map(
     reference_nodes = get_nodes(reference_graph.to_dict(), selected_nodes) or {}
 
     for node_id, node_metadata in target_nodes.items():
-        node_config = node_metadata.get("config", {})
+        node_config = cast(dict[str, Any], node_metadata.get("config") or {})
+        reference_node = reference_nodes.get(node_id)
+        reference_config = cast(dict[str, Any], reference_node["config"] if reference_node else {})
         target_partitioning_config = node_config.get("partition_by", None)
-        reference_partitioning_config = (
-            reference_nodes.get(node_id, {}).get("config", {}).get("partition_by", None)
-        )
+        reference_partitioning_config = reference_config.get("partition_by", None)
         # Skip non-incremental models since partitioning changes only apply to incremental models in BigQuery
         if node_config.get("materialized", None) != "incremental":
             continue

@@ -91,26 +91,20 @@ class CacheManager:
         """Write manifest data to a JSON file in the cache directory."""
         self._write(cast(dict, manifest_data), "target_manifest.json")
 
-    def get_cache(
-        self, file_name: str = "cache.json", content_type: str = "json"
-    ) -> dict[str, Any] | str | None:
-        """Load cache data from the cache file. Returns None if the file doesn't exist."""
+    def get_cache(self, file_name: str = "cache.json") -> dict[str, Any] | None:
+        """Load a JSON file from the cache directory, or None if it doesn't exist."""
         file_path = self._file_path(file_name)
-        if file_path.is_file():
-            with open(file_path, "r", encoding="utf-8") as f:
-                if content_type == "json":
-                    return json.load(f)
-                elif content_type == "txt":
-                    return f.read()
-                else:
-                    logger.error(
-                        "Unsupported content_type '%s' passed to get_cache for file '%s'.",
-                        content_type,
-                        file_path,
-                    )
-                    raise ValueError(f"Unsupported content_type '{content_type}' for get_cache")
-        else:
+        if not file_path.is_file():
             return None
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def get_cache_text(self, file_name: str) -> str | None:
+        """Read a text file from the cache directory, or None if it doesn't exist."""
+        file_path = self._file_path(file_name)
+        if not file_path.is_file():
+            return None
+        return file_path.read_text(encoding="utf-8")
 
     def _write_report(self, data: dict[str, Any]):
         """Write data to the report.json file."""

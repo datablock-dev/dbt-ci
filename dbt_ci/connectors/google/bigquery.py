@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import logging
 from argparse import Namespace
+from functools import partial
 from typing import Any, cast
-from dbt_ci.schema import DeleteMapNode, MigrationMap
+from dbt_ci.schema import DeleteMapNode, MigrationMap, MigrationMapNodeEntry
 from dbt_ci.utilities.optional_imports import require
 
 try:  # google-cloud-bigquery ships in the optional "gcp" extra.
     from google.cloud import bigquery
 except ImportError:  # pragma: no cover - exercised only without the extra installed
-    bigquery = None
+    bigquery = None  # type: ignore[assignment]
 from dbt_ci.errors import ConfigurationError
 from dbt_ci.utilities.paths import get_profile
 from dbt_ci.utilities.multi_threading import run_multithreaded
@@ -54,10 +55,7 @@ def bigquery_delete_datasets(
         return
 
     # Pass to multi_thread module
-    func_list = [
-        lambda dataset_id=dataset_id: delete_dataset(client, dataset_id)
-        for dataset_id in datasets_to_delete
-    ]
+    func_list = [partial(delete_dataset, client, dataset_id) for dataset_id in datasets_to_delete]
     run_multithreaded(func_list=func_list, threads=threads)
 
 
@@ -114,7 +112,7 @@ def bigquery_delete_tables(
         logger.info("\nDry run mode enabled - no tables will actually be deleted.")
         return
 
-    func_list = [lambda table_id=table_id: _delete_table(table_id) for table_id in tables_to_delete]
+    func_list = [partial(_delete_table, table_id) for table_id in tables_to_delete]
     run_multithreaded(func_list=func_list, threads=threads)
 
 
@@ -124,7 +122,7 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
     threads: int = cast(int, get_profile(args).get("threads", 5))
     nodes = migration_map["nodes"]
 
-    def migrate_table(node_data: dict) -> None:
+    def migrate_table(node_data: MigrationMapNodeEntry) -> None:
         """Migrate a single table's partitioning by recreating it. Steps must run sequentially."""
         table_id: str = node_data["table_id"]
         table_name: str = table_id.split(".")[
@@ -174,9 +172,7 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
 
     # Each table's steps must run sequentially, but different tables can run in parallel.
     run_multithreaded(
-        func_list=[
-            lambda node_data=node_data: migrate_table(node_data) for node_data in nodes.values()
-        ],
+        func_list=[partial(migrate_table, node_data) for node_data in nodes.values()],
         threads=threads,
     )
 
@@ -189,19 +185,20 @@ def render_bigquery_cluster_clause(cluster_by: str | list[str] | None) -> str:
     return "CLUSTER BY " + ", ".join(f"`{column}`" for column in columns)
 
 
-def render_bigquery_options_clause(node_data: dict[str, Any]) -> str:
+def render_bigquery_options_clause(node_data: MigrationMapNodeEntry) -> str:
     """Render the OPTIONS(...) clause for the partition settings dbt manages on the table."""
     options: list[str] = []
     if node_data.get("require_partition_filter") is not None:
         options.append(
             f"require_partition_filter={'true' if node_data['require_partition_filter'] else 'false'}"
         )
-    if node_data.get("partition_expiration_days") is not None:
-        options.append(f"partition_expiration_days={float(node_data['partition_expiration_days'])}")
+    expiration_days = node_data.get("partition_expiration_days")
+    if expiration_days is not None:
+        options.append(f"partition_expiration_days={float(expiration_days)}")
     return f"OPTIONS({', '.join(options)})" if options else ""
 
 
-def render_bigquery_partition_clause(partition_by: dict[str, Any]) -> str:
+def render_bigquery_partition_clause(partition_by: dict[str, Any] | None) -> str:
     """
     Render a BigQuery PARTITION BY clause from dbt-style partition_by config.
 

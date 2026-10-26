@@ -193,6 +193,7 @@ def make_config_callback(config_key: str | tuple[str, ...], *, then=None):
         found = next((key for key in keys if key in config), None)
         if found is not None:
             config_val = config[found]
+            result: Any
             if param.multiple and isinstance(config_val, list):
                 result = tuple(config_val)
             elif param.multiple and isinstance(config_val, str):
