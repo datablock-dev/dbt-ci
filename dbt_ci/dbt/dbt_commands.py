@@ -5,22 +5,11 @@ import logging
 from argparse import Namespace
 from typing import cast
 from dbt_ci.utilities.cache import CacheManager
-from dbt_ci.graph.dependency_graph import DbtGraph
-from dbt_ci.utilities.git import GitAdapter
-from dbt_ci.schema import RunnerConfig, StateChangeSummary
+from dbt_ci.schema import RunnerConfig
 from dbt_ci.runners import resolve_dbt_commands, run_dbt_command
 from dbt_ci.utilities.paths import get_manifest_file
-from dbt_ci.graph.graph_utils import (
-    get_deleted_nodes,
-    get_new_nodes,
-    get_nodes,
-    get_structured_modified_nodes,
-)
 
 logger = logging.getLogger(__name__)
-
-
-# "--target-path", getattr(self.args, "reference_path")
 
 
 class DbtCommands:
@@ -115,78 +104,3 @@ class DbtCommands:
         except Exception:
             logger.error("Error during target compilation", exc_info=True)
             sys.exit(1)
-
-    def get_state_modified(self) -> StateChangeSummary:
-        """Compile the DBT project and return a list of modified nodes compared to the reference state."""
-        try:
-            git = GitAdapter(self.args)
-            target_graph = DbtGraph(self.args)
-            reference_graph = DbtGraph(self.args, is_reference=True)
-
-            changed_files = git.get_changed_files()
-
-            # Reference target and vars go in first so resolve_dbt_commands does not add
-            # the current ones as well; dbt v2 rejects a flag given twice.
-            ls_command = ["ls", "--select", "state:modified", "--output", "name", "--quiet"]
-            if getattr(self.args, "reference_target", None):
-                ls_command.extend(["--target", getattr(self.args, "reference_target")])
-            if getattr(self.args, "reference_vars", None):
-                ls_command.extend(["--vars", getattr(self.args, "reference_vars")])
-            commands = resolve_dbt_commands(ls_command, self.args)
-
-            logger.debug(f"Running dbt ls command with arguments: {commands}")
-
-            ls_output = run_dbt_command(
-                command_args=commands, runner_config=cast(RunnerConfig, self.args.__dict__)
-            )
-
-            if ls_output is None:
-                logger.info("No modified nodes found during initialization. Exiting...")
-                self.cache.write_cache()
-                sys.exit(0)
-
-            modified_nodes = ls_output.stdout.splitlines()
-            target_graph_dict = target_graph.to_dict()
-            reference_graph_dict = reference_graph.to_dict()
-
-            new_node_ids = set(get_new_nodes(reference_graph_dict, target_graph_dict) or [])
-            deleted_node_ids = set(get_deleted_nodes(reference_graph_dict, target_graph_dict) or [])
-            truly_modified_nodes = [
-                n for n in modified_nodes if n not in new_node_ids and n not in deleted_node_ids
-            ]
-
-            # Compare against git diff to determine what has been modified vs what is new
-            if (
-                getattr(self.args, "comparison_strategy") in ("git", "hybrid")
-                and len(changed_files.keys()) > 0
-            ):
-                temp_modified_nodes = get_nodes(
-                    dependency_graph=target_graph_dict, node_ids=truly_modified_nodes
-                )
-
-                # We now reference and check against git
-                complete_modified_nodes = set()
-                for node_id, node_info in temp_modified_nodes.items():
-                    file_path = node_info["original_file_path"]
-                    if file_path in changed_files["modified"]:
-                        complete_modified_nodes.add(node_id)
-
-                truly_modified_nodes = list(complete_modified_nodes)
-
-            state_change_summary: StateChangeSummary = {
-                "modified_nodes": get_structured_modified_nodes(
-                    get_nodes(dependency_graph=target_graph_dict, node_ids=truly_modified_nodes)
-                ),
-                "deleted_nodes": get_structured_modified_nodes(
-                    get_nodes(
-                        dependency_graph=reference_graph_dict, node_ids=list(deleted_node_ids)
-                    )
-                ),
-                "new_nodes": get_structured_modified_nodes(
-                    get_nodes(dependency_graph=target_graph_dict, node_ids=list(new_node_ids))
-                ),
-            }
-
-            return state_change_summary
-        except Exception as e:
-            raise Exception(f"Error generating state change summary: {str(e)}")
