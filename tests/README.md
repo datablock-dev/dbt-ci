@@ -53,6 +53,11 @@ python -m venv /tmp/dbt-v2 && /tmp/dbt-v2/bin/pip install "dbt==2.0.9"
 DBT_CI_E2E_DBT_BINARY=/tmp/dbt-v2/bin/dbt pytest tests/e2e/test_dbt_versions.py
 ```
 
+`test_seed_only_change.py` runs `init`, `ephemeral create` and `run` for a PR that only adds
+a seed and tests on it. That change gives `ephemeral` nothing to clone, so it must skip
+`dbt clone`, and `run` must still seed and test the seed. It is skipped under the same
+conditions.
+
 **Example structure:**
 ```
 tests/e2e/
