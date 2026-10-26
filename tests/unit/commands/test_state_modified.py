@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from dbt_ci.commands.init.state_modified import StateModified
+from dbt_ci.errors import ConfigurationError
 
 
 def _args(**overrides) -> Namespace:
@@ -87,11 +88,11 @@ class TestGetStateModified:
 
         mock_method.assert_called_once()
 
-    def test_invalid_strategy_exits(self):
+    def test_invalid_strategy_raises(self):
         """An unrecognised strategy is a configuration error."""
         state = StateModified(_args(comparison_strategy="magic"))
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(ConfigurationError, match="magic"):
             state.get_state_modified()
 
 
@@ -112,7 +113,6 @@ class TestCommonStateChangeCommand:
         state = StateModified(args)
 
         with (
-            patch("dbt_ci.commands.init.state_modified.CacheManager"),
             patch("dbt_ci.commands.init.state_modified.run_dbt_command") as mock_run,
             patch.object(StateModified, "target_graph", {"model": {}}),
             patch.object(StateModified, "reference_graph", {"model": {}}),
@@ -125,6 +125,21 @@ class TestCommonStateChangeCommand:
         assert commands[commands.index("--target") + 1] == expected_target
         assert commands.count("--vars") == 1
         assert commands[commands.index("--vars") + 1] == expected_vars
+
+    def test_dry_run_reports_no_dbt_changes(self):
+        """A dry run skips dbt ls, so dbt contributes no changes instead of ending the process."""
+        state = StateModified(_args())
+
+        with (
+            patch("dbt_ci.commands.init.state_modified.run_dbt_command", return_value=None),
+            patch.object(StateModified, "target_graph", {"model": {}}),
+            patch.object(StateModified, "reference_graph", {"model": {}}),
+        ):
+            assert state.common_state_change() == {
+                "new_node_ids": set(),
+                "deleted_node_ids": set(),
+                "modified_node_ids": set(),
+            }
 
 
 # ---------------------------------------------------------------------------

@@ -3,11 +3,10 @@ This module implements the bash runner for executing dbt commands using a custom
 """
 
 import os
-import sys
 import shlex
 import logging
-import subprocess
 from subprocess import CompletedProcess
+from dbt_ci.runners.common import run_dbt_process
 from dbt_ci.utilities.logging import setup_logging
 from dbt_ci.schema import RunnerConfig
 
@@ -36,35 +35,15 @@ def bash_runner(commands: list[str], runner_config: RunnerConfig) -> CompletedPr
         # A plain shell (the default /bin/bash) cannot take dbt arguments itself, so it
         # runs the entrypoint instead. A wrapper script receives the dbt arguments directly.
         entrypoint = runner_config.get("entrypoint") or "dbt"
-        commands = [shell_path, "-c", shlex.join([entrypoint, *commands])]
+        argv = [shell_path, "-c", shlex.join([entrypoint, *commands])]
     else:
-        commands = [shell_path] + commands
+        argv = [shell_path, *commands]
 
     if not runner_config.get("quiet", False):
-        logger.debug(f"Running command: {' '.join(commands)}")
+        logger.debug(f"Running command: {' '.join(argv)}")
 
     if runner_config.get("dry_run", False):
         logger.info("DRY RUN: Command would be executed")
         return None
 
-    try:
-        result = subprocess.run(args=commands, check=True, capture_output=True, text=True)
-
-        if not runner_config.get("quiet", False):
-            print(result.stdout)
-
-        # dbt writes warnings and its own log lines to stderr on successful runs, so
-        # only the exit code (enforced by check=True above) decides success/failure.
-        if result.stderr:
-            logger.warning(result.stderr)
-
-        return result
-    except subprocess.CalledProcessError as e:
-        if e.stderr:
-            logger.error(e.stderr)
-        if e.stdout:
-            logger.error(e.stdout)
-        sys.exit(1)
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        sys.exit(1)
+    return run_dbt_process(argv, commands, quiet=runner_config.get("quiet", False))

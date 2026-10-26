@@ -96,23 +96,15 @@ def get_nodes(
     if node_ids is None or len(node_ids) == 0:
         return None
 
-    try:
-        nodes = {}
-        for node_id in node_ids:
-            node = get_node(dependency_graph, node_id)
-            if node is None:
-                continue
-            if exclude_node_ids and node_id in exclude_node_ids:
-                continue
-            nodes[node_id] = node
-        if len(nodes) == 0:
-            return None
-        return nodes
-    except TypeError:
-        return None
-    except Exception as e:
-        print(f"Error retrieving nodes: {e}")
-        return None
+    nodes = {}
+    for node_id in node_ids:
+        node = get_node(dependency_graph, node_id)
+        if node is None:
+            continue
+        if exclude_node_ids and node_id in exclude_node_ids:
+            continue
+        nodes[node_id] = node
+    return nodes or None
 
 
 def get_node_ids_from_structured_nodes(

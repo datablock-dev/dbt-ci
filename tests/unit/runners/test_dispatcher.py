@@ -226,12 +226,12 @@ class TestBashRunner:
         """A plain shell runs the dbt entrypoint; a wrapper script gets the dbt arguments."""
         from dbt_ci.runners.bash import bash_runner
 
-        with patch("dbt_ci.runners.bash.subprocess.run") as mock_run:
+        with patch("dbt_ci.runners.common.subprocess.run") as mock_run:
             bash_runner(
                 ["ls", "--select", "tag:a b"],
                 {"shell_path": shell_path, "entrypoint": "dbt", "quiet": True},
             )
-        assert mock_run.call_args.kwargs["args"] == expected
+        assert mock_run.call_args.args[0] == expected
 
 
 class TestDryRunSkipsPinnedInstall:

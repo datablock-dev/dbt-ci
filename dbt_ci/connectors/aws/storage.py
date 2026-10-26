@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 from dbt_ci.schema import DBTManifest
 from dbt_ci.utilities.optional_imports import require
@@ -11,6 +12,8 @@ try:  # boto3 ships in the optional "aws" extra.
     import boto3
 except ImportError:  # pragma: no cover - exercised only without the extra installed
     boto3 = None
+
+logger = logging.getLogger(__name__)
 
 
 def aws_storage_client():
@@ -31,9 +34,9 @@ def aws_upload(uri: str, data: Any, content_type: str = "application/json") -> N
     try:
         client = aws_storage_client()
         client.put_object(Bucket=bucket_name, Key=key, Body=body, ContentType=content_type)
-        print(f"Successfully uploaded to {uri}")
+        logger.info(f"Successfully uploaded to {uri}")
     except Exception as e:
-        raise RuntimeError(f"Failed to upload to {uri}: {e}")
+        raise RuntimeError(f"Failed to upload to {uri}: {e}") from e
 
 
 def aws_download_json(uri: str) -> DBTManifest:
@@ -52,6 +55,6 @@ def aws_download_json(uri: str) -> DBTManifest:
         contents = response["Body"].read().decode("utf-8")
         return json.loads(contents)
     except json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse JSON from {uri}: {e}")
+        raise RuntimeError(f"Failed to parse JSON from {uri}: {e}") from e
     except Exception as e:
-        raise RuntimeError(f"Failed to download JSON from {uri}: {e}")
+        raise RuntimeError(f"Failed to download JSON from {uri}: {e}") from e

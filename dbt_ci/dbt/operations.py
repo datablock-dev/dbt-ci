@@ -121,10 +121,7 @@ def run_operation(args: Namespace, macro: str, macro_args: dict) -> None:
     write_operations_project(args)
     command = operation_command(args, macro, macro_args)
     logger.debug(f"Running dbt run-operation with arguments: {command}")
-    result = run_dbt_command(command_args=command, runner_config=cast(RunnerConfig, args.__dict__))
-    # The in-process runner reports a failed macro through the return code
-    if result is not None and result.returncode != 0:
-        raise RuntimeError(f"dbt run-operation {macro} failed with exit code {result.returncode}")
+    run_dbt_command(command_args=command, runner_config=cast(RunnerConfig, args.__dict__))
 
 
 def drop_relations(args: Namespace, relations: list[RelationRef]) -> None:

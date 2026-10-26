@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 from dbt_ci.schema import DBTManifest
 from dbt_ci.utilities.optional_imports import require
@@ -9,6 +10,8 @@ try:  # google-cloud-storage ships in the optional "gcp" extra.
     from google.cloud import storage
 except ImportError:  # pragma: no cover - exercised only without the extra installed
     storage = None
+
+logger = logging.getLogger(__name__)
 
 
 def google_storage_client():
@@ -31,9 +34,9 @@ def google_upload(uri: str, data: Any, content_type: str = "application/json") -
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(blob_name)
         blob.upload_from_string(body, content_type=content_type)
-        print(f"Successfully uploaded to {uri}")
+        logger.info(f"Successfully uploaded to {uri}")
     except Exception as e:
-        raise RuntimeError(f"Failed to upload to {uri}: {e}")
+        raise RuntimeError(f"Failed to upload to {uri}: {e}") from e
 
 
 def google_download_json(uri: str) -> DBTManifest:
@@ -67,6 +70,6 @@ def google_download_json(uri: str) -> DBTManifest:
         contents = blob.download_as_bytes()
         return json.loads(contents.decode("utf-8"))
     except json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse JSON from {uri}: {e}")
+        raise RuntimeError(f"Failed to parse JSON from {uri}: {e}") from e
     except Exception as e:
-        raise RuntimeError(f"Failed to download blob from {uri}: {e}")
+        raise RuntimeError(f"Failed to download blob from {uri}: {e}") from e

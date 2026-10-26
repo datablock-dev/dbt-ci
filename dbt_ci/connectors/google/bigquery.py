@@ -84,7 +84,7 @@ def bigquery_delete_datasets(
         lambda dataset_id=dataset_id: delete_dataset(client, dataset_id)
         for dataset_id in datasets_to_delete
     ]
-    run_multithreaded(func_list=func_list, threads=threads, exit_on_exception=True)
+    run_multithreaded(func_list=func_list, threads=threads)
 
 
 def delete_dataset(client: bigquery.Client, dataset_id: str) -> None:
@@ -93,30 +93,26 @@ def delete_dataset(client: bigquery.Client, dataset_id: str) -> None:
         client.delete_dataset(dataset_id, delete_contents=True, not_found_ok=True)
         logger.info(f"Dataset '{dataset_id}' deleted successfully.")
     except Exception as e:
-        raise RuntimeError(f"Failed to delete dataset '{dataset_id}': {e}")
+        raise RuntimeError(f"Failed to delete dataset '{dataset_id}': {e}") from e
 
 
 def bigquery_delete_strategy(delete_map: dict[str, DeleteMapNode], args: Namespace) -> None:
     """Strategy for handling deletes towards BigQuery."""
     # For BigQuery, we will delete tables directly using the BigQuery client.
     # This function can be expanded to handle any pre-deletion logic if needed.
-    try:
-        client = bigquery_client(args)
-        profile = get_profile(args)
-        threads: int = cast(int, profile.get("threads", 5) if profile else 5)
-        tables_to_delete: set[str] = set()
+    client = bigquery_client(args)
+    threads: int = cast(int, get_profile(args).get("threads", 5))
+    tables_to_delete: set[str] = set()
 
-        for node_metadata in delete_map.values():
-            table_id = node_metadata.get("table_id")
-            if table_id:
-                tables_to_delete.add(table_id)
-                tables_to_delete.add(
-                    f"{table_id}__dbt_tmp"
-                )  # Also delete the dbt temporary table if it exists
+    for node_metadata in delete_map.values():
+        table_id = node_metadata.get("table_id")
+        if table_id:
+            tables_to_delete.add(table_id)
+            tables_to_delete.add(
+                f"{table_id}__dbt_tmp"
+            )  # Also delete the dbt temporary table if it exists
 
-        bigquery_delete_tables(client, tables_to_delete, getattr(args, "dry_run", False), threads)
-    except Exception as e:
-        raise RuntimeError(f"Error in BigQuery delete strategy: {e}")
+    bigquery_delete_tables(client, tables_to_delete, getattr(args, "dry_run", False), threads)
 
 
 def bigquery_delete_tables(
@@ -145,82 +141,70 @@ def bigquery_delete_tables(
         return
 
     func_list = [lambda table_id=table_id: _delete_table(table_id) for table_id in tables_to_delete]
-    run_multithreaded(func_list=func_list, threads=threads, exit_on_exception=True)
+    run_multithreaded(func_list=func_list, threads=threads)
 
 
 def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) -> None:
     """Strategy for handling partitioning migrations towards BigQuery."""
-    try:
-        client = bigquery_client(args)
-        profile = get_profile(args)
-        if profile is None:
-            raise ValueError(
-                "No profile found for the specified target. Please check your profiles.yml configuration."
+    client = bigquery_client(args)
+    threads: int = cast(int, get_profile(args).get("threads", 5))
+    nodes = migration_map["nodes"]
+
+    def migrate_table(node_data: dict) -> None:
+        """Migrate a single table's partitioning by recreating it. Steps must run sequentially."""
+        table_id: str = node_data["table_id"]
+        table_name: str = table_id.split(".")[
+            -1
+        ]  # RENAME TO only accepts a bare table name, not a fully-qualified path
+        temp_table_id: str = f"{table_id}_temp_new_partition"
+        backup_table_name: str = f"{table_name}__dbt_ci_backup"
+        backup_table_id: str = f"{table_id}__dbt_ci_backup"
+        dbt_tmp_table_id: str = f"{table_id}__dbt_tmp"
+        table_clauses: str = " ".join(
+            filter(
+                None,
+                [
+                    render_bigquery_partition_clause(node_data["new_partitioning"]),
+                    render_bigquery_cluster_clause(node_data.get("cluster_by")),
+                    render_bigquery_options_clause(node_data),
+                ],
             )
-
-        threads: int = cast(int, profile.get("threads", 5))
-        nodes = migration_map["nodes"]
-
-        def migrate_table(node_data: dict) -> None:
-            """Migrate a single table's partitioning by recreating it. Steps must run sequentially."""
-            table_id: str = node_data["table_id"]
-            table_name: str = table_id.split(".")[
-                -1
-            ]  # RENAME TO only accepts a bare table name, not a fully-qualified path
-            temp_table_id: str = f"{table_id}_temp_new_partition"
-            backup_table_name: str = f"{table_name}__dbt_ci_backup"
-            backup_table_id: str = f"{table_id}__dbt_ci_backup"
-            dbt_tmp_table_id: str = f"{table_id}__dbt_tmp"
-            table_clauses: str = " ".join(
-                filter(
-                    None,
-                    [
-                        render_bigquery_partition_clause(node_data["new_partitioning"]),
-                        render_bigquery_cluster_clause(node_data.get("cluster_by")),
-                        render_bigquery_options_clause(node_data),
-                    ],
-                )
-            )
-            # Step 1: Copy data into a new temp table with the new partitioning spec (and the
-            # model's clustering and partition options, which a plain CTAS would drop).
-            # Using a new table name avoids the "cannot replace with different partitioning spec" error.
-            client.query(
-                f"CREATE OR REPLACE TABLE `{temp_table_id}` {table_clauses} AS SELECT * FROM `{table_id}`"
-            ).result()
-            # Step 2: Move the original table aside instead of dropping it, so a failure in the
-            # swap below never leaves production without its data.
-            # BigQuery RENAME TO only accepts a bare table name (no project/dataset prefix).
-            client.query(f"ALTER TABLE `{table_id}` RENAME TO `{backup_table_name}`").result()
-            try:
-                # Step 3: Rename the temp table to the original table name.
-                client.query(f"ALTER TABLE `{temp_table_id}` RENAME TO `{table_name}`").result()
-            except Exception as e:
-                raise RuntimeError(
-                    f"Renaming the migrated table into place failed for '{table_id}'. The original "
-                    f"data is preserved in '{backup_table_id}' and the migrated copy in '{temp_table_id}'. "
-                    f"Original error: {e}"
-                ) from e
-            # Step 4: Only now drop the old table and any leftover dbt tmp table.
-            client.query(f"DROP TABLE IF EXISTS `{backup_table_id}`").result()
-            client.query(f"DROP TABLE IF EXISTS `{dbt_tmp_table_id}`").result()
-            logger.info(f"Migrated partitioning for table '{table_id}'")
-
-        if args.dry_run:
-            logger.info("Dry run mode enabled - no changes will be applied.")
-            return
-
-        # Each table's steps must run sequentially, but different tables can run in parallel.
-        run_multithreaded(
-            func_list=[
-                lambda node_data=node_data: migrate_table(node_data) for node_data in nodes.values()
-            ],
-            threads=threads,
-            exit_on_exception=True,
         )
-    except Exception as e:
-        raise RuntimeError(
-            f"An error occurred while initializing BigQuery client or processing migration map: {e}"
-        )
+        # Step 1: Copy data into a new temp table with the new partitioning spec (and the
+        # model's clustering and partition options, which a plain CTAS would drop).
+        # Using a new table name avoids the "cannot replace with different partitioning spec" error.
+        client.query(
+            f"CREATE OR REPLACE TABLE `{temp_table_id}` {table_clauses} AS SELECT * FROM `{table_id}`"
+        ).result()
+        # Step 2: Move the original table aside instead of dropping it, so a failure in the
+        # swap below never leaves production without its data.
+        # BigQuery RENAME TO only accepts a bare table name (no project/dataset prefix).
+        client.query(f"ALTER TABLE `{table_id}` RENAME TO `{backup_table_name}`").result()
+        try:
+            # Step 3: Rename the temp table to the original table name.
+            client.query(f"ALTER TABLE `{temp_table_id}` RENAME TO `{table_name}`").result()
+        except Exception as e:
+            raise RuntimeError(
+                f"Renaming the migrated table into place failed for '{table_id}'. The original "
+                f"data is preserved in '{backup_table_id}' and the migrated copy in '{temp_table_id}'. "
+                f"Original error: {e}"
+            ) from e
+        # Step 4: Only now drop the old table and any leftover dbt tmp table.
+        client.query(f"DROP TABLE IF EXISTS `{backup_table_id}`").result()
+        client.query(f"DROP TABLE IF EXISTS `{dbt_tmp_table_id}`").result()
+        logger.info(f"Migrated partitioning for table '{table_id}'")
+
+    if args.dry_run:
+        logger.info("Dry run mode enabled - no changes will be applied.")
+        return
+
+    # Each table's steps must run sequentially, but different tables can run in parallel.
+    run_multithreaded(
+        func_list=[
+            lambda node_data=node_data: migrate_table(node_data) for node_data in nodes.values()
+        ],
+        threads=threads,
+    )
 
 
 def render_bigquery_cluster_clause(cluster_by: str | list[str] | None) -> str:

@@ -109,7 +109,7 @@ class TestMigrationStrategy:
 
         client.query.side_effect = query
 
-        def run_all(func_list, threads, exit_on_exception):
+        def run_all(func_list, threads):
             """Run the migration functions sequentially, re-raising errors."""
             for func in func_list:
                 func()

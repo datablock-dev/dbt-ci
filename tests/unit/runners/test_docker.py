@@ -11,6 +11,7 @@ from dbt_ci.runners.docker import (
     get_docker_volumes,
     parse_docker_args,
 )
+from dbt_ci.errors import DbtCommandError
 from dbt_ci.utilities.paths import get_absolute_path
 
 
@@ -317,7 +318,7 @@ class TestDockerRunnerOptions:
         mock_client.containers.run.return_value = mock_container
 
         with patch("dbt_ci.runners.docker.docker.client.from_env", return_value=mock_client):
-            with pytest.raises(SystemExit):
+            with pytest.raises(DbtCommandError, match="dbt debug failed with exit code 1"):
                 docker_runner(["dbt", "debug"], mock_runner_config())
 
         mock_container.remove.assert_called_once_with(force=True)

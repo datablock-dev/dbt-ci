@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from dbt_ci.connectors import get_connector
+from dbt_ci.errors import DbtCommandError
 from dbt_ci.dbt import operations
 from dbt_ci.dbt.operations import (
     drop_relations,
@@ -99,8 +100,9 @@ def test_drop_relations_runs_the_macro_with_its_arguments(project):
 
 def test_failed_operation_raises(project):
     """A failing macro fails the command instead of passing silently."""
-    with patch.object(operations, "run_dbt_command", return_value=CompletedProcess([], 1)):
-        with pytest.raises(RuntimeError, match="dbt_ci_drop_schemas failed"):
+    failure = DbtCommandError(["run-operation", "dbt_ci_drop_schemas"], returncode=1)
+    with patch.object(operations, "run_dbt_command", side_effect=failure):
+        with pytest.raises(DbtCommandError, match="dbt run-operation failed"):
             drop_schemas(args_for(project), [{"database": None, "schema": "ci"}])
 
 

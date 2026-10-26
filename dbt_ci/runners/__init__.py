@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from argparse import Namespace
 from typing import Callable, cast
+from dbt_ci.errors import ConfigurationError
 from dbt_ci.schema import RunnerConfig, Runners
 from dbt_ci.dbt.versions import get_dbt_distribution, is_dbt_v2
 from dbt_ci.runners.dbt import dbt_runner
@@ -41,6 +42,10 @@ def run_dbt_command(
     Returns:
         CompletedProcess from subprocess, or None if dry_run
 
+    Raises:
+        DbtCommandError: dbt failed. Every runner raises it, so callers never need to
+            inspect the return code.
+
     Example:
         config = {
             'runner': 'local',
@@ -52,7 +57,7 @@ def run_dbt_command(
     """
     runner = runner_config["runner"]
     if runner not in RUNNERS:
-        raise ValueError(f"Unsupported runner: {runner}")
+        raise ConfigurationError(f"Unsupported runner: {runner}")
 
     # A dry run only prints the command, so it must not install a pinned dbt version
     dbt_binary = (
@@ -261,6 +266,6 @@ def resolve_dbt_commands(
             commands.append("--no-defer")
 
     if runner is None:
-        raise ValueError("Runner not specified")
+        raise ConfigurationError("Runner not specified")
 
     return commands

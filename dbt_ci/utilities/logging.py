@@ -6,6 +6,7 @@ from argparse import Namespace
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+from dbt_ci.errors import DbtCiError
 from dbt_ci.schema import LoggingLevel
 from dbt_ci.utilities.paths import get_cache_dir
 
@@ -108,11 +109,12 @@ def print_exception(
     """Print an exception with the file and line where it was raised.
 
     The innermost traceback frame is reported, since the outermost one only points at
-    the call site inside the ``try`` block. The full traceback is logged at debug level.
+    the call site inside the ``try`` block. A DbtCiError already explains itself, so its
+    location is left out. The full traceback is logged at debug level.
     """
     logger.error(f"{base_message}: {e}")
     frames = traceback.extract_tb(e.__traceback__)
-    if frames:
+    if frames and not isinstance(e, DbtCiError):
         logger.error(f"File: {frames[-1].filename}")
         logger.error(f"Line: {frames[-1].lineno}")
     logger.debug("".join(traceback.format_exception(e)))

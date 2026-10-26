@@ -1,8 +1,8 @@
 import json
-import sys
 import logging
 from pathlib import Path
 from argparse import Namespace
+from dbt_ci.errors import ConfigurationError
 from dbt_ci.schema import StorageConnectorConfig
 
 logger = logging.getLogger(__name__)
@@ -22,15 +22,14 @@ def resolve_manifest_file_from_storage(
         f"Using storage connector '{storage_connector.get('name', 'Unknown')}' for state management with URI: {state_uri}"
     )
     reference_manifest = storage_connector["download"](state_uri)
-    dbtstate_dir: Path | None = None
     dbt_project_dir = getattr(args, "dbt_project_dir", None)
     reference_state_path = getattr(args, "reference_state", None)
 
     if dbt_project_dir is None:
-        logger.error(
-            "No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument."
+        raise ConfigurationError(
+            "No dbt_project_dir specified. Please provide the path to your DBT project using "
+            "the --dbt-project-dir argument."
         )
-        sys.exit(1)
     # Write and download manifest to path
     # When using Docker, always use the local dbt_project_dir/.dbtstate path on host
     if getattr(args, "runner", None) == "docker" or reference_state_path is None:
@@ -41,12 +40,6 @@ def resolve_manifest_file_from_storage(
             )
     else:
         dbtstate_dir = cwd / reference_state_path
-
-    if dbtstate_dir is None:
-        logger.error(
-            "No valid path found for downloading manifest file. Please specify a valid --state path or ensure your dbt_project_dir is correct."
-        )
-        sys.exit(1)
 
     Path(dbtstate_dir).mkdir(parents=True, exist_ok=True)
     manifest_path = dbtstate_dir / "manifest.json"

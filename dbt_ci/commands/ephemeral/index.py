@@ -79,6 +79,8 @@ def ephemeral(args: Namespace):
         }
 
         cloned_nodes = clone_command(changed_nodes_dict, args)
+        if cloned_nodes is None:
+            sys.exit(0)
 
         # Store the ephemeral map so `finalize --clean-ephemeral` knows which datasets to drop
         ephemeral_map = build_ephemeral_map(args, cloned_nodes)
@@ -92,7 +94,7 @@ def ephemeral(args: Namespace):
     except Exception as e:
         cache = CacheManager(args)
         cache.update_report("ephemeral", "failed", comment=str(e))
-        print_exception(e)
+        print_exception(e, "Ephemeral environment failed")
         sys.exit(1)
 
 

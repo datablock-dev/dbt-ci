@@ -1,6 +1,5 @@
 """Run command for dbt-ci"""
 
-import sys
 import logging
 from argparse import Namespace
 from itertools import chain
@@ -37,66 +36,57 @@ def run_nodes(
     changed_nodes: list[str],
     changed_nodes_dict: dict[str, list[str]],
 ) -> None:
-    try:
-        mode: RunModes = getattr(args, "nodes", "all")
-        # Snapshots run before models so that models built on a changed snapshot read
-        # its new state, and tests run last once everything they check exists.
-        run_order: list[str] = ["seed", "snapshot", "run", "test"]
-        if mode != "all" and mode in MODE_MAPPING:
-            run_order = cast(list[str], [MODE_MAPPING[mode]])
+    """Build the selected seeds, snapshots, models and tests in order, stopping at the first failure."""
+    mode: RunModes = getattr(args, "nodes", "all")
+    # Snapshots run before models so that models built on a changed snapshot read
+    # its new state, and tests run last once everything they check exists.
+    run_order: list[str] = ["seed", "snapshot", "run", "test"]
+    if mode != "all" and mode in MODE_MAPPING:
+        run_order = cast(list[str], [MODE_MAPPING[mode]])
 
-        command_fn_map = {
-            "seed": seeds,
-            "run": models,
-            "test": tests,
-            "snapshot": snapshots,
-        }
+    command_fn_map = {
+        "seed": seeds,
+        "run": models,
+        "test": tests,
+        "snapshot": snapshots,
+    }
 
-        for command in run_order:
-            fn = command_fn_map.get(command)
-            if fn is None:
-                continue
-            nodes_to_run = fn(
-                target_graph=target_graph,
-                changed_nodes_dict=changed_nodes_dict,
-                changed_nodes=changed_nodes,
-                args=args,
-            )
+    for command in run_order:
+        fn = command_fn_map.get(command)
+        if fn is None:
+            continue
+        nodes_to_run = fn(
+            target_graph=target_graph,
+            changed_nodes_dict=changed_nodes_dict,
+            changed_nodes=changed_nodes,
+            args=args,
+        )
 
-            if nodes_to_run is None or len(nodes_to_run) == 0:
-                logger.info(f"No nodes to run for {command}, skipping...")
-                continue
+        if nodes_to_run is None or len(nodes_to_run) == 0:
+            logger.info(f"No nodes to run for {command}, skipping...")
+            continue
 
-            # Print information
-            logger.info(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
-            log_nodes_to_run(nodes_to_run, changed_nodes_dict, target_graph)
+        # Print information
+        logger.info(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
+        log_nodes_to_run(nodes_to_run, changed_nodes_dict, target_graph)
 
-            if getattr(args, "dry_run", False):
-                logger.info("DRY RUN: Command would be executed")
-                continue
+        if getattr(args, "dry_run", False):
+            logger.info("DRY RUN: Command would be executed")
+            continue
 
-            selectors = get_selectors(target_graph.to_dict(), nodes_to_run)
-            if not selectors:
-                logger.info(f"No resolvable selectors for {command}, skipping...")
-                continue
+        selectors = get_selectors(target_graph.to_dict(), nodes_to_run)
+        if not selectors:
+            logger.info(f"No resolvable selectors for {command}, skipping...")
+            continue
 
-            result = run_dbt_command(
-                command_args=resolve_dbt_commands(
-                    [cast(str, command), "--select", " ".join(selectors)], args
-                ),
-                runner_config=cast(RunnerConfig, args.__dict__),
-            )
-
-            if result and result.returncode == 0:
-                logger.info(
-                    f"\n✅ Successfully ran {len(nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)"
-                )
-            else:
-                logger.error("\n❌ Run failed")
-                sys.exit(1)
-    except Exception as e:
-        logger.error(f"\n❌ Error running dbt command: {e}")
-        sys.exit(1)
+        # The runner raises DbtCommandError if dbt fails, which fails the run command
+        run_dbt_command(
+            command_args=resolve_dbt_commands(
+                [cast(str, command), "--select", " ".join(selectors)], args
+            ),
+            runner_config=cast(RunnerConfig, args.__dict__),
+        )
+        logger.info(f"\n✅ Successfully ran {len(nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
 
 
 def get_downstream_depth(args: Namespace) -> int | None:

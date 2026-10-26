@@ -82,5 +82,5 @@ def run(args: Namespace):
     except Exception as e:
         cache = CacheManager(args)
         cache.update_report("run", "failed", comment=str(e))
-        print_exception(e)
+        print_exception(e, "❌ Run failed")
         sys.exit(1)

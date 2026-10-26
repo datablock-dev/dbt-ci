@@ -1,8 +1,8 @@
 """Module for parsing dbt manifest files and generating dependency graphs."""
 
-import sys
 import logging
 from typing import Literal, cast
+from dbt_ci.errors import ManifestError
 from dbt_ci.schema import (
     MANIFEST_KEY_MAPPING,
     DBTManifest,
@@ -97,10 +97,11 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
         if node_type not in dependency_graph.keys():
             continue
         if manifest_key is None:
-            print(f"Unknown node type '{node_type}' found in manifest file. Exiting.")
-            sys.exit(1)
+            raise ManifestError(f"Unknown node type '{node_type}' found in the manifest.")
         if full_item is None:
-            print(f"Item '{key}' not found in manifest file under '{manifest_key}'. Skipping.")
+            logger.debug(
+                f"Item '{key}' not found in manifest file under '{manifest_key}'. Skipping."
+            )
             continue
 
         name = full_item.get("name", None)

@@ -5,6 +5,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from argparse import Namespace
 from dbt_ci.commands.ephemeral.index import ephemeral
+from dbt_ci.errors import DbtCommandError
 
 
 class TestEphemeralCommand:
@@ -217,11 +218,11 @@ SEED_TESTS = ["test.pkg.not_null_items_id", "test.pkg.unique_items_id"]
 class TestCloneCommand:
     """Test failure handling and the returned clone selection of clone_command."""
 
-    def run_clone(self, returncode: int):
-        """Invoke clone_command for one changed model with a stubbed dbt result."""
+    def run_clone(self, run_error: Exception | None = None):
+        """Invoke clone_command for one changed model, with dbt clone failing if run_error is set."""
         from dbt_ci.commands.ephemeral.clone import clone_command
 
-        result = MagicMock(returncode=returncode)
+        run = MagicMock(return_value=MagicMock(returncode=0), side_effect=run_error)
         with (
             patch("dbt_ci.commands.ephemeral.clone.get_profile", return_value={"threads": 1}),
             patch("dbt_ci.commands.ephemeral.clone.DbtGraph"),
@@ -236,22 +237,21 @@ class TestCloneCommand:
             ),
             patch("dbt_ci.commands.ephemeral.clone.get_selectors", return_value=["pkg.parent"]),
             patch("dbt_ci.commands.ephemeral.clone.resolve_dbt_commands", return_value=["clone"]),
-            patch("dbt_ci.commands.ephemeral.clone.run_dbt_command", return_value=result),
+            patch("dbt_ci.commands.ephemeral.clone.run_dbt_command", run),
         ):
             return clone_command(
                 {"modified_nodes": ["model.pkg.parent"], "new_nodes": [], "deleted_nodes": []},
                 Namespace(dry_run=False),
             )
 
-    def test_failed_clone_exits_non_zero(self):
-        """The in-process runner reports failures via returncode, which must fail the step."""
-        with pytest.raises(SystemExit) as exc_info:
-            self.run_clone(returncode=1)
-        assert exc_info.value.code == 1
+    def test_failed_clone_raises(self):
+        """A failed dbt clone propagates, so the ephemeral command fails."""
+        with pytest.raises(DbtCommandError, match="dbt clone failed with exit code 1"):
+            self.run_clone(run_error=DbtCommandError(["clone"], returncode=1))
 
     def test_successful_clone_returns_cloned_nodes(self):
         """The changed nodes and their descendants are reported as cloned."""
-        assert set(self.run_clone(returncode=0)) == {"model.pkg.parent", "model.pkg.child"}
+        assert set(self.run_clone()) == {"model.pkg.parent", "model.pkg.child"}
 
     def run_clone_on_graph(self, graph, modified_nodes, new_nodes):
         """Invoke clone_command against a real graph, keeping the mocked dbt calls on self."""
@@ -346,10 +346,10 @@ class TestCloneCommand:
             },
         }
 
-        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exc_info:
-            self.run_clone_on_graph(graph, modified_nodes, new_nodes)
+        with caplog.at_level(logging.INFO):
+            cloned_nodes = self.run_clone_on_graph(graph, modified_nodes, new_nodes)
 
-        assert exc_info.value.code == 0
+        assert cloned_nodes is None
         self.mock_resolve.assert_not_called()
         self.mock_run.assert_not_called()
         assert "No models or snapshots to clone" in caplog.text

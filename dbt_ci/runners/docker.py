@@ -9,6 +9,7 @@ import sys
 from pathlib import PurePath
 from subprocess import CompletedProcess
 from typing import TYPE_CHECKING, Any, cast
+from dbt_ci.errors import ConfigurationError, DbtCiError, DbtCommandError
 from dbt_ci.schema import RunnerConfig
 from dbt_ci.utilities.logging import redact
 from dbt_ci.utilities.optional_imports import require
@@ -50,11 +51,12 @@ def docker_runner(commands: list[str], runner_config: RunnerConfig) -> Completed
     # which cannot be resolved when the SDK is missing.
     require(docker, "docker", "The Docker runner")
 
+    image = runner_config.get("docker_image", "ghcr.io/dbt-labs/dbt-core:latest")
     container: Container | None = None
     try:
         client = docker.client.from_env()
         run_kwargs: dict[str, Any] = {
-            "image": runner_config.get("docker_image", "ghcr.io/dbt-labs/dbt-core:latest"),
+            "image": image,
             "command": commands,
             "detach": True,
             "stdout": True,
@@ -99,22 +101,18 @@ def docker_runner(commands: list[str], runner_config: RunnerConfig) -> Completed
         returncode = exit_status.get("StatusCode", 0)
         stdout = "".join(output_logs)
         if returncode != 0:
-            print(stdout)
-            sys.exit(1)
+            # The container's output was already streamed above, so it isn't repeated
+            raise DbtCommandError(commands, returncode=returncode, stdout=stdout)
 
         return CompletedProcess(args=commands, returncode=returncode, stdout=stdout, stderr="")
     except errors.ContainerError as e:
-        print(f"Container error: {e}")
-        sys.exit(1)
+        raise DbtCommandError(commands, returncode=e.exit_status, detail=str(e)) from e
     except errors.ImageNotFound as e:
-        print(f"Image not found: {e}")
-        sys.exit(1)
+        raise ConfigurationError(
+            f"Docker image '{image}' was not found: {e}. Check --docker-image."
+        ) from e
     except errors.APIError as e:
-        print(f"Docker API error: {e}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        sys.exit(1)
+        raise DbtCiError(f"Docker API error: {e}") from e
     finally:
         remove_container(container)
 
