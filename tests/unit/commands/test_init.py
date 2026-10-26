@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from argparse import Namespace
 from dbt_ci.commands.init.index import (
     init as index,
+    init_summary,
 )
 
 
@@ -323,3 +324,24 @@ class TestReferenceManifestCaching:
         index(self._args(tmp_path))
 
         mock_state_modified.return_value.get_state_modified.assert_called_once()
+
+
+class TestInitSummarySlack:
+    """init posts its change summary to Slack, except on a dry run."""
+
+    SUMMARY = {"modified_nodes": None, "new_nodes": None, "deleted_nodes": None}
+
+    def post(self, **args) -> MagicMock:
+        """Run init_summary with a Slack webhook and return the mocked client class."""
+        namespace = Namespace(slack_webhook="https://hooks.example/x", **args)
+        with patch("dbt_ci.notifications.slack.SlackClient") as client:
+            init_summary(self.SUMMARY, namespace)
+        return client
+
+    def test_posts_the_summary(self):
+        """A configured webhook receives the summary."""
+        self.post(dry_run=False).return_value.send_blocks.assert_called_once()
+
+    def test_dry_run_posts_nothing(self):
+        """A dry run has no side effects, notifications included."""
+        self.post(dry_run=True).assert_not_called()

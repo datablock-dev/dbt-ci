@@ -153,6 +153,9 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
     slack_webhook = getattr(args, "slack_webhook", None)
     if not slack_webhook or (getattr(args, "notifications_provider", None) or "slack") != "slack":
         return
+    if getattr(args, "dry_run", False):
+        logger.info("Dry run: not posting the summary to Slack.")
+        return
 
     try:
         from dbt_ci.notifications.slack import SlackClient
