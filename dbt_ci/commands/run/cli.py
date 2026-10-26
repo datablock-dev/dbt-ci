@@ -45,10 +45,15 @@ from dbt_ci.commands.run.index import run
 @click.option(
     "--filters",
     "-f",
+    envvar=["DBT_RUN_FILTERS"],
     type=click.Choice(["models", "seeds", "snapshots", "tests"], case_sensitive=False),
     multiple=True,
     default=None,
-    help="Extra filters to apply for tests, dbt-lineage run -m tests -f snapshots to run tests that has a snapshot dependency",
+    callback=make_config_callback("DBT_RUN_FILTERS"),
+    help=(
+        "Only run the tests that depend on one of these resource types. Repeatable, e.g. "
+        "'dbt-ci run --mode tests -f snapshots' runs the tests that read a snapshot."
+    ),
 )
 def run_cmd(**kwargs):
     """Run modified dbt models

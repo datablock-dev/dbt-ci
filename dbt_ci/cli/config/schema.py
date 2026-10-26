@@ -67,6 +67,10 @@ SCHEMA: dict[str, dict] = {
         "fields": {
             "nodes": {"type": "enum", "choices": ["all", "models", "seeds", "snapshots", "tests"]},
             "downstream-depth": {"aliases": ["downstream_depth"], "type": "int"},
+            "filters": {
+                "type": "list_of_enum",
+                "choices": ["models", "seeds", "snapshots", "tests"],
+            },
         },
     },
     "finalize": {

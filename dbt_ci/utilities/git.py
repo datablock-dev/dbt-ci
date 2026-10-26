@@ -27,10 +27,10 @@ class GitAdapter:
 
     def __init__(self, args: Namespace):
         self.args: Namespace = args
-        self.head_branch = self._resolve_head_branch()
+        self.base_branch = self._resolve_base_branch()
 
         subprocess.run(
-            ["git", "fetch", "origin", self.head_branch],
+            ["git", "fetch", "origin", self.base_branch],
             check=True,
             capture_output=False,
         )
@@ -46,7 +46,7 @@ class GitAdapter:
         branch point as (reversed) changes, inflating the change set. Shallow clones may
         not contain the merge base, so the two-dot form is kept as a fallback.
         """
-        base = f"origin/{self.head_branch}"
+        base = f"origin/{self.base_branch}"
         attempts = [
             ["git", "diff", "--name-status", f"{base}...HEAD"],
             ["git", "diff", "--name-status", base, "HEAD"],
@@ -64,11 +64,11 @@ class GitAdapter:
             )
 
         raise RuntimeError(
-            f"Could not diff against 'origin/{self.head_branch}'. Ensure the base branch has "
+            f"Could not diff against 'origin/{self.base_branch}'. Ensure the base branch has "
             "been fetched and that the repository has enough history."
         )
 
-    def _resolve_head_branch(self) -> str:
+    def _resolve_base_branch(self) -> str:
         """Resolve the base branch to diff against, in priority order:
         1. --base-ref / config file / DBT_CI_BASE_REF (via args)
         2. GITHUB_BASE_REF (set by GitHub Actions on pull_request events)

@@ -14,7 +14,7 @@ def _make_adapter(changes: list[list[str]], dbt_project_dir: str = "dbt") -> Git
     """Build a GitAdapter with its git calls bypassed and a fixed set of diff rows."""
     adapter = GitAdapter.__new__(GitAdapter)
     adapter.args = Namespace(dbt_project_dir=dbt_project_dir)
-    adapter.head_branch = "main"
+    adapter.base_branch = "main"
     adapter.changes = changes
     # Resolve the project directory against the working directory without calling git
     adapter.repo_root = os.getcwd()
@@ -99,7 +99,7 @@ class TestDiffAgainstBase:
     def test_prefers_three_dot_diff(self):
         """The merge-base (three-dot) diff is what isolates this branch's own changes."""
         adapter = GitAdapter.__new__(GitAdapter)
-        adapter.head_branch = "main"
+        adapter.base_branch = "main"
 
         completed = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="M\tdbt/models/a.sql\n", stderr=""
@@ -118,7 +118,7 @@ class TestDiffAgainstBase:
     def test_falls_back_to_two_dot_when_merge_base_missing(self):
         """Shallow clones may lack the merge base, so a direct diff is attempted next."""
         adapter = GitAdapter.__new__(GitAdapter)
-        adapter.head_branch = "main"
+        adapter.base_branch = "main"
 
         failure = subprocess.CompletedProcess(
             args=[], returncode=128, stdout="", stderr="no merge base"
@@ -143,7 +143,7 @@ class TestDiffAgainstBase:
     def test_raises_when_both_diffs_fail(self):
         """A completely unusable base ref is an error rather than an empty change set."""
         adapter = GitAdapter.__new__(GitAdapter)
-        adapter.head_branch = "main"
+        adapter.base_branch = "main"
 
         failure = subprocess.CompletedProcess(
             args=[], returncode=128, stdout="", stderr="bad revision"

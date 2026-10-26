@@ -18,6 +18,8 @@ CONFIG = """
 runner: bash
 run:
   nodes: models
+  filters:
+    - snapshots
 finalize:
   artifacts-uri: s3://from-config/
   clean-ephemeral: true
@@ -92,6 +94,21 @@ class TestCommandSectionsReachTheirOptions:
     def test_run_nodes(self, project):
         """run.nodes selects the run mode."""
         assert resolve("run", "nodes", "dbt_ci.commands.run.cli.run") == "models"
+
+    def test_run_filters(self, project):
+        """run.filters reaches --filters; the option used to be command-line only."""
+        assert list(resolve("run", "filters", "dbt_ci.commands.run.cli.run")) == ["snapshots"]
+
+    def test_run_filters_from_environment(self, tmp_path, monkeypatch):
+        """DBT_RUN_FILTERS sets --filters, one resource type per whitespace-separated word."""
+        monkeypatch.chdir(tmp_path)
+        value = resolve(
+            "run",
+            "filters",
+            "dbt_ci.commands.run.cli.run",
+            env={"DBT_RUN_FILTERS": "snapshots seeds"},
+        )
+        assert list(value) == ["snapshots", "seeds"]
 
     def test_finalize_artifacts_uri(self, project):
         """finalize.artifacts-uri selects the upload destination."""

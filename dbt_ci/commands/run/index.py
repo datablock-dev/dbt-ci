@@ -6,6 +6,7 @@ from argparse import Namespace
 import click
 from dbt_ci.commands.run.run import run_nodes
 from dbt_ci.graph.dependency_graph import DbtGraph
+from dbt_ci.errors import DbtCiError
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.dbt.flags import apply_cached_config
 from dbt_ci.utilities.logging import print_exception, redact_namespace
@@ -42,7 +43,7 @@ def run(args: Namespace):
         prev_cache = cache.get_cache()
         if prev_cache is None:
             # Nothing was compared, so passing here would hide a skipped or failed init.
-            raise RuntimeError(
+            raise DbtCiError(
                 "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
             )
         logger.info("Cache successfully found - using cached state for comparison")

@@ -9,6 +9,7 @@ from dbt_ci.commands.finalize.upload import (
     upload_logs,
     upload_manifest,
 )
+from dbt_ci.errors import DbtCiError
 from dbt_ci.utilities.logging import LOG_FILE_NAME
 
 
@@ -474,7 +475,7 @@ class TestCleanUpEphemeral:
                 "dbt_ci.commands.ephemeral.destroy.get_profile", return_value={"type": "bigquery"}
             ),
             patch("dbt_ci.commands.ephemeral.destroy.get_connector", return_value=connector),
-            pytest.raises(RuntimeError, match="No reference manifest"),
+            pytest.raises(DbtCiError, match="No reference manifest"),
         ):
             clean_up_ephemeral(_make_args(dry_run=False), cache)
         connector["methods"]["delete_datasets"].assert_not_called()

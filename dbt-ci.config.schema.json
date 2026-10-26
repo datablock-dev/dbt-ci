@@ -114,7 +114,20 @@
           "description": "Node types to run (default: all)."
         },
         "downstream-depth": { "$ref": "#/definitions/downstreamDepth" },
-        "downstream_depth": { "$ref": "#/definitions/downstreamDepth" }
+        "downstream_depth": { "$ref": "#/definitions/downstreamDepth" },
+        "filters": {
+          "description": "Only run the tests that depend on one of these resource types.",
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "type": "string", "enum": ["models", "seeds", "snapshots", "tests"] }
+            },
+            {
+              "type": "string",
+              "enum": ["models", "seeds", "snapshots", "tests"]
+            }
+          ]
+        }
       }
     },
 

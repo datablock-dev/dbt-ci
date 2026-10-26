@@ -10,6 +10,7 @@ from dbt_ci.dbt.operations import SchemaRef, drop_schemas
 from dbt_ci.dbt.flags import apply_cached_config
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.schema import EphemeralMapNode, NodeConfig
+from dbt_ci.errors import DbtCiError
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.utilities.paths import get_profile
@@ -125,7 +126,7 @@ def get_dataset_id(config: NodeConfig | None) -> str | None:
 def get_reference_datasets(args: Namespace, cache: CacheManager) -> set[str]:
     """Collect every dataset that a node in the reference (production) manifest lives in."""
     if cache.get_cache("reference_manifest.json") is None:
-        raise RuntimeError(
+        raise DbtCiError(
             "No reference manifest found in cache, so production datasets cannot be protected. Refusing to clean up the ephemeral environment."
         )
     reference_graph = DbtGraph(args, is_reference=True).to_dict()

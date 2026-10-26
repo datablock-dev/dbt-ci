@@ -26,4 +26,4 @@ bigquery_db_connector: ConnectorConfig = {
     },
 }
 
-__init__ = ["bigquery_storage_connector", "bigquery_db_connector"]
+__all__ = ["bigquery_storage_connector", "bigquery_db_connector"]

@@ -9,7 +9,8 @@ from argparse import Namespace
 import click
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.dbt.flags import apply_cached_config
-from dbt_ci.utilities.logging import redact_namespace
+from dbt_ci.errors import DbtCiError
+from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.connectors import get_connector
 from dbt_ci.dbt.operations import RelationRef, drop_relations
 from dbt_ci.graph.dependency_graph import DbtGraph
@@ -62,7 +63,7 @@ def delete(args: Namespace):
     except Exception as e:
         cache = CacheManager(args)
         cache.update_report("delete", "failed", comment=str(e))
-        logger.error(f"An error occurred during the delete process: {str(e)}")
+        print_exception(e, "Delete failed")
         sys.exit(1)
 
 
@@ -77,7 +78,7 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
     prev_cache = cache.get_cache()
     if prev_cache is None:
         # Nothing was compared, so passing here would hide a skipped or failed init.
-        raise RuntimeError(
+        raise DbtCiError(
             "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
         )
     logger.info("Cache successfully found - using cached state for comparison")
@@ -99,10 +100,10 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
     nodes = get_nodes(reference_graph.to_dict(), deleted_nodes)
     if nodes is None or len(nodes) == 0:
         logger.info("No deleted nodes found in manifest, skipping...")
-        sys.exit(0)
+        return {}
 
     if cache.get_cache("target_manifest.json") is None:
-        raise RuntimeError(
+        raise DbtCiError(
             "No target manifest found in cache, so deleted nodes cannot be verified against the current project. Run 'dbt-ci init' first."
         )
     target_graph = DbtGraph(args).to_dict()

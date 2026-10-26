@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from argparse import Namespace
 from dbt_ci.commands.delete.index import delete as index
+from dbt_ci.errors import DbtCiError
 
 
 class TestDeleteCommand:
@@ -14,12 +15,12 @@ class TestDeleteCommand:
     @patch("dbt_ci.commands.delete.index.CacheManager")
     @patch("dbt_ci.commands.delete.index.click.secho")
     @patch("dbt_ci.commands.delete.index.sys.exit")
-    @patch("dbt_ci.commands.delete.index.logger")
+    @patch("dbt_ci.commands.delete.index.print_exception")
     @patch("dbt_ci.commands.delete.index.click.echo")
     def test_delete_no_cache(
         self,
         mock_echo,
-        mock_logger,
+        mock_print_exception,
         mock_exit,
         mock_secho,
         mock_cache,
@@ -47,7 +48,7 @@ class TestDeleteCommand:
 
         # A missing cache means init never ran, which must fail the step
         mock_exit.assert_called_with(1)
-        assert "No cache found" in mock_logger.error.call_args[0][0]
+        assert "No cache found" in str(mock_print_exception.call_args[0][0])
 
     @patch("dbt_ci.commands.delete.index.get_profile")
     @patch("dbt_ci.commands.delete.index.CacheManager")
@@ -340,5 +341,5 @@ class TestDeleteSafeguards:
 
     def test_missing_target_manifest_fails(self):
         """Without the target manifest deletions cannot be verified, so nothing is dropped."""
-        with pytest.raises(RuntimeError, match="No target manifest"):
+        with pytest.raises(DbtCiError, match="No target manifest"):
             self.build(_graph(self.PROD_ORDERS), None, ["model.pkg.orders"])

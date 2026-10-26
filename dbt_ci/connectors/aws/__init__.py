@@ -8,6 +8,6 @@ aws_storage_connector: StorageConnectorConfig = {
     "download": aws_download_json,
 }
 
-__init__ = [
+__all__ = [
     "aws_storage_connector",
 ]
