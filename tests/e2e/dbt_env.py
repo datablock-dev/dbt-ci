@@ -67,8 +67,8 @@ def runner_args(mount: Path, profiles_dir: Path) -> list[str]:
     return ["--runner", "local", "--entrypoint", str(DBT_BINARY)]
 
 
-def dbt_ci(repo: Path, cache_dir: Path, mount: Path, *args: str) -> subprocess.CompletedProcess:
-    """Run the dbt-ci CLI against the runner and dbt under test."""
+def dbt_ci(repo: Path, cache_dir: Path, mount: Path, *args: str, target: str = "dev") -> subprocess.CompletedProcess:
+    """Run the dbt-ci CLI against the runner and dbt under test, on the given target."""
     env = {**os.environ, "DBT_CI_CACHE_DIR": str(cache_dir)}
     return subprocess.run(
         [
@@ -76,7 +76,7 @@ def dbt_ci(repo: Path, cache_dir: Path, mount: Path, *args: str) -> subprocess.C
             *runner_args(mount, repo / "dbt"),
             "--dbt-project-dir", "dbt",
             "--profiles-dir", "dbt",
-            "--target", "dev",
+            "--target", target,
         ],
         cwd=repo,
         env=env,

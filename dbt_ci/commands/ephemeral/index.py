@@ -16,10 +16,11 @@ from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.dbt.flags import apply_cached_config
 from dbt_ci.connectors import DB_CONNECTORS
 from dbt_ci.graph.dependency_graph import DbtGraph
+from dbt_ci.graph.parser import generate_dependency_graph
 from dbt_ci.utilities.logging import print_exception, redact_namespace
-from dbt_ci.schema import EphemeralMapNode, StateChangeSummary
+from dbt_ci.schema import DependencyGraph, EphemeralMapNode, StateChangeSummary
 from dbt_ci.commands.ephemeral.clone import clone_command
-from dbt_ci.utilities.paths import get_profile
+from dbt_ci.utilities.paths import get_manifest_file, get_profile
 from dbt_ci.graph.graph_utils import (
     filter_node_ids_by_multiple_types,
     get_downstream_dependencies,
@@ -87,9 +88,26 @@ def ephemeral(args: Namespace):
         print_exception(e)
         sys.exit(1)
 
+def get_clone_graph(args: Namespace) -> DependencyGraph:
+    """
+    Return the dependency graph of the manifest `dbt clone` just wrote.
+
+    That manifest is compiled for the target the clone ran against, so it says where the
+    cloned relations really are. The cached target manifest is compiled against the
+    reference target, which on warehouses where CI and production differ by target (a
+    separate CI schema) points at production instead, and teardown would then refuse to
+    drop anything. Falls back to the cached manifest when dbt wrote none on this host.
+    """
+    try:
+        return generate_dependency_graph(get_manifest_file(getattr(args, "dbt_project_dir", None) or "."))
+    except FileNotFoundError:
+        logger.debug("No manifest from dbt clone found; using the cached target manifest for the ephemeral map.")
+        return DbtGraph(args).to_dict()
+
+
 def build_ephemeral_map(args: Namespace, node_ids: list[str]) -> dict[str, EphemeralMapNode]:
     """Map each cloned model and snapshot to its ephemeral (target) and reference relation."""
-    target_graph = DbtGraph(args).to_dict()
+    target_graph = get_clone_graph(args)
     reference_graph = DbtGraph(args, is_reference=True).to_dict()
     target_nodes = get_nodes(target_graph, node_ids) or {}
     reference_nodes = get_nodes(reference_graph, node_ids) or {}

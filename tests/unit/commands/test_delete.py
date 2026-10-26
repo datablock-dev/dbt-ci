@@ -272,7 +272,7 @@ class TestDeleteCommand:
         
         # Verify warning was logged
         mock_logger.warning.assert_called_once()
-        assert 'Missing database, schema or name' in str(mock_logger.warning.call_args)
+        assert 'Missing schema or name' in str(mock_logger.warning.call_args)
         
         # Verify delete was still called (even with empty map)
         mock_delete_func.assert_called_once()

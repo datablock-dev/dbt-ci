@@ -426,6 +426,9 @@ class DeleteMapNode(TypedDict):
     type: NodeResourceType
     name: str
     table_id: str
+    database: NotRequired[Optional[str]]
+    schema: NotRequired[str]
+    identifier: NotRequired[str]
 
 type SupportedConnectors = Literal[
     "bigquery"
