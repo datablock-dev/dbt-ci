@@ -138,7 +138,7 @@ dbt-ci ephemeral create \
 2. Builds a selection of all affected models, their direct parents and their downstream dependencies. Seeds that `run` builds itself are excluded, so `dbt seed` never lands on a cloned view
 3. Runs `dbt clone --select <nodes>` targeting the specified environment
 4. The cloned tables/views can then be used as the base for subsequent `dbt run` commands in the PR environment
-5. Records the datasets it cloned into, so `ephemeral destroy` can drop them later
+5. Records the datasets it cloned into, as dbt resolved them for the target it cloned into, so `ephemeral destroy` can drop them later
 
 If `dbt clone` fails, `ephemeral` exits with a non-zero code on every runner.
 
@@ -152,9 +152,10 @@ If `dbt clone` fails, `ephemeral` exits with a non-zero code on every runner.
 
 ### `ephemeral destroy`
 
-Drops the datasets that `ephemeral create` cloned into (BigQuery). Datasets used by any
-node in the reference (production) manifest are never dropped, and a failed teardown
-fails the step.
+Drops the schemas (datasets) that `ephemeral create` cloned into, on any adapter (see
+[How dbt-ci drops relations](#how-dbt-ci-drops-relations)). Schemas used by any node in
+the reference (production) manifest are never dropped, and a failed teardown fails the
+step.
 
 ```yaml
 - name: Tear down ephemeral environment
@@ -185,7 +186,26 @@ dbt-ci delete            # execute deletions
 
 The tables dropped are the ones in the **reference** manifest (usually production), so run the real delete only after the removal is merged, and use `--dry-run` everywhere else.
 
-A node is only dropped if it is really gone from the current project. Nodes that still exist in the target manifest (for example a model whose file was moved or renamed, which git reports as delete + add) are skipped, as are relations that another target node still builds (for example through an `alias`). `delete` fails if `init` has not run, instead of passing without doing anything. On BigQuery the connection comes from the `profile` named in `dbt_project.yml` and the `--target` output in `profiles.yml` (its `project` and `location`).
+A node is only dropped if it is really gone from the current project. Nodes that still exist in the target manifest (for example a model whose file was moved or renamed, which git reports as delete + add) are skipped, as are relations that another target node still builds (for example through an `alias`). `delete` fails if `init` has not run, instead of passing without doing anything. The connection comes from the `profile` named in `dbt_project.yml` and the `--target` output in `profiles.yml`; see [How dbt-ci drops relations](#how-dbt-ci-drops-relations).
+
+### How dbt-ci drops relations
+
+`delete` and `ephemeral destroy` work on every dbt adapter:
+
+- **BigQuery** uses dbt-ci's native connector (`pip install 'dbt-ci[gcp]'`), as before.
+- **Every other adapter** (Snowflake, Databricks, Redshift, Postgres, DuckDB, ...) drops
+  through dbt itself, with `dbt run-operation` and the adapter's own `get_drop_sql` and
+  `drop_schema` macros. The DDL is therefore exactly what dbt would run for that adapter
+  (`DROP TABLE` or `DROP VIEW`, `CASCADE`, quoting), and dbt-ci needs no warehouse SDK.
+
+`run-operation` only runs macros that belong to a project, so dbt-ci writes a small helper
+project to `<dbt-project-dir>/target/dbt_ci_operations` that holds its macros and uses
+your profile. Your own project is not modified, and the helper ignores itself in git. It
+runs through the same runner as every other dbt command; with `--runner docker`, the
+dbt project directory has to be mounted with `--docker-volumes` (or located with
+`DBT_PROJECT_DIR` in `--docker-env`).
+
+Relations that no longer exist are skipped, so a teardown or delete can be re-run safely.
 
 **Flags:**
 

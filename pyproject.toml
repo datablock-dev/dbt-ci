@@ -67,7 +67,7 @@ where = ["."]
 include = ["dbt_ci*"]
 
 [tool.setuptools.package-data]
-dbt_ci = ["py.typed", "**/*.yaml"]
+dbt_ci = ["py.typed", "**/*.yaml", "**/*.sql"]
 
 [tool.black]
 line-length = 100

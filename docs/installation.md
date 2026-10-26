@@ -16,7 +16,7 @@ installed on demand:
 
 | Extra | Installs | Needed for |
 |-------|----------|------------|
-| `gcp` | `google-cloud-bigquery`, `google-cloud-storage` | `gs://` state/artifact URIs, the BigQuery connector used by `delete` and `migration` |
+| `gcp` | `google-cloud-bigquery`, `google-cloud-storage` | `gs://` state/artifact URIs, the BigQuery connector used by `delete`, `ephemeral destroy` and `migration` |
 | `aws` | `boto3` | `s3://` state/artifact URIs |
 | `docker` | `docker` | `--runner docker` |
 | `all` | all of the above | |

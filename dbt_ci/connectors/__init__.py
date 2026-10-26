@@ -33,12 +33,14 @@ def init_storage_connector(uri: str | None) -> tuple[StorageConnectorConfig, str
 
     return storage_connector, uri
 
-def get_connector(connector: SupportedConnectors) -> ConnectorConfig | None:
-    """Factory function to get the appropriate connector based on configuration."""
-    if connector not in DB_CONNECTORS:
-        raise ValueError(f"Connector '{connector}' is not supported.")
+def get_connector(connector: str) -> ConnectorConfig | None:
+    """
+    Return the native connector for a dbt adapter type, or None if there is none.
 
-    return DB_CONNECTORS.get(connector)
+    Adapters without a native connector are not an error: delete and ephemeral teardown
+    fall back to dbt's own adapter macros (see dbt_ci.dbt.operations).
+    """
+    return DB_CONNECTORS.get(cast(SupportedConnectors, connector))
 
 
 __all__ = [

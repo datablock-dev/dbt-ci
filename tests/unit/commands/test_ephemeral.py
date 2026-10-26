@@ -365,3 +365,30 @@ class TestBuildEphemeralMap:
         assert list(ephemeral_map) == ["model.pkg.a"]
         assert ephemeral_map["model.pkg.a"]["ephemeral_config"]["schema"] == "ci_pr_1"
         assert ephemeral_map["model.pkg.a"]["reference_config"]["schema"] == "analytics"
+
+    def test_prefers_the_manifest_dbt_clone_wrote(self):
+        """The clone's own manifest (compiled for the CI target) decides where the clones are."""
+        from dbt_ci.commands.ephemeral.index import build_ephemeral_map
+
+        def node(name, schema):
+            """Build a minimal model node."""
+            return {"id": f"model.pkg.{name}", "name": name, "resource_type": "model", "database": "db",
+                    "schema": schema, "materialized": "table", "config": {}}
+
+        cached_target = {"model": {"model.pkg.a": node("a", "analytics")}}
+        clone_manifest_graph = {"model": {"model.pkg.a": node("a", "ci_pr_1")}}
+        reference = {"model": {"model.pkg.a": node("a", "analytics")}}
+
+        def make_graph(_args, is_reference=False):
+            """Return the reference or cached target graph depending on the flag."""
+            graph = MagicMock()
+            graph.to_dict.return_value = reference if is_reference else cached_target
+            return graph
+
+        with patch("dbt_ci.commands.ephemeral.index.DbtGraph", side_effect=make_graph), \
+             patch("dbt_ci.commands.ephemeral.index.get_manifest_file", return_value={}), \
+             patch("dbt_ci.commands.ephemeral.index.generate_dependency_graph", return_value=clone_manifest_graph):
+            ephemeral_map = build_ephemeral_map(Namespace(dbt_project_dir="dbt"), ["model.pkg.a"])
+
+        assert ephemeral_map["model.pkg.a"]["ephemeral_config"]["schema"] == "ci_pr_1"
+        assert ephemeral_map["model.pkg.a"]["reference_config"]["schema"] == "analytics"

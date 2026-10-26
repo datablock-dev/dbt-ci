@@ -11,6 +11,7 @@ from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.dbt.flags import apply_cached_config
 from dbt_ci.utilities.logging import redact_namespace
 from dbt_ci.connectors import get_connector
+from dbt_ci.dbt.operations import RelationRef, drop_relations
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.schema import DeleteMapNode, DependencyGraph, DependencyGraphNode, SupportedConnectors
 from dbt_ci.graph.graph_utils import get_node, get_node_ids_from_structured_nodes, get_nodes, get_relation_name
@@ -30,14 +31,9 @@ def delete(args: Namespace):
         delete_connector = get_connector(connector_type)
         delete_map = generate_delete_map(args, cache)
 
-        if delete_connector is None:
-            logger.error(f"Connector '{connector_type}' does not support delete strategy, which is required for delete command.")
-            sys.exit(1)
-
-        delete_function = delete_connector.get("strategies", {}).get("delete", None)
-        if delete_function is None:
-            logger.error(f"Connector '{connector_type}' does not have a delete strategy implemented, which is required for delete command.")
-            sys.exit(1)
+        # Adapters without a native connector drop through dbt's own adapter macros
+        native_delete = delete_connector["strategies"].get("delete") if delete_connector else None
+        delete_function = native_delete or dbt_delete_strategy
 
         if len(delete_map) == 0:
             logger.info("No nodes to delete. Exiting...")
@@ -102,12 +98,12 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
     target_table_ids = get_target_table_ids(target_graph)
 
     for node_id, node_data in nodes.items():
-        if node_data["resource_type"] not in ("model", "snapshot"):
+        if node_data is None or node_data["resource_type"] not in ("model", "snapshot"):
             continue
 
         table_id = get_table_id(node_data)
         if table_id is None:
-            logger.warning(f"Missing database, schema or name for node {node_id}. Skipping deletion for this node.")
+            logger.warning(f"Missing schema or name for node {node_id}. Skipping deletion for this node.")
             continue
 
         # A moved or renamed file shows up in git as delete + add, but the node itself
@@ -122,20 +118,37 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
         delete_map[node_id] = {
             "type": node_data["resource_type"],
             "name": node_data["name"],
-            "table_id": table_id
+            "table_id": table_id,
+            "database": node_data.get("database", None),
+            "schema": cast(str, node_data.get("schema")),
+            "identifier": cast(str, get_relation_name(node_data)),
         }
 
     return delete_map
 
 
+def dbt_delete_strategy(delete_map: dict[str, DeleteMapNode], args: Namespace) -> None:
+    """Drop the deleted nodes' relations through dbt, for adapters without a native connector."""
+    relations: list[RelationRef] = []
+    for node in delete_map.values():
+        for identifier in (node["identifier"], f"{node['identifier']}__dbt_tmp"):
+            relations.append({"database": node.get("database"), "schema": node["schema"], "identifier": identifier})
+    drop_relations(args, relations)
+
+
 def get_table_id(node_data: DependencyGraphNode) -> str | None:
-    """Return the `database.schema.alias` relation of a node, or None if any part is missing."""
+    """
+    Return the `database.schema.alias` relation of a node, or None if schema or alias is missing.
+
+    Adapters without databases (e.g. Spark) leave database empty; their relations are
+    `schema.alias`.
+    """
     database = node_data.get("database", None)
     schema = node_data.get("schema", None)
     name = get_relation_name(node_data)
-    if any(x is None for x in (database, schema, name)):
+    if schema is None or name is None:
         return None
-    return f"{database}.{schema}.{name}"
+    return f"{database}.{schema}.{name}" if database else f"{schema}.{name}"
 
 
 def get_target_table_ids(target_graph: DependencyGraph) -> set[str]:

@@ -152,7 +152,7 @@ flowchart LR
 |---|---|
 | dbt | dbt-core 1.10, 1.11 and 1.12, and [dbt v2](https://github.com/datablock-dev/dbt-ci/blob/main/docs/configuration.md#dbt-v2) |
 | Python | 3.12, 3.13, 3.14 |
-| Warehouses | Any dbt adapter for `init`, `run`, `report` and `ephemeral create`. BigQuery for `delete`, `migration` and `ephemeral destroy` |
+| Warehouses | Any dbt adapter, for every command except `migration`, which needs BigQuery |
 | State storage | GCS, S3 or a local path |
 | How dbt runs | In-process, a local binary, Docker or a shell script ([runners](https://github.com/datablock-dev/dbt-ci/blob/main/docs/runners.md)) |
 
