@@ -19,7 +19,8 @@ def resolve_manifest_file_from_storage(
     cwd = Path.cwd()
     storage_connector, state_uri = resolved_storage
     logger.info(
-        f"Using storage connector '{storage_connector.get('name', 'Unknown')}' for state management with URI: {state_uri}"
+        f"Using storage connector '{storage_connector.get('name', 'Unknown')}' for state "
+        f"management with URI: {state_uri}"
     )
     reference_manifest = storage_connector["download"](state_uri)
     dbt_project_dir = getattr(args, "dbt_project_dir", None)
@@ -36,7 +37,9 @@ def resolve_manifest_file_from_storage(
         dbtstate_dir = cwd / dbt_project_dir / ".dbtstate"
         if reference_state_path is None:
             logger.info(
-                f"State URI provided without a reference state path, defaulting to {dbtstate_dir}/manifest.json. To overwrite this, please pass --reference-state or --state."
+                "State URI provided without a reference state path, defaulting to "
+                f"{dbtstate_dir}/manifest.json. To overwrite this, please pass --reference-state "
+                "or --state."
             )
     else:
         dbtstate_dir = cwd / reference_state_path

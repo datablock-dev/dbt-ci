@@ -138,7 +138,7 @@ class StateModified:
         return self._reference_graph
 
     def get_state_modified(self) -> StateChangeSummary:
-        """Determines the modified, new, and deleted nodes compared to the reference state based on the specified comparison strategy."""
+        """Resolve the modified, new and deleted nodes with the configured comparison strategy."""
         if self.strategy == "git":
             return self.git_strategy()
         elif self.strategy == "hybrid":
@@ -172,7 +172,8 @@ class StateModified:
                         git_modified_nodes[change_type].add(node_info["id"])
                 else:
                     logger.debug(
-                        f"File {file_path} changed according to git but no corresponding node found in either target or reference graph (e.g. a non-dbt file)."
+                        f"File {file_path} changed according to git but no corresponding node "
+                        "found in either target or reference graph (e.g. a non-dbt file)."
                     )
 
         add_macro_users(git_modified_nodes, target_dict)
@@ -196,7 +197,12 @@ class StateModified:
         }
 
     def hybrid_strategy(self) -> StateChangeSummary:
-        """Determines modified nodes using dbt state:modified and then cross-references with git diff to filter out nodes that are not actually modified based on file changes."""
+        """
+        Resolve the change set with dbt's state:modified, kept to the nodes git changed.
+
+        dbt also flags nodes whose environment-specific config differs from production;
+        cross-referencing the git diff leaves those out.
+        """
         git = GitAdapter(self.args)
         target_graph = self.target_graph
         reference_graph = self.reference_graph
@@ -274,7 +280,8 @@ class StateModified:
                     for node_id, dbt_node in current_data.items():
                         if dbt_node.get("original_file_path") == file_path:
                             if new_nodes and node_id in new_nodes:
-                                # If the node is new according to dbt, we classify it as added, even if the file was modified according to git
+                                # New according to dbt, so added, even if git says the
+                                # file was modified
                                 git_modified_nodes["added"].add(node_id)
                             else:
                                 # Use dbt's classification, not the git change type
@@ -330,7 +337,7 @@ class StateModified:
         }
 
     def dbt_strategy(self) -> StateChangeSummary:
-        """Compile the DBT project and return a list of modified nodes compared to the reference state."""
+        """Resolve the change set from dbt's state:modified comparison alone."""
         data = self.common_state_change()
 
         return {

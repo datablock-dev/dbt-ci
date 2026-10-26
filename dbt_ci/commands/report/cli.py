@@ -46,16 +46,20 @@ def report_cmd(**kwargs):
     Renders the change set from 'init' and the status of each command that has run so
     far. In GitHub Actions the report is appended to the job summary automatically.
 
+    \b
     Examples:
         # Append to the GitHub Actions job summary
         dbt-ci report
 
+    \b
         # Write markdown to a file, e.g. to post as a pull request comment
         dbt-ci report --output report.md
 
+    \b
         # Machine-readable output
         dbt-ci report --format json
 
+    \b
         # Also post (or update) a comment on the pull request
         dbt-ci report --pr-comment
     """

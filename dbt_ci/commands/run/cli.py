@@ -60,11 +60,13 @@ def run_cmd(**kwargs):
 
     Uses cached state from 'dbt-ci init' to detect and run modified models.
 
+    \b
     Examples:
         # Run after init
         dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
         dbt-ci run --runner docker
 
+    \b
         # Simple local run
         dbt-ci run
     """

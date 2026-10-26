@@ -162,7 +162,8 @@ class TestNotifications:
         """provider, format and webhook are read from the notifications section."""
         self.write_config(
             tmp_path,
-            "notifications:\n  provider: slack\n  format: json\n  webhook: https://hooks.example/new\n",
+            "notifications:\n  provider: slack\n  format: json\n  webhook: "
+            "https://hooks.example/new\n",
         )
         assert resolve("init", "notifications_format", self.INIT) == "json"
         assert resolve("init", "slack_webhook", self.INIT) == "https://hooks.example/new"
@@ -196,7 +197,8 @@ class TestNotifications:
         """When both spellings are present, notifications.webhook is used."""
         self.write_config(
             tmp_path,
-            "slack-webhook: https://hooks.example/old\nnotifications:\n  webhook: https://hooks.example/new\n",
+            "slack-webhook: https://hooks.example/old\nnotifications:\n  webhook: "
+            "https://hooks.example/new\n",
         )
         assert resolve("init", "slack_webhook", self.INIT) == "https://hooks.example/new"
 

@@ -7,6 +7,7 @@ import pytest
 
 from dbt_ci.commands.init.state_modified import StateModified
 from dbt_ci.errors import ConfigurationError
+from dbt_ci.graph.parser import generate_dependency_graph
 
 
 def _args(**overrides) -> Namespace:
@@ -145,8 +146,6 @@ class TestCommonStateChangeCommand:
 # ---------------------------------------------------------------------------
 # Classification of git and hybrid change sets against small fake manifests
 # ---------------------------------------------------------------------------
-
-from dbt_ci.graph.parser import generate_dependency_graph
 
 
 def _node(name: str, path: str, macros=(), parents=(), patch_path: str | None = None) -> dict:

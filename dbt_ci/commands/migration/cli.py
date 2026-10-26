@@ -14,6 +14,7 @@ def migration_cmd(**kwargs):
     Uses cached state from 'dbt-ci init' to detect breaking changes and run migration checks.
     Useful for validating changes before merging to production.
 
+    \b
     Examples:
         # Run after init
         dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production

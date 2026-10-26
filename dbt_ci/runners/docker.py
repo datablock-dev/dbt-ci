@@ -34,7 +34,8 @@ def docker_runner(commands: list[str], runner_config: RunnerConfig) -> Completed
 
     Reads the following keys from runner_config:
         docker_image: Docker image to use
-        docker_platform: Platform for Docker image (e.g., linux/amd64, linux/arm64). Use linux/amd64 on Apple Silicon for compatibility
+        docker_platform: Platform for Docker image (e.g., linux/amd64, linux/arm64).
+            Use linux/amd64 on Apple Silicon for compatibility
         docker_volumes: Volume mounts (host:container[:mode])
         docker_env: Environment variables to pass (KEY=VALUE)
         docker_network: Docker network mode
@@ -301,7 +302,8 @@ def get_container_paths(runner_config: RunnerConfig) -> dict:
         if container_path is not None:
             container_path_map["profiles_dir"] = container_path
 
-    # For reference_state: use DBT_STATE env (translated through volume map) or derive from volume mapping
+    # For reference_state: use DBT_STATE env (translated through the volume map) or derive
+    # it from the volume mapping
     reference_state_host = env_dict.get("DBT_STATE") or runner_config.get("reference_state")
     if reference_state_host:
         container_path = map_host_path_to_container(reference_state_host, volume_map)

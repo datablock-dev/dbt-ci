@@ -202,7 +202,7 @@ def get_upstream_dependencies(
     filters: list[DependencyGraphNodeType] | None = None,
     levels: int | None = None,
 ) -> set[str] | None:
-    """Get upstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
+    """Get upstream dependencies for a list of node IDs, optionally up to a number of levels."""
     if node_ids is None or len(node_ids) == 0:
         return None
 

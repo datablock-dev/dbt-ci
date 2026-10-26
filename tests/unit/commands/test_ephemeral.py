@@ -228,7 +228,7 @@ class TestCloneCommand:
     """Test failure handling and the returned clone selection of clone_command."""
 
     def run_clone(self, run_error: Exception | None = None):
-        """Invoke clone_command for one changed model, with dbt clone failing if run_error is set."""
+        """Invoke clone_command for one changed model; dbt clone fails if run_error is set."""
         from dbt_ci.commands.ephemeral.clone import clone_command
 
         run = MagicMock(return_value=MagicMock(returncode=0), side_effect=run_error)
@@ -282,7 +282,7 @@ class TestCloneCommand:
             )
 
     def test_changed_leaf_model_clones_its_parents(self):
-        """A changed model with no descendants still gets its direct model parents cloned, but not its seeds."""
+        """A changed leaf model gets its direct model parents cloned, but not its seeds."""
         graph = {
             "model": {
                 "model.pkg.mrt_leaf": _graph_node(
@@ -314,7 +314,7 @@ class TestCloneCommand:
         assert set(cloned_nodes) == {"model.pkg.mrt_leaf", "model.pkg.itr_a", "model.pkg.itr_b"}
 
     def test_changed_snapshot_without_descendants_is_cloned(self):
-        """A changed snapshot with nothing downstream is still cloned, together with the model it reads."""
+        """A changed snapshot with nothing downstream is cloned with the model it reads."""
         graph = {
             "model": {"model.pkg.src": _graph_node("model.pkg.src")},
             "snapshot": {
@@ -342,7 +342,7 @@ class TestCloneCommand:
     def test_change_without_models_or_snapshots_skips_clone(
         self, caplog, modified_nodes, new_nodes
     ):
-        """A change that selects no model or snapshot leaves nothing to clone, so no dbt clone runs."""
+        """A change selecting no model or snapshot leaves nothing to clone, so no clone runs."""
         graph = {
             "seed": {
                 "seed.pkg.items": _graph_node(

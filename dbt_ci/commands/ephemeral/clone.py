@@ -18,10 +18,10 @@ logger = logging.getLogger(__name__)
 
 def clone_command(changed_nodes_dict: dict[str, list[str]], args: Namespace) -> list[str] | None:
     """
-    Helper function to run the dbt command that will create the ephemeral models based on the selected nodes.
+    Run dbt clone for the models and snapshots the change set needs in the PR environment.
 
-    Please observe that we only clone models and snapshots, even if tests are modified.
-    This is because Dbt only creates ephemeral versions of models and snapshots.
+    Only models and snapshots are cloned, even when tests changed, since they are the
+    only nodes dbt clone creates.
 
     Returns the ids of the models and snapshots the clone selection covers, so the
     environment can be torn down again by `finalize --clean-ephemeral`, or None when

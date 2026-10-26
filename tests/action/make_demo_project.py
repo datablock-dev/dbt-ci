@@ -14,13 +14,16 @@ import sys
 from pathlib import Path
 
 FILES = {
-    "dbt/dbt_project.yml": "name: demo\nversion: 1.0.0\nprofile: demo\nmodel-paths: [models]\nseed-paths: [seeds]\n",
+    "dbt/dbt_project.yml": (
+        "name: demo\nversion: 1.0.0\nprofile: demo\nmodel-paths: [models]\nseed-paths: [seeds]\n"
+    ),
     "dbt/seeds/raw.csv": "id,name\n1,a\n2,b\n",
     "dbt/models/stg.sql": "select * from {{ ref('raw') }}\n",
     "dbt/models/agg.sql": "select count(*) as n from {{ ref('stg') }}\n",
     "dbt/models/other.sql": "select 1 as x\n",
     "dbt/models/schema.yml": (
-        "version: 2\nmodels:\n  - name: stg\n    columns:\n      - name: id\n        data_tests: [not_null]\n"
+        "version: 2\nmodels:\n  - name: stg\n    columns:\n      - name: id\n        data_tests: "
+        "[not_null]\n"
     ),
     ".gitignore": "target/\nlogs/\ndbt_packages/\n",
 }

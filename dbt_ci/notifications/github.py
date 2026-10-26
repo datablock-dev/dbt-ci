@@ -57,7 +57,10 @@ def build_comment_body(markdown: str) -> str:
     body = f"{COMMENT_MARKER}\n{markdown}"
     if len(body) <= GITHUB_COMMENT_LIMIT:
         return body
-    note = "\n\n_The report was cut to fit GitHub's comment size limit. The job summary has the full report._\n"
+    note = (
+        "\n\n_The report was cut to fit GitHub's comment size limit. "
+        "The job summary has the full report._\n"
+    )
     return body[: GITHUB_COMMENT_LIMIT - len(note)] + note
 
 
@@ -103,7 +106,8 @@ class GitHubClient:
             comments = (
                 self.request(
                     "GET",
-                    f"/repos/{repository}/issues/{number}/comments?per_page={PAGE_SIZE}&page={page}",
+                    f"/repos/{repository}/issues/{number}/comments"
+                    f"?per_page={PAGE_SIZE}&page={page}",
                 )
                 or []
             )

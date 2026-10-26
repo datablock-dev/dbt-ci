@@ -44,7 +44,8 @@ def run(args: Namespace):
         if prev_cache is None:
             # Nothing was compared, so passing here would hide a skipped or failed init.
             raise DbtCiError(
-                "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
+                "No cache found, please run 'dbt-ci init' first to generate the necessary "
+                "manifest files and cache for comparison."
             )
         logger.info("Cache successfully found - using cached state for comparison")
 

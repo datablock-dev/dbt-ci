@@ -35,7 +35,8 @@ def finalize_upload_files(args: Namespace) -> None:
 
     if not getattr(args, "files", None) or len(getattr(args, "files", [])) == 0:
         logger.info(
-            "No files specified for upload. Please specify which files to upload using the --files argument. Skipping artifact upload."
+            "No files specified for upload. Please specify which files to upload using the "
+            "--files argument. Skipping artifact upload."
         )
         return
 
@@ -43,7 +44,8 @@ def finalize_upload_files(args: Namespace) -> None:
         upload_func = UPLOAD_MAPPING.get(file)
         if upload_func is None:
             logger.warning(
-                f"No upload function found for file type '{file}'. Skipping upload for this file type."
+                f"No upload function found for file type '{file}'. Skipping upload for this file "
+                "type."
             )
             continue
         upload_func(artifacts_uri, cache, storage_function)

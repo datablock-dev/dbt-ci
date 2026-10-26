@@ -42,7 +42,8 @@ def migration(args: Namespace):
 
         if connector is None:
             logger.error(
-                f"Connector '{connector_type}' does not support migration strategy, which is required for migration command."
+                f"Connector '{connector_type}' does not support migration strategy, which is "
+                "required for migration command."
             )
             sys.exit(1)
 
@@ -50,7 +51,8 @@ def migration(args: Namespace):
         migration_connector = connector.get("strategies").get("migration", None)
         if migration_connector is None:
             logger.error(
-                f"Connector '{connector_type}' does not have a migration strategy implemented, which is required for migration command."
+                f"Connector '{connector_type}' does not have a migration strategy implemented, "
+                "which is required for migration command."
             )
             sys.exit(1)
 
@@ -91,7 +93,7 @@ def generate_migration_map(
     args: Namespace,
     cache: CacheManager,
 ) -> MigrationMap:
-    """Compare partitioning configurations between target and reference nodes and return a migration map."""
+    """Map the modified incremental models whose partitioning differs from the reference."""
     target_graph = DbtGraph(args)
     reference_graph = DbtGraph(args, is_reference=True)
 
@@ -128,7 +130,7 @@ def generate_migration_map(
         reference_config = cast(dict[str, Any], reference_node["config"] if reference_node else {})
         target_partitioning_config = node_config.get("partition_by", None)
         reference_partitioning_config = reference_config.get("partition_by", None)
-        # Skip non-incremental models since partitioning changes only apply to incremental models in BigQuery
+        # Only incremental models keep their table between runs, so only they need migrating
         if node_config.get("materialized", None) != "incremental":
             continue
 
@@ -136,7 +138,13 @@ def generate_migration_map(
         # Dict comparison is order-insensitive since Python 3.7+
         if target_partitioning_config != reference_partitioning_config:
             migration_map["nodes"][node_id] = {
-                "table_id": f"{node_metadata.get('database', '')}.{node_metadata.get('schema', '')}.{get_relation_name(node_metadata)}",
+                "table_id": ".".join(
+                    [
+                        node_metadata.get("database") or "",
+                        node_metadata.get("schema") or "",
+                        get_relation_name(node_metadata) or "",
+                    ]
+                ),
                 "cluster_by": node_config.get("cluster_by", None),
                 "require_partition_filter": node_config.get("require_partition_filter", None),
                 "partition_expiration_days": node_config.get("partition_expiration_days", None),

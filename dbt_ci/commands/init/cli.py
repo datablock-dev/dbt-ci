@@ -24,14 +24,20 @@ from dbt_ci.commands.init.index import init
     envvar=["DBT_REFERENCE_VARS"],
     default=None,
     callback=make_config_callback("DBT_INIT_REFERENCE_VARS"),
-    help="Variables to pass to dbt when compiling the reference manifest (YAML string or path to YAML file)",
+    help=(
+        "Variables to pass to dbt when compiling the reference manifest (YAML string or path to "
+        "YAML file)"
+    ),
 )
 @click.option(
     "--state-uri",
     envvar=["DBT_STATE_URI", "STATE_URI"],
     default=None,
     callback=make_config_callback("DBT_INIT_STATE_URI"),
-    help="Remote URI for the state manifest.json file (e.g., gs://my-bucket/dbt-state/manifest.json or s3://my-bucket/dbt-state/manifest.json)",
+    help=(
+        "Remote URI for the state manifest.json file (e.g., "
+        "gs://my-bucket/dbt-state/manifest.json or s3://my-bucket/dbt-state/manifest.json)"
+    ),
 )
 @click.option(
     "--reference-path",
@@ -67,7 +73,10 @@ from dbt_ci.commands.init.index import init
     type=click.Choice(["dbt", "git", "hybrid"], case_sensitive=False),
     multiple=False,
     callback=make_config_callback("DBT_INIT_COMPARISON_STRATEGY"),
-    help="Strategy to use for state comparison (default: hybrid). Available options: dbt, git, hybrid",
+    help=(
+        "Strategy to use for state comparison (default: hybrid). Available options: dbt, git, "
+        "hybrid"
+    ),
 )
 @click.option(
     "--base-ref",
@@ -79,13 +88,17 @@ from dbt_ci.commands.init.index import init
 def init_cmd(**kwargs):
     """Initialize dbt CI state
 
-    Downloads reference manifest and compares with current state. Creates cache for subsequent commands.
+    Downloads the reference manifest, compares it with the current project and caches
+    the change set for the commands that follow.
     Run this before using run, delete, or ephemeral commands.
 
+    \b
     Examples:
         # Download from GCS and use sandbox target as reference
-        dbt-ci init --state-uri gs://bucket/manifest.json --reference-target sandbox --state dbt/.dbtstate
+        dbt-ci init --state-uri gs://bucket/manifest.json --reference-target sandbox \\
+            --state dbt/.dbtstate
 
+    \b
         # Use local state directory
         dbt-ci init --state dbt/.dbtstate --reference-target production
     """

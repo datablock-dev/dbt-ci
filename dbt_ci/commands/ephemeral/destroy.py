@@ -85,7 +85,8 @@ def clean_up_ephemeral(args: Namespace, cache: CacheManager):
     }
     for dataset_id in sorted(refused):
         logger.warning(
-            f"Refusing to delete dataset '{dataset_id}': it is used by the reference (production) manifest."
+            f"Refusing to delete dataset '{dataset_id}': it is used by the reference (production) "
+            "manifest."
         )
     datasets_to_delete -= refused
 
@@ -94,7 +95,8 @@ def clean_up_ephemeral(args: Namespace, cache: CacheManager):
         return
 
     logger.info(
-        f"Found {len(datasets_to_delete)} ephemeral dataset(s) to clean up: {', '.join(sorted(datasets_to_delete))}"
+        f"Found {len(datasets_to_delete)} ephemeral dataset(s) to clean up: "
+        f"{', '.join(sorted(datasets_to_delete))}"
     )
     dry_run = getattr(args, "dry_run", False)
     if connector is None or delete_datasets_function is None:
@@ -127,7 +129,8 @@ def get_reference_datasets(args: Namespace, cache: CacheManager) -> set[str]:
     """Collect every dataset that a node in the reference (production) manifest lives in."""
     if cache.get_cache("reference_manifest.json") is None:
         raise DbtCiError(
-            "No reference manifest found in cache, so production datasets cannot be protected. Refusing to clean up the ephemeral environment."
+            "No reference manifest found in cache, so production datasets cannot be protected. "
+            "Refusing to clean up the ephemeral environment."
         )
     reference_graph = DbtGraph(args, is_reference=True).to_dict()
     datasets: set[str] = set()

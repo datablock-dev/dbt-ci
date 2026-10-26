@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 from argparse import Namespace
 from dbt_ci.commands.run.index import run as index
 from dbt_ci.commands.run.run import run_nodes
+from dbt_ci.graph.parser import generate_dependency_graph
+from dbt_ci.commands.run.run import tests as select_tests
 
 
 class TestRunCommand:
@@ -106,7 +108,7 @@ class TestRunCommand:
     def test_run_excludes_deleted_nodes_from_downstream_lookups(
         self, mock_secho, mock_run_nodes, mock_graph, mock_cache
     ):
-        """Deleted nodes are absent from the target graph, so they are not walked for downstream nodes."""
+        """Deleted nodes are absent from the target graph, so no downstream walk starts there."""
         mock_cache_instance = MagicMock()
         mock_cache_instance.get_cache.return_value = {
             "modified_nodes": None,
@@ -299,9 +301,6 @@ class TestRunNodes:
 # Run order and test selection against a small parsed manifest
 # ---------------------------------------------------------------------------
 
-from dbt_ci.graph.parser import generate_dependency_graph
-from dbt_ci.commands.run.run import tests as select_tests
-
 
 def _manifest_graph() -> dict:
     """Parse a manifest with a -> b, a data test on each model and a unit test on b."""
@@ -372,7 +371,11 @@ class TestRunOrder:
     def test_snapshots_run_before_models_and_tests_last(self):
         """Models built on a changed snapshot must see its new state."""
         executed = []
-        stub = lambda name: (lambda **_kwargs: [f"{name}.demo.x"])
+
+        def stub(name):
+            """Select one node of the given resource type."""
+            return lambda **_kwargs: [f"{name}.demo.x"]
+
         with (
             patch.dict(
                 "dbt_ci.commands.run.run.__dict__",

@@ -222,7 +222,7 @@ def append_depends_on_nodes(
     node_id: str,
     dependencies: Mapping[str, Any],
 ) -> None:
-    """Append dependencies from the "depends_on" section of the manifest file to the dependency graph."""
+    """Add the nodes and macros in a manifest entry's depends_on to its upstream dependencies."""
     upstream = dependency_graph[node_type][node_id]["upstream_dependencies"]
 
     # Only "nodes" and "macros" hold dependency ids. dbt v2 adds further keys under

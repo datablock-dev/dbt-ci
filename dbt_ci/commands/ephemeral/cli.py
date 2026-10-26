@@ -37,6 +37,7 @@ def ephemeral_cmd(ctx: click.Context, **kwargs):
 
     Without a subcommand this creates the environment, as 'ephemeral create' does.
 
+    \b
     Examples:
         # Run after init
         dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
@@ -68,6 +69,7 @@ def ephemeral_create_cmd(**kwargs):
     Uses cached state from 'dbt-ci init' to create the ephemeral environment, and records
     the datasets it cloned into so 'dbt-ci ephemeral destroy' can drop them later.
 
+    \b
     Examples:
         dbt-ci ephemeral create --target ci
         dbt-ci ephemeral --target ci   # same thing
@@ -84,6 +86,7 @@ def ephemeral_destroy_cmd(**kwargs):
     Run it in the same job as 'ephemeral', since it reads the list of cloned datasets
     from the dbt-ci cache. The cache is left in place, so a failed teardown can be retried.
 
+    \b
     Examples:
         dbt-ci ephemeral destroy
         dbt-ci ephemeral destroy --dry-run   # list what would be dropped

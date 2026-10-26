@@ -28,7 +28,8 @@ def init(args: Namespace):
     The tool by default compiles the DBT project with production settings but can be overriden.
     The tool generates two manifest.json files:
     1. The reference manifest.json with target equal to the current target
-    2. "Production" reference manifest.json with target equal to the production target (if specified and different from current target)
+    2. "Production" reference manifest.json with target equal to the production target
+       (if specified and different from current target)
     """
     try:
         # Convert kwargs to Namespace and resolve configuration
@@ -53,7 +54,8 @@ def init(args: Namespace):
         # Exit if dbt_project_dir is not provided
         if dbt_project_dir is None:
             logger.error(
-                "No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument."
+                "No dbt_project_dir specified. Please provide the path to your DBT project using "
+                "the --dbt-project-dir argument."
             )
             sys.exit(1)
 
@@ -114,7 +116,8 @@ def init(args: Namespace):
         cache.update_report(command="init", status="completed")
         logger.info("Initialization complete. Cache updated with current state(s).")
         logger.info(
-            "You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state."
+            "You can now run `dbt-ci run --mode <mode>` to execute modified models based on the "
+            "generated state."
         )
     except Exception as e:
         cache = CacheManager(args)

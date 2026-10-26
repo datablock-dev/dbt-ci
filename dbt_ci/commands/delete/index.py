@@ -79,7 +79,8 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
     if prev_cache is None:
         # Nothing was compared, so passing here would hide a skipped or failed init.
         raise DbtCiError(
-            "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
+            "No cache found, please run 'dbt-ci init' first to generate the necessary manifest "
+            "files and cache for comparison."
         )
     logger.info("Cache successfully found - using cached state for comparison")
 
@@ -104,7 +105,8 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
 
     if cache.get_cache("target_manifest.json") is None:
         raise DbtCiError(
-            "No target manifest found in cache, so deleted nodes cannot be verified against the current project. Run 'dbt-ci init' first."
+            "No target manifest found in cache, so deleted nodes cannot be verified against the "
+            "current project. Run 'dbt-ci init' first."
         )
     target_graph = DbtGraph(args).to_dict()
     target_table_ids = get_target_table_ids(target_graph)
@@ -124,12 +126,14 @@ def generate_delete_map(args: Namespace, cache: CacheManager) -> dict[str, Delet
         # keeps its unique_id and relation. Dropping it would destroy a live table.
         if get_node(target_graph, node_id) is not None:
             logger.warning(
-                f"Node {node_id} still exists in the target manifest (e.g. its file was moved). Skipping deletion of {table_id}."
+                f"Node {node_id} still exists in the target manifest (e.g. its file was moved). "
+                f"Skipping deletion of {table_id}."
             )
             continue
         if table_id in target_table_ids:
             logger.warning(
-                f"Relation {table_id} is still used by a node in the target manifest. Skipping deletion for {node_id}."
+                f"Relation {table_id} is still used by a node in the target manifest. Skipping "
+                f"deletion for {node_id}."
             )
             continue
 
@@ -176,7 +180,7 @@ def get_table_id(node_data: DependencyGraphNode) -> str | None:
 
 
 def get_target_table_ids(target_graph: DependencyGraph) -> set[str]:
-    """Collect the relations of every model and snapshot that still exists in the target manifest."""
+    """Collect the relations of every model and snapshot still in the target manifest."""
     table_ids: set[str] = set()
     for node_type in ("model", "snapshot"):
         for node_data in (target_graph.get(node_type) or {}).values():

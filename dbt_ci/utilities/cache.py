@@ -133,7 +133,8 @@ class CacheManager:
         report_cache = cast(dict[str, Any], self.get_cache("report.json"))
         if report_cache is None or command not in report_cache:
             logger.warning(
-                f"update_report called for '{command}' but no existing report entry found. Call start_report first."
+                f"update_report called for '{command}' but no existing report entry found. Call "
+                "start_report first."
             )
             return
         report_cache[command]["status"] = status

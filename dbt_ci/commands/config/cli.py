@@ -24,13 +24,16 @@ def config_cmd(output: str, force: bool):
     Creates a commented configuration file with all common options pre-filled
     so you can get started quickly without memorising every flag.
 
+    \b
     Examples:
         # Create dbt-ci.config.yaml in the current directory
         dbt-ci config
 
+    \b
         # Write to a custom path
         dbt-ci config --output path/to/my-config.yaml
 
+    \b
         # Overwrite an existing file
         dbt-ci config --force
     """

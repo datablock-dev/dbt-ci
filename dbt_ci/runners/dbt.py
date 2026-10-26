@@ -17,7 +17,7 @@ def dbt_runner(commands: list[str], runner_config: RunnerConfig) -> CompletedPro
     """
     setup_logging(runner_config.get("log_level", "INFO"))
     runner = dbtRunner()
-    # dbtRunner Python API expects commands without 'dbt' prefix (e.g., ['compile', '--target', 'prod'])
+    # dbtRunner expects the arguments without the 'dbt' prefix, e.g. ['compile', '--target', 'prod']
     # If first element is 'dbt', strip it; otherwise use commands as-is
     dbt_command_args = commands[1:] if commands and commands[0] == "dbt" else commands
     absolute_command = absolutize_path_flags(dbt_command_args)

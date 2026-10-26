@@ -29,7 +29,8 @@ def init_storage_connector(uri: str | None) -> tuple[StorageConnectorConfig, str
     provider = uri.split("://")[0]
     if provider not in STORAGE_URI_PREFIXES:
         raise ValueError(
-            f"Storage provider '{provider}' is not supported. Supported providers: {list(STORAGE_URI_PREFIXES.keys())}"
+            f"Storage provider '{provider}' is not supported. Supported providers: "
+            f"{list(STORAGE_URI_PREFIXES.keys())}"
         )
 
     # Now get the configs

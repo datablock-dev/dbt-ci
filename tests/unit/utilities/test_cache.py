@@ -152,7 +152,7 @@ class TestWriteCacheConfig:
         return json.loads((tmp_path / "cache" / "cache.json").read_text(encoding="utf-8"))["config"]
 
     def test_records_state_as_absolute_path(self, tmp_path, monkeypatch):
-        """The state directory init used is recorded absolute, so later commands can pass it as --state."""
+        """init records its state directory as absolute, so later commands can pass it on."""
         monkeypatch.chdir(tmp_path)
         config = self._write(tmp_path, reference_state="dbt/.dbtstate")
 

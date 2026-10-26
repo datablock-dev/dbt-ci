@@ -1,4 +1,4 @@
-"""This module contains utility functions for DBT commands, such as compiling the reference state."""
+"""The dbt compile passes init runs: against the reference target, then the actual target."""
 
 import logging
 from argparse import Namespace
@@ -31,7 +31,8 @@ class DbtCommands:
         reference_vars = getattr(self.args, "reference_vars", None)
         if reference_target is None:
             logger.warning(
-                "No reference target specified, using current target as reference state for comparison."
+                "No reference target specified, using current target as reference state for "
+                "comparison."
             )
         else:
             command.extend(["--target", reference_target])
@@ -72,7 +73,8 @@ class DbtCommands:
 
         if is_reference_target_same_as_current:
             logger.info(
-                "Reference target is the same as current target, skipping separate compilation for target state."
+                "Reference target is the same as current target, skipping separate compilation "
+                "for target state."
             )
             return
 

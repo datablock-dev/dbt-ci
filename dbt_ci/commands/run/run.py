@@ -36,7 +36,7 @@ def run_nodes(
     changed_nodes: list[str],
     changed_nodes_dict: dict[str, list[str]],
 ) -> None:
-    """Build the selected seeds, snapshots, models and tests in order, stopping at the first failure."""
+    """Build the selected seeds, snapshots, models and tests in order, stopping at a failure."""
     mode: RunModes = getattr(args, "nodes", "all")
     # Snapshots run before models so that models built on a changed snapshot read
     # its new state, and tests run last once everything they check exists.
@@ -253,7 +253,8 @@ def _tests_with_filter(
                 break
 
     logger.debug(
-        f"Filtering nodes by types {getattr(args, 'filters', [])} resulted in {len(final_nodes)} nodes to run"
+        f"Filtering nodes by types {getattr(args, 'filters', [])} resulted in {len(final_nodes)} "
+        "nodes to run"
     )
     return list(final_nodes)
 

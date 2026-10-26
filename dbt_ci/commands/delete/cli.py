@@ -13,11 +13,13 @@ def delete_cmd(**kwargs):
 
     Uses cached state from 'dbt-ci init' to detect and delete models removed from the project.
 
+    \b
     Examples:
         # Run after init
         dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
         dbt-ci delete --runner docker
 
+    \b
         # Dry run to preview deletions
         dbt-ci delete --dry-run
     """

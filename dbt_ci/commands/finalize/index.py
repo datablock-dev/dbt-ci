@@ -1,4 +1,4 @@
-"""Command to finalize the ephemeral environment by replacing references with actual targets."""
+"""The finalize command: upload the run's artifacts, then clear the cache."""
 
 import sys
 import logging
@@ -13,9 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 def finalize(args: Namespace):
-    """Finalize the ephemeral environment by replacing references with actual targets.
+    """Upload the run's artifacts to --artifacts-uri and clear the cache.
 
-    This command should be run after the ephemeral environment has been created and tested. It will replace all references to ephemeral tables with the actual target tables in the production environment.
+    With the deprecated --clean-ephemeral it first tears down the ephemeral environment.
+    A dry run uploads nothing and keeps the cache.
 
     Examples:
         dbt-ci finalize
@@ -52,7 +53,8 @@ def finalize(args: Namespace):
         if dry_run:
             if getattr(args, "artifacts_uri", None):
                 logger.info(
-                    f"Dry run enabled - skipping upload of {list(getattr(args, 'files', []) or [])} to {args.artifacts_uri}."
+                    "Dry run enabled - skipping upload of "
+                    f"{list(getattr(args, 'files', []) or [])} to {args.artifacts_uri}."
                 )
         else:
             finalize_upload_files(args)

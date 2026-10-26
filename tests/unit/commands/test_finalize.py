@@ -53,7 +53,8 @@ class TestFinalizeUploadFiles:
             mock_init.return_value = (mock_connector, "gs://bucket/path")
             finalize_upload_files(args)
             mock_logger.info.assert_any_call(
-                "No files specified for upload. Please specify which files to upload using the --files argument. Skipping artifact upload."
+                "No files specified for upload. Please specify which files to upload using the "
+                "--files argument. Skipping artifact upload."
             )
 
     def test_skips_when_no_storage_connector(self):
@@ -184,7 +185,8 @@ class TestFinalizeUploadFiles:
         ):
             finalize_upload_files(args)
             mock_logger.warning.assert_any_call(
-                "No upload function found for file type 'unknown_type'. Skipping upload for this file type."
+                "No upload function found for file type 'unknown_type'. Skipping upload for this "
+                "file type."
             )
             mock_storage_fn.assert_not_called()
 
@@ -545,7 +547,7 @@ class TestFinalizeCleanupOrder:
         assert calls == ["cleanup", "upload"]
 
     def test_failed_cleanup_still_uploads_and_fails(self):
-        """A failed teardown doesn't block the upload, fails the step and keeps the cache for a retry."""
+        """A failed teardown doesn't block the upload, fails the step and keeps the cache."""
         code, calls, cache = self.run_finalize(
             manifest={"nodes": {}}, cleanup_side_effect=RuntimeError("boom")
         )

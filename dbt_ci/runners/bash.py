@@ -1,6 +1,4 @@
-"""
-This module implements the bash runner for executing dbt commands using a custom dbt binary or script. It provides functionality to resolve dbt command arguments based on the provided variables and runner configuration.
-"""
+"""The bash runner: runs dbt through a shell, or through a wrapper script given as --shell-path."""
 
 import os
 import shlex

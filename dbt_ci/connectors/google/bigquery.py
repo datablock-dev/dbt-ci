@@ -146,7 +146,8 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
         # model's clustering and partition options, which a plain CTAS would drop).
         # Using a new table name avoids the "cannot replace with different partitioning spec" error.
         client.query(
-            f"CREATE OR REPLACE TABLE `{temp_table_id}` {table_clauses} AS SELECT * FROM `{table_id}`"
+            f"CREATE OR REPLACE TABLE `{temp_table_id}` {table_clauses} AS SELECT * FROM "
+            f"`{table_id}`"
         ).result()
         # Step 2: Move the original table aside instead of dropping it, so a failure in the
         # swap below never leaves production without its data.
@@ -158,7 +159,8 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
         except Exception as e:
             raise RuntimeError(
                 f"Renaming the migrated table into place failed for '{table_id}'. The original "
-                f"data is preserved in '{backup_table_id}' and the migrated copy in '{temp_table_id}'. "
+                f"data is preserved in '{backup_table_id}' and the migrated copy in "
+                f"'{temp_table_id}'. "
                 f"Original error: {e}"
             ) from e
         # Step 4: Only now drop the old table and any leftover dbt tmp table.
@@ -178,7 +180,7 @@ def bigquery_migration_strategy(migration_map: MigrationMap, args: Namespace) ->
 
 
 def render_bigquery_cluster_clause(cluster_by: str | list[str] | None) -> str:
-    """Render a BigQuery CLUSTER BY clause from dbt's cluster_by config (a column or list of columns)."""
+    """Render a BigQuery CLUSTER BY clause from dbt's cluster_by config (a column or a list)."""
     if not cluster_by:
         return ""
     columns = [cluster_by] if isinstance(cluster_by, str) else list(cluster_by)
@@ -189,9 +191,8 @@ def render_bigquery_options_clause(node_data: MigrationMapNodeEntry) -> str:
     """Render the OPTIONS(...) clause for the partition settings dbt manages on the table."""
     options: list[str] = []
     if node_data.get("require_partition_filter") is not None:
-        options.append(
-            f"require_partition_filter={'true' if node_data['require_partition_filter'] else 'false'}"
-        )
+        require_filter = "true" if node_data["require_partition_filter"] else "false"
+        options.append(f"require_partition_filter={require_filter}")
     expiration_days = node_data.get("partition_expiration_days")
     if expiration_days is not None:
         options.append(f"partition_expiration_days={float(expiration_days)}")

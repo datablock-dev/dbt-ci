@@ -593,7 +593,7 @@ class GitHubContext(TypedDict):
     Fields marked NotRequired are only populated for specific event types
     or execution contexts (e.g. pull_request, composite actions, re-runs).
 
-    Reference: https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#github-context
+    Reference: https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#github-context  # noqa: E501
     """
 
     # The GitHub Actions token for the current workflow run.
@@ -636,7 +636,8 @@ class GitHubContext(TypedDict):
     event_path: str
     # The name of the workflow (or the full path if no name is specified).
     workflow: str
-    # The ref path to the workflow file (e.g. octocat/hello-world/.github/workflows/ci.yml@refs/heads/main).
+    # The ref path to the workflow file
+    # (e.g. octocat/hello-world/.github/workflows/ci.yml@refs/heads/main).
     workflow_ref: str
     # The commit SHA for the workflow file itself.
     workflow_sha: str
@@ -669,11 +670,14 @@ class GitHubContext(TypedDict):
     action_path: NotRequired[str]
     # The ref of the action being executed (e.g. v2); not available in run steps.
     action_ref: NotRequired[str]
-    # The owner and repo name of the action being executed (e.g. actions/checkout); not available in run steps.
+    # The owner and repo name of the action being executed (e.g. actions/checkout);
+    # not available in run steps.
     action_repository: NotRequired[str]
     # The current result of a composite action step.
     action_status: NotRequired[str]
-    # The head_ref (source branch) of the pull request; only set for pull_request / pull_request_target events.
+    # The head_ref (source branch) of the pull request; only set for pull_request and
+    # pull_request_target events.
     head_ref: NotRequired[str]
-    # The base_ref (target branch) of the pull request; only set for pull_request / pull_request_target events.
+    # The base_ref (target branch) of the pull request; only set for pull_request and
+    # pull_request_target events.
     base_ref: NotRequired[str]

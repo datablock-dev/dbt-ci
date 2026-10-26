@@ -35,7 +35,7 @@ class TestEphemeralGroup:
     """Test which implementation each form of the command reaches."""
 
     def test_bare_command_still_creates(self):
-        """'dbt-ci ephemeral --target ci', as existing CI calls it, keeps creating the environment."""
+        """'dbt-ci ephemeral --target ci', as existing CI runs it, still creates the environment."""
         result, mock_create, mock_destroy = invoke("--target", "ci", "--vars", "{'a': 1}")
         assert result.exit_code == 0, result.output
         mock_create.assert_called_once()

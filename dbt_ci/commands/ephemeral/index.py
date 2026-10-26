@@ -60,7 +60,8 @@ def ephemeral(args: Namespace):
 
         if cache_dict is None:
             logger.error(
-                "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
+                "No cache found, please run 'dbt-ci init' first to generate the necessary "
+                "manifest files and cache for comparison."
             )
             sys.exit(1)
 
@@ -88,7 +89,8 @@ def ephemeral(args: Namespace):
         cache.update_report("ephemeral", "completed", comment=str(list(ephemeral_map.keys())))
         logger.info("Ephemeral strategy completed successfully.")
         logger.info(
-            "Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies."
+            "Now you can run your dbt command with the appropriate selection to target the "
+            "ephemeral models and their downstream dependencies."
         )
         sys.exit(0)
     except Exception as e:
@@ -114,7 +116,8 @@ def get_clone_graph(args: Namespace) -> DependencyGraph:
         )
     except FileNotFoundError:
         logger.debug(
-            "No manifest from dbt clone found; using the cached target manifest for the ephemeral map."
+            "No manifest from dbt clone found; using the cached target manifest for the "
+            "ephemeral map."
         )
         return DbtGraph(args).to_dict()
 

@@ -166,7 +166,7 @@ class TestGetContainerPaths:
     """Test get_container_paths resolves dbt_project_dir to container paths."""
 
     def test_relative_project_dir_with_relative_volume_key(self, mock_runner_config):
-        """Relative project-dir matches a relative volume key (both normalize to the same absolute path)."""
+        """A relative project-dir matches a relative volume key: both resolve to one path."""
         config = mock_runner_config(
             {
                 "dbt_project_dir": "dbt",

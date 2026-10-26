@@ -135,7 +135,8 @@ COMMON_OPTIONS = [
         callback=load_config_callback,
         help=(
             "Path to dbt-ci configuration file (YAML). Supports flat (DBT_RUNNER: docker) "
-            "and nested (docker: {image: ...}) styles. Precedence: CLI flag > config file > env var > default."
+            "and nested (docker: {image: ...}) styles. Precedence: CLI flag > config file > env "
+            "var > default."
         ),
     ),
     click.option(
@@ -175,7 +176,10 @@ COMMON_OPTIONS = [
         default=None,
         type=str,
         callback=make_config_callback("DBT_STATE"),
-        help="Path to the reference manifest.json directory (local path where state will be downloaded)",
+        help=(
+            "Path to the reference manifest.json directory (local path where state will be "
+            "downloaded)"
+        ),
     ),
     click.option(
         "--target",
@@ -200,7 +204,8 @@ COMMON_OPTIONS = [
         default=False,
         callback=make_defer_callback(),
         help=(
-            "Use dbt's --defer flag to defer to the state of the production manifest (only applicable to run and test commands). "
+            "Use dbt's --defer flag to defer to the state of the production manifest (only "
+            "applicable to run and test commands). "
             "Also read from DEFER_FLAG ('--defer', empty or a boolean) when DBT_DEFER is not set"
         ),
     ),
