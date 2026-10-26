@@ -268,6 +268,17 @@ def _keep_all_node_ids(*args, **kwargs):
     return list(node_ids)
 
 
+def _graph_node(unique_id, upstream_by_type=None, downstream_by_type=None):
+    """Build a graph node carrying only what clone_command reads."""
+    resource_type, package, name = unique_id.split(".")
+    return {"id": unique_id, "name": name, "resource_type": resource_type, "fqn": [package, name],
+            "upstream_dependencies": {"dependencies_by_type": upstream_by_type or {}},
+            "indirect_downstream_dependencies": {"dependencies_by_type": downstream_by_type or {}}}
+
+
+SEED_TESTS = ["test.pkg.not_null_items_id", "test.pkg.unique_items_id"]
+
+
 class TestCloneCommand:
     """Test failure handling and the returned clone selection of clone_command."""
 
@@ -299,78 +310,78 @@ class TestCloneCommand:
         """The changed nodes and their descendants are reported as cloned."""
         assert set(self.run_clone(returncode=0)) == {"model.pkg.parent", "model.pkg.child"}
 
-    def test_changed_leaf_model_clones_its_parents(self):
-        """A changed model with no descendants still gets its direct model parents cloned, but not its seeds."""
+    def run_clone_on_graph(self, graph, modified_nodes, new_nodes):
+        """Invoke clone_command against a real graph, keeping the mocked dbt calls on self."""
         from dbt_ci.commands.ephemeral.clone import clone_command
 
-        def node(unique_id, upstream_by_type=None):
-            """Build a graph node carrying only what clone_command reads."""
-            resource_type, package, name = unique_id.split(".")
-            return {"id": unique_id, "name": name, "resource_type": resource_type, "fqn": [package, name],
-                    "upstream_dependencies": {"dependencies_by_type": upstream_by_type or {}},
-                    "indirect_downstream_dependencies": {"dependencies_by_type": {}}}
+        target_graph = MagicMock()
+        target_graph.to_dict.return_value = graph
+        self.mock_resolve = MagicMock(side_effect=lambda command_args, args: command_args)
+        self.mock_run = MagicMock(return_value=MagicMock(returncode=0))
+        with patch("dbt_ci.commands.ephemeral.clone.get_profile", return_value={"threads": 1}), \
+             patch("dbt_ci.commands.ephemeral.clone.DbtGraph", return_value=target_graph), \
+             patch("dbt_ci.commands.ephemeral.clone.resolve_dbt_commands", self.mock_resolve), \
+             patch("dbt_ci.commands.ephemeral.clone.run_dbt_command", self.mock_run):
+            return clone_command(
+                {"modified_nodes": modified_nodes, "new_nodes": new_nodes, "deleted_nodes": []},
+                Namespace(dry_run=False),
+            )
 
+    def test_changed_leaf_model_clones_its_parents(self):
+        """A changed model with no descendants still gets its direct model parents cloned, but not its seeds."""
         graph = {
             "model": {
-                "model.pkg.mrt_leaf": node("model.pkg.mrt_leaf", {
+                "model.pkg.mrt_leaf": _graph_node("model.pkg.mrt_leaf", {
                     "model": ["model.pkg.itr_a", "model.pkg.itr_b"],
                     "seed": ["seed.pkg.lookup"],
                 }),
-                "model.pkg.itr_a": node("model.pkg.itr_a", {"model": ["model.pkg.stg_a"]}),
-                "model.pkg.itr_b": node("model.pkg.itr_b"),
-                "model.pkg.stg_a": node("model.pkg.stg_a"),
+                "model.pkg.itr_a": _graph_node("model.pkg.itr_a", {"model": ["model.pkg.stg_a"]}),
+                "model.pkg.itr_b": _graph_node("model.pkg.itr_b"),
+                "model.pkg.stg_a": _graph_node("model.pkg.stg_a"),
             },
-            "seed": {"seed.pkg.lookup": node("seed.pkg.lookup")},
+            "seed": {"seed.pkg.lookup": _graph_node("seed.pkg.lookup")},
         }
-        target_graph = MagicMock()
-        target_graph.to_dict.return_value = graph
 
-        with patch("dbt_ci.commands.ephemeral.clone.get_profile", return_value={"threads": 1}), \
-             patch("dbt_ci.commands.ephemeral.clone.DbtGraph", return_value=target_graph), \
-             patch("dbt_ci.commands.ephemeral.clone.resolve_dbt_commands", side_effect=lambda command_args, args: command_args) as mock_resolve, \
-             patch("dbt_ci.commands.ephemeral.clone.run_dbt_command", return_value=MagicMock(returncode=0)):
-            cloned_nodes = clone_command(
-                {"modified_nodes": ["model.pkg.mrt_leaf"], "new_nodes": [], "deleted_nodes": []},
-                Namespace(dry_run=False),
-            )
+        cloned_nodes = self.run_clone_on_graph(graph, ["model.pkg.mrt_leaf"], [])
 
-        command = mock_resolve.call_args.kwargs["command_args"]
+        command = self.mock_resolve.call_args.kwargs["command_args"]
         assert command == ["clone", "--select", "1+pkg.mrt_leaf+", "--exclude", "pkg.lookup", "--threads", "1"]
         assert set(cloned_nodes) == {"model.pkg.mrt_leaf", "model.pkg.itr_a", "model.pkg.itr_b"}
 
-    def test_seed_only_change_skips_clone(self, caplog):
-        """A changed seed with only tests on it leaves nothing to clone, so no dbt clone runs."""
-        from dbt_ci.commands.ephemeral.clone import clone_command
-
-        def node(unique_id, upstream_by_type=None, downstream_by_type=None):
-            """Build a graph node carrying only what clone_command reads."""
-            resource_type, package, name = unique_id.split(".")
-            return {"id": unique_id, "name": name, "resource_type": resource_type, "fqn": [package, name],
-                    "upstream_dependencies": {"dependencies_by_type": upstream_by_type or {}},
-                    "indirect_downstream_dependencies": {"dependencies_by_type": downstream_by_type or {}}}
-
-        tests = ["test.pkg.not_null_items_id", "test.pkg.unique_items_id"]
+    def test_changed_snapshot_without_descendants_is_cloned(self):
+        """A changed snapshot with nothing downstream is still cloned, together with the model it reads."""
         graph = {
-            "seed": {"seed.pkg.items": node("seed.pkg.items", downstream_by_type={"test": tests})},
-            "test": {test_id: node(test_id, {"seed": ["seed.pkg.items"]}) for test_id in tests},
+            "model": {"model.pkg.src": _graph_node("model.pkg.src")},
+            "snapshot": {"snapshot.pkg.snap": _graph_node("snapshot.pkg.snap", {"model": ["model.pkg.src"]})},
         }
-        target_graph = MagicMock()
-        target_graph.to_dict.return_value = graph
 
-        with patch("dbt_ci.commands.ephemeral.clone.get_profile", return_value={"threads": 1}), \
-             patch("dbt_ci.commands.ephemeral.clone.DbtGraph", return_value=target_graph), \
-             patch("dbt_ci.commands.ephemeral.clone.resolve_dbt_commands") as mock_resolve, \
-             patch("dbt_ci.commands.ephemeral.clone.run_dbt_command") as mock_run, \
-             caplog.at_level(logging.INFO), \
-             pytest.raises(SystemExit) as exc_info:
-            clone_command(
-                {"modified_nodes": [], "new_nodes": ["seed.pkg.items", *tests], "deleted_nodes": []},
-                Namespace(dry_run=False),
-            )
+        cloned_nodes = self.run_clone_on_graph(graph, ["snapshot.pkg.snap"], [])
+
+        command = self.mock_resolve.call_args.kwargs["command_args"]
+        assert command[:2] == ["clone", "--select"] and command[-2:] == ["--threads", "1"]
+        assert set(command[2:-2]) == {"1+pkg.snap+", "1+pkg.src"}
+        self.mock_run.assert_called_once()
+        assert set(cloned_nodes) == {"snapshot.pkg.snap", "model.pkg.src"}
+
+    @pytest.mark.parametrize("modified_nodes, new_nodes", [
+        pytest.param([], ["seed.pkg.items", *SEED_TESTS], id="new-seed-and-its-tests"),
+        pytest.param(["seed.pkg.items"], [], id="modified-seed"),
+        pytest.param(SEED_TESTS[:1], [], id="modified-test-on-a-seed"),
+        pytest.param([], [], id="no-changes"),
+    ])
+    def test_change_without_models_or_snapshots_skips_clone(self, caplog, modified_nodes, new_nodes):
+        """A change that selects no model or snapshot leaves nothing to clone, so no dbt clone runs."""
+        graph = {
+            "seed": {"seed.pkg.items": _graph_node("seed.pkg.items", downstream_by_type={"test": SEED_TESTS})},
+            "test": {test_id: _graph_node(test_id, {"seed": ["seed.pkg.items"]}) for test_id in SEED_TESTS},
+        }
+
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exc_info:
+            self.run_clone_on_graph(graph, modified_nodes, new_nodes)
 
         assert exc_info.value.code == 0
-        mock_resolve.assert_not_called()
-        mock_run.assert_not_called()
+        self.mock_resolve.assert_not_called()
+        self.mock_run.assert_not_called()
         assert "No models or snapshots to clone" in caplog.text
 
 
