@@ -1,4 +1,5 @@
 """Logging configuration for the application."""
+
 import logging
 import traceback
 from argparse import Namespace
@@ -45,12 +46,9 @@ class LogFileManager:
 
 def setup_logging(level: LoggingLevel = "INFO") -> None:
     """Set up logging configuration."""
-    logging.basicConfig(
-        level=getattr(logging, level),
-        format='%(message)s',
-        force=True
-    )
+    logging.basicConfig(level=getattr(logging, level), format="%(message)s", force=True)
     LogFileManager().attach()
+
 
 def flush_log_file() -> None:
     """Flush buffered log records to disk so the log file can be read or uploaded."""
@@ -58,12 +56,14 @@ def flush_log_file() -> None:
         if isinstance(handler, logging.FileHandler):
             handler.flush()
 
+
 # Substrings marking a configuration value as sensitive. The file log always records at
 # DEBUG level and can be uploaded by `finalize --files log`, so anything logged here can
 # leave the CI runner.
 SENSITIVE_KEY_MARKERS = ("webhook", "token", "password", "secret", "credential", "api_key")
 
 REDACTED = "***"
+
 
 def redact(value: Any, key: str = "") -> Any:
     """
@@ -89,18 +89,21 @@ def redact(value: Any, key: str = "") -> Any:
 
     return value
 
+
 def redact_namespace(namespace: Namespace) -> dict[str, Any]:
     """Return a namespace's contents as a dict with sensitive values masked, for logging."""
     return {key: redact(value, key) for key, value in vars(namespace).items()}
+
 
 def _is_sensitive(key: str) -> bool:
     """Report whether a configuration key name suggests it holds a secret."""
     lowered = key.lower()
     return any(marker in lowered for marker in SENSITIVE_KEY_MARKERS)
 
+
 def print_exception(
     e: Exception,
-    base_message: str = "Unexpected error", 
+    base_message: str = "Unexpected error",
 ) -> None:
     """Print an exception with the file and line where it was raised.
 

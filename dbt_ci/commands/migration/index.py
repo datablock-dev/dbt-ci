@@ -1,4 +1,5 @@
 """Migration command for dbt CI."""
+
 import sys
 import logging
 from argparse import Namespace
@@ -15,10 +16,11 @@ from dbt_ci.graph.graph_utils import (
     filter_node_ids_by_type,
     get_node_ids_from_structured_nodes,
     get_nodes,
-    get_relation_name
+    get_relation_name,
 )
 
 logger = logging.getLogger(__name__)
+
 
 def migration(args: Namespace):
     """
@@ -40,13 +42,17 @@ def migration(args: Namespace):
         connector = get_connector(connector_type)
 
         if connector is None:
-            logger.error(f"Connector '{connector_type}' does not support migration strategy, which is required for migration command.")
+            logger.error(
+                f"Connector '{connector_type}' does not support migration strategy, which is required for migration command."
+            )
             sys.exit(1)
 
         # Setup migraiton connector
         migration_connector = connector.get("strategies").get("migration", None)
         if migration_connector is None:
-            logger.error(f"Connector '{connector_type}' does not have a migration strategy implemented, which is required for migration command.")
+            logger.error(
+                f"Connector '{connector_type}' does not have a migration strategy implemented, which is required for migration command."
+            )
             sys.exit(1)
 
         # Determine if there has been a change in clustering or partitioning configuration
@@ -68,16 +74,19 @@ def migration(args: Namespace):
         if getattr(args, "dry_run", False):
             logger.info("Dry run mode enabled - no changes will be applied.")
             sys.exit(0)
-        
+
         # Apply partitioning changes
         migration_connector(migration_map, args)
-        cache.update_report("migrate", "completed", comment=str(list(migration_map["nodes"].keys())))
+        cache.update_report(
+            "migrate", "completed", comment=str(list(migration_map["nodes"].keys()))
+        )
         logger.info("Migration completed successfully.")
     except Exception as e:
         cache = CacheManager(args)
         cache.update_report("migrate", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
+
 
 def generate_migration_map(
     args: Namespace,
@@ -89,19 +98,24 @@ def generate_migration_map(
 
     # Look for cache
     prev_cache = cache.get_cache()
-    if prev_cache is None: # Should we exit here instead of compiling?
-        logger.error("No cache found, please run 'model-lineage init' first to generate the necessary manifest files and cache for comparison.")
+    if prev_cache is None:  # Should we exit here instead of compiling?
+        logger.error(
+            "No cache found, please run 'model-lineage init' first to generate the necessary manifest files and cache for comparison."
+        )
         sys.exit(1)
     logger.info("Cache successfully found - using cached state for comparison")
 
     modified_nodes_dict = {
-        "modified_nodes": get_node_ids_from_structured_nodes(cache.get_cache().get("modified_nodes", None)) or [],
+        "modified_nodes": get_node_ids_from_structured_nodes(
+            cache.get_cache().get("modified_nodes", None)
+        )
+        or [],
     }
 
     selected_nodes = filter_node_ids_by_type(
-        dependency_graph=target_graph.to_dict(), 
-        node_ids=modified_nodes_dict["modified_nodes"], 
-        node_type=["model"]
+        dependency_graph=target_graph.to_dict(),
+        node_ids=modified_nodes_dict["modified_nodes"],
+        node_type=["model"],
     )
     if len(selected_nodes) == 0:
         logger.info("No modified models found in cache, skipping...")
@@ -110,19 +124,18 @@ def generate_migration_map(
     target_nodes = get_nodes(target_graph.to_dict(), selected_nodes)
     reference_nodes = get_nodes(reference_graph.to_dict(), selected_nodes)
 
-    migration_map: MigrationMap = {
-        "connector": get_profile(args)["type"],
-        "nodes": {}
-    }
+    migration_map: MigrationMap = {"connector": get_profile(args)["type"], "nodes": {}}
 
     for node_id, node_metadata in target_nodes.items():
         node_config = node_metadata.get("config", {})
         target_partitioning_config = node_config.get("partition_by", None)
-        reference_partitioning_config = reference_nodes.get(node_id, {}).get("config", {}).get("partition_by", None)
+        reference_partitioning_config = (
+            reference_nodes.get(node_id, {}).get("config", {}).get("partition_by", None)
+        )
         # Skip non-incremental models since partitioning changes only apply to incremental models in BigQuery
         if node_config.get("materialized", None) != "incremental":
             continue
-        
+
         # Check if partitioning has been changed
         # Dict comparison is order-insensitive since Python 3.7+
         if target_partitioning_config != reference_partitioning_config:
@@ -133,7 +146,7 @@ def generate_migration_map(
                 "partition_expiration_days": node_config.get("partition_expiration_days", None),
                 "compiled_code": node_metadata.get("compiled_code", None),
                 "old_partitioning": reference_partitioning_config,
-                "new_partitioning": target_partitioning_config
+                "new_partitioning": target_partitioning_config,
             }
 
     return migration_map

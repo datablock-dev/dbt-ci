@@ -10,6 +10,7 @@ from dbt_ci.schema import DBTManifest, DBTProfile
 
 logger = logging.getLogger(__name__)
 
+
 def get_cache_dir() -> Path:
     """
     Return the directory holding dbt-ci's cache and log files.
@@ -32,9 +33,10 @@ def get_manifest_file(dbt_project_dir: str) -> DBTManifest:
     file = os.path.join(dbt_project_dir, "target/manifest.json")
     if not os.path.isfile(file):
         raise FileNotFoundError(f"manifest.json not found in {dbt_project_dir}")
-    with open(file, 'r', encoding='utf-8') as f:
+    with open(file, "r", encoding="utf-8") as f:
         return json.load(f)
-    
+
+
 def get_reference_manifest_file(reference_state_dir: str) -> DBTManifest:
     """
     Get the reference manifest.json file from the state directory.
@@ -47,8 +49,9 @@ def get_reference_manifest_file(reference_state_dir: str) -> DBTManifest:
 
     if not os.path.isfile(file):
         raise FileNotFoundError(f"manifest.json not found in {reference_state_dir}")
-    with open(file, 'r', encoding='utf-8') as f:
+    with open(file, "r", encoding="utf-8") as f:
         return json.load(f)
+
 
 def get_dbt_project_file(dbt_project_dir: str) -> dict:
     """
@@ -58,9 +61,10 @@ def get_dbt_project_file(dbt_project_dir: str) -> dict:
     file = os.path.join(dbt_project_dir, "dbt_project.yml")
     if not os.path.isfile(file):
         raise FileNotFoundError(f"dbt_project.yml not found in {dbt_project_dir}")
-    
-    with open(file, 'r', encoding='utf-8') as f:
+
+    with open(file, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
+
 
 def get_profiles_file(dbt_project_dir: str, profiles_dir: str | None = None):
     """
@@ -71,24 +75,27 @@ def get_profiles_file(dbt_project_dir: str, profiles_dir: str | None = None):
         file = os.path.join(profiles_dir, "profiles.yml")
         if not os.path.isfile(file):
             raise FileNotFoundError(f"profiles.yml not found in {profiles_dir}")
-        
-        with open(file, 'r', encoding='utf-8') as f:
+
+        with open(file, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
     else:
         # Check for profiles.yml in the dbt project directory
         file = os.path.join(dbt_project_dir, "profiles.yml")
         if os.path.isfile(file):
-            with open(file, 'r', encoding='utf-8') as f:
+            with open(file, "r", encoding="utf-8") as f:
                 return yaml.safe_load(f)
-        
+
         # Check for profiles.yml in the user's home directory
         home_dir = os.path.expanduser("~")
         file = os.path.join(home_dir, ".dbt/profiles.yml")
         if os.path.isfile(file):
-            with open(file, 'r', encoding='utf-8') as f:
+            with open(file, "r", encoding="utf-8") as f:
                 return yaml.safe_load(f)
 
-        raise FileNotFoundError("profiles.yml not found in the specified profiles directory, dbt project directory, or ~/.dbt/")
+        raise FileNotFoundError(
+            "profiles.yml not found in the specified profiles directory, dbt project directory, or ~/.dbt/"
+        )
+
 
 ## New methods, review them
 def get_dbt_project_config(dbt_root_path: str) -> dict:
@@ -103,10 +110,11 @@ def get_dbt_project_config(dbt_root_path: str) -> dict:
     if not os.path.exists(dbt_project_path_yaml_path):
         logger.error(f"dbt_project.yml not found at {dbt_project_path_yaml_path}")
         sys.exit(1)
-    with open(dbt_project_path_yaml_path, 'r', encoding='utf-8') as file:
+    with open(dbt_project_path_yaml_path, "r", encoding="utf-8") as file:
         project_config = yaml.safe_load(file)
 
     return project_config
+
 
 def get_dbt_project_path(dbt_project_path: str) -> Path:
     """
@@ -130,6 +138,7 @@ def get_dbt_project_path(dbt_project_path: str) -> Path:
 
     return project_path.resolve()
 
+
 def get_dbt_profiles_config(dbt_root_path: str) -> dict:
     """Get the DBT profiles configuration from the profiles.yml file."""
     dbt_project_path = get_dbt_project_path(dbt_root_path)
@@ -142,16 +151,19 @@ def get_dbt_profiles_config(dbt_root_path: str) -> dict:
         logger.error(f"profiles.yml not found at {profiles_path}")
         sys.exit(1)
 
-    with open(profiles_path, 'r', encoding='utf-8') as file:
+    with open(profiles_path, "r", encoding="utf-8") as file:
         profiles = yaml.safe_load(file)
 
     return profiles
+
 
 def get_profile(args: Namespace) -> DBTProfile:
     """Get the DBT profile output configuration based on the provided arguments."""
     dbt_root_path = getattr(args, "dbt_project_dir", None)
     if dbt_root_path is None:
-        logger.error("DBT project path not specified in arguments. Please pass the path using --dbt-project-dir <path>.")
+        logger.error(
+            "DBT project path not specified in arguments. Please pass the path using --dbt-project-dir <path>."
+        )
         sys.exit(1)
 
     dbt_project_file = get_dbt_project_config(dbt_root_path)
@@ -161,24 +173,27 @@ def get_profile(args: Namespace) -> DBTProfile:
     profile_name = dbt_profile or "default"
 
     if target is None:
-        logger.error("Target environment not specified in arguments. Please pass the target using --target <target>.")
+        logger.error(
+            "Target environment not specified in arguments. Please pass the target using --target <target>."
+        )
         sys.exit(1)
-    
+
     # Get the default profile (assuming 'default' is the profile name)
     if profile_name not in profiles:
         logger.error(f"Profile '{profile_name}' not found in profiles.yml")
         sys.exit(1)
-    
+
     profile = profiles[profile_name]
-    
+
     # Get the output configuration for the target
     if "outputs" not in profile or target not in profile["outputs"]:
         logger.error(f"Target '{target}' not found in profile '{profile_name}'")
         sys.exit(1)
-    
+
     output_config: DBTProfile = profile["outputs"][target]
 
     return output_config
+
 
 def get_absolute_path(path: str) -> str:
     """Return an absolute version of the given path."""

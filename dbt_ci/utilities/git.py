@@ -1,6 +1,7 @@
 """
 Module for Git-related utilities, such as cloning repositories and managing branches.
 """
+
 import logging
 import os
 import subprocess
@@ -121,7 +122,7 @@ class GitAdapter:
     def get_changed_files(
         self,
         remove_extensions: bool = False,
-        extensions: list[Literal[".sql", ".yml", ".yaml", ".py"]] | None = None
+        extensions: list[Literal[".sql", ".yml", ".yaml", ".py"]] | None = None,
     ) -> dict[GitChangeType, list[str]]:
         """Return a list of changed files with their change types."""
         dbt_project_dir: str | None = getattr(self.args, "dbt_project_dir", None)
@@ -137,7 +138,7 @@ class GitAdapter:
             if project_prefix:
                 if not file_path.startswith(f"{project_prefix}/"):
                     continue
-                file_name = file_path[len(project_prefix) + 1:]
+                file_name = file_path[len(project_prefix) + 1 :]
             else:
                 file_name = file_path
             if extensions is None or any(file_name.endswith(ext) for ext in extensions):
@@ -213,7 +214,9 @@ class GitAdapter:
 
         return classified
 
-    def remove_extensions(self, files: dict[GitChangeType, list[str]]) -> dict[GitChangeType, list[str]]:
+    def remove_extensions(
+        self, files: dict[GitChangeType, list[str]]
+    ) -> dict[GitChangeType, list[str]]:
         """Remove file extensions from a list of file paths."""
         for change_type, file_list in files.items():
             files[change_type] = [os.path.splitext(file_name)[0] for file_name in file_list]

@@ -11,4 +11,4 @@ from dbt_ci.commands.delete.index import delete
 from dbt_ci.commands.finalize.index import finalize
 from dbt_ci.commands.migration.index import migration
 
-__all__ = ['run', 'ephemeral', 'init', 'delete', "finalize", "migration"]
+__all__ = ["run", "ephemeral", "init", "delete", "finalize", "migration"]

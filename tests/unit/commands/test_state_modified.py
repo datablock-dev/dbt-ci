@@ -1,4 +1,5 @@
 """Unit tests for state comparison strategies."""
+
 from argparse import Namespace
 from unittest.mock import patch
 
@@ -51,9 +52,11 @@ class TestGraphReuse:
         state = StateModified(_args())
         empty_graph = {"metadata": {}, "model": {}}
 
-        with patch("dbt_ci.commands.init.state_modified.DbtGraph") as mock_graph, \
-             patch("dbt_ci.commands.init.state_modified.GitAdapter") as mock_git, \
-             patch.object(StateModified, "common_state_change") as mock_common:
+        with (
+            patch("dbt_ci.commands.init.state_modified.DbtGraph") as mock_graph,
+            patch("dbt_ci.commands.init.state_modified.GitAdapter") as mock_git,
+            patch.object(StateModified, "common_state_change") as mock_common,
+        ):
             mock_graph.return_value.to_dict.return_value = empty_graph
             mock_git.return_value.get_changed_files.return_value = {}
             mock_common.return_value = {
@@ -108,10 +111,12 @@ class TestCommonStateChangeCommand:
         args = _args(**{"reference_vars": "{b: 2}", **overrides})
         state = StateModified(args)
 
-        with patch("dbt_ci.commands.init.state_modified.CacheManager"), \
-             patch("dbt_ci.commands.init.state_modified.run_dbt_command") as mock_run, \
-             patch.object(StateModified, "target_graph", {"model": {}}), \
-             patch.object(StateModified, "reference_graph", {"model": {}}):
+        with (
+            patch("dbt_ci.commands.init.state_modified.CacheManager"),
+            patch("dbt_ci.commands.init.state_modified.run_dbt_command") as mock_run,
+            patch.object(StateModified, "target_graph", {"model": {}}),
+            patch.object(StateModified, "reference_graph", {"model": {}}),
+        ):
             mock_run.return_value.stdout = ""
             state.common_state_change()
 
@@ -151,23 +156,38 @@ def _graph(nodes: dict[str, dict], macros: dict[str, dict] | None = None) -> dic
         node_id: [child for child, parents in parent_map.items() if node_id in parents]
         for node_id in nodes
     }
-    return generate_dependency_graph({
-        "metadata": {},
-        "nodes": nodes,
-        "macros": macros or {},
-        "sources": {},
-        "parent_map": parent_map,
-        "child_map": child_map,
-    })
+    return generate_dependency_graph(
+        {
+            "metadata": {},
+            "nodes": nodes,
+            "macros": macros or {},
+            "sources": {},
+            "parent_map": parent_map,
+            "child_map": child_map,
+        }
+    )
 
 
 MACROS = {
-    "macro.pkg.cents": {"name": "cents", "original_file_path": "macros/cents.sql", "depends_on": {"macros": []}},
-    "macro.pkg.fmt": {"name": "fmt", "original_file_path": "macros/fmt.sql", "depends_on": {"macros": ["macro.pkg.cents"]}},
+    "macro.pkg.cents": {
+        "name": "cents",
+        "original_file_path": "macros/cents.sql",
+        "depends_on": {"macros": []},
+    },
+    "macro.pkg.fmt": {
+        "name": "fmt",
+        "original_file_path": "macros/fmt.sql",
+        "depends_on": {"macros": ["macro.pkg.cents"]},
+    },
 }
 
 BASE_NODES = {
-    "model.pkg.stg": _node("stg", "models/staging/stg.sql", macros=["macro.pkg.cents"], patch_path="pkg://models/schema.yml"),
+    "model.pkg.stg": _node(
+        "stg",
+        "models/staging/stg.sql",
+        macros=["macro.pkg.cents"],
+        patch_path="pkg://models/schema.yml",
+    ),
     "model.pkg.other": _node("other", "models/other.sql", macros=["macro.pkg.fmt"]),
     "model.pkg.plain": _node("plain", "models/plain.sql"),
 }
@@ -178,15 +198,19 @@ def _ids(summary: dict, key: str) -> set[str]:
     return {node_id for nodes in (summary.get(key) or {}).values() for node_id in nodes}
 
 
-def _classify(strategy: str, changed_files: dict, target_nodes=None, reference_nodes=None, dbt_ids=None) -> dict:
+def _classify(
+    strategy: str, changed_files: dict, target_nodes=None, reference_nodes=None, dbt_ids=None
+) -> dict:
     """Run a strategy with fixed graphs, git changes and (for hybrid) dbt state:modified ids."""
     state = StateModified(_args(comparison_strategy=strategy))
     state._target_graph = _graph(target_nodes or BASE_NODES, MACROS)
     state._reference_graph = _graph(reference_nodes or BASE_NODES, MACROS)
     dbt_ids = dbt_ids or {}
 
-    with patch("dbt_ci.commands.init.state_modified.GitAdapter") as mock_git, \
-         patch.object(StateModified, "common_state_change") as mock_common:
+    with (
+        patch("dbt_ci.commands.init.state_modified.GitAdapter") as mock_git,
+        patch.object(StateModified, "common_state_change") as mock_common,
+    ):
         mock_git.return_value.get_changed_files.return_value = changed_files
         mock_common.return_value = {
             "modified_node_ids": set(dbt_ids.get("modified", ())),
@@ -196,7 +220,10 @@ def _classify(strategy: str, changed_files: dict, target_nodes=None, reference_n
         return state.get_state_modified()
 
 
-MOVED_TARGET = {**BASE_NODES, "model.pkg.stg": {**BASE_NODES["model.pkg.stg"], "original_file_path": "models/marts/stg.sql"}}
+MOVED_TARGET = {
+    **BASE_NODES,
+    "model.pkg.stg": {**BASE_NODES["model.pkg.stg"], "original_file_path": "models/marts/stg.sql"},
+}
 MOVE = {"deleted": ["models/staging/stg.sql"], "added": ["models/marts/stg.sql"]}
 
 
@@ -206,7 +233,9 @@ class TestChangeClassification:
 
     def test_moved_model_is_modified_not_deleted(self, strategy):
         """A moved file keeps its unique_id, so it must not be reported as deleted (and dropped)."""
-        summary = _classify(strategy, MOVE, target_nodes=MOVED_TARGET, dbt_ids={"modified": ["model.pkg.stg"]})
+        summary = _classify(
+            strategy, MOVE, target_nodes=MOVED_TARGET, dbt_ids={"modified": ["model.pkg.stg"]}
+        )
         assert _ids(summary, "modified_nodes") == {"model.pkg.stg"}
         assert _ids(summary, "deleted_nodes") == set()
         assert _ids(summary, "new_nodes") == set()
@@ -214,8 +243,12 @@ class TestChangeClassification:
     def test_removed_model_is_still_deleted(self, strategy):
         """A model that is gone from the target is still reported as deleted."""
         target = {k: v for k, v in BASE_NODES.items() if k != "model.pkg.plain"}
-        summary = _classify(strategy, {"deleted": ["models/plain.sql"]}, target_nodes=target,
-                            dbt_ids={"deleted": ["model.pkg.plain"]})
+        summary = _classify(
+            strategy,
+            {"deleted": ["models/plain.sql"]},
+            target_nodes=target,
+            dbt_ids={"deleted": ["model.pkg.plain"]},
+        )
         assert _ids(summary, "deleted_nodes") == {"model.pkg.plain"}
 
     def test_macro_change_selects_its_users(self, strategy):
@@ -225,7 +258,9 @@ class TestChangeClassification:
             {"modified": ["macros/cents.sql", "models/plain.sql"]},
             dbt_ids={"modified": ["model.pkg.stg", "model.pkg.other", "model.pkg.plain"]},
         )
-        assert {"model.pkg.stg", "model.pkg.other", "model.pkg.plain"} <= _ids(summary, "modified_nodes")
+        assert {"model.pkg.stg", "model.pkg.other", "model.pkg.plain"} <= _ids(
+            summary, "modified_nodes"
+        )
 
     def test_yaml_only_change_selects_the_patched_model(self, strategy):
         """A config change made only in schema.yml marks the model it patches as modified."""
@@ -238,5 +273,7 @@ class TestChangeClassification:
 
     def test_unrelated_models_are_not_selected(self, strategy):
         """Only the nodes behind the changed files are selected."""
-        summary = _classify(strategy, {"modified": ["models/plain.sql"]}, dbt_ids={"modified": ["model.pkg.plain"]})
+        summary = _classify(
+            strategy, {"modified": ["models/plain.sql"]}, dbt_ids={"modified": ["model.pkg.plain"]}
+        )
         assert _ids(summary, "modified_nodes") == {"model.pkg.plain"}

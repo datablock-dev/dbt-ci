@@ -5,13 +5,15 @@ from dbt_ci.commands.config.index import generate_config
 
 @cli.command(name="config")
 @click.option(
-    "--output", "-o",
+    "--output",
+    "-o",
     default="dbt-ci.config.yaml",
     show_default=True,
     help="Destination file path for the generated config.",
 )
 @click.option(
-    "--force", "-f",
+    "--force",
+    "-f",
     is_flag=True,
     default=False,
     help="Overwrite the file if it already exists.",

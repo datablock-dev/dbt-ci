@@ -10,6 +10,7 @@ from dbt_ci.schema import DBTManifest, DependencyGraph
 from dbt_ci.graph.parser import generate_dependency_graph
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 
+
 class DbtGraph:
     """
     Structured representation of dbt dependencies for lineage analysis.
@@ -23,29 +24,34 @@ class DbtGraph:
     Returns:
         DbtGraph: An instance of the DbtGraph class containing the dependency graph and related
     """
+
     def __init__(self, args: Namespace, is_reference: bool = False):
         cache = CacheManager(args)
         self.args = args
         self.is_reference = is_reference
         for key, value in self.args.__dict__.items():
             setattr(self, key, value)
-        
+
         # Keep paths as provided by user (relative or absolute)
         if getattr(self.args, "command", None) == "init":
             self.dbt_project_dir = getattr(self.args, "dbt_project_dir")
             self.dependency_graph = generate_dependency_graph(
-                manifest_file=get_manifest_file(self.dbt_project_dir) if not self.is_reference 
-                else get_reference_manifest_file(self.args.reference_state),
+                manifest_file=(
+                    get_manifest_file(self.dbt_project_dir)
+                    if not self.is_reference
+                    else get_reference_manifest_file(self.args.reference_state)
+                ),
             )
         # We retrive manifest file from cache
         # Potential improvements would be to only store the dependency graph in cache
-        # to avoid having to read and parse the entire manifest file each time this class is 
+        # to avoid having to read and parse the entire manifest file each time this class is
         # initialized, which can be costly for large projects.
         else:
-            manifest_file = cache.get_cache("target_manifest.json" if not self.is_reference else "reference_manifest.json")
+            manifest_file = cache.get_cache(
+                "target_manifest.json" if not self.is_reference else "reference_manifest.json"
+            )
             self.dependency_graph = generate_dependency_graph(cast(DBTManifest, manifest_file))
 
     def to_dict(self) -> DependencyGraph:
         """Convert the DependencyGraph instance to a dictionary."""
         return self.dependency_graph
-

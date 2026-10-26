@@ -1,4 +1,5 @@
 """Unit tests for dependency graph construction."""
+
 from dbt_ci.graph.parser import (
     compute_transitive_closure,
     generate_dependency_graph,
@@ -48,7 +49,9 @@ class TestTransitiveClosure:
         """a -> b -> c means c's indirect upstream contains both b and a."""
         graph = generate_dependency_graph(_manifest({"a": [], "b": ["a"], "c": ["b"]}))
 
-        upstream = graph["model"]["model.pkg.c"]["indirect_upstream_dependencies"]["node_dependencies"]
+        upstream = graph["model"]["model.pkg.c"]["indirect_upstream_dependencies"][
+            "node_dependencies"
+        ]
 
         assert upstream == {"model.pkg.b", "model.pkg.a"}
 
@@ -56,15 +59,17 @@ class TestTransitiveClosure:
         """The 'indirect' set is the full closure, direct dependencies included."""
         graph = generate_dependency_graph(_manifest({"a": [], "b": ["a"]}))
 
-        assert graph["model"]["model.pkg.b"]["indirect_upstream_dependencies"]["node_dependencies"] == {
-            "model.pkg.a"
-        }
+        assert graph["model"]["model.pkg.b"]["indirect_upstream_dependencies"][
+            "node_dependencies"
+        ] == {"model.pkg.a"}
 
     def test_downstream_closure(self):
         """a's indirect downstream contains everything that reads from it, transitively."""
         graph = generate_dependency_graph(_manifest({"a": [], "b": ["a"], "c": ["b"]}))
 
-        downstream = graph["model"]["model.pkg.a"]["indirect_downstream_dependencies"]["node_dependencies"]
+        downstream = graph["model"]["model.pkg.a"]["indirect_downstream_dependencies"][
+            "node_dependencies"
+        ]
 
         assert downstream == {"model.pkg.b", "model.pkg.c"}
 
@@ -74,7 +79,9 @@ class TestTransitiveClosure:
             _manifest({"a": [], "b": ["a"], "c": ["a"], "d": ["b", "c"]})
         )
 
-        upstream = graph["model"]["model.pkg.d"]["indirect_upstream_dependencies"]["node_dependencies"]
+        upstream = graph["model"]["model.pkg.d"]["indirect_upstream_dependencies"][
+            "node_dependencies"
+        ]
 
         assert upstream == {"model.pkg.b", "model.pkg.c", "model.pkg.a"}
 
@@ -82,7 +89,9 @@ class TestTransitiveClosure:
         """Closure members are also grouped by resource type, keyed by node name."""
         graph = generate_dependency_graph(_manifest({"a": [], "b": ["a"], "c": ["b"]}))
 
-        by_type = graph["model"]["model.pkg.c"]["indirect_upstream_dependencies"]["dependencies_by_type"]
+        by_type = graph["model"]["model.pkg.c"]["indirect_upstream_dependencies"][
+            "dependencies_by_type"
+        ]
 
         assert by_type["model"] == {"model.pkg.a", "model.pkg.b"}
 
@@ -102,7 +111,9 @@ class TestTransitiveClosure:
         """A cyclic manifest must not loop forever, even though dbt DAGs are acyclic."""
         graph = generate_dependency_graph(_manifest({"a": ["b"], "b": ["a"]}))
 
-        upstream = graph["model"]["model.pkg.a"]["indirect_upstream_dependencies"]["node_dependencies"]
+        upstream = graph["model"]["model.pkg.a"]["indirect_upstream_dependencies"][
+            "node_dependencies"
+        ]
 
         assert "model.pkg.b" in upstream
 

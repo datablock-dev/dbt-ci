@@ -1,9 +1,9 @@
 """
-    Ephemeral command for dbt-ci
+Ephemeral command for dbt-ci
 
-    Models: By default, select all downstream dependencies (full graph)
-    Tests: By default, select upstream depedendenceis (1 level)
-    Snapshots: By default, only select upstream dependencies (1 level)
+Models: By default, select all downstream dependencies (full graph)
+Tests: By default, select upstream depedendenceis (1 level)
+Snapshots: By default, only select upstream dependencies (1 level)
 """
 
 import sys
@@ -22,21 +22,22 @@ from dbt_ci.utilities.paths import get_manifest_file
 from dbt_ci.graph.graph_utils import (
     get_node_ids_from_structured_nodes,
     get_nodes,
-    get_relation_name
+    get_relation_name,
 )
 
 logger = logging.getLogger(__name__)
 
+
 def ephemeral(args: Namespace):
     """Run ephemeral CI check workflow
-    
+
     Detects changes, lists modified models, but doesn't execute them.
     Useful for quick CI checks and PR previews.
-    
+
     Examples:
         dbt-ci ephemeral --state prod-manifest/ --dbt-project-dir ./dbt
         dbt-ci ephemeral --state prod-manifest/ --runner docker
-        
+
         # With environment variables
         export DBT_STATE=./dbt/.dbtstate/
         export DBT_PROJECT_DIR=./dbt
@@ -56,16 +57,25 @@ def ephemeral(args: Namespace):
         cache.start_report("ephemeral", args)
         apply_cached_config(args)
         cache_dict: StateChangeSummary = cast(StateChangeSummary, cache.get_cache())
-        
+
         if cache_dict is None:
-            logger.error("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
+            logger.error(
+                "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
+            )
             sys.exit(1)
 
         logger.info("Cache successfully found - using cached state for comparison")
         changed_nodes_dict = {
-            "modified_nodes": get_node_ids_from_structured_nodes(cache_dict.get("modified_nodes", None)) or [],
-            "deleted_nodes": get_node_ids_from_structured_nodes(cache_dict.get("deleted_nodes", None)) or [],
-            "new_nodes": get_node_ids_from_structured_nodes(cache_dict.get("new_nodes", None)) or [],
+            "modified_nodes": get_node_ids_from_structured_nodes(
+                cache_dict.get("modified_nodes", None)
+            )
+            or [],
+            "deleted_nodes": get_node_ids_from_structured_nodes(
+                cache_dict.get("deleted_nodes", None)
+            )
+            or [],
+            "new_nodes": get_node_ids_from_structured_nodes(cache_dict.get("new_nodes", None))
+            or [],
         }
 
         cloned_nodes = clone_command(changed_nodes_dict, args)
@@ -75,13 +85,16 @@ def ephemeral(args: Namespace):
         cache.write_ephemeral(ephemeral_map)
         cache.update_report("ephemeral", "completed", comment=str(list(ephemeral_map.keys())))
         logger.info("Ephemeral strategy completed successfully.")
-        logger.info("Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies.")
+        logger.info(
+            "Now you can run your dbt command with the appropriate selection to target the ephemeral models and their downstream dependencies."
+        )
         sys.exit(0)
     except Exception as e:
         cache = CacheManager(args)
         cache.update_report("ephemeral", "failed", comment=str(e))
         print_exception(e)
         sys.exit(1)
+
 
 def get_clone_graph(args: Namespace) -> DependencyGraph:
     """
@@ -94,9 +107,13 @@ def get_clone_graph(args: Namespace) -> DependencyGraph:
     drop anything. Falls back to the cached manifest when dbt wrote none on this host.
     """
     try:
-        return generate_dependency_graph(get_manifest_file(getattr(args, "dbt_project_dir", None) or "."))
+        return generate_dependency_graph(
+            get_manifest_file(getattr(args, "dbt_project_dir", None) or ".")
+        )
     except FileNotFoundError:
-        logger.debug("No manifest from dbt clone found; using the cached target manifest for the ephemeral map.")
+        logger.debug(
+            "No manifest from dbt clone found; using the cached target manifest for the ephemeral map."
+        )
         return DbtGraph(args).to_dict()
 
 
@@ -133,10 +150,7 @@ def build_ephemeral_map(args: Namespace, node_ids: list[str]) -> dict[str, Ephem
 
 
 def full_config_or_none(
-    database: Optional[str],
-    schema: Optional[str],
-    name: Optional[str],
-    alias: Optional[str] = None
+    database: Optional[str], schema: Optional[str], name: Optional[str], alias: Optional[str] = None
 ) -> dict[str, Optional[str]] | None:
     """Helper function to return full config dict if all values are present, otherwise None."""
     if any(v is None for v in (database, schema, name)):

@@ -1,4 +1,5 @@
 """Post the dbt-ci report as a pull request comment on GitHub."""
+
 import json
 import logging
 import os
@@ -65,7 +66,9 @@ class GitHubClient:
 
     def __init__(self, token: str, api_url: str | None = None):
         self.token = token
-        self.api_url = (api_url or os.environ.get("GITHUB_API_URL") or "https://api.github.com").rstrip("/")
+        self.api_url = (
+            api_url or os.environ.get("GITHUB_API_URL") or "https://api.github.com"
+        ).rstrip("/")
 
     def request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> Any:
         """Send one API request and return the decoded JSON response."""
@@ -86,7 +89,9 @@ class GitHubClient:
             with urllib.request.urlopen(request, timeout=30) as response:
                 body = response.read()
         except urllib.error.HTTPError as e:
-            raise GitHubAPIError(f"{method} {path} returned {e.code}: {e.read().decode('utf-8', 'replace')[:300]}") from e
+            raise GitHubAPIError(
+                f"{method} {path} returned {e.code}: {e.read().decode('utf-8', 'replace')[:300]}"
+            ) from e
         except urllib.error.URLError as e:
             raise GitHubAPIError(f"{method} {path} failed: {e.reason}") from e
         return json.loads(body) if body else None
@@ -95,9 +100,13 @@ class GitHubClient:
         """Return the id of the comment carrying the dbt-ci marker, if there is one."""
         page = 1
         while True:
-            comments = self.request(
-                "GET", f"/repos/{repository}/issues/{number}/comments?per_page={PAGE_SIZE}&page={page}"
-            ) or []
+            comments = (
+                self.request(
+                    "GET",
+                    f"/repos/{repository}/issues/{number}/comments?per_page={PAGE_SIZE}&page={page}",
+                )
+                or []
+            )
             for comment in comments:
                 if (comment.get("body") or "").startswith(COMMENT_MARKER):
                     return comment["id"]
@@ -109,7 +118,9 @@ class GitHubClient:
         """Update the existing report comment or create one, returning "updated" or "created"."""
         comment_id = self.find_report_comment(repository, number)
         if comment_id is not None:
-            self.request("PATCH", f"/repos/{repository}/issues/comments/{comment_id}", {"body": body})
+            self.request(
+                "PATCH", f"/repos/{repository}/issues/comments/{comment_id}", {"body": body}
+            )
             return "updated"
         self.request("POST", f"/repos/{repository}/issues/{number}/comments", {"body": body})
         return "created"
@@ -138,7 +149,9 @@ def post_pr_comment(markdown: str) -> bool:
 
     repository, number = pull_request
     try:
-        action = GitHubClient(token).upsert_report_comment(repository, number, build_comment_body(markdown))
+        action = GitHubClient(token).upsert_report_comment(
+            repository, number, build_comment_body(markdown)
+        )
     except GitHubAPIError as e:
         logger.warning(f"Could not post the report to {repository}#{number}: {e}")
         return False

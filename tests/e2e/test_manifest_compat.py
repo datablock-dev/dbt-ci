@@ -9,6 +9,7 @@ this test compiles a small project with a real dbt binary and checks each field.
 Opt-in like the other e2e tests: see dbt_env for the environment variables that pick
 the dbt under test (a local binary or a Docker image).
 """
+
 import json
 import os
 from pathlib import Path
@@ -37,8 +38,7 @@ PROJECT_FILES = {
     "macros/upper_name.sql": "{% macro upper_name(col) %}upper({{ col }}){% endmacro %}\n",
     "models/stg.sql": "select id, {{ upper_name('name') }} as name from {{ ref('raw') }}\n",
     "models/agg.sql": (
-        "{{ config(materialized='table') }}\n"
-        "select count(*) as n from {{ ref('stg') }}\n"
+        "{{ config(materialized='table') }}\n" "select count(*) as n from {{ ref('stg') }}\n"
     ),
     "models/from_source.sql": "select * from {{ source('ext', 'events') }}\n",
     "models/schema.yml": (
@@ -79,7 +79,9 @@ def compiled(tmp_path_factory) -> tuple[Path, dict]:
 
     result = run_dbt(
         ["compile", "--project-dir", str(project), "--profiles-dir", str(project)],
-        cwd=project, mount=root, check=False,
+        cwd=project,
+        mount=root,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
 

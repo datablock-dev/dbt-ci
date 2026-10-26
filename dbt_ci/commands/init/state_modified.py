@@ -22,10 +22,11 @@ from dbt_ci.graph.graph_utils import (
     get_nodes_from_path,
     get_nodes,
     get_nodes_using_macros,
-    get_structured_modified_nodes
+    get_structured_modified_nodes,
 )
 
 logger = logging.getLogger(__name__)
+
 
 def parse_ls_unique_ids(output: str) -> list[str]:
     """
@@ -51,6 +52,7 @@ def parse_ls_unique_ids(output: str) -> list[str]:
 
     return unique_ids
 
+
 def add_macro_users(
     git_modified_nodes: dict[GitChangeType, set[str]],
     target_graph: DependencyGraph,
@@ -70,6 +72,7 @@ def add_macro_users(
     for node_id in get_nodes_using_macros(target_graph, changed_macros):
         if node_id not in git_modified_nodes["added"]:
             git_modified_nodes["modified"].add(node_id)
+
 
 def reconcile_with_graphs(
     git_modified_nodes: dict[GitChangeType, set[str]],
@@ -92,10 +95,12 @@ def reconcile_with_graphs(
             git_modified_nodes["added"].discard(node_id)
             git_modified_nodes["modified"].add(node_id)
 
+
 class CommonStateChangeSummary(TypedDict):
     modified_node_ids: set[str]
     deleted_node_ids: set[str]
     new_node_ids: set[str]
+
 
 class StateModified:
     """Resolves the set of modified, new and deleted nodes for the configured strategy."""
@@ -127,7 +132,6 @@ class StateModified:
             self._reference_graph = DbtGraph(self.args, is_reference=True).to_dict()
         return self._reference_graph
 
-
     def get_state_modified(self) -> StateChangeSummary:
         """Determines the modified, new, and deleted nodes compared to the reference state based on the specified comparison strategy."""
         if self.strategy == "git":
@@ -137,7 +141,9 @@ class StateModified:
         elif self.strategy == "dbt":
             return self.dbt_strategy()
         else:
-            logger.error(f"Invalid comparison strategy specified: {self.strategy}. Supported strategies are 'git', 'dbt', and 'hybrid'.")
+            logger.error(
+                f"Invalid comparison strategy specified: {self.strategy}. Supported strategies are 'git', 'dbt', and 'hybrid'."
+            )
             sys.exit(1)
 
     def git_strategy(self) -> StateChangeSummary:
@@ -148,43 +154,44 @@ class StateModified:
             reference_dict = self.reference_graph
             changed_files = git.get_changed_files()
 
-            git_modified_nodes = {
-                "modified": set(),
-                "added": set(),
-                "deleted": set()
-            }
+            git_modified_nodes = {"modified": set(), "added": set(), "deleted": set()}
 
             # Get modified nodes based on git diff
             for change_type, files in changed_files.items():
                 for file_path in files:
                     # One file can define several nodes (a schema.yml declares many
                     # tests), so every node at that path is attributed to the change.
-                    nodes_at_path = (
-                        get_nodes_from_path(target_dict, file_path, include_patch_path=True)
-                        or get_nodes_from_path(reference_dict, file_path, include_patch_path=True)
-                    )
+                    nodes_at_path = get_nodes_from_path(
+                        target_dict, file_path, include_patch_path=True
+                    ) or get_nodes_from_path(reference_dict, file_path, include_patch_path=True)
                     if nodes_at_path:
                         for node_info in nodes_at_path:
                             git_modified_nodes[change_type].add(node_info["id"])
                     else:
-                        logger.debug(f"File {file_path} changed according to git but no corresponding node found in either target or reference graph (e.g. a non-dbt file).")
+                        logger.debug(
+                            f"File {file_path} changed according to git but no corresponding node found in either target or reference graph (e.g. a non-dbt file)."
+                        )
 
             add_macro_users(git_modified_nodes, target_dict)
             reconcile_with_graphs(git_modified_nodes, target_dict, reference_dict)
 
             return {
-                "modified_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=target_dict, 
-                    node_ids=list(git_modified_nodes["modified"])
-                )),
-                "deleted_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=reference_dict, 
-                    node_ids=list(git_modified_nodes["deleted"])
-                )),
-                "new_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=target_dict, 
-                    node_ids=list(git_modified_nodes["added"])
-                ))
+                "modified_nodes": get_structured_modified_nodes(
+                    get_nodes(
+                        dependency_graph=target_dict, node_ids=list(git_modified_nodes["modified"])
+                    )
+                ),
+                "deleted_nodes": get_structured_modified_nodes(
+                    get_nodes(
+                        dependency_graph=reference_dict,
+                        node_ids=list(git_modified_nodes["deleted"]),
+                    )
+                ),
+                "new_nodes": get_structured_modified_nodes(
+                    get_nodes(
+                        dependency_graph=target_dict, node_ids=list(git_modified_nodes["added"])
+                    )
+                ),
             }
         except Exception as e:
             print_exception(e, "Error generating state change summary using git strategy")
@@ -200,25 +207,16 @@ class StateModified:
             changed_files = git.get_changed_files()
             new_nodes = get_new_nodes(reference_graph, target_graph)
 
-            git_modified_nodes = {
-                "modified": set(),
-                "added": set(),
-                "deleted": set()
-            }
+            git_modified_nodes = {"modified": set(), "added": set(), "deleted": set()}
 
-            unmatched_nodes = {
-                "modified": set(),
-                "added": set(),
-                "deleted": set()
-            }
+            unmatched_nodes = {"modified": set(), "added": set(), "deleted": set()}
 
             # Get modified nodes based on git diff
             for change_type, files in changed_files.items():
                 for file_path in files:
-                    nodes_at_path = (
-                        get_nodes_from_path(target_graph, file_path)
-                        or get_nodes_from_path(reference_graph, file_path)
-                    )
+                    nodes_at_path = get_nodes_from_path(
+                        target_graph, file_path
+                    ) or get_nodes_from_path(reference_graph, file_path)
                     if nodes_at_path:
                         for node_info in nodes_at_path:
                             node_id = node_info["id"]
@@ -233,27 +231,33 @@ class StateModified:
                         unmatched_nodes[change_type].add(file_path)
 
             # Structure the nodes from the output of Dbt
-            # We want to filter out the nodes that already exists in 
+            # We want to filter out the nodes that already exists in
             # git_modified_nodes from the dbt modified nodes
             structured_modified_nodes_dbt: StateChangeSummary = {
-                "modified_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=target_graph, 
-                    node_ids=list(modified_nodes_dbt["modified_node_ids"]),
-                    exclude_node_ids=list(git_modified_nodes["modified"])
-                )),
-                "deleted_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=reference_graph, 
-                    node_ids=list(modified_nodes_dbt["deleted_node_ids"]),
-                    exclude_node_ids=list(git_modified_nodes["deleted"])
-                )),
-                "new_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=target_graph, 
-                    node_ids=list(modified_nodes_dbt["new_node_ids"]),
-                    exclude_node_ids=list(git_modified_nodes["added"])
-                ))
+                "modified_nodes": get_structured_modified_nodes(
+                    get_nodes(
+                        dependency_graph=target_graph,
+                        node_ids=list(modified_nodes_dbt["modified_node_ids"]),
+                        exclude_node_ids=list(git_modified_nodes["modified"]),
+                    )
+                ),
+                "deleted_nodes": get_structured_modified_nodes(
+                    get_nodes(
+                        dependency_graph=reference_graph,
+                        node_ids=list(modified_nodes_dbt["deleted_node_ids"]),
+                        exclude_node_ids=list(git_modified_nodes["deleted"]),
+                    )
+                ),
+                "new_nodes": get_structured_modified_nodes(
+                    get_nodes(
+                        dependency_graph=target_graph,
+                        node_ids=list(modified_nodes_dbt["new_node_ids"]),
+                        exclude_node_ids=list(git_modified_nodes["added"]),
+                    )
+                ),
             }
 
-            # Now we resolve the ones that are unmatched by looking into 
+            # Now we resolve the ones that are unmatched by looking into
             # the output from dbt state:modified
             # We seek to see what was actually changed. For example, if a schema.yml file
             # has been modified, we want to identify the actual nodes that were changed.
@@ -304,22 +308,28 @@ class StateModified:
             # This happens when the working tree is clean (e.g. manifest was updated
             # remotely) but dbt state:modified still detects changes.
             if not any(nodes for nodes in git_modified_nodes.values()):
-                logger.debug("Git returned no changed files — falling back to dbt state:modified output.")
+                logger.debug(
+                    "Git returned no changed files — falling back to dbt state:modified output."
+                )
                 return structured_modified_nodes_dbt
 
             return {
-                "modified_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=target_graph, 
-                    node_ids=list(git_modified_nodes["modified"])
-                )),
-                "deleted_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=reference_graph, 
-                    node_ids=list(git_modified_nodes["deleted"])
-                )),
-                "new_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=target_graph, 
-                    node_ids=list(git_modified_nodes["added"])
-                ))
+                "modified_nodes": get_structured_modified_nodes(
+                    get_nodes(
+                        dependency_graph=target_graph, node_ids=list(git_modified_nodes["modified"])
+                    )
+                ),
+                "deleted_nodes": get_structured_modified_nodes(
+                    get_nodes(
+                        dependency_graph=reference_graph,
+                        node_ids=list(git_modified_nodes["deleted"]),
+                    )
+                ),
+                "new_nodes": get_structured_modified_nodes(
+                    get_nodes(
+                        dependency_graph=target_graph, node_ids=list(git_modified_nodes["added"])
+                    )
+                ),
             }
         except Exception as e:
             print_exception(e, "Error generating state change summary using hybrid strategy")
@@ -331,28 +341,32 @@ class StateModified:
             data = self.common_state_change()
 
             return {
-                "modified_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=self.target_graph,
-                    node_ids=list(data["modified_node_ids"])
-                )),
-                "deleted_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=self.reference_graph,
-                    node_ids=list(data["deleted_node_ids"])
-                )),
-                "new_nodes": get_structured_modified_nodes(get_nodes(
-                    dependency_graph=self.target_graph,
-                    node_ids=list(data["new_node_ids"])
-                ))
+                "modified_nodes": get_structured_modified_nodes(
+                    get_nodes(
+                        dependency_graph=self.target_graph, node_ids=list(data["modified_node_ids"])
+                    )
+                ),
+                "deleted_nodes": get_structured_modified_nodes(
+                    get_nodes(
+                        dependency_graph=self.reference_graph,
+                        node_ids=list(data["deleted_node_ids"]),
+                    )
+                ),
+                "new_nodes": get_structured_modified_nodes(
+                    get_nodes(
+                        dependency_graph=self.target_graph, node_ids=list(data["new_node_ids"])
+                    )
+                ),
             }
         except Exception as e:
             raise Exception(f"Error generating state change summary: {str(e)}")
 
     def common_state_change(self) -> CommonStateChangeSummary:
         """
-            Common logic to determine modified, new, and deleted nodes using 
-            dbt's state:modified comparison, without git diff filtering. 
-            This is used by both the dbt_strategy and hybrid_strategy functions 
-            to avoid code duplication in the initial retrieval of modified nodes from dbt.
+        Common logic to determine modified, new, and deleted nodes using
+        dbt's state:modified comparison, without git diff filtering.
+        This is used by both the dbt_strategy and hybrid_strategy functions
+        to avoid code duplication in the initial retrieval of modified nodes from dbt.
         """
         try:
             cache = CacheManager(self.args)
@@ -362,7 +376,16 @@ class StateModified:
             # The reference target and vars go in before resolve_dbt_commands, which then
             # leaves out the current --target/--vars. Appending them afterwards passed each
             # flag twice: dbt v1 silently took the last one, dbt v2 rejects the command.
-            ls_command = ["ls", "--select", "state:modified", "--output", "json", "--output-keys", "unique_id", "--quiet"]
+            ls_command = [
+                "ls",
+                "--select",
+                "state:modified",
+                "--output",
+                "json",
+                "--output-keys",
+                "unique_id",
+                "--quiet",
+            ]
             reference_target = getattr(self.args, "reference_target", None)
             if reference_target:
                 ls_command.extend(["--target", reference_target])
@@ -374,29 +397,29 @@ class StateModified:
             commands = resolve_dbt_commands(ls_command, self.args)
 
             logger.debug(f"Running dbt ls command with arguments: {commands}")
-    
+
             ls_output = run_dbt_command(
-                command_args=commands,
-                runner_config=cast(RunnerConfig, self.args.__dict__)
+                command_args=commands, runner_config=cast(RunnerConfig, self.args.__dict__)
             )
-    
+
             if ls_output is None:
                 logger.info("No modified nodes found during initialization. Exiting...")
                 cache.write_cache()
                 sys.exit(0)
-    
+
             modified_nodes = parse_ls_unique_ids(ls_output.stdout)
 
             new_node_ids = set(get_new_nodes(self.reference_graph, self.target_graph) or [])
             deleted_node_ids = set(get_deleted_nodes(self.reference_graph, self.target_graph) or [])
-            truly_modified_nodes = set([n for n in modified_nodes if n not in new_node_ids and n not in deleted_node_ids])
-    
+            truly_modified_nodes = set(
+                [n for n in modified_nodes if n not in new_node_ids and n not in deleted_node_ids]
+            )
+
             return {
                 "new_node_ids": new_node_ids,
                 "deleted_node_ids": deleted_node_ids,
-                "modified_node_ids": truly_modified_nodes
+                "modified_node_ids": truly_modified_nodes,
             }
         except Exception as e:
             print_exception(e, "Error generating state change summary")
             sys.exit(1)
-

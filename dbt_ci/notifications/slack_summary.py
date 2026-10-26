@@ -1,4 +1,5 @@
 """Build the Slack Block Kit message that `init` posts for a state change summary."""
+
 import json
 import os
 from argparse import Namespace
@@ -21,7 +22,9 @@ def escape_mrkdwn(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def get_summary_nodes(state_change_summary: StateChangeSummary, key: StateChangeSummaryKeys) -> list[dict]:
+def get_summary_nodes(
+    state_change_summary: StateChangeSummary, key: StateChangeSummaryKeys
+) -> list[dict]:
     """Flatten one bucket of the change set into nodes sorted by resource type, then name."""
     buckets = state_change_summary.get(key) or {}
     nodes = [node for node_dict in buckets.values() for node in node_dict.values()]
@@ -86,7 +89,9 @@ def build_init_summary_message(
     Full node data (compiled SQL, configs, lineage) is never sent: it exceeds Slack's
     per-block text limit even for a single changed model.
     """
-    notifications_format = cast(NotificationFormat, (getattr(args, "notifications_format", None) or "default").lower())
+    notifications_format = cast(
+        NotificationFormat, (getattr(args, "notifications_format", None) or "default").lower()
+    )
     nodes_by_type = {key: get_summary_nodes(state_change_summary, key) for key, _ in CHANGE_TYPES}
     total = sum(len(nodes) for nodes in nodes_by_type.values())
 
@@ -96,31 +101,50 @@ def build_init_summary_message(
 
     context = get_run_context(args)
     if context:
-        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": "  ·  ".join(context)}]})
+        blocks.append(
+            {"type": "context", "elements": [{"type": "mrkdwn", "text": "  ·  ".join(context)}]}
+        )
 
-    blocks.append({
-        "type": "section",
-        "fields": [
-            {"type": "mrkdwn", "text": f"*{label}*\n{len(nodes_by_type[key])}"}
-            for key, label in CHANGE_TYPES
-        ],
-    })
+    blocks.append(
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*{label}*\n{len(nodes_by_type[key])}"}
+                for key, label in CHANGE_TYPES
+            ],
+        }
+    )
 
     if total == 0:
-        blocks.append({
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": "No changes detected compared to the reference state."},
-        })
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "No changes detected compared to the reference state.",
+                },
+            }
+        )
     elif notifications_format == "json":
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": format_json_summary(nodes_by_type)}})
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": format_json_summary(nodes_by_type)},
+            }
+        )
     elif notifications_format == "default":
         blocks.append({"type": "divider"})
         for key, label in CHANGE_TYPES:
             if nodes_by_type[key]:
-                blocks.append({
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": format_node_list(label, nodes_by_type[key])},
-                })
+                blocks.append(
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": format_node_list(label, nodes_by_type[key]),
+                        },
+                    }
+                )
 
     counts = ", ".join(f"{len(nodes_by_type[key])} {label.lower()}" for key, label in CHANGE_TYPES)
     fallback_text = f"dbt CI: State Change Summary ({counts})"

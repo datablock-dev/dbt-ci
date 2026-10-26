@@ -1,4 +1,5 @@
 """Unit tests for log redaction and log file helpers."""
+
 import logging
 from argparse import Namespace
 

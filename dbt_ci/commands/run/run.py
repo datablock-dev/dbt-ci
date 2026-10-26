@@ -22,7 +22,7 @@ from dbt_ci.schema import (
     DependencyGraphNodeType,
     NODE_TYPE_COMMAND_MAPPING,
     REVERSE_MODE_MAPPING,
-    MODE_MAPPING, 
+    MODE_MAPPING,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,11 +30,12 @@ logger = logging.getLogger(__name__)
 # dbt runs both data tests and unit tests (dbt >= 1.8) with `dbt test`
 TEST_TYPES: list[DependencyGraphNodeType] = ["test", "unit_test"]
 
+
 def run_nodes(
     args: Namespace,
     target_graph: DbtGraph,
     changed_nodes: list[str],
-    changed_nodes_dict: dict[str, list[str]]  
+    changed_nodes_dict: dict[str, list[str]],
 ) -> None:
     try:
         mode: RunModes = getattr(args, "nodes", "all")
@@ -59,7 +60,7 @@ def run_nodes(
                 target_graph=target_graph,
                 changed_nodes_dict=changed_nodes_dict,
                 changed_nodes=changed_nodes,
-                args=args
+                args=args,
             )
 
             if nodes_to_run is None or len(nodes_to_run) == 0:
@@ -80,18 +81,23 @@ def run_nodes(
                 continue
 
             result = run_dbt_command(
-                command_args=resolve_dbt_commands([cast(str, command), "--select", " ".join(selectors)], args),
-                runner_config=cast(RunnerConfig, args.__dict__)
+                command_args=resolve_dbt_commands(
+                    [cast(str, command), "--select", " ".join(selectors)], args
+                ),
+                runner_config=cast(RunnerConfig, args.__dict__),
             )
 
             if result and result.returncode == 0:
-                logger.info(f"\n✅ Successfully ran {len(nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
+                logger.info(
+                    f"\n✅ Successfully ran {len(nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)"
+                )
             else:
                 logger.error("\n❌ Run failed")
                 sys.exit(1)
     except Exception as e:
         logger.error(f"\n❌ Error running dbt command: {e}")
         sys.exit(1)
+
 
 def get_downstream_depth(args: Namespace) -> int | None:
     """
@@ -105,7 +111,9 @@ def get_downstream_depth(args: Namespace) -> int | None:
     if depth is None:
         return None
     if depth < 0:
-        logger.warning(f"Ignoring negative --downstream-depth ({depth}); selecting the full downstream graph.")
+        logger.warning(
+            f"Ignoring negative --downstream-depth ({depth}); selecting the full downstream graph."
+        )
         return None
     return depth
 
@@ -114,38 +122,48 @@ def seeds(
     target_graph: DbtGraph,
     changed_nodes_dict: dict[str, list[str]],
     changed_nodes: list[str],
-    args: Namespace
+    args: Namespace,
 ) -> list[str]:
     """Run modified seeds"""
-    upstream_seeds_of_changed_nodes = list(get_upstream_dependencies(
-        dependency_graph=target_graph.to_dict(),
-        node_type=["seed"],
-        node_ids=list(chain(
-            changed_nodes_dict.get("modified_nodes", []),
-            changed_nodes_dict.get("new_nodes", [])
-        )),
-    ) or [])
+    upstream_seeds_of_changed_nodes = list(
+        get_upstream_dependencies(
+            dependency_graph=target_graph.to_dict(),
+            node_type=["seed"],
+            node_ids=list(
+                chain(
+                    changed_nodes_dict.get("modified_nodes", []),
+                    changed_nodes_dict.get("new_nodes", []),
+                )
+            ),
+        )
+        or []
+    )
 
     nodes_to_run = filter_node_ids_by_type(
         dependency_graph=target_graph.to_dict(),
-        node_type=["seed"], # seeds, models, snapshots, tests
-        node_ids=list(set(chain(
-            changed_nodes_dict.get("modified_nodes", []),
-            changed_nodes_dict.get("new_nodes", []),
-            upstream_seeds_of_changed_nodes # seeds that modified/new nodes depend on
-        )))
+        node_type=["seed"],  # seeds, models, snapshots, tests
+        node_ids=list(
+            set(
+                chain(
+                    changed_nodes_dict.get("modified_nodes", []),
+                    changed_nodes_dict.get("new_nodes", []),
+                    upstream_seeds_of_changed_nodes,  # seeds that modified/new nodes depend on
+                )
+            )
+        ),
     )
 
     return nodes_to_run
+
 
 def tests(
     target_graph: DbtGraph,
     changed_nodes_dict: dict[str, list[str]],
     changed_nodes: list[str],
-    args: Namespace
+    args: Namespace,
 ) -> list[str]:
     """Get modified/new tests and downstream tests of changed nodes.
-    
+
     If filters are provided, only include tests whose upstream dependencies
     match the specified filter types (e.g. -f snapshots).
     """
@@ -158,38 +176,40 @@ def tests(
                 dependency_graph=dependency_graph,
                 node_ids=changed_nodes,
                 node_type=test_type,
-                levels=depth
-            ) or []
+                levels=depth,
+            )
+            or []
         )
 
     if depth is not None:
         # A test sits one level below the node it checks, so the depth cap would drop
         # the tests of the deepest nodes this run builds. Select them explicitly.
-        built_nodes = set(chain(
-            seeds(target_graph, changed_nodes_dict, changed_nodes, args),
-            snapshots(target_graph, changed_nodes_dict, changed_nodes, args),
-            models(target_graph, changed_nodes_dict, changed_nodes, args),
-        ))
+        built_nodes = set(
+            chain(
+                seeds(target_graph, changed_nodes_dict, changed_nodes, args),
+                snapshots(target_graph, changed_nodes_dict, changed_nodes, args),
+                models(target_graph, changed_nodes_dict, changed_nodes, args),
+            )
+        )
         downstream_test_dependencies.update(get_tests_of_nodes(dependency_graph, built_nodes))
 
-    node_ids = list(set(chain(
-        changed_nodes_dict.get("modified_nodes", []),
-        changed_nodes_dict.get("new_nodes", []),
-        downstream_test_dependencies
-    )))
+    node_ids = list(
+        set(
+            chain(
+                changed_nodes_dict.get("modified_nodes", []),
+                changed_nodes_dict.get("new_nodes", []),
+                downstream_test_dependencies,
+            )
+        )
+    )
 
     if getattr(args, "filters", None):
         return _tests_with_filter(
-            dependency_graph=target_graph.to_dict(),
-            node_type="test",
-            args=args,
-            node_ids=node_ids
+            dependency_graph=target_graph.to_dict(), node_type="test", args=args, node_ids=node_ids
         )
 
     return filter_node_ids_by_type(
-        dependency_graph=dependency_graph,
-        node_type=TEST_TYPES,
-        node_ids=node_ids
+        dependency_graph=dependency_graph, node_type=TEST_TYPES, node_ids=node_ids
     )
 
 
@@ -210,10 +230,10 @@ def _tests_with_filter(
     dependency_graph: DependencyGraph,
     node_type: DependencyGraphNodeType,
     args: Namespace,
-    node_ids: list[str]
+    node_ids: list[str],
 ) -> list[str]:
     """Apply upstream-dependency filters to narrow down which tests to run.
-    
+
     Only includes tests that have at least one upstream dependency matching
     one of the specified filter types.
     """
@@ -221,31 +241,38 @@ def _tests_with_filter(
     final_nodes: set[str] = set()
 
     filtered_nodes = filter_node_ids_by_type(
-        dependency_graph=dependency_graph,
-        node_type=TEST_TYPES,
-        node_ids=node_ids
+        dependency_graph=dependency_graph, node_type=TEST_TYPES, node_ids=node_ids
     )
 
     for node_id in filtered_nodes:
         node_metadata = get_node(dependency_graph, node_id)
         if not node_metadata:
             continue
-        upstream_dependencies_by_type = node_metadata.get("upstream_dependencies", {}).get("dependencies_by_type", {})
+        upstream_dependencies_by_type = node_metadata.get("upstream_dependencies", {}).get(
+            "dependencies_by_type", {}
+        )
         if not upstream_dependencies_by_type:
             continue
         for dep_type, dep_nodes in upstream_dependencies_by_type.items():
-            if dep_type in converted_filter and isinstance(dep_nodes, (list, set)) and len(dep_nodes) > 0:
+            if (
+                dep_type in converted_filter
+                and isinstance(dep_nodes, (list, set))
+                and len(dep_nodes) > 0
+            ):
                 final_nodes.add(node_id)
                 break
 
-    logger.debug(f"Filtering nodes by types {getattr(args, 'filters', [])} resulted in {len(final_nodes)} nodes to run")
+    logger.debug(
+        f"Filtering nodes by types {getattr(args, 'filters', [])} resulted in {len(final_nodes)} nodes to run"
+    )
     return list(final_nodes)
+
 
 def snapshots(
     target_graph: DbtGraph,
     changed_nodes_dict: dict[str, list[str]],
     changed_nodes: list[str],
-    args: Namespace
+    args: Namespace,
 ) -> list[str]:
     """Run snapshots"""
     downstream_snapshot_dependencies = list(
@@ -253,26 +280,31 @@ def snapshots(
             dependency_graph=target_graph.to_dict(),
             node_ids=changed_nodes,
             node_type="snapshot",
-            levels=get_downstream_depth(args)
-        ) or []
+            levels=get_downstream_depth(args),
+        )
+        or []
     )
 
     return filter_node_ids_by_type(
         dependency_graph=target_graph.to_dict(),
         node_type=["snapshot"],
-        node_ids=list(set(chain(
-            changed_nodes_dict.get("modified_nodes", []),
-            changed_nodes_dict.get("new_nodes", []),
-            downstream_snapshot_dependencies
-        )))
+        node_ids=list(
+            set(
+                chain(
+                    changed_nodes_dict.get("modified_nodes", []),
+                    changed_nodes_dict.get("new_nodes", []),
+                    downstream_snapshot_dependencies,
+                )
+            )
+        ),
     )
-    
+
 
 def models(
     target_graph: DbtGraph,
     changed_nodes_dict: dict[str, list[str]],
     changed_nodes: list[str],
-    args: Namespace
+    args: Namespace,
 ) -> list[str]:
     """Run modified/new models and downstream models of changed nodes."""
     downstream_model_dependencies = list(
@@ -280,18 +312,23 @@ def models(
             dependency_graph=target_graph.to_dict(),
             node_ids=changed_nodes,
             node_type="model",
-            levels=get_downstream_depth(args)
-        ) or []
+            levels=get_downstream_depth(args),
+        )
+        or []
     )
 
     return filter_node_ids_by_type(
         dependency_graph=target_graph.to_dict(),
         node_type=["model"],
-        node_ids=list(set(chain(
-            changed_nodes_dict.get("modified_nodes", []),
-            changed_nodes_dict.get("new_nodes", []),
-            downstream_model_dependencies
-        )))
+        node_ids=list(
+            set(
+                chain(
+                    changed_nodes_dict.get("modified_nodes", []),
+                    changed_nodes_dict.get("new_nodes", []),
+                    downstream_model_dependencies,
+                )
+            )
+        ),
     )
 
 
@@ -301,12 +338,7 @@ def log_nodes_to_run(
     target_graph: DbtGraph | None = None,
 ) -> None:
     """Print the nodes about to run, grouped by why they were selected."""
-    mapping = {
-        "new": set(),
-        "modified": set(),
-        "deleted": set(),
-        "dependency": set()
-    }
+    mapping = {"new": set(), "modified": set(), "deleted": set(), "dependency": set()}
 
     for node in nodes_to_run:
         if node in changed_nodes_dict.get("modified_nodes", []):
@@ -317,7 +349,6 @@ def log_nodes_to_run(
             mapping["deleted"].add(node)
         else:
             mapping["dependency"].add(node)
-
 
     logger.info("\n-------------------------------------------------------")
     logger.info(f"Found {len(nodes_to_run)} node(s) to run:")

@@ -7,6 +7,7 @@ they had to be repeated - and a state path init had defaulted was lost entirely.
 helpers close that gap - an explicitly provided value still wins, the cache only fills
 in what was left unset.
 """
+
 import logging
 from argparse import Namespace
 from typing import Any, cast
@@ -45,10 +46,6 @@ def get_cached_value(args: Namespace, key: str) -> Any:
     # Within a section the keys are unprefixed: reference_target -> reference.target
     field = key.replace("reference_", "")
     return section.get(field)
-
-
-
-
 
 
 def apply_cached_config(args: Namespace) -> Namespace:

@@ -5,6 +5,7 @@ config file above the environment: an input set on the workflow step is delibera
 should win over dbt-ci.config.yaml, just as a flag typed on the command line does. Empty
 inputs pass nothing, so the config file and dbt-ci's defaults still apply.
 """
+
 from __future__ import annotations
 
 import json

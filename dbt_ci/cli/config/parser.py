@@ -15,9 +15,11 @@ _CTX_META_KEY = "dbt_ci_config"
 
 def _resolve_env_refs(val: str) -> str:
     """Replace ${VAR} references with their current environment values."""
+
     def replacer(match: re.Match) -> str:
         return os.environ.get(match.group(1), match.group(0))
-    return re.sub(r'\$\{([^}]+)\}', replacer, val)
+
+    return re.sub(r"\$\{([^}]+)\}", replacer, val)
 
 
 def _flatten_config(raw: dict, prefix: str = "") -> dict[str, Any]:
@@ -179,6 +181,7 @@ def make_config_callback(config_key: str | tuple[str, ...], *, then=None):
     Usage:
         click.option('--runner', envvar=['DBT_RUNNER'], callback=make_config_callback('DBT_RUNNER'))
     """
+
     def callback(ctx, param, value):
         source = ctx.get_parameter_source(param.name)
 
@@ -193,7 +196,9 @@ def make_config_callback(config_key: str | tuple[str, ...], *, then=None):
             if param.multiple and isinstance(config_val, list):
                 result = tuple(config_val)
             elif param.multiple and isinstance(config_val, str):
-                result = tuple(p.strip() for p in config_val.replace('\n', ',').split(',') if p.strip())
+                result = tuple(
+                    p.strip() for p in config_val.replace("\n", ",").split(",") if p.strip()
+                )
             elif isinstance(config_val, bool):
                 result = config_val
             else:

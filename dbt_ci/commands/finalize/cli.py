@@ -12,22 +12,26 @@ logger = logging.getLogger(__name__)
 
 valid_files = {"manifest", "cache", "log"}
 
+
 def parse_and_validate_files(value):
     value = parse_multiple_option(value)
     for file in value:
         if file not in valid_files:
-            raise click.BadParameter(f"Invalid file specified: {file}. Valid options are: {', '.join(valid_files)}")
+            raise click.BadParameter(
+                f"Invalid file specified: {file}. Valid options are: {', '.join(valid_files)}"
+            )
     return value
+
 
 @cli.command(name="finalize")
 @common_options
 @click.option(
     "--artifacts-uri",
-    envvar=['DBT_ARTIFACTS_URI', 'ARTIFACTS_URI'],
+    envvar=["DBT_ARTIFACTS_URI", "ARTIFACTS_URI"],
     default=None,
     type=str,
     callback=make_config_callback("DBT_FINALIZE_ARTIFACTS_URI"),
-    help="S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., s3://my-bucket/dbt-artifacts/)"
+    help="S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., s3://my-bucket/dbt-artifacts/)",
 )
 @click.option(
     "--files",
@@ -35,23 +39,23 @@ def parse_and_validate_files(value):
     default=["manifest"],
     multiple=True,
     callback=make_config_callback("DBT_FINALIZE_FILES", then=parse_and_validate_files),
-    help=f"Specify which files to upload during finalize (default: manifest). Valid options: {', '.join(valid_files)}"
+    help=f"Specify which files to upload during finalize (default: manifest). Valid options: {', '.join(valid_files)}",
 )
 @click.option(
     "--clean-ephemeral",
     "--destroy-ephemeral",
-    envvar=['DBT_CLEAN_EPHEMERAL', "DBT_DESTROY_EPHEMERAL"],
+    envvar=["DBT_CLEAN_EPHEMERAL", "DBT_DESTROY_EPHEMERAL"],
     is_flag=True,
     default=False,
     callback=make_config_callback("DBT_FINALIZE_CLEAN_EPHEMERAL"),
-    help="DEPRECATED - use 'dbt-ci ephemeral destroy'. Drop the datasets 'ephemeral' cloned into before finalizing"
+    help="DEPRECATED - use 'dbt-ci ephemeral destroy'. Drop the datasets 'ephemeral' cloned into before finalizing",
 )
 def finalize_cmd(**kwargs):
     """Finalize the state after running CI commands
-    
+
     This command should be run after 'run' or 'delete' to update the reference state with the new production state.
     It will also clean up any temporary files and reset the cache for the next run.
-    
+
     Examples:
         dbt-ci finalize
         dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/

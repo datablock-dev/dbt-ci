@@ -7,6 +7,7 @@ the git comparison can fetch from, and a checked-out `feature` branch that modif
 
 Usage: python tests/action/make_demo_project.py <directory>   (needs dbt-duckdb on PATH)
 """
+
 import shutil
 import subprocess
 import sys
@@ -63,12 +64,16 @@ def make_demo_project(root: Path) -> Path:
     shutil.copy(repo / "dbt" / "target" / "manifest.json", repo / "state" / "manifest.json")
     shutil.rmtree(repo / "dbt" / "target")
 
-    subprocess.run(["git", "clone", "-q", "--bare", str(repo), str(root / "origin.git")], check=True)
+    subprocess.run(
+        ["git", "clone", "-q", "--bare", str(repo), str(root / "origin.git")], check=True
+    )
     git(repo, "remote", "add", "origin", str(root / "origin.git"))
     git(repo, "fetch", "-q", "origin")
 
     git(repo, "checkout", "-qb", "feature")
-    (repo / "dbt" / "models" / "stg.sql").write_text("select id, upper(name) as name from {{ ref('raw') }}\n")
+    (repo / "dbt" / "models" / "stg.sql").write_text(
+        "select id, upper(name) as name from {{ ref('raw') }}\n"
+    )
     git(repo, "commit", "-qam", "change stg")
     return repo
 

@@ -1,4 +1,5 @@
 """Slack adapter for dbt CI notifications."""
+
 import logging
 from argparse import Namespace
 from typing import Any
@@ -9,19 +10,19 @@ logger = logging.getLogger(__name__)
 # Slack rejects a section block whose text is longer than this
 SLACK_SECTION_TEXT_LIMIT = 3000
 
+
 class SlackClient:
     """Wrapper around Slack WebhookClient for sending notifications."""
 
     def __init__(self, args: Namespace):
         self.args = args
-        self.slack_webhook_url = getattr(args, 'slack_webhook', None)
-        
+        self.slack_webhook_url = getattr(args, "slack_webhook", None)
+
         if not self.slack_webhook_url:
             logger.debug("Slack webhook URL not provided in args or environment variables.")
             self.webhook_client = None
         else:
             self.webhook_client = WebhookClient(self.slack_webhook_url)
-
 
     def send_blocks(self, blocks: list[dict[str, Any]], text: str | None = None) -> None:
         """
@@ -40,7 +41,10 @@ class SlackClient:
         response = self.webhook_client.send_dict(payload)
 
         if response.status_code != 200:
-            raise Exception(f"Failed to send message to Slack: {response.status_code} - {response.body}")
+            raise Exception(
+                f"Failed to send message to Slack: {response.status_code} - {response.body}"
+            )
+
 
 def truncate_for_slack(text: str, limit: int = SLACK_SECTION_TEXT_LIMIT) -> str:
     """Cut text to Slack's section limit on a line boundary, noting how many lines were left out."""

@@ -1,4 +1,5 @@
 """Implementation of the config command — generates a skeleton dbt-ci.config.yaml."""
+
 import os
 import sys
 import logging

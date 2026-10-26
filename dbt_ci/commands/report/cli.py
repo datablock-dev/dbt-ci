@@ -10,18 +10,20 @@ from dbt_ci.commands.report.index import report
 @cli.command(name="report")
 @common_options
 @click.option(
-    "--output", "-o",
+    "--output",
+    "-o",
     envvar=["DBT_REPORT_OUTPUT"],
     default=None,
     type=str,
     callback=make_config_callback("DBT_REPORT_OUTPUT"),
     help=(
-        "Where to write the report. Defaults to $GITHUB_STEP_SUMMARY when set, "
-        "otherwise stdout."
+        "Where to write the report. Defaults to $GITHUB_STEP_SUMMARY when set, " "otherwise stdout."
     ),
 )
 @click.option(
-    "--format", "-F", "format",
+    "--format",
+    "-F",
+    "format",
     envvar=["DBT_REPORT_FORMAT"],
     type=click.Choice(["markdown", "json"], case_sensitive=False),
     default="markdown",

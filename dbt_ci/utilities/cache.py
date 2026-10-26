@@ -1,7 +1,8 @@
 """
-    CacheManager class for handling caching of data in JSON files,
-    and managing the report.json for tracking command execution status and variables.
+CacheManager class for handling caching of data in JSON files,
+and managing the report.json for tracking command execution status and variables.
 """
+
 import json
 import logging
 from argparse import Namespace
@@ -10,17 +11,26 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, cast
-from dbt_ci.schema import Commands, DBTManifest, DbtCiManifest, EphemeralMapNode, StateChangeSummary, SupportedConnectors
+from dbt_ci.schema import (
+    Commands,
+    DBTManifest,
+    DbtCiManifest,
+    EphemeralMapNode,
+    StateChangeSummary,
+    SupportedConnectors,
+)
 from dbt_ci.utilities.logging import LOG_FILE_NAME
 from dbt_ci.utilities.paths import get_absolute_path, get_cache_dir, get_profile
 
 logger = logging.getLogger(__name__)
 
+
 class CacheManager:
     """
-        Simple cache manager for storing and retrieving data in a JSON file, 
-        using tempfile for cache directory by default.
+    Simple cache manager for storing and retrieving data in a JSON file,
+    using tempfile for cache directory by default.
     """
+
     def __init__(self, args: Namespace, cache_dir: Optional[Path] = None):
         self.args = args
         self.cache_dir = cache_dir or get_cache_dir()
@@ -52,8 +62,8 @@ class CacheManager:
                 "target": {
                     "target": getattr(self.args, "target", None),
                     "vars": getattr(self.args, "vars", None),
-                }
-            }
+                },
+            },
         }
         self._write(cast(dict, payload), "cache.json")
 
@@ -63,12 +73,9 @@ class CacheManager:
     def _write(self, data: dict[str, Any], file_name: str):
         """Write data to the cache file."""
         file_path = self._file_path(file_name)
-        with open(file_path, 'w', encoding='utf-8') as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(
-                obj=data,
-                fp=f,
-                indent=4,
-                default=lambda o: list(o) if isinstance(o, set) else o
+                obj=data, fp=f, indent=4, default=lambda o: list(o) if isinstance(o, set) else o
             )
             logger.debug(f"Cache written to {file_path.absolute()}")
 
@@ -84,32 +91,36 @@ class CacheManager:
         """Write manifest data to a JSON file in the cache directory."""
         self._write(cast(dict, manifest_data), "target_manifest.json")
 
-    
-
-    
-
-    def get_cache(self, file_name: str = "cache.json", content_type: str = "json") -> dict[str, Any] | str | None:
+    def get_cache(
+        self, file_name: str = "cache.json", content_type: str = "json"
+    ) -> dict[str, Any] | str | None:
         """Load cache data from the cache file. Returns None if the file doesn't exist."""
         file_path = self._file_path(file_name)
         if file_path.is_file():
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 if content_type == "json":
                     return json.load(f)
                 elif content_type == "txt":
                     return f.read()
                 else:
-                    logger.error("Unsupported content_type '%s' passed to get_cache for file '%s'.", content_type, file_path)
+                    logger.error(
+                        "Unsupported content_type '%s' passed to get_cache for file '%s'.",
+                        content_type,
+                        file_path,
+                    )
                     raise ValueError(f"Unsupported content_type '{content_type}' for get_cache")
         else:
             return None
 
     def _write_report(self, data: dict[str, Any]):
         """Write data to the report.json file."""
-        self._write(data, "report.json")        
+        self._write(data, "report.json")
 
     def start_report(self, command: Commands, args: Namespace):
         """Add information to report.json"""
-        report_cache = {} if command == "init" else (cast(dict[str, Any], self.get_cache("report.json")) or {})
+        report_cache = (
+            {} if command == "init" else (cast(dict[str, Any], self.get_cache("report.json")) or {})
+        )
         report_cache[command] = {
             "status": "started",
             "started_at": datetime.now().isoformat(),
@@ -117,15 +128,19 @@ class CacheManager:
                 "runner": getattr(args, "runner", None),
                 "target": getattr(args, "target", None),
                 "reference_target": getattr(args, "reference_target", None),
-            }
+            },
         }
         self._write_report(report_cache)
 
-    def update_report(self, command: Commands, status: str, comment: dict[str, Any] | str | None = None):
+    def update_report(
+        self, command: Commands, status: str, comment: dict[str, Any] | str | None = None
+    ):
         """Update report.json with status and timestamp"""
         report_cache = cast(dict[str, Any], self.get_cache("report.json"))
         if report_cache is None or command not in report_cache:
-            logger.warning(f"update_report called for '{command}' but no existing report entry found. Call start_report first.")
+            logger.warning(
+                f"update_report called for '{command}' but no existing report entry found. Call start_report first."
+            )
             return
         report_cache[command]["status"] = status
         report_cache[command][f"{status}_at"] = datetime.now().isoformat()
@@ -160,7 +175,10 @@ class CacheManager:
     def _close_report(self, command: Commands, status: str) -> None:
         """Set the final status of a report entry that is still marked as started."""
         report_cache = self.get_cache("report.json")
-        if isinstance(report_cache, dict) and (report_cache.get(command) or {}).get("status") == "started":
+        if (
+            isinstance(report_cache, dict)
+            and (report_cache.get(command) or {}).get("status") == "started"
+        ):
             self.update_report(command, status)
 
     def clear_cache(self) -> None:

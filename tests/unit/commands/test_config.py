@@ -1,4 +1,5 @@
 """Unit tests for the config command."""
+
 import pytest
 from dbt_ci.commands.config.index import generate_config, SKELETON
 

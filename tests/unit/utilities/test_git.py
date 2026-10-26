@@ -1,4 +1,5 @@
 """Unit tests for the git adapter used during state comparison."""
+
 import os
 import subprocess
 from argparse import Namespace
@@ -25,11 +26,13 @@ class TestClassifyChanges:
 
     def test_plain_statuses(self):
         """M/A/D map to modified/added/deleted."""
-        adapter = _make_adapter([
-            ["M", "dbt/models/a.sql"],
-            ["A", "dbt/models/b.sql"],
-            ["D", "dbt/models/c.sql"],
-        ])
+        adapter = _make_adapter(
+            [
+                ["M", "dbt/models/a.sql"],
+                ["A", "dbt/models/b.sql"],
+                ["D", "dbt/models/c.sql"],
+            ]
+        )
         assert adapter.get_changed_files() == {
             "modified": ["models/a.sql"],
             "added": ["models/b.sql"],
@@ -61,26 +64,32 @@ class TestClassifyChanges:
 
     def test_unknown_status_is_skipped(self):
         """Statuses dbt-ci doesn't model (e.g. unmerged) are ignored, not crashed on."""
-        adapter = _make_adapter([
-            ["U", "dbt/models/conflict.sql"],
-            ["M", "dbt/models/a.sql"],
-        ])
+        adapter = _make_adapter(
+            [
+                ["U", "dbt/models/conflict.sql"],
+                ["M", "dbt/models/a.sql"],
+            ]
+        )
         assert adapter.get_changed_files() == {"modified": ["models/a.sql"]}
 
     def test_files_outside_project_dir_are_ignored(self):
         """Changes outside the dbt project directory are not dbt changes."""
-        adapter = _make_adapter([
-            ["M", "README.md"],
-            ["M", "dbt/models/a.sql"],
-        ])
+        adapter = _make_adapter(
+            [
+                ["M", "README.md"],
+                ["M", "dbt/models/a.sql"],
+            ]
+        )
         assert adapter.get_changed_files() == {"modified": ["models/a.sql"]}
 
     def test_extension_filter(self):
         """Only files matching the requested extensions are returned."""
-        adapter = _make_adapter([
-            ["M", "dbt/models/a.sql"],
-            ["M", "dbt/models/schema.yml"],
-        ])
+        adapter = _make_adapter(
+            [
+                ["M", "dbt/models/a.sql"],
+                ["M", "dbt/models/schema.yml"],
+            ]
+        )
         assert adapter.get_changed_files(extensions=[".sql"]) == {"modified": ["models/a.sql"]}
 
 
@@ -100,7 +109,10 @@ class TestDiffAgainstBase:
 
         assert changes == [["M", "dbt/models/a.sql"]]
         assert mock_run.call_args_list[0][0][0] == [
-            "git", "diff", "--name-status", "origin/main...HEAD",
+            "git",
+            "diff",
+            "--name-status",
+            "origin/main...HEAD",
         ]
 
     def test_falls_back_to_two_dot_when_merge_base_missing(self):
@@ -114,12 +126,18 @@ class TestDiffAgainstBase:
         success = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="A\tdbt/models/b.sql\n", stderr=""
         )
-        with patch("dbt_ci.utilities.git.subprocess.run", side_effect=[failure, success]) as mock_run:
+        with patch(
+            "dbt_ci.utilities.git.subprocess.run", side_effect=[failure, success]
+        ) as mock_run:
             changes = adapter._diff_against_base()
 
         assert changes == [["A", "dbt/models/b.sql"]]
         assert mock_run.call_args_list[1][0][0] == [
-            "git", "diff", "--name-status", "origin/main", "HEAD",
+            "git",
+            "diff",
+            "--name-status",
+            "origin/main",
+            "HEAD",
         ]
 
     def test_raises_when_both_diffs_fail(self):

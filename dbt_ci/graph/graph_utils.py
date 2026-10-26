@@ -1,29 +1,29 @@
 """Getters for dependency graph nodes"""
+
 import logging
 from typing import Literal, cast
 from dbt_ci.schema import DependencyGraph, DependencyGraphNode, DependencyGraphNodeType
 
 logger = logging.getLogger(__name__)
 
+
 def get_deleted_nodes(
-    reference_dependency_graph: DependencyGraph,
-    target_dependency_graph: DependencyGraph
+    reference_dependency_graph: DependencyGraph, target_dependency_graph: DependencyGraph
 ) -> list[str] | None:
     """Get nodes that exist in the reference graph but no longer exist in the target graph."""
     return get_diff_nodes(
-        source_graph=reference_dependency_graph,
-        reference_graph=target_dependency_graph
+        source_graph=reference_dependency_graph, reference_graph=target_dependency_graph
     )
 
+
 def get_new_nodes(
-    reference_dependency_graph: DependencyGraph,
-    target_dependency_graph: DependencyGraph
+    reference_dependency_graph: DependencyGraph, target_dependency_graph: DependencyGraph
 ) -> list[str] | None:
     """Get nodes that exist in the target graph but did not exist in the reference graph."""
     return get_diff_nodes(
-        source_graph=target_dependency_graph,
-        reference_graph=reference_dependency_graph
+        source_graph=target_dependency_graph, reference_graph=reference_dependency_graph
     )
+
 
 def get_diff_nodes(
     source_graph: DependencyGraph,
@@ -46,7 +46,10 @@ def get_diff_nodes(
 
     return diff_nodes
 
-def get_structured_modified_nodes(nodes: dict[str, dict[str, DependencyGraphNode]] | None) -> dict[str, dict[str, DependencyGraphNode]] | None:
+
+def get_structured_modified_nodes(
+    nodes: dict[str, dict[str, DependencyGraphNode]] | None,
+) -> dict[str, dict[str, DependencyGraphNode]] | None:
     """Get modified nodes, structured by type"""
     if nodes is None or len(nodes) == 0:
         return None
@@ -62,6 +65,7 @@ def get_structured_modified_nodes(nodes: dict[str, dict[str, DependencyGraphNode
         structured_nodes[node_type][node_name] = node_value
 
     return structured_nodes
+
 
 def get_node(dependency_graph: DependencyGraph, node_id: str) -> DependencyGraphNode | None:
     """
@@ -82,10 +86,11 @@ def get_node(dependency_graph: DependencyGraph, node_id: str) -> DependencyGraph
 
     return bucket.get(node_id)
 
+
 def get_nodes(
-    dependency_graph: DependencyGraph, 
+    dependency_graph: DependencyGraph,
     node_ids: list[str] | None,
-    exclude_node_ids: list[str] | None = None
+    exclude_node_ids: list[str] | None = None,
 ) -> dict[str, dict[str, DependencyGraphNode]] | None:
     """Get multiple nodes by ID, optionally filtered by type."""
     if node_ids is None or len(node_ids) == 0:
@@ -109,7 +114,10 @@ def get_nodes(
         print(f"Error retrieving nodes: {e}")
         return None
 
-def get_node_ids_from_structured_nodes(structured_nodes: dict[str, DependencyGraph] | None) -> list[str] | None:
+
+def get_node_ids_from_structured_nodes(
+    structured_nodes: dict[str, DependencyGraph] | None,
+) -> list[str] | None:
     """Extract node IDs from structured nodes dictionary."""
     if structured_nodes is None or len(structured_nodes.keys()) == 0:
         return None
@@ -119,6 +127,7 @@ def get_node_ids_from_structured_nodes(structured_nodes: dict[str, DependencyGra
         node_ids.update(nodes.keys())
 
     return list(node_ids) if len(node_ids) > 0 else None
+
 
 def collect_dependencies_to_depth(
     dependency_graph: DependencyGraph,
@@ -154,16 +163,17 @@ def collect_dependencies_to_depth(
 
     return reached
 
+
 def get_downstream_dependencies(
     dependency_graph: DependencyGraph,
     node_ids: list[str] | None,
     node_type: DependencyGraphNodeType | None = None,
-    levels: int | None = None
+    levels: int | None = None,
 ) -> set[str] | None:
     """
-        Get downstream dependencies for a list of node IDs,
-        optionally up to a certain number of levels. Defaults to the full downstream
-        closure when levels is not specified.
+    Get downstream dependencies for a list of node IDs,
+    optionally up to a certain number of levels. Defaults to the full downstream
+    closure when levels is not specified.
     """
     if node_ids is None or len(node_ids) == 0:
         return None
@@ -174,8 +184,10 @@ def get_downstream_dependencies(
         )
         if node_type:
             downstream_dependencies = {
-                dep_id for dep_id in downstream_dependencies
-                if (node := get_node(dependency_graph, dep_id)) and node.get("resource_type") == node_type
+                dep_id
+                for dep_id in downstream_dependencies
+                if (node := get_node(dependency_graph, dep_id))
+                and node.get("resource_type") == node_type
             }
         return downstream_dependencies or None
 
@@ -183,10 +195,14 @@ def get_downstream_dependencies(
     for node_id in node_ids:
         node = get_node(dependency_graph, node_id)
         if node is None:
-            logger.warning(f"Node ID '{node_id}' not found in dependency graph when attempting to get downstream dependencies.")
+            logger.warning(
+                f"Node ID '{node_id}' not found in dependency graph when attempting to get downstream dependencies."
+            )
             continue
 
-        dependency_by_type: dict[DependencyGraphNodeType, list[str]] = node["indirect_downstream_dependencies"]["dependencies_by_type"]
+        dependency_by_type: dict[DependencyGraphNodeType, list[str]] = node[
+            "indirect_downstream_dependencies"
+        ]["dependencies_by_type"]
         for dep_type, dep_names in dependency_by_type.items():
             if node_type and dep_type != node_type:
                 continue
@@ -197,12 +213,13 @@ def get_downstream_dependencies(
         return None
     return downstream_dependencies
 
+
 def get_upstream_dependencies(
     dependency_graph: DependencyGraph,
     node_ids: list[str] | None,
     node_type: list[DependencyGraphNodeType] | None = None,
     filters: list[DependencyGraphNodeType] | None = None,
-    levels: int | None = None
+    levels: int | None = None,
 ) -> set[str] | None:
     """Get upstream dependencies for a list of node IDs, optionally up to a certain number of levels."""
     if node_ids is None or len(node_ids) == 0:
@@ -215,8 +232,10 @@ def get_upstream_dependencies(
         allowed = set(node_type or []) | set(filters or [])
         if allowed:
             upstream_dependencies = {
-                dep_id for dep_id in upstream_dependencies
-                if (node := get_node(dependency_graph, dep_id)) and node.get("resource_type") in allowed
+                dep_id
+                for dep_id in upstream_dependencies
+                if (node := get_node(dependency_graph, dep_id))
+                and node.get("resource_type") in allowed
             }
         return upstream_dependencies or None
 
@@ -226,7 +245,9 @@ def get_upstream_dependencies(
         if node is None:
             continue
 
-        dependency_by_type: dict[DependencyGraphNodeType, list[str]] = node["upstream_dependencies"]["dependencies_by_type"]
+        dependency_by_type: dict[DependencyGraphNodeType, list[str]] = node[
+            "upstream_dependencies"
+        ]["dependencies_by_type"]
         for dep_type, dep_names in dependency_by_type.items():
             if node_type and dep_type not in node_type:
                 continue
@@ -241,9 +262,7 @@ def get_upstream_dependencies(
 
 
 def filter_node_ids_by_type(
-    dependency_graph: DependencyGraph,
-    node_ids: list[str],
-    node_type: list[DependencyGraphNodeType]
+    dependency_graph: DependencyGraph, node_ids: list[str], node_type: list[DependencyGraphNodeType]
 ) -> list[str]:
     """Filter a list of node IDs by type."""
     filtered_node_ids = []
@@ -254,8 +273,6 @@ def filter_node_ids_by_type(
     return filtered_node_ids
 
 
-
-
 def get_relation_name(node: DependencyGraphNode | dict) -> str | None:
     """
     Return the table/view name dbt builds for a node.
@@ -264,6 +281,7 @@ def get_relation_name(node: DependencyGraphNode | dict) -> str | None:
     make it differ from both the node name and config.alias.
     """
     return node.get("alias") or (node.get("config") or {}).get("alias") or node.get("name")
+
 
 def get_nodes_from_path(
     dependency_graph: DependencyGraph,
@@ -289,6 +307,7 @@ def get_nodes_from_path(
                 matches.append(node_info)
     return matches
 
+
 def get_nodes_using_macros(dependency_graph: DependencyGraph, macro_ids: set[str]) -> set[str]:
     """Return the non-macro nodes that call any of the given macros, directly or through other macros."""
     if not macro_ids:
@@ -298,10 +317,13 @@ def get_nodes_using_macros(dependency_graph: DependencyGraph, macro_ids: set[str
         if node_type in ("metadata", "macro"):
             continue
         for node_id, node_info in cast(dict, node_values).items():
-            upstream = (node_info.get("indirect_upstream_dependencies") or {}).get("node_dependencies") or set()
+            upstream = (node_info.get("indirect_upstream_dependencies") or {}).get(
+                "node_dependencies"
+            ) or set()
             if macro_ids & set(upstream):
                 users.add(node_id)
     return users
+
 
 def get_display_name(dependency_graph: DependencyGraph | None, node_id: str) -> str:
     """
@@ -317,6 +339,7 @@ def get_display_name(dependency_graph: DependencyGraph | None, node_id: str) -> 
             return node["name"]
     return node_id.split(".")[-1]
 
+
 def get_selectors(dependency_graph: DependencyGraph, node_ids: list[str]) -> list[str]:
     """
     Convert dbt unique_ids into selector strings for `dbt --select`.
@@ -330,7 +353,9 @@ def get_selectors(dependency_graph: DependencyGraph, node_ids: list[str]) -> lis
     for node_id in node_ids:
         node = get_node(dependency_graph, node_id)
         if node is None:
-            logger.warning(f"Node ID '{node_id}' not found in dependency graph; skipping selection.")
+            logger.warning(
+                f"Node ID '{node_id}' not found in dependency graph; skipping selection."
+            )
             continue
 
         fqn = node.get("fqn")

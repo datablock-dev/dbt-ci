@@ -18,6 +18,7 @@ from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_sto
 
 logger = logging.getLogger(__name__)
 
+
 def init(args: Namespace):
     """
     Initialize the dbt CI tool with necessary configuration and setup.
@@ -42,7 +43,7 @@ def init(args: Namespace):
         dbt_commands = DbtCommands(args)
         cache = CacheManager(args)
         state_modified = StateModified(args)
-        cache.clear_cache() # Clear cache at the start of init to avoid stale data issues
+        cache.clear_cache()  # Clear cache at the start of init to avoid stale data issues
         cache.start_report("init", args)
         dbt_project_dir = getattr(args, "dbt_project_dir", None)
         reference_target = getattr(args, "reference_target", None)
@@ -51,7 +52,9 @@ def init(args: Namespace):
 
         # Exit if dbt_project_dir is not provided
         if dbt_project_dir is None:
-            logger.error("No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument.")
+            logger.error(
+                "No dbt_project_dir specified. Please provide the path to your DBT project using the --dbt-project-dir argument."
+            )
             sys.exit(1)
 
         if resolved_storage is not None:
@@ -71,7 +74,7 @@ def init(args: Namespace):
                 cache.write_reference_manifest(get_reference_manifest_file(reference_state_path))
             except FileNotFoundError:
                 logger.debug(f"No reference manifest at '{reference_state_path}' to cache yet.")
-        
+
         # Compile dbt and generate reference manifest.json file
         dbt_commands.reference_compile()
 
@@ -91,7 +94,9 @@ def init(args: Namespace):
             cache.write_target_manifest(target_manifest_file)
 
             if cache.get_cache("reference_manifest.json") is None:
-                logger.debug("No reference state available. Using the target manifest as the reference.")
+                logger.debug(
+                    "No reference state available. Using the target manifest as the reference."
+                )
                 cache.write_reference_manifest(target_manifest_file)
 
         # Will generate summary and output it in the logs. It also covers:
@@ -108,20 +113,23 @@ def init(args: Namespace):
 
         cache.update_report(command="init", status="completed")
         logger.info("Initialization complete. Cache updated with current state(s).")
-        logger.info("You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state.")
+        logger.info(
+            "You can now run `dbt-ci run --mode <mode>` to execute modified models based on the generated state."
+        )
     except Exception as e:
         cache = CacheManager(args)
         cache.update_report(command="init", status="failed")
         print_exception(e, "Error during initialization")
         sys.exit(1)
 
+
 def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> None:
     """
-        The following method will call the following steps to generate a summary of changes,
-        but also migration, ephemeral:
-        1. Generate summary of modified, deleted, and new nodes with their resource types
-        2. Generate migration plan for modified nodes with partitioning changes
-        3. Generate ephemeral plan for modified nodes with non-partitioning changes
+    The following method will call the following steps to generate a summary of changes,
+    but also migration, ephemeral:
+    1. Generate summary of modified, deleted, and new nodes with their resource types
+    2. Generate migration plan for modified nodes with partitioning changes
+    3. Generate ephemeral plan for modified nodes with non-partitioning changes
     """
     logger.info("\n------------------------------------------------------")
     logger.info("State Change Summary:")
@@ -146,6 +154,7 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
     try:
         from dbt_ci.notifications.slack import SlackClient
         from dbt_ci.notifications.slack_summary import build_init_summary_message
+
         blocks, fallback_text = build_init_summary_message(state_change_summary, args)
         SlackClient(args).send_blocks(blocks, fallback_text)
     except Exception as e:

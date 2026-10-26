@@ -1,12 +1,12 @@
 """Utility functions for multithreading."""
+
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Any
 
+
 def run_multithreaded(
-    func_list: list[Callable[..., Any]],
-    threads: int = 4,
-    exit_on_exception: bool = False
+    func_list: list[Callable[..., Any]], threads: int = 4, exit_on_exception: bool = False
 ) -> list[Any]:
     """
     Run a list of functions concurrently using multithreading.

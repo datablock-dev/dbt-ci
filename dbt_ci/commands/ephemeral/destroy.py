@@ -1,4 +1,5 @@
 """Tear down the environment that `dbt-ci ephemeral` created."""
+
 import sys
 import logging
 from argparse import Namespace
@@ -63,7 +64,10 @@ def clean_up_ephemeral(args: Namespace, cache: CacheManager):
         config = node_info.get("ephemeral_config")
         dataset_id = get_dataset_id(config)
         if config is not None and dataset_id is not None:
-            dataset_refs[dataset_id] = {"database": config.get("database"), "schema": cast(str, config["schema"])}
+            dataset_refs[dataset_id] = {
+                "database": config.get("database"),
+                "schema": cast(str, config["schema"]),
+            }
     datasets_to_delete = set(dataset_refs)
 
     protected_datasets = get_reference_datasets(args, cache)
@@ -75,16 +79,22 @@ def clean_up_ephemeral(args: Namespace, cache: CacheManager):
     # Compared case-insensitively: on Snowflake and most other warehouses ANALYTICS and
     # analytics are the same schema, and refusing too much is the safe side.
     protected_lower = {dataset_id.lower() for dataset_id in protected_datasets}
-    refused = {dataset_id for dataset_id in datasets_to_delete if dataset_id.lower() in protected_lower}
+    refused = {
+        dataset_id for dataset_id in datasets_to_delete if dataset_id.lower() in protected_lower
+    }
     for dataset_id in sorted(refused):
-        logger.warning(f"Refusing to delete dataset '{dataset_id}': it is used by the reference (production) manifest.")
+        logger.warning(
+            f"Refusing to delete dataset '{dataset_id}': it is used by the reference (production) manifest."
+        )
     datasets_to_delete -= refused
 
     if len(datasets_to_delete) == 0:
         logger.info("No ephemeral datasets found to clean up.")
         return
 
-    logger.info(f"Found {len(datasets_to_delete)} ephemeral dataset(s) to clean up: {', '.join(sorted(datasets_to_delete))}")
+    logger.info(
+        f"Found {len(datasets_to_delete)} ephemeral dataset(s) to clean up: {', '.join(sorted(datasets_to_delete))}"
+    )
     dry_run = getattr(args, "dry_run", False)
     if connector is None or delete_datasets_function is None:
         if dry_run:
@@ -115,7 +125,9 @@ def get_dataset_id(config: NodeConfig | None) -> str | None:
 def get_reference_datasets(args: Namespace, cache: CacheManager) -> set[str]:
     """Collect every dataset that a node in the reference (production) manifest lives in."""
     if cache.get_cache("reference_manifest.json") is None:
-        raise RuntimeError("No reference manifest found in cache, so production datasets cannot be protected. Refusing to clean up the ephemeral environment.")
+        raise RuntimeError(
+            "No reference manifest found in cache, so production datasets cannot be protected. Refusing to clean up the ephemeral environment."
+        )
     reference_graph = DbtGraph(args, is_reference=True).to_dict()
     datasets: set[str] = set()
     for node_type in ("model", "seed", "snapshot", "source", "test"):

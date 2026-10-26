@@ -4,6 +4,7 @@ The fixtures mirror collisions confirmed against a real dbt project: dbt permits
 and a singular test to share a name, and permits two packages to define the same model
 name as long as their database representations differ.
 """
+
 from dbt_ci.graph.graph_utils import (
     get_display_name,
     get_node,
@@ -81,7 +82,10 @@ class TestGetSelectors:
 
     def test_falls_back_to_name_without_fqn(self):
         """Nodes carrying no fqn still yield a usable selector."""
-        graph = {"metadata": {}, "model": {"model.demo.x": {"id": "model.demo.x", "name": "x", "fqn": None}}}
+        graph = {
+            "metadata": {},
+            "model": {"model.demo.x": {"id": "model.demo.x", "name": "x", "fqn": None}},
+        }
         assert get_selectors(graph, ["model.demo.x"]) == ["x"]
 
     def test_skips_unknown_nodes(self):
@@ -138,6 +142,9 @@ class TestRelationName:
         """dbt's resolved alias reflects custom generate_alias_name macros."""
         from dbt_ci.graph.graph_utils import get_relation_name
 
-        assert get_relation_name({"name": "m", "alias": "custom_m", "config": {"alias": "cfg_m"}}) == "custom_m"
+        assert (
+            get_relation_name({"name": "m", "alias": "custom_m", "config": {"alias": "cfg_m"}})
+            == "custom_m"
+        )
         assert get_relation_name({"name": "m", "config": {"alias": "cfg_m"}}) == "cfg_m"
         assert get_relation_name({"name": "m", "config": {}}) == "m"

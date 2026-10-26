@@ -1,4 +1,5 @@
 """Make the GitHub Action's entrypoint package importable; it lives outside dbt_ci."""
+
 import sys
 from pathlib import Path
 

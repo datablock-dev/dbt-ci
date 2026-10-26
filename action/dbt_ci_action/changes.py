@@ -1,4 +1,5 @@
 """Expose the change set detected by `init` as step outputs."""
+
 from __future__ import annotations
 
 import json
@@ -42,7 +43,16 @@ def write_change_outputs(
         os.remove(report_path)
 
     result = subprocess.run(
-        [executable, "report", "--format", "json", "--output", report_path, "--no-pr-comment", *flags],
+        [
+            executable,
+            "report",
+            "--format",
+            "json",
+            "--output",
+            report_path,
+            "--no-pr-comment",
+            *flags,
+        ],
         env=dict(env),
         capture_output=True,
         text=True,

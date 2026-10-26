@@ -4,6 +4,7 @@ Every command writes its status, timings and resolved variables into report.json
 the change set into cache.json, but nothing ever read them back - the files were written
 and then deleted by finalize. This turns them into something a reviewer sees.
 """
+
 import json
 import logging
 import os
@@ -55,7 +56,11 @@ def report(args: Namespace) -> None:
         output_format = getattr(args, "format", "markdown")
         pr_comment = getattr(args, "pr_comment", False)
         # The comment is always markdown, whatever --format the written report uses
-        markdown = render_markdown(cache_dict, run_report, args) if output_format != "json" or pr_comment else ""
+        markdown = (
+            render_markdown(cache_dict, run_report, args)
+            if output_format != "json" or pr_comment
+            else ""
+        )
         if output_format == "json":
             rendered = json.dumps(
                 {"report": run_report, "changes": cache_dict},
@@ -153,7 +158,10 @@ def render_exposure_impact(cache_dict: StateChangeSummary | None, args: Namespac
     # Modified and new nodes are resolved against the target graph; deleted nodes only
     # exist in the reference graph, and an exposure downstream of a deleted model is
     # precisely the case worth surfacing.
-    for change_keys, is_reference in ((("modified_nodes", "new_nodes"), False), (("deleted_nodes",), True)):
+    for change_keys, is_reference in (
+        (("modified_nodes", "new_nodes"), False),
+        (("deleted_nodes",), True),
+    ):
         node_ids: list[str] = []
         for change_key in change_keys:
             node_ids.extend(get_node_ids_from_structured_nodes(cache_dict.get(change_key)) or [])
@@ -198,9 +206,7 @@ def render_command_status(run_report: dict[str, Any] | None) -> list[str]:
         if not isinstance(entry, dict):
             continue
         status = entry.get("status", "unknown")
-        lines.append(
-            f"| `{command}` | {status_icon(status)} {status} | {format_duration(entry)} |"
-        )
+        lines.append(f"| `{command}` | {status_icon(status)} {status} | {format_duration(entry)} |")
     lines.append("")
     return lines
 

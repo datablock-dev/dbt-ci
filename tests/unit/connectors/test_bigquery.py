@@ -1,4 +1,5 @@
 """Unit tests for the BigQuery connector."""
+
 from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
@@ -64,7 +65,9 @@ class TestBigQueryDeleteStrategy:
         )
         delete_map = {
             "model.test_project.orders": {
-                "type": "model", "name": "orders", "table_id": "my-gcp-project.analytics.orders"
+                "type": "model",
+                "name": "orders",
+                "table_id": "my-gcp-project.analytics.orders",
             }
         }
 
@@ -111,10 +114,15 @@ class TestMigrationStrategy:
             for func in func_list:
                 func()
 
-        with patch("dbt_ci.connectors.google.bigquery.bigquery_client", return_value=client), \
-             patch("dbt_ci.connectors.google.bigquery.get_profile", return_value={"threads": 1}), \
-             patch("dbt_ci.connectors.google.bigquery.run_multithreaded", side_effect=run_all):
-            bigquery_migration_strategy({"connector": "bigquery", "nodes": {"model.pkg.orders": self.NODE}}, Namespace(dry_run=False))
+        with (
+            patch("dbt_ci.connectors.google.bigquery.bigquery_client", return_value=client),
+            patch("dbt_ci.connectors.google.bigquery.get_profile", return_value={"threads": 1}),
+            patch("dbt_ci.connectors.google.bigquery.run_multithreaded", side_effect=run_all),
+        ):
+            bigquery_migration_strategy(
+                {"connector": "bigquery", "nodes": {"model.pkg.orders": self.NODE}},
+                Namespace(dry_run=False),
+            )
         return executed
 
     def test_copy_keeps_clustering_and_partition_options(self):
@@ -147,9 +155,16 @@ class TestMigrationTableId:
 
         def node(partition):
             """Build an incremental model node aliased to 'orders'."""
-            return {"id": "model.pkg.orders_v2", "name": "orders_v2", "alias": "orders", "resource_type": "model",
-                    "database": "proj", "schema": "ana", "materialized": "incremental",
-                    "config": {"materialized": "incremental", "partition_by": partition}}
+            return {
+                "id": "model.pkg.orders_v2",
+                "name": "orders_v2",
+                "alias": "orders",
+                "resource_type": "model",
+                "database": "proj",
+                "schema": "ana",
+                "materialized": "incremental",
+                "config": {"materialized": "incremental", "partition_by": partition},
+            }
 
         target = {"model": {"model.pkg.orders_v2": node({"field": "d", "data_type": "date"})}}
         reference = {"model": {"model.pkg.orders_v2": node(None)}}
@@ -162,7 +177,9 @@ class TestMigrationTableId:
 
         cache = MagicMock()
         cache.get_cache.return_value = {"modified_nodes": {"model": {"model.pkg.orders_v2": {}}}}
-        with patch("dbt_ci.commands.migration.index.DbtGraph", side_effect=make_graph), \
-             patch("dbt_ci.commands.migration.index.get_profile", return_value={"type": "bigquery"}):
+        with (
+            patch("dbt_ci.commands.migration.index.DbtGraph", side_effect=make_graph),
+            patch("dbt_ci.commands.migration.index.get_profile", return_value={"type": "bigquery"}),
+        ):
             migration_map = generate_migration_map(Namespace(), cache)
         assert migration_map["nodes"]["model.pkg.orders_v2"]["table_id"] == "proj.ana.orders"

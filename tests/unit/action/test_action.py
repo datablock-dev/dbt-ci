@@ -1,4 +1,5 @@
 """Tests for the GitHub Action entrypoint in action/dbt_ci_action."""
+
 import json
 import subprocess
 import sys
@@ -28,7 +29,9 @@ class TestParseCommands:
     def test_space_separated_list_on_one_line(self):
         """'init run report' is three commands, not init with two arguments."""
         assert [s.command for s in parse_commands("init run report")] == [
-            ("init",), ("run",), ("report",)
+            ("init",),
+            ("run",),
+            ("report",),
         ]
 
     def test_leading_dbt_ci_is_dropped(self):
@@ -71,10 +74,13 @@ class TestFlags:
     def test_common_and_init_flags(self):
         """init gets the common flags plus its own; empty and false inputs pass nothing."""
         assert flags_for(("init",), self.INPUTS) == [
-            "--dbt-project-dir", "dbt",
-            "--target", "ci",
+            "--dbt-project-dir",
+            "dbt",
+            "--target",
+            "ci",
             "--defer",
-            "--state-uri", "gs://bucket/manifest.json",
+            "--state-uri",
+            "gs://bucket/manifest.json",
         ]
 
     def test_command_flags_stay_on_their_command(self):
@@ -106,7 +112,9 @@ class TestBuildEnv:
         """The cache lives in RUNNER_TEMP and later steps are told where."""
         github_env = tmp_path / "env"
         monkeypatch.setenv("GITHUB_ENV", str(github_env))
-        env = build_env({"github-token": "t", "slack-webhook": "https://hooks"}, {"RUNNER_TEMP": "/rt"})
+        env = build_env(
+            {"github-token": "t", "slack-webhook": "https://hooks"}, {"RUNNER_TEMP": "/rt"}
+        )
         assert env["DBT_CI_CACHE_DIR"] == "/rt/dbt-ci"
         assert env["GITHUB_TOKEN"] == "t"
         assert env["DBT_NOTIFICATIONS_WEBHOOK"] == "https://hooks"
@@ -195,7 +203,11 @@ class TestChangeOutputs:
         write_change_outputs(str(script), [], {}, str(report_path))
 
         assert output.read_text().splitlines() == [
-            "modified=3", "new=0", "deleted=0", "has-changes=true", f"report-json={report_path}",
+            "modified=3",
+            "new=0",
+            "deleted=0",
+            "has-changes=true",
+            f"report-json={report_path}",
         ]
 
     def test_no_cache_sets_no_outputs(self, tmp_path, monkeypatch):
@@ -205,7 +217,10 @@ class TestChangeOutputs:
         report_path = tmp_path / "report.json"
         report_path.write_text(json.dumps(self.REPORT))
 
-        assert write_change_outputs(fake_dbt_ci(tmp_path, failing="report"), [], {}, str(report_path)) is None
+        assert (
+            write_change_outputs(fake_dbt_ci(tmp_path, failing="report"), [], {}, str(report_path))
+            is None
+        )
         assert not output.exists()
         assert not report_path.exists()
 

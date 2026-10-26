@@ -11,6 +11,7 @@ directory (`target/dbt_ci_operations`) that holds its macros and points at the s
 profile. Being inside the project directory, it is also inside any Docker volume that
 mounts the project, so every runner can reach it.
 """
+
 import json
 import logging
 import os
@@ -40,6 +41,7 @@ STATE_SWITCHES = {"--defer", "--no-defer"}
 
 class RelationRef(TypedDict):
     """A relation to drop: database may be None on adapters without databases."""
+
     database: Optional[str]
     schema: str
     identifier: str
@@ -47,6 +49,7 @@ class RelationRef(TypedDict):
 
 class SchemaRef(TypedDict):
     """A schema (dataset) to drop."""
+
     database: Optional[str]
     schema: str
 
@@ -58,13 +61,17 @@ def write_operations_project(args: Namespace) -> Path:
 
     operations_dir = project_dir.joinpath(*OPERATIONS_PROJECT_DIR)
     (operations_dir / "macros").mkdir(parents=True, exist_ok=True)
-    (operations_dir / "dbt_project.yml").write_text(yaml.safe_dump({
-        "name": "dbt_ci_operations",
-        "version": "1.0.0",
-        "config-version": 2,
-        "profile": profile,
-        "macro-paths": ["macros"],
-    }))
+    (operations_dir / "dbt_project.yml").write_text(
+        yaml.safe_dump(
+            {
+                "name": "dbt_ci_operations",
+                "version": "1.0.0",
+                "config-version": 2,
+                "profile": profile,
+                "macro-paths": ["macros"],
+            }
+        )
+    )
     macro = resources.files("dbt_ci.dbt").joinpath("macros", MACRO_FILE).read_text()
     (operations_dir / "macros" / MACRO_FILE).write_text(macro)
     # Keeps the helper out of git even where target/ is not ignored

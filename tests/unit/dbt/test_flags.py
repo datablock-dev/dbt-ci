@@ -1,4 +1,5 @@
 """Unit tests for reusing the run configuration that init recorded."""
+
 from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
@@ -44,8 +45,6 @@ class TestGetCachedValue:
         """Without a cache nothing is inherited."""
         with _with_cache(None):
             assert get_cached_value(Namespace(), "target") is None
-
-
 
 
 class TestApplyCachedConfig:

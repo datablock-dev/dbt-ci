@@ -1,11 +1,15 @@
 """TypedDict definitions for dbt manifest.json structure and CLI arguments."""
+
 from argparse import Namespace
 from typing import Callable, Any, Optional, TypedDict, NotRequired, Literal, Set
 
 type LoggingLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 type Commands = Literal["init", "delete", "migrate", "ephemeral", "run", "finalize"]
+
+
 class DBTProfile(TypedDict):
     """Structure of a dbt profiles.yml profile."""
+
     type: str
     method: Optional[str]
     project: Optional[str]
@@ -32,13 +36,17 @@ class DBTProfile(TypedDict):
     trust_cert: Optional[bool]
     oauth_access_token: Optional[str]
 
+
 class DBTProfileConfig(TypedDict):
     """Structure of a dbt profiles.yml profile."""
+
     target: str
     outputs: dict[str, DBTProfile]
 
+
 class Quoting(TypedDict):
     """Quoting configuration."""
+
     database: Optional[bool]
     schema: Optional[bool]
     identifier: Optional[bool]
@@ -47,6 +55,7 @@ class Quoting(TypedDict):
 
 class Metadata(TypedDict):
     """Metadata section of dbt manifest."""
+
     dbt_schema_version: str
     dbt_version: str
     generated_at: str
@@ -64,18 +73,21 @@ class Metadata(TypedDict):
 
 class Checksum(TypedDict):
     """Checksum information for a resource."""
+
     name: str
     checksum: str
 
 
 class Docs(TypedDict):
     """Documentation configuration."""
+
     show: bool
     node_color: Optional[str]
 
 
 class Contract(TypedDict):
     """Contract configuration."""
+
     enforced: bool
     alias_types: bool
     checksum: NotRequired[Optional[str]]
@@ -83,6 +95,7 @@ class Contract(TypedDict):
 
 class Config(TypedDict, total=False):
     """Configuration for a dbt resource."""
+
     """
         Add more adaptor-specific config options as needed.
     """
@@ -125,6 +138,7 @@ class Config(TypedDict, total=False):
 
 class Ref(TypedDict):
     """Reference to another dbt resource."""
+
     name: str
     package: Optional[str]
     version: Optional[str]
@@ -132,12 +146,14 @@ class Ref(TypedDict):
 
 class DependsOn(TypedDict):
     """Dependencies of a resource."""
+
     macros: list[str]
     nodes: list[str]
 
 
 class Column(TypedDict, total=False):
     """Column definition."""
+
     name: str
     description: str
     data_type: Optional[str]
@@ -146,10 +162,13 @@ class Column(TypedDict, total=False):
     quote: Optional[bool]
     tags: list[str]
 
+
 type NodeResourceType = Literal["model", "macro", "source", "seed", "snapshot", "test", "exposure"]
+
 
 class Node(TypedDict, total=False):
     """A node in the dbt DAG (model, test, seed, etc.)."""
+
     database: str
     schema: str
     name: str
@@ -198,6 +217,7 @@ class Node(TypedDict, total=False):
 
 class Macro(TypedDict, total=False):
     """A dbt macro definition."""
+
     name: str
     unique_id: str
     package_name: str
@@ -216,6 +236,7 @@ class Macro(TypedDict, total=False):
 
 class Source(TypedDict, total=False):
     """A dbt source definition."""
+
     database: str
     schema: str
     name: str
@@ -244,10 +265,13 @@ class Source(TypedDict, total=False):
     relation_name: str
     created_at: float
 
+
 type DbtNode = Node | Macro | Source
+
 
 class DBTManifest(TypedDict):
     """Complete dbt manifest.json structure."""
+
     metadata: Metadata
     nodes: dict[str, Node]
     sources: dict[str, Source]
@@ -269,6 +293,7 @@ class DBTManifest(TypedDict):
 
 class CLIArgs(TypedDict):
     """Command-line arguments for the DBT CI Tool."""
+
     reference_manifest_path: str
     profiles_dir: Optional[str]
     dbt_project_dir: str
@@ -287,27 +312,17 @@ class CLIArgs(TypedDict):
     docker_user: Optional[str]
     docker_args: str
 
+
 ###########################################
 #   Dependency graph structures for lineage analysis
 ###########################################
-type RunModes = Literal[
-    "all",
-    "seeds",
-    "models",
-    "tests",
-    "snapshots"
-]
+type RunModes = Literal["all", "seeds", "models", "tests", "snapshots"]
 
 type DependencyGraphNodeType = Literal[
-    "model", 
-    "macro", 
-    "source", 
-    "seed", 
-    "snapshot", 
-    "test", 
-    "exposure",
-    "unit_test"
+    "model", "macro", "source", "seed", "snapshot", "test", "exposure", "unit_test"
 ]
+
+
 class DependenciesByType(TypedDict):
     model: Set[str]
     macro: Set[str]
@@ -317,19 +332,18 @@ class DependenciesByType(TypedDict):
     test: Set[str]
     exposure: Set[str]
     unit_test: Set[str]
+
+
 class DependencyGraphDownstreamDependency(TypedDict):
     node_dependencies: Set[str]
     dependencies_by_type: DependenciesByType
 
+
 type DBTMaterialized = Literal[
-    "view",
-    "table",
-    "incremental",
-    "ephemeral",
-    "snapshot",
-    "test",
-    "seed"
+    "view", "table", "incremental", "ephemeral", "snapshot", "test", "seed"
 ]
+
+
 class DependencyGraphNode(TypedDict):
     """Structured representation of dbt dependencies for lineage analysis.
 
@@ -337,6 +351,7 @@ class DependencyGraphNode(TypedDict):
     dependency sets is a unique_id too. `fqn` is retained because dbt's --select has no
     unique_id method and the fqn path is what identifies a node unambiguously there.
     """
+
     name: str
     id: str
     fqn: list[str] | None
@@ -357,8 +372,10 @@ class DependencyGraphNode(TypedDict):
     indirect_upstream_dependencies: DependencyGraphDownstreamDependency
     indirect_downstream_dependencies: DependencyGraphDownstreamDependency
 
+
 class DependencyGraph(TypedDict):
     """Complete dependency graph for dbt resources."""
+
     metadata: Metadata
     model: dict[str, DependencyGraphNode]
     macro: dict[str, DependencyGraphNode]
@@ -369,10 +386,13 @@ class DependencyGraph(TypedDict):
     exposure: dict[str, DependencyGraphNode]
     unit_test: dict[str, DependencyGraphNode]
 
+
 type Runners = Literal["local", "docker", "bash", "dbt"]
+
 
 class RunnerConfig(TypedDict):
     """Configuration for dbt command execution across different runners."""
+
     runner: Runners
     dbt_project_dir: str
     reference_state: str
@@ -397,32 +417,40 @@ class RunnerConfig(TypedDict):
     # Bash-specific configuration
     shell_path: str
 
+
 class OptionsConfig(TypedDict):
     """Configuration mapping for CLI options."""
+
     env_vars: list[str]
     cli_flags: list[str]
     required: bool
     default: Optional[Any]
     help: str
     choices: Optional[list[Any]]
-    resolve_value: Optional[Callable[..., Any]] # Explore this option for complex value resolution
+    resolve_value: Optional[Callable[..., Any]]  # Explore this option for complex value resolution
+
 
 class NodeConfig(TypedDict):
     """Configuration for a dbt node's database location."""
+
     database: Optional[str]
     schema: Optional[str]
     name: Optional[str]
     alias: Optional[str]
 
+
 class EphemeralMapNode(TypedDict):
     """Structure for nodes in the ephemeral environment map."""
+
     name: str
     resource_type: str
     ephemeral_config: NodeConfig | None
     reference_config: NodeConfig | None
 
+
 class DeleteMapNode(TypedDict):
     """Structure for nodes in the delete map."""
+
     type: NodeResourceType
     name: str
     table_id: str
@@ -430,37 +458,40 @@ class DeleteMapNode(TypedDict):
     schema: NotRequired[str]
     identifier: NotRequired[str]
 
-type SupportedConnectors = Literal[
-    "bigquery"
-]
-type SupportedConnectorsEphemeralStrategy = Literal[
-    "bigquery"
-]
+
+type SupportedConnectors = Literal["bigquery"]
+type SupportedConnectorsEphemeralStrategy = Literal["bigquery"]
 
 type EphemeralConnectors = dict[
-    SupportedConnectorsEphemeralStrategy,
-    Callable[[dict[str, EphemeralMapNode], Namespace], None]
+    SupportedConnectorsEphemeralStrategy, Callable[[dict[str, EphemeralMapNode], Namespace], None]
 ]
+
 
 class ConnectorStrategiesConfig(TypedDict):
     """Configuration for supported connector strategies."""
+
     delete: Callable[[dict[str, DeleteMapNode], Namespace], None]
     migration: Callable[..., Any] | None
 
+
 class ConnectorMethodsConfig(TypedDict):
     """Configuration for supported connector methods."""
+
     delete_datasets: Callable[[Any, set[str], bool, int], None]
 
 
 class ConnectorConfig(TypedDict):
     """Configuration for supported connectors."""
+
     client: Callable[..., Any]
     strategies: ConnectorStrategiesConfig
     methods: ConnectorMethodsConfig
 
+
 # Add better type definitions
 class MigrationMapNodeEntry(TypedDict):
     """Entry for a node in the migration map."""
+
     table_id: str
     compiled_code: str | None
     old_partitioning: Any | None
@@ -472,15 +503,19 @@ class MigrationMapNodeEntry(TypedDict):
 
 class MigrationMap(TypedDict):
     """Structure for tracking table partitioning migrations."""
+
     connector: str
     nodes: dict[str, MigrationMapNodeEntry]
 
+
 class StorageConnectorConfig(TypedDict):
     """Configuration for storage connectors."""
+
     name: str
     client: Callable[..., Any]
     upload: Callable[[str, Any, str], None]
     download: Callable[[str], DBTManifest]
+
 
 type SupportedStorageConnectors = Literal["google", "aws"]
 type StorageConnector = dict[SupportedStorageConnectors, StorageConnectorConfig]
@@ -490,7 +525,7 @@ MODE_MAPPING: dict[RunModes, Optional[str]] = {
     "seeds": "seed",
     "models": "run",
     "tests": "test",
-    "snapshots": "snapshot"
+    "snapshots": "snapshot",
 }
 
 REVERSE_MODE_MAPPING: dict[Optional[str], RunModes] = {v: k for k, v in MODE_MAPPING.items()}
@@ -500,7 +535,7 @@ NODE_TYPE_COMMAND_MAPPING: dict[str, DependencyGraphNodeType] = {
     "macros": "macro",
     "seeds": "seed",
     "snapshots": "snapshot",
-    "tests": "test"
+    "tests": "test",
 }
 
 MANIFEST_KEY_MAPPING = {
@@ -511,7 +546,7 @@ MANIFEST_KEY_MAPPING = {
     "macro": "macros",
     "exposure": "exposures",
     "source": "sources",
-    "unit_test": "unit_tests"
+    "unit_test": "unit_tests",
 }
 
 ###################################################################
@@ -520,15 +555,18 @@ MANIFEST_KEY_MAPPING = {
 
 # Nodes grouped by resource_type, then keyed by node_id.
 # e.g. {"model": {"model.pkg.foo": DependencyGraphNode}, "snapshot": {...}}
-type ComparisonStrategy =  Literal["dbt", "git", "hybrid"]
+type ComparisonStrategy = Literal["dbt", "git", "hybrid"]
 type StructuredNodes = dict[str, dict[str, DependencyGraphNode]]
 type StateChangeSummaryKeys = Literal["modified_nodes", "deleted_nodes", "new_nodes"]
 
+
 class StateChangeSummary(TypedDict):
     """Top-level cache structure written by the init command."""
+
     modified_nodes: StructuredNodes | None
     deleted_nodes: StructuredNodes | None
     new_nodes: StructuredNodes | None
+
 
 class DbtCompileOptions(TypedDict, total=False):
     target: str | None
@@ -536,24 +574,30 @@ class DbtCompileOptions(TypedDict, total=False):
     # Only recorded for the reference side: the state directory init used
     state: str | None
 
+
 class DbtCiConfig(TypedDict):
     """Configuration for the DBT CI Tool, including CLI arguments and connector configurations."""
+
     connector: SupportedConnectors
     comparison_strategy: ComparisonStrategy
     runner: Runners
     reference: DbtCompileOptions
     target: DbtCompileOptions
 
+
 class DbtCiManifest(TypedDict):
     """Structure of the cache.json files written to storage by the reference and target states."""
+
     config: DbtCiConfig
     modified_nodes: StructuredNodes | None
     deleted_nodes: StructuredNodes | None
     new_nodes: StructuredNodes | None
 
+
 ###################################################################
 #                   GitHub Actions Schemas                        #
 ###################################################################
+
 
 class GitHubContext(TypedDict):
     """
@@ -565,6 +609,7 @@ class GitHubContext(TypedDict):
 
     Reference: https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#github-context
     """
+
     # The GitHub Actions token for the current workflow run.
     token: str
     # The job_id of the current job (only set during job execution steps).

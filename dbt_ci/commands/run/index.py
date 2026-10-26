@@ -13,15 +13,16 @@ from dbt_ci.graph.graph_utils import get_node_ids_from_structured_nodes
 
 logger = logging.getLogger(__name__)
 
+
 def run(args: Namespace):
     """Run modified dbt models
-    
+
     Detects models that have changed based on state comparison and runs them.
-    
+
     Examples:
         dbt-ci run --state prod-manifest/ --dbt-project-dir ./dbt
         dbt-ci run --state prod-manifest/ --runner docker
-        
+
         # With environment variables
         export DBT_STATE=./dbt/.dbtstate/
         export DBT_PROJECT_DIR=./dbt
@@ -36,18 +37,27 @@ def run(args: Namespace):
         cache.start_report("run", args)
         apply_cached_config(args)
         target_graph = DbtGraph(args)
-                
+
         # Look for cache
         prev_cache = cache.get_cache()
         if prev_cache is None:
             # Nothing was compared, so passing here would hide a skipped or failed init.
-            raise RuntimeError("No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison.")
+            raise RuntimeError(
+                "No cache found, please run 'dbt-ci init' first to generate the necessary manifest files and cache for comparison."
+            )
         logger.info("Cache successfully found - using cached state for comparison")
 
         changed_nodes_dict = {
-            "modified_nodes": get_node_ids_from_structured_nodes(prev_cache.get("modified_nodes", None)) or [],
-            "new_nodes": get_node_ids_from_structured_nodes(prev_cache.get("new_nodes", None)) or [],
-            "deleted_nodes": get_node_ids_from_structured_nodes(prev_cache.get("deleted_nodes", None)) or []
+            "modified_nodes": get_node_ids_from_structured_nodes(
+                prev_cache.get("modified_nodes", None)
+            )
+            or [],
+            "new_nodes": get_node_ids_from_structured_nodes(prev_cache.get("new_nodes", None))
+            or [],
+            "deleted_nodes": get_node_ids_from_structured_nodes(
+                prev_cache.get("deleted_nodes", None)
+            )
+            or [],
         }
         if not any(changed_nodes_dict.values()):
             logger.info("No modified, new, or deleted nodes found in cache, skipping...")
@@ -56,15 +66,15 @@ def run(args: Namespace):
         # Downstream lookups walk the target graph, where deleted nodes no longer exist.
         # A renamed generic test, for example, is a deleted id plus a new one; anything
         # that depended on a deleted node has changed itself and is already modified.
-        changed_nodes = list(dict.fromkeys(
-            changed_nodes_dict["modified_nodes"] + changed_nodes_dict["new_nodes"]
-        ))
+        changed_nodes = list(
+            dict.fromkeys(changed_nodes_dict["modified_nodes"] + changed_nodes_dict["new_nodes"])
+        )
 
         run_nodes(
             args=args,
             target_graph=target_graph,
             changed_nodes=changed_nodes,
-            changed_nodes_dict=changed_nodes_dict
+            changed_nodes_dict=changed_nodes_dict,
         )
 
         cache.update_report("run", "completed")
