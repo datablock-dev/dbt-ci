@@ -87,16 +87,6 @@ def clone_command(
             ) or set()
         )))
 
-        ephemeral_nodes = list(set(chain(
-            changed_nodes_dict["modified_nodes"],
-            changed_nodes_dict["new_nodes"],
-            dependent_nodes
-        )))
-
-        if len(ephemeral_nodes) == 0:
-            logger.info("No nodes to create ephemeral environments for, skipping...")
-            sys.exit(0)
-
         # We add all changed nodes + their 1st level parents + their downstream dependencies
         # to the clone selection.
         # Selectors are fqn paths rather than unique_ids, which dbt's --select cannot resolve.
@@ -110,7 +100,8 @@ def clone_command(
         for selector in get_selectors(target_graph.to_dict(), _filter_models_and_snapshots(target_graph, dependent_nodes)):
             node_selector.add(f"1+{selector}")
 
-        # A change to seeds and their tests alone leaves nothing to clone, since `run` seeds them itself
+        # Only models and snapshots are cloned, so decide on the selection itself: a change to
+        # seeds and their tests alone leaves nothing to clone, since `run` seeds them itself
         if len(node_selector) == 0:
             logger.info("No models or snapshots to clone for the ephemeral environment, skipping...")
             sys.exit(0)
