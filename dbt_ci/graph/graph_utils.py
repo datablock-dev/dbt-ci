@@ -125,20 +125,23 @@ def collect_dependencies_to_depth(
     dependency_graph: DependencyGraph,
     node_ids: list[str],
     direction: Literal["upstream", "downstream"] = "downstream",
-    depth: int = 1,
+    depth: int | None = 1,
 ) -> set[str]:
     """
     Walk `depth` hops out from the given nodes, following direct edges only.
 
-    Breadth-first rather than reusing the precomputed closure, because the closure has
-    no notion of distance. A depth of 0 selects nothing beyond the starting nodes, which
-    is how a caller asks for "just what changed".
+    A depth of None walks the whole closure, and a depth of 0 selects nothing beyond the
+    starting nodes, which is how a caller asks for "just what changed". Closures are
+    walked on demand rather than precomputed for every node, which is quadratic in the
+    size of the project. Every id reached is kept, including ids of resource types the
+    graph does not track, but only tracked nodes are walked through.
     """
     key = f"{direction}_dependencies"
     reached: set[str] = set()
     frontier: list[str] = list(node_ids)
+    hops = 0
 
-    for _ in range(max(depth, 0)):
+    while frontier and (depth is None or hops < depth):
         next_frontier: list[str] = []
         for node_id in frontier:
             node = get_node(dependency_graph, node_id)
@@ -149,9 +152,8 @@ def collect_dependencies_to_depth(
                     continue
                 reached.add(dep_id)
                 next_frontier.append(dep_id)
-        if not next_frontier:
-            break
         frontier = next_frontier
+        hops += 1
 
     return reached
 
@@ -163,47 +165,30 @@ def get_downstream_dependencies(
     levels: int | None = None,
 ) -> set[str] | None:
     """
-    Get downstream dependencies for a list of node IDs,
-    optionally up to a certain number of levels. Defaults to the full downstream
-    closure when levels is not specified.
+    Get downstream dependencies for a list of node IDs, optionally of one type only.
+
+    Defaults to the full downstream closure when levels is not specified. Only resource
+    types the graph tracks are returned.
     """
     if node_ids is None or len(node_ids) == 0:
         return None
 
-    if levels is not None:
-        downstream_dependencies = collect_dependencies_to_depth(
+    for node_id in node_ids:
+        if get_node(dependency_graph, node_id) is None:
+            logger.warning(
+                f"Node ID '{node_id}' not found in dependency graph when attempting to get "
+                "downstream dependencies."
+            )
+
+    tracked_types = {node_type} if node_type else set(dependency_graph) - {"metadata"}
+    downstream_dependencies = {
+        dep_id
+        for dep_id in collect_dependencies_to_depth(
             dependency_graph, node_ids, "downstream", levels
         )
-        if node_type:
-            downstream_dependencies = {
-                dep_id
-                for dep_id in downstream_dependencies
-                if (node := get_node(dependency_graph, dep_id))
-                and node.get("resource_type") == node_type
-            }
-        return downstream_dependencies or None
-
-    downstream_dependencies = set()
-    for node_id in node_ids:
-        node = get_node(dependency_graph, node_id)
-        if node is None:
-            logger.warning(
-                f"Node ID '{node_id}' not found in dependency graph when attempting to get downstream dependencies."
-            )
-            continue
-
-        dependency_by_type: dict[DependencyGraphNodeType, list[str]] = node[
-            "indirect_downstream_dependencies"
-        ]["dependencies_by_type"]
-        for dep_type, dep_names in dependency_by_type.items():
-            if node_type and dep_type != node_type:
-                continue
-            if dep_names is not None and len(dep_names) > 0:
-                downstream_dependencies.update(dep_names)
-
-    if len(downstream_dependencies) == 0:
-        return None
-    return downstream_dependencies
+        if dep_id.split(".")[0] in tracked_types
+    }
+    return downstream_dependencies or None
 
 
 def get_upstream_dependencies(
@@ -301,20 +286,36 @@ def get_nodes_from_path(
 
 
 def get_nodes_using_macros(dependency_graph: DependencyGraph, macro_ids: set[str]) -> set[str]:
-    """Return the non-macro nodes that call any of the given macros, directly or through other macros."""
+    """
+    Return the non-macro nodes that call any of the given macros.
+
+    The upstream edges are walked in reverse from the macros, so a node is a user when
+    it reaches a changed macro directly, through other macros, or through a model it
+    reads that calls one.
+    """
     if not macro_ids:
         return set()
-    users: set[str] = set()
+
+    callers: dict[str, set[str]] = {}
     for node_type, node_values in dependency_graph.items():
-        if node_type in ("metadata", "macro"):
+        if node_type == "metadata":
             continue
         for node_id, node_info in cast(dict, node_values).items():
-            upstream = (node_info.get("indirect_upstream_dependencies") or {}).get(
-                "node_dependencies"
-            ) or set()
-            if macro_ids & set(upstream):
-                users.add(node_id)
-    return users
+            for dep_id in node_info["upstream_dependencies"]["node_dependencies"]:
+                callers.setdefault(dep_id, set()).add(node_id)
+
+    reached: set[str] = set()
+    frontier = list(macro_ids)
+    while frontier:
+        next_frontier: list[str] = []
+        for node_id in frontier:
+            for caller_id in callers.get(node_id, ()):
+                if caller_id not in reached:
+                    reached.add(caller_id)
+                    next_frontier.append(caller_id)
+        frontier = next_frontier
+
+    return {node_id for node_id in reached if not node_id.startswith("macro.")}
 
 
 def get_display_name(dependency_graph: DependencyGraph | None, node_id: str) -> str:

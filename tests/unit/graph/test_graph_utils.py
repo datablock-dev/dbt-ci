@@ -6,6 +6,7 @@ name as long as their database representations differ.
 """
 
 from dbt_ci.graph.graph_utils import (
+    get_nodes_using_macros,
     get_display_name,
     get_node,
     get_nodes_from_path,
@@ -148,3 +149,40 @@ class TestRelationName:
         )
         assert get_relation_name({"name": "m", "config": {"alias": "cfg_m"}}) == "cfg_m"
         assert get_relation_name({"name": "m", "config": {}}) == "m"
+
+
+class TestGetNodesUsingMacros:
+    """Macro users are found by walking upstream edges in reverse from the changed macros."""
+
+    @staticmethod
+    def graph() -> dict:
+        """fmt calls cents; stg calls fmt; mart reads stg; other calls nothing."""
+        upstream = {
+            "macro.p.cents": set(),
+            "macro.p.fmt": {"macro.p.cents"},
+            "model.p.stg": {"macro.p.fmt"},
+            "model.p.mart": {"model.p.stg"},
+            "model.p.other": set(),
+        }
+        graph: dict = {"metadata": {}, "macro": {}, "model": {}}
+        for unique_id, parents in upstream.items():
+            graph[unique_id.split(".")[0]][unique_id] = {
+                "id": unique_id,
+                "upstream_dependencies": {"node_dependencies": parents},
+            }
+        return graph
+
+    def test_direct_indirect_and_through_a_model(self):
+        """A node is a user directly, through another macro, or through a model that is one."""
+        assert get_nodes_using_macros(self.graph(), {"macro.p.cents"}) == {
+            "model.p.stg",
+            "model.p.mart",
+        }
+
+    def test_macros_themselves_are_not_returned(self):
+        """Only buildable nodes are users; a macro calling the macro is not."""
+        assert "macro.p.fmt" not in get_nodes_using_macros(self.graph(), {"macro.p.cents"})
+
+    def test_no_macros_means_no_users(self):
+        """An empty change set selects nothing."""
+        assert get_nodes_using_macros(self.graph(), set()) == set()

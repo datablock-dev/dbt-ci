@@ -207,8 +207,17 @@ def _graph_node(unique_id, upstream_by_type=None, downstream_by_type=None):
         "name": name,
         "resource_type": resource_type,
         "fqn": [package, name],
-        "upstream_dependencies": {"dependencies_by_type": upstream_by_type or {}},
-        "indirect_downstream_dependencies": {"dependencies_by_type": downstream_by_type or {}},
+        "upstream_dependencies": _edges(upstream_by_type),
+        "downstream_dependencies": _edges(downstream_by_type),
+    }
+
+
+def _edges(by_type):
+    """Build a node's direct dependencies from a {resource_type: [unique_id]} mapping."""
+    by_type = by_type or {}
+    return {
+        "node_dependencies": {node_id for node_ids in by_type.values() for node_id in node_ids},
+        "dependencies_by_type": by_type,
     }
 
 

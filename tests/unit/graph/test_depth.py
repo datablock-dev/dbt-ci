@@ -118,18 +118,27 @@ class TestDepthThroughPublicHelpers:
         assert result == {"test.p.b_is_valid"}
 
     def test_omitting_levels_uses_the_full_closure(self):
-        """Without levels the precomputed closure is used, preserving prior behaviour."""
-        graph = _chain_graph()
-        # The closure lives in indirect_*; provide it for the node under test.
-        graph["model"]["model.p.a"]["indirect_downstream_dependencies"] = {
-            "node_dependencies": {"model.p.b", "model.p.c", "model.p.d", "model.p.e"},
-            "dependencies_by_type": {"model": {"model.p.b", "model.p.c", "model.p.d", "model.p.e"}},
-        }
-        assert get_downstream_dependencies(graph, ["model.p.a"]) == {
+        """Without levels every node downstream is selected, however far away."""
+        assert get_downstream_dependencies(_chain_graph(), ["model.p.a"]) == {
             "model.p.b",
             "model.p.c",
             "model.p.d",
             "model.p.e",
+            "test.p.b_is_valid",
+        }
+
+    def test_full_closure_respects_node_type(self):
+        """Type filtering applies to the full closure as well."""
+        assert get_downstream_dependencies(_chain_graph(), ["model.p.a"], node_type="test") == {
+            "test.p.b_is_valid"
+        }
+
+    def test_full_closure_collects_ancestors(self):
+        """depth=None walks every ancestor."""
+        assert collect_dependencies_to_depth(_chain_graph(), ["model.p.d"], "upstream", None) == {
+            "model.p.a",
+            "model.p.b",
+            "model.p.c",
         }
 
     def test_upstream_levels_filters_by_type(self):

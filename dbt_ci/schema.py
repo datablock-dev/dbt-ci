@@ -350,6 +350,7 @@ class DependencyGraphNode(TypedDict):
     Nodes are keyed by dbt's unique_id throughout the graph, and every id stored in the
     dependency sets is a unique_id too. `fqn` is retained because dbt's --select has no
     unique_id method and the fqn path is what identifies a node unambiguously there.
+    Only direct edges are stored; transitive closures are walked on demand.
     """
 
     name: str
@@ -369,8 +370,6 @@ class DependencyGraphNode(TypedDict):
     incremental_strategy: Optional[str]
     downstream_dependencies: DependencyGraphDownstreamDependency
     upstream_dependencies: DependencyGraphDownstreamDependency
-    indirect_upstream_dependencies: DependencyGraphDownstreamDependency
-    indirect_downstream_dependencies: DependencyGraphDownstreamDependency
 
 
 class DependencyGraph(TypedDict):

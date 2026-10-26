@@ -1,14 +1,13 @@
 """Module for parsing dbt manifest files and generating dependency graphs."""
 
 import logging
-from typing import Literal, cast
+from typing import cast
 from dbt_ci.errors import ManifestError
 from dbt_ci.schema import (
     MANIFEST_KEY_MAPPING,
     DBTManifest,
     DbtNode,
     DependencyGraph,
-    DependencyGraphNode,
     DependencyGraphNodeType,
 )
 
@@ -156,8 +155,6 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
                 },
             },
             "upstream_dependencies": skeleton_dependencies_structure(),
-            "indirect_upstream_dependencies": skeleton_dependencies_structure(),
-            "indirect_downstream_dependencies": skeleton_dependencies_structure(),
         }
 
         append_depends_on_nodes(
@@ -189,11 +186,9 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
                 "incremental_strategy": None,
                 "downstream_dependencies": skeleton_dependencies_structure(),
                 "upstream_dependencies": skeleton_dependencies_structure(),
-                "indirect_upstream_dependencies": skeleton_dependencies_structure(),
-                "indirect_downstream_dependencies": skeleton_dependencies_structure(),
             }
             # Macros calling other macros, so a change to a shared macro reaches every
-            # node that uses it indirectly through the transitive closure below.
+            # node that uses it indirectly (see get_nodes_using_macros).
             append_depends_on_nodes(
                 dependency_graph=dependency_graph,
                 node_type="macro",
@@ -202,8 +197,6 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             )
 
     append_upstream_dependencies(dependency_graph, manifest_file)
-    append_indirect_dependencies(dependency_graph, "upstream")
-    append_indirect_dependencies(dependency_graph, "downstream")
 
     return dependency_graph
 
@@ -250,63 +243,6 @@ def append_depends_on_nodes(
                 upstream["dependencies_by_type"][dep_category].add(dep_id)
 
 
-def index_nodes_by_id(dependency_graph: DependencyGraph) -> dict[str, DependencyGraphNode]:
-    """Build an id -> node lookup so dependency resolution doesn't rescan the graph."""
-    index: dict[str, DependencyGraphNode] = {}
-    for node_type, nodes in dependency_graph.items():
-        if node_type == "metadata":
-            continue
-        for node_data in cast(dict, nodes).values():
-            node_id = node_data.get("id")
-            if node_id:
-                index[node_id] = node_data
-    return index
-
-
-def compute_transitive_closure(
-    node_id: str,
-    adjacency: dict[str, set[str]],
-    memo: dict[str, set[str]],
-) -> set[str]:
-    """
-    Return every node reachable from node_id, memoising the result for reuse.
-
-    Walks the graph iteratively with an explicit stack rather than recursing: dbt DAGs
-    can be deep enough to exhaust the interpreter's recursion limit, and every node's
-    closure is needed, so memoising turns the whole pass from quadratic into linear in
-    the number of edges. Nodes currently being expanded are tracked so a cyclic manifest
-    terminates instead of looping forever.
-    """
-    if node_id in memo:
-        return memo[node_id]
-
-    expanding: set[str] = set()
-    stack: list[tuple[str, bool]] = [(node_id, False)]
-
-    while stack:
-        current, is_expanded = stack.pop()
-
-        if is_expanded:
-            reachable: set[str] = set()
-            for dependency in adjacency.get(current, ()):
-                reachable.add(dependency)
-                reachable.update(memo.get(dependency, ()))
-            memo[current] = reachable
-            expanding.discard(current)
-            continue
-
-        if current in memo or current in expanding:
-            continue
-
-        expanding.add(current)
-        stack.append((current, True))
-        for dependency in adjacency.get(current, ()):
-            if dependency not in memo and dependency not in expanding:
-                stack.append((dependency, False))
-
-    return memo.get(node_id, set())
-
-
 def append_upstream_dependencies(
     dependency_graph: DependencyGraph, manifest_file: DBTManifest
 ) -> None:
@@ -335,41 +271,3 @@ def append_upstream_dependencies(
             parent_node_type = parent_id.split(".")[0]
             if parent_node_type in upstream["dependencies_by_type"]:
                 upstream["dependencies_by_type"][parent_node_type].add(parent_id)
-
-
-def append_indirect_dependencies(
-    dependency_graph, direction: Literal["upstream", "downstream"] = "upstream"
-):
-    """Populate indirect dependencies (the full transitive closure, including direct ones)
-
-    Args:
-        dependency_graph: The lineage map to populate
-        direction: Either "upstream" or "downstream"
-    """
-    direct_key = f"{direction}_dependencies"
-    indirect_key = f"indirect_{direction}_dependencies"
-
-    nodes_by_id = index_nodes_by_id(dependency_graph)
-    adjacency: dict[str, set[str]] = {
-        node_id: set(node_data[direct_key]["node_dependencies"])
-        for node_id, node_data in nodes_by_id.items()
-    }
-    memo: dict[str, set[str]] = {}
-
-    for node_type, nodes in dependency_graph.items():
-        if node_type == "metadata":  # Skip metadata
-            continue
-        for node_data in nodes.values():
-            node_id = node_data.get("id")
-            all_indirect = (
-                compute_transitive_closure(node_id, adjacency, memo) if node_id else set()
-            )
-
-            node_data[indirect_key]["node_dependencies"] = set(all_indirect)
-
-            # Populate by type
-            for indirect_id in all_indirect:
-                indirect_type = indirect_id.split(".")[0]
-                # Only add to dependencies_by_type if the indirect_type is tracked
-                if indirect_type in node_data[indirect_key]["dependencies_by_type"]:
-                    node_data[indirect_key]["dependencies_by_type"][indirect_type].add(indirect_id)

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from dbt_ci.graph.graph_utils import get_nodes_from_path
+from dbt_ci.graph.graph_utils import get_downstream_dependencies, get_nodes_from_path
 from dbt_ci.graph.parser import generate_dependency_graph
 from dbt_ci.schema import MANIFEST_KEY_MAPPING
 
@@ -160,7 +160,7 @@ def test_dependency_graph_resolves_lineage(compiled):
     assert "seed.demo.raw" in stg["upstream_dependencies"]["node_dependencies"]
     assert "macro.demo.upper_name" in stg["upstream_dependencies"]["dependencies_by_type"]["macro"]
     assert "model.demo.agg" in stg["downstream_dependencies"]["node_dependencies"]
-    assert "exposure.demo.dashboard" in stg["indirect_downstream_dependencies"]["node_dependencies"]
+    assert "exposure.demo.dashboard" in get_downstream_dependencies(graph, ["model.demo.stg"])
 
     from_source = graph["model"]["model.demo.from_source"]
     assert "source.demo.ext.events" in from_source["upstream_dependencies"]["node_dependencies"]
