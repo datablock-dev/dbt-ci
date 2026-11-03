@@ -44,6 +44,7 @@ init:
 run:
   nodes: models
   downstream-depth: 2
+  skip-test-only-changes: true
 
 finalize:
   artifacts-uri: s3://my-bucket/dbt-artifacts/

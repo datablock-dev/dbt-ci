@@ -111,6 +111,7 @@ empty pass nothing, so the config file (found in the working directory or the
 | `base-ref` | PR base branch | `init --base-ref` |
 | `mode` | | `run --mode` |
 | `downstream-depth` | | `run --downstream-depth` |
+| `skip-test-only-changes` | `false` | `run --skip-test-only-changes` |
 | `artifacts-uri` | | `finalize --artifacts-uri` |
 | `pr-comment` | `true` | `report --pr-comment`; `false` passes `--no-pr-comment` |
 | `github-token` | `${{ github.token }}` | Token used for the PR comment |

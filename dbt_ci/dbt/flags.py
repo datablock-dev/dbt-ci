@@ -25,6 +25,7 @@ CONFIG_SECTION: dict[str, str] = {
     "reference_target": "reference",
     "reference_vars": "reference",
     "reference_state": "reference",
+    "base_ref": "reference",
 }
 
 
@@ -57,7 +58,8 @@ def apply_cached_config(args: Namespace) -> Namespace:
     The state path matters most: when init defaulted it, a later command that is not
     told it would run `dbt clone` and other deferring commands without --state.
     """
-    for key in ("target", "vars", "reference_state"):
+    # base_ref lets run diff against the same branch init did (--skip-test-only-changes)
+    for key in ("target", "vars", "reference_state", "base_ref"):
         current = getattr(args, key, None)
         if current:
             continue

@@ -49,6 +49,14 @@ COMMAND_VALUE_FLAGS: Dict[str, Dict[str, str]] = {
 }
 
 
+# On/off flags only one command accepts, keyed by the command's first word.
+COMMAND_SWITCHES: Dict[str, Dict[str, str]] = {
+    "run": {
+        "skip-test-only-changes": "--skip-test-only-changes",
+    },
+}
+
+
 def load_inputs(raw: Optional[str]) -> Inputs:
     """Parse the JSON-encoded `inputs` context into a dict of stripped strings."""
     data = json.loads(raw or "{}")
@@ -85,6 +93,9 @@ def flags_for(command: Tuple[str, ...], inputs: Inputs) -> List[str]:
     for name, flag in COMMAND_VALUE_FLAGS.get(command[0], {}).items():
         if inputs.get(name):
             flags.extend([flag, inputs[name]])
+    for name, flag in COMMAND_SWITCHES.get(command[0], {}).items():
+        if parse_bool(inputs, name):
+            flags.append(flag)
     if command[0] == "report":
         pr_comment = parse_bool(inputs, "pr-comment")
         if pr_comment is not None:

@@ -203,3 +203,31 @@ class TestProjectDirMatching:
         adapter = _make_adapter(self.CHANGES, dbt_project_dir="dbt")
         adapter.repo_root = str(real)
         assert adapter.get_changed_files() == {"modified": ["models/a.sql"]}
+
+
+class TestReadBaseFile:
+    """Test reading a project file as it was at the merge base."""
+
+    def test_reads_at_the_merge_base_with_the_project_prefix(self):
+        """The project-relative path is prefixed and read at the merge base commit."""
+        adapter = _make_adapter([])
+        calls = []
+
+        def fake_run(command, **_kwargs):
+            """Answer merge-base with a sha and show with file contents."""
+            calls.append(command)
+            stdout = "abc123\n" if command[1] == "merge-base" else "models: []\n"
+            return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+        with patch("dbt_ci.utilities.git.subprocess.run", side_effect=fake_run):
+            assert adapter.read_base_file("models/schema.yml") == "models: []\n"
+
+        assert calls[-1] == ["git", "show", "abc123:dbt/models/schema.yml"]
+
+    def test_missing_file_returns_none(self):
+        """A file that did not exist at the base reads as None."""
+        adapter = _make_adapter([])
+        adapter._merge_base = "abc123"
+        failed = subprocess.CompletedProcess([], 128, stdout="", stderr="does not exist")
+        with patch("dbt_ci.utilities.git.subprocess.run", return_value=failed):
+            assert adapter.read_base_file("models/new.yml") is None

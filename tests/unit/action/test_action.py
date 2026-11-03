@@ -91,6 +91,13 @@ class TestFlags:
         assert flags_for(("report",), self.INPUTS)[-1] == "--pr-comment"
         assert "--pr-comment" not in flags_for(("ephemeral", "destroy"), self.INPUTS)
 
+    def test_run_switch(self):
+        """skip-test-only-changes becomes a run flag, and only when true."""
+        inputs = {"skip-test-only-changes": "true"}
+        assert flags_for(("run",), inputs) == ["--skip-test-only-changes"]
+        assert flags_for(("init",), inputs) == []
+        assert flags_for(("run",), {"skip-test-only-changes": "false"}) == []
+
     def test_pr_comment_false_overrides_the_config_file(self):
         """An explicit false is passed on, so it wins over notifications.pr-comment."""
         assert flags_for(("report",), {"pr-comment": "false"}) == ["--no-pr-comment"]
