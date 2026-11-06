@@ -569,6 +569,8 @@ class DbtCiConfig(TypedDict):
     runner: Runners
     reference: DbtCompileOptions
     target: DbtCompileOptions
+    # The config profile init ran with, which later commands inherit
+    profile: NotRequired[Optional[str]]
 
 
 class DbtCiManifest(TypedDict):

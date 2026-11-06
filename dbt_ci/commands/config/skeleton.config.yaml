@@ -42,3 +42,13 @@ docker:
     - "USER=${USER}"
     - "GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}"
     - "DBT_STATE=${DBT_STATE}"
+
+# Profiles: named settings applied over the ones above with --profile <name>
+# (or DBT_CI_PROFILE). Commands after init reuse the profile init ran with.
+# profiles:
+#   ci:
+#     target: "ci"
+#     init:
+#       state-uri: "gs://my-bucket/dbt-state/manifest.json"
+#   sandbox:
+#     target: "sandbox"
