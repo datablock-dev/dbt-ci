@@ -77,9 +77,10 @@ Other keys accepted in the config file include `dbt-version`, a `report:` sectio
 
 **Precedence (highest → lowest):**
 1. CLI flags
-2. `dbt-ci.config.yaml`
-3. Shell environment variables
-4. Built-in defaults
+2. The selected [profile](#profiles) in `dbt-ci.config.yaml`
+3. The top-level settings in `dbt-ci.config.yaml`
+4. Shell environment variables
+5. Built-in defaults
 
 The config file sits **above** shell environment variables: a value you commit to
 `dbt-ci.config.yaml` is deliberate, whereas the environment a CI runner happens to
@@ -89,6 +90,57 @@ environment variable.
 The config file is validated on load. dbt-ci will exit with a clear error message if it contains unknown keys, invalid enum values (e.g. `runner: kubernetes`), or wrong types (e.g. `defer: "yes"` instead of a boolean).
 
 `${VAR_NAME}` references inside the config file are resolved from the shell environment at load time.
+
+#### Profiles
+
+One config file can serve several contexts, such as a CI pipeline, a sandbox and
+production. Put the settings they share at the top level, and what differs under
+`profiles`:
+
+```yaml
+# Shared by every profile
+project-dir: dbt
+profiles-dir: dbt
+init:
+  reference-target: production
+  comparison-strategy: dbt
+
+profiles:
+  action:
+    target: ci
+    defer: true
+    init:
+      state-uri: gs://my-bucket/dbt-state/manifest.json
+
+  sandbox:
+    target: sandbox
+    init:
+      state-uri: gs://my-bucket/sandbox/manifest.json
+```
+
+Select a profile with `--profile` (or `DBT_CI_PROFILE`, or the GitHub Action's `profile`
+input):
+
+```bash
+dbt-ci init --profile action   # target ci, the production manifest, and init.reference-target from the top level
+dbt-ci run                     # reuses profile 'action'
+```
+
+- A profile takes the same keys as the top level, in the same places: `target`, `vars`
+  and `defer` at the top of the profile, `reference-target` and `state-uri` under `init`,
+  and so on. Profiles cannot contain `profiles`.
+- A profile's values are applied over the top-level ones, key by key. Lists replace the
+  top-level list rather than extending it, so a profile's `docker.volumes` is the
+  complete list.
+- `init` records the profile it ran with, and later commands (`run`, `ephemeral`,
+  `report`, `finalize`, ...) reuse it, like the [settings inherited from
+  `init`](#settings-inherited-from-init). Passing `--profile` to a later command still
+  wins.
+- A profile's name is only a label. It is never used as the dbt target: a profile
+  without `target` uses the top-level `target`, then `DBT_TARGET`, and otherwise dbt's
+  default target from `profiles.yml`.
+- An unknown profile name fails with the list of profiles the file defines. Without
+  `--profile`, only the top-level settings apply, exactly as in a file without profiles.
 
 > **Note:** `dbt-ci.config.yaml` is ignored by git by default (it is listed in `.gitignore`). Use it for local developer overrides and commit a `.example` variant for your team.
 
@@ -107,6 +159,7 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 | `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`, or `2.0.9` for dbt v2). **Requires `--runner local`** |
 | `--adapter` | `-a` | `DBT_ADAPTER` | `None` | dbt adapter to install (e.g. `dbt-bigquery`, `dbt-duckdb=1.10.0`). **Requires `--runner local`** |
 | `--config` | `-c` | `DBT_CONFIG` | `dbt-ci.config.yaml` | Path to a dbt-ci YAML configuration file |
+| `--profile` | | `DBT_CI_PROFILE` | Inherited from `init` | [Profile](#profiles) from the config file's `profiles` section to apply over its top-level settings |
 | `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them (and without installing a pinned `--dbt-version`) |
 | `--quiet` | `-q` | `DBT_QUIET` | `false` | Run in quiet mode with minimal output |
 | `--log-level` | | `DBT_LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (dbt's `warn` and `none` are accepted too). dbt reads `DBT_LOG_LEVEL` as well, so dbt-ci rewrites it into dbt's lowercase form (`WARNING` → `warn`, `CRITICAL` → `error`) before running dbt |
@@ -236,8 +289,8 @@ dbt-ci run
 
 ### Settings Inherited From `init`
 
-`init` records the `--target`, `--vars` and `--state` it ran with, and later commands reuse
-them, so they only need to be given once:
+`init` records the `--target`, `--vars`, `--state` and `--profile` it ran with, and later
+commands reuse them, so they only need to be given once:
 
 ```bash
 dbt-ci init --target ci --vars '{"use_production_data": false}' --state dbt/.dbtstate

@@ -1,3 +1,4 @@
+import json
 import yaml
 import os
 import re
@@ -6,11 +7,15 @@ import logging
 from typing import Any
 import click
 
+from dbt_ci.utilities.paths import get_cache_dir
 from .schema import validate_config
 
 logger = logging.getLogger(__name__)
 
 _CTX_META_KEY = "dbt_ci_config"
+# The parsed config file and the selected profile, kept until both eager callbacks ran
+_CTX_RAW_KEY = "dbt_ci_raw_config"
+_CTX_PROFILE_KEY = "dbt_ci_profile"
 
 
 def _resolve_env_refs(val: str) -> str:
@@ -69,8 +74,9 @@ def load_config_callback(ctx, param, value):
     Eager callback that reads the dbt-ci YAML config file.
 
     - Validates the raw config against the schema and raises an error on any issues.
-    - Stores the parsed flat config in ctx.meta so individual option callbacks
-      can read it via make_config_callback().
+    - Once the profile is known too (see profile_callback), merges the selected profile
+      over the top-level settings and stores the flat result in ctx.meta, so individual
+      option callbacks can read it via make_config_callback().
     - Also injects values into os.environ (using setdefault) for backward
       compatibility with options that don't use make_config_callback.
 
@@ -88,8 +94,44 @@ def load_config_callback(ctx, param, value):
           env:
             - DBT_STATE=${DBT_STATE}
     """
+    ctx.meta[_CTX_RAW_KEY] = _read_config_file(value)
+    _apply_config_when_ready(ctx)
+    return value
+
+
+def profile_callback(ctx, param, value):
+    """
+    Eager callback that records which config profile to apply.
+
+    Every command except init falls back to the profile init ran with, recorded in the
+    cache, so a profile chosen once for init carries through run, report and the rest.
+    Returns the profile actually used, so commands (and init's cache) can see it.
+    """
+    inherited = False
+    if not value and ctx.command.name != "init":
+        value = _profile_recorded_by_init()
+        inherited = value is not None
+    ctx.meta[_CTX_PROFILE_KEY] = (value or None, inherited)
+    _apply_config_when_ready(ctx)
+    return value or None
+
+
+def _profile_recorded_by_init() -> str | None:
+    """Return the profile init recorded in its cache, or None when there isn't one."""
+    cache_file = get_cache_dir() / "cache.json"
+    try:
+        with open(cache_file, encoding="utf-8") as f:
+            cached = json.load(f)
+    except (OSError, ValueError):
+        return None
+    profile = ((cached or {}).get("config") or {}).get("profile")
+    return profile if isinstance(profile, str) and profile else None
+
+
+def _read_config_file(value: str | None) -> tuple[str, dict] | None:
+    """Find, parse and validate the config file, returning its path and raw contents."""
     if not value:
-        return value
+        return None
     try:
         if not os.path.exists(value):
             # Config not found in CWD — try to locate it relative to --dbt-project-dir.
@@ -108,9 +150,9 @@ def load_config_callback(ctx, param, value):
                     logger.info(f"Config not found in CWD, using {candidate}")
                     value = candidate
                 else:
-                    return value
+                    return None
             else:
-                return value
+                return None
 
         logger.info(f"Configuration file found. Loading configuration from {value}")
 
@@ -124,29 +166,7 @@ def load_config_callback(ctx, param, value):
                 f"Config file '{value}' has validation errors:\n{error_list}",
                 param_hint="'--config'",
             )
-
-        flat = _flatten_config(raw)
-
-        # Resolve ${VAR} references and store in ctx.meta
-        resolved: dict[str, Any] = {}
-        for env_key, val in flat.items():
-            if val is None:
-                continue
-            if isinstance(val, list):
-                resolved[env_key] = [_resolve_env_refs(str(item)) for item in val]
-            elif isinstance(val, bool):
-                resolved[env_key] = val
-            else:
-                resolved[env_key] = _resolve_env_refs(str(val))
-
-        ctx.meta[_CTX_META_KEY] = resolved
-
-        # Backward-compat: also inject into os.environ for options without make_config_callback
-        for env_key, val in resolved.items():
-            if isinstance(val, list):
-                os.environ.setdefault(env_key, ",".join(val))
-            else:
-                os.environ.setdefault(env_key, str(val))
+        return value, raw
 
     except click.BadParameter:
         raise
@@ -161,8 +181,75 @@ def load_config_callback(ctx, param, value):
             param_hint="'--config'",
         )
 
-    logger.debug("Load Config: %s", ctx.meta.get(_CTX_META_KEY, {}))
-    return value
+
+def _apply_config_when_ready(ctx) -> None:
+    """
+    Resolve the config once both the file and the profile are known.
+
+    --config and --profile are both eager, and Click processes eager options in the
+    order they appear on the command line, so either callback can run first. A command
+    without a --profile option applies the file as soon as it is read.
+    """
+    if _CTX_META_KEY in ctx.meta or _CTX_RAW_KEY not in ctx.meta:
+        return
+    has_profile_option = any(p.name == "profile" for p in ctx.command.params)
+    if has_profile_option and _CTX_PROFILE_KEY not in ctx.meta:
+        return
+
+    profile, inherited = ctx.meta.get(_CTX_PROFILE_KEY, (None, False))
+    loaded = ctx.meta[_CTX_RAW_KEY]
+    if loaded is None:
+        if profile and not inherited:
+            raise click.BadParameter(
+                f"Profile '{profile}' was requested, but no dbt-ci config file was found.",
+                param_hint="'--profile'",
+            )
+        ctx.meta[_CTX_META_KEY] = {}
+        return
+
+    path, raw = loaded
+    flat = _flatten_config({k: v for k, v in raw.items() if k != "profiles"})
+    if profile:
+        profiles = raw.get("profiles") or {}
+        if profile in profiles:
+            logger.info(f"Applying config profile '{profile}' from {path}")
+            # Flattening each side first makes a profile's value replace the top-level
+            # one whichever spelling (project-dir, project_dir, DBT_PROJECT_DIR) each uses
+            flat.update(_flatten_config(profiles[profile] or {}))
+        elif inherited:
+            logger.warning(
+                f"Ignoring profile '{profile}' recorded by init: it is not defined in {path}."
+            )
+        else:
+            available = ", ".join(sorted(profiles)) or "none"
+            raise click.BadParameter(
+                f"Profile '{profile}' is not defined in '{path}'. Available profiles: "
+                f"{available}.",
+                param_hint="'--profile'",
+            )
+
+    # Resolve ${VAR} references and store in ctx.meta
+    resolved: dict[str, Any] = {}
+    for env_key, val in flat.items():
+        if val is None:
+            continue
+        if isinstance(val, list):
+            resolved[env_key] = [_resolve_env_refs(str(item)) for item in val]
+        elif isinstance(val, bool):
+            resolved[env_key] = val
+        else:
+            resolved[env_key] = _resolve_env_refs(str(val))
+
+    ctx.meta[_CTX_META_KEY] = resolved
+
+    # Backward-compat: also inject into os.environ for options without make_config_callback
+    for env_key, val in resolved.items():
+        if isinstance(val, list):
+            os.environ.setdefault(env_key, ",".join(val))
+        else:
+            os.environ.setdefault(env_key, str(val))
+
+    logger.debug("Load Config: %s", resolved)
 
 
 def make_config_callback(config_key: str | tuple[str, ...], *, then=None):

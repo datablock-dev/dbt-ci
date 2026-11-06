@@ -21,6 +21,7 @@ COMMON_VALUE_FLAGS: Dict[str, str] = {
     "vars": "--vars",
     "state": "--state",
     "config": "--config",
+    "profile": "--profile",
     "runner": "--runner",
     "log-level": "--log-level",
 }

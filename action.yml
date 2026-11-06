@@ -47,6 +47,10 @@ inputs:
     description: Path to a `dbt-ci.config.yaml` (`--config`). Inputs set here win over the file.
     required: false
     default: ""
+  profile:
+    description: Profile from the config file's `profiles` section to apply (`--profile`).
+    required: false
+    default: ""
   runner:
     description: "How dbt is executed: `dbt` (in-process, default), `local`, `docker` or `bash`."
     required: false
