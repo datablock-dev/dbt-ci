@@ -60,6 +60,7 @@ dbt-ci run --dbt-project-dir dbt --mode models
 | `--mode` | `-m`, `--nodes`, `-n` | `DBT_NODES` | `all` | What to run: `all`, `models`, `seeds`, `snapshots`, `tests` |
 | `--downstream-depth` | | `DBT_DOWNSTREAM_DEPTH` | Full graph | How many levels of downstream dependencies to include (dbt's `model+N`) |
 | `--filters` | `-f` | `DBT_RUN_FILTERS` | `None` | Only run the tests that depend on one of these resource types (repeatable, choices: `models`, `seeds`, `snapshots`, `tests`). E.g. `--mode tests -f snapshots` runs only the tests that read a snapshot |
+| `--skip-test-only-changes` | | `DBT_SKIP_TEST_ONLY_CHANGES` | `false` | Don't rebuild a model, seed or snapshot when only its tests changed; run just the changed tests. See [Skipping test-only changes](#skipping-test-only-changes) |
 
 With `--mode all`, the steps run in dependency order: **seeds → snapshots → models → tests**, so models built on a changed snapshot read its new state and tests run once everything they check exists. The test step runs both data tests and dbt unit tests (dbt ≥ 1.8).
 
@@ -95,6 +96,36 @@ downstream nodes there. A node that depended on a deleted one has changed itself
 or test arguments differ) and is picked up as modified or new. This also covers generic
 tests whose arguments changed: dbt gives them a new `unique_id`, so they show up as one
 deleted and one new test.
+
+### Skipping test-only changes
+
+A model's data tests live in its YAML properties file. Editing a test there can mark the
+model itself as modified: the `git` strategy marks every node configured in a changed YAML
+file, and `hybrid` keeps a model dbt flags when its YAML file changed. The model and
+everything downstream of it is then rebuilt just to run one new or changed test.
+
+`--skip-test-only-changes` is off by default. Turn it on if you'd rather keep warehouse
+costs down. It leaves a modified model, seed or snapshot out of the build when nothing
+that defines it changed apart from its tests:
+
+- its own file (`.sql`, `.py` or `.csv`) is unchanged,
+- no macro it uses changed,
+- its entry in its YAML properties file matches the base branch once `tests` /
+  `data_tests` are removed, at the resource, column and version level, and
+- `dbt_project.yml`, `packages.yml`, `dependencies.yml` and `package-lock.yml` are
+  unchanged (if any of them changed, every changed node is built).
+
+The changed tests still run. Nodes downstream of a skipped node aren't rebuilt because of
+it. Anything the check can't confirm, such as properties moved to another file or a git
+diff that fails, keeps the node in the build.
+
+```bash
+dbt-ci run --skip-test-only-changes --defer
+```
+
+The skipped model isn't built in the CI target, so its tests need a table to query. Use
+`--defer` so they read the production table, or create the tables first with
+[`ephemeral`](#ephemeral---ephemeral-environment).
 
 > All [common options](configuration.md#common-options) also apply.
 

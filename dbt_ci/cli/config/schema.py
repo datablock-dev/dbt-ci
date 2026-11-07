@@ -71,6 +71,7 @@ SCHEMA: dict[str, dict] = {
                 "type": "list_of_enum",
                 "choices": ["models", "seeds", "snapshots", "tests"],
             },
+            "skip-test-only-changes": {"aliases": ["skip_test_only_changes"], "type": "bool"},
         },
     },
     "finalize": {

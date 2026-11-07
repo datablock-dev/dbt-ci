@@ -133,7 +133,9 @@
               "enum": ["models", "seeds", "snapshots", "tests"]
             }
           ]
-        }
+        },
+        "skip-test-only-changes": { "$ref": "#/definitions/skipTestOnlyChanges" },
+        "skip_test_only_changes": { "$ref": "#/definitions/skipTestOnlyChanges" }
       }
     },
 
@@ -240,6 +242,7 @@
     "adapter":              { "type": "string", "description": "The dbt adapter to use (e.g. bigquery, postgres, snowflake)." },
     "dbtVersion":           { "type": "string", "description": "Pin a specific dbt version (e.g. 1.10.13, or 2.0.9 for dbt v2). Requires runner 'local'." },
     "downstreamDepth":      { "type": "integer", "minimum": 0, "description": "How many levels of downstream dependencies to include (default: full graph)." },
+    "skipTestOnlyChanges":  { "type": "boolean", "default": false, "description": "Don't rebuild a model, seed or snapshot when only its tests changed; run just the changed tests." },
     "reportFormat":         { "type": "string", "enum": ["markdown", "json"], "default": "markdown", "description": "Output format of 'dbt-ci report'." },
     "reportOutput":         { "type": "string", "description": "Where to write the report (defaults to $GITHUB_STEP_SUMMARY when set, otherwise stdout)." },
     "defer":                { "type": "boolean", "default": false, "description": "Enable dbt's --defer flag." },

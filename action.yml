@@ -95,6 +95,10 @@ inputs:
     description: How many levels of downstream dependents to build. Empty builds the full downstream graph.
     required: false
     default: ""
+  skip-test-only-changes:
+    description: Don't rebuild a model, seed or snapshot when only its tests changed; run just the changed tests (`--skip-test-only-changes`). Pair with `defer`.
+    required: false
+    default: "false"
 
   # finalize
   artifacts-uri:

@@ -59,6 +59,7 @@ class CacheManager:
                     "target": getattr(self.args, "reference_target", None),
                     "vars": getattr(self.args, "reference_vars", None),
                     "state": get_absolute_path(reference_state) if reference_state else None,
+                    "base_ref": getattr(self.args, "base_ref", None),
                 },
                 "target": {
                     "target": getattr(self.args, "target", None),

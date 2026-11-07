@@ -149,6 +149,44 @@ class GitAdapter:
 
         return dbt_related_changes
 
+    def read_base_file(self, project_path: str) -> str | None:
+        """
+        Return a project file's contents as of the point this branch diverged from base.
+
+        The path is relative to the dbt project, as dbt and get_changed_files() report it.
+        It is read at the merge base, the same commit the three-dot diff compares against,
+        so commits landed on the base branch since do not count as changes on this branch.
+        Returns None when the file did not exist there or git cannot read it.
+        """
+        dbt_project_dir: str | None = getattr(self.args, "dbt_project_dir", None)
+        if dbt_project_dir is None:
+            raise ValueError("DBT project directory not specified in arguments.")
+
+        project_prefix = self._project_path_in_repo(dbt_project_dir)
+        repo_path = f"{project_prefix}/{project_path}" if project_prefix else project_path
+        result = subprocess.run(
+            ["git", "show", f"{self._base_commit()}:{repo_path}"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            logger.debug(f"Could not read '{repo_path}' at the base: {result.stderr.strip()}")
+            return None
+        return result.stdout
+
+    def _base_commit(self) -> str:
+        """Return the merge base with the base branch, or the branch itself without one."""
+        base = f"origin/{self.base_branch}"
+        if getattr(self, "_merge_base", None) is None:
+            result = subprocess.run(
+                ["git", "merge-base", base, "HEAD"], capture_output=True, text=True
+            )
+            # Shallow clones may lack the merge base; fall back like _diff_against_base
+            self._merge_base = (
+                result.stdout.strip() if result.returncode == 0 and result.stdout.strip() else base
+            )
+        return self._merge_base
+
     def _project_path_in_repo(self, dbt_project_dir: str) -> str:
         """
         Return the dbt project directory relative to the repository root, in POSIX form.
