@@ -82,6 +82,13 @@ Other keys accepted in the config file include `dbt-version`, a `report:` sectio
 4. Shell environment variables
 5. Built-in defaults
 
+**Empty values count as not set.** A flag given an empty value (`--vars ''` or
+`--vars=`), an empty value in the config file (`target: ""`, or a `${VAR}` that is set but
+empty) and an empty environment variable are all ignored, so the next source in the list
+applies. This keeps CI templates such as `--vars '${{ inputs.vars }}'` from wiping the
+config file, the selected profile or what `init` recorded when the input is empty. To
+pass empty dbt vars on purpose, use `--vars '{}'`.
+
 The config file sits **above** shell environment variables: a value you commit to
 `dbt-ci.config.yaml` is deliberate, whereas the environment a CI runner happens to
 export is not. To override a config value per-run, pass the flag rather than setting the

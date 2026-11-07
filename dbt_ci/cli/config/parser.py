@@ -228,7 +228,8 @@ def _apply_config_when_ready(ctx) -> None:
                 param_hint="'--profile'",
             )
 
-    # Resolve ${VAR} references and store in ctx.meta
+    # Resolve ${VAR} references and store in ctx.meta. An empty value, whether written
+    # as "" or left by a ${VAR} that is set but empty, counts as not set, like null.
     resolved: dict[str, Any] = {}
     for env_key, val in flat.items():
         if val is None:
@@ -238,7 +239,9 @@ def _apply_config_when_ready(ctx) -> None:
         elif isinstance(val, bool):
             resolved[env_key] = val
         else:
-            resolved[env_key] = _resolve_env_refs(str(val))
+            text = _resolve_env_refs(str(val))
+            if text.strip():
+                resolved[env_key] = text
 
     ctx.meta[_CTX_META_KEY] = resolved
 
