@@ -321,6 +321,48 @@ dbt-ci config --force                  # overwrite an existing file
 
 > This command does not take the [common options](configuration.md#common-options).
 
+### `config show` - Show resolved settings
+
+Prints the settings a command would run with and where each one came from: the command
+line, the selected [profile](configuration.md#profiles), the top level of the config
+file, an environment variable, or [what `init` recorded](configuration.md#settings-inherited-from-init).
+Pass the command and its flags exactly as you would run them. Nothing is executed.
+
+```bash
+dbt-ci config show                          # init, the default
+dbt-ci config show init --profile action
+dbt-ci config show run --mode models
+dbt-ci config show ephemeral destroy
+```
+
+```
+Command:     dbt-ci init
+Config file: dbt-ci.config.yaml
+Profile:     action (command line)
+
+init options
+OPTION                 VALUE                         SOURCE
+--comparison-strategy  dbt                           profile 'action'
+--reference-target     production                    config file
+--state-uri            gs://my-bucket/manifest.json  config file
+
+Common options
+OPTION                 VALUE                         SOURCE
+--defer                true                          profile 'action'
+--log-level            DEBUG                         environment (DBT_LOG_LEVEL)
+--slack-webhook        ***                           config file
+--target               ci                            profile 'action'
+
+Defaults are hidden; pass --all to list every option.
+```
+
+Secrets such as webhooks are masked. Its own flags go before the command:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--all` | `false` | Also list options left at their default or unset |
+| `--json` | `false` | Print the result as JSON, e.g. for a CI step to check |
+
 ---
 
 ## `finalize` - Finalize State

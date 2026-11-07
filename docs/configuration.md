@@ -89,6 +89,9 @@ applies. This keeps CI templates such as `--vars '${{ inputs.vars }}'` from wipi
 config file, the selected profile or what `init` recorded when the input is empty. To
 pass empty dbt vars on purpose, use `--vars '{}'`.
 
+To see which value won and why, run [`dbt-ci config show`](commands.md#config-show---show-resolved-settings)
+with the command and flags you plan to use, e.g. `dbt-ci config show run --profile action`.
+
 The config file sits **above** shell environment variables: a value you commit to
 `dbt-ci.config.yaml` is deliberate, whereas the environment a CI runner happens to
 export is not. To override a config value per-run, pass the flag rather than setting the

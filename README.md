@@ -144,7 +144,7 @@ flowchart LR
 | [`migration`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#migration---migrate-partitioning-changes) | Rebuild tables whose partitioning configuration changed |
 | [`report`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#report---summarise-the-run) | Write the run report to the job summary, a file or a PR comment |
 | [`finalize`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#finalize---finalize-state) | Upload artifacts to GCS or S3 and clear the cache |
-| [`config`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#config---generate-a-config-file) | Generate a commented `dbt-ci.config.yaml` |
+| [`config`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#config---generate-a-config-file) | Generate a commented `dbt-ci.config.yaml`, or `config show` the settings a command would run with and where each came from |
 
 ## Compatibility
 
