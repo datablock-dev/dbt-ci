@@ -25,6 +25,12 @@
     "log_level": { "$ref": "#/definitions/logLevel" },
     "quiet": { "$ref": "#/definitions/quiet" },
 
+    "profiles": {
+      "type": "object",
+      "description": "Named sets of settings, selected with --profile (or DBT_CI_PROFILE) and applied over the top-level settings. A profile takes the same keys as the top level, except 'profiles'. Commands after init reuse the profile init ran with.",
+      "additionalProperties": { "$ref": "#" }
+    },
+
     "docker": {
       "type": "object",
       "description": "Docker runner configuration. Only used when runner is 'docker'.",

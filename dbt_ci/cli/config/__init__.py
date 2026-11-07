@@ -1,3 +1,3 @@
-from .parser import load_config_callback, make_config_callback
+from .parser import load_config_callback, profile_callback, make_config_callback
 
-__all__ = ["load_config_callback", "make_config_callback"]
+__all__ = ["load_config_callback", "make_config_callback", "profile_callback"]

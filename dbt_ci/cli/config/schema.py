@@ -108,6 +108,8 @@ SCHEMA: dict[str, dict] = {
             },
         },
     },
+    # Named sets of settings applied over the top-level ones with --profile
+    "profiles": {"type": "profiles"},
     "report": {
         "type": "section",
         "fields": {
@@ -199,6 +201,23 @@ def _validate_section(path: str, value: Any, schema: dict[str, dict], errors: li
             _validate_value(f"{path}.{k}", v, rule, errors)
 
 
+def _validate_profiles(value: Any, errors: list[str]) -> None:
+    """Check that profiles maps names to config mappings, each valid on its own."""
+    if not isinstance(value, dict):
+        errors.append("'profiles' must be a mapping of profile names to settings")
+        return
+    for name, settings in value.items():
+        if settings is None:
+            continue
+        if not isinstance(settings, dict):
+            errors.append(f"'profiles.{name}' must be a mapping")
+            continue
+        if "profiles" in settings:
+            errors.append(f"'profiles.{name}.profiles': profiles cannot be nested")
+        body = {k: v for k, v in settings.items() if k != "profiles"}
+        errors.extend(f"profiles.{name}: {error}" for error in validate_config(body))
+
+
 def validate_config(raw: dict) -> list[str]:
     """Return a list of human-readable validation error messages for the raw config dict."""
     errors: list[str] = []
@@ -207,6 +226,8 @@ def validate_config(raw: dict) -> list[str]:
         errors.append(f"Unknown key '{k}'")
     for k, v in raw.items():
         rule = _find_rule(k, SCHEMA) or flat_aliases.get(k)
-        if rule:
+        if rule and rule["type"] == "profiles":
+            _validate_profiles(v, errors)
+        elif rule:
             _validate_value(k, v, rule, errors)
     return errors

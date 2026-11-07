@@ -98,6 +98,11 @@ class TestFlags:
         assert flags_for(("init",), inputs) == []
         assert flags_for(("run",), {"skip-test-only-changes": "false"}) == []
 
+    def test_profile_is_passed_to_every_command(self):
+        """The profile input applies to every command, like --config."""
+        for command in (("init",), ("run",), ("report",), ("ephemeral", "destroy")):
+            assert flags_for(command, {"profile": "action"}) == ["--profile", "action"]
+
     def test_pr_comment_false_overrides_the_config_file(self):
         """An explicit false is passed on, so it wins over notifications.pr-comment."""
         assert flags_for(("report",), {"pr-comment": "false"}) == ["--no-pr-comment"]

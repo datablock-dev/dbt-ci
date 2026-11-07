@@ -54,6 +54,7 @@ class CacheManager:
                 "connector": connector_type,
                 "comparison_strategy": getattr(self.args, "comparison_strategy"),
                 "runner": getattr(self.args, "runner"),
+                "profile": getattr(self.args, "profile", None),
                 "reference": {
                     "target": getattr(self.args, "reference_target", None),
                     "vars": getattr(self.args, "reference_vars", None),

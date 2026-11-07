@@ -101,6 +101,7 @@ empty pass nothing, so the config file (found in the working directory or the
 | `vars` | | `--vars` |
 | `state` | | `--state` |
 | `config` | | `--config` |
+| `profile` | | `--profile`: a profile from the config file's `profiles` section |
 | `runner` | | `--runner` (`dbt`, `local`, `docker`, `bash`) |
 | `defer` | `false` | `--defer` |
 | `log-level` | | `--log-level` |

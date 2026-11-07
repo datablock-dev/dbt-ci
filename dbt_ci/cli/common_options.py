@@ -1,7 +1,7 @@
 import os
 import re
 import click
-from dbt_ci.cli.config import load_config_callback, make_config_callback
+from dbt_ci.cli.config import load_config_callback, make_config_callback, profile_callback
 
 # Values accepted in DEFER_FLAG. Pipelines usually hold the literal dbt flag in it
 # ("--defer" or empty) so it can be spliced into a dbt command, so both styles count.
@@ -137,6 +137,17 @@ COMMON_OPTIONS = [
             "Path to dbt-ci configuration file (YAML). Supports flat (DBT_RUNNER: docker) "
             "and nested (docker: {image: ...}) styles. Precedence: CLI flag > config file > env "
             "var > default."
+        ),
+    ),
+    click.option(
+        "--profile",
+        envvar=["DBT_CI_PROFILE"],
+        default=None,
+        is_eager=True,
+        callback=profile_callback,
+        help=(
+            "Config profile to apply from the 'profiles' section of the config file, on top "
+            "of its top-level settings. Commands after init reuse the profile init ran with."
         ),
     ),
     click.option(
