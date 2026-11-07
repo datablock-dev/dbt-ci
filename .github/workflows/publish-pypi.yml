@@ -42,7 +42,7 @@ jobs:
 
     - name: Determine next release version
       id: release_version
-      uses: ietf-tools/semver-action@v1.11.0
+      uses: ietf-tools/semver-action@v1.12.0
       with:
         token: ${{ secrets.ORG_TOKEN }}
         patchAll: true
