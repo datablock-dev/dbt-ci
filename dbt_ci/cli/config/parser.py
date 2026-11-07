@@ -16,6 +16,15 @@ _CTX_META_KEY = "dbt_ci_config"
 # The parsed config file and the selected profile, kept until both eager callbacks ran
 _CTX_RAW_KEY = "dbt_ci_raw_config"
 _CTX_PROFILE_KEY = "dbt_ci_profile"
+# Where values came from, for `dbt-ci config show`: the config file path, the layer each
+# flat key came from, the keys injected into os.environ, and per option which layer won
+_CTX_PATH_KEY = "dbt_ci_config_path"
+_CTX_ORIGIN_KEY = "dbt_ci_config_origin"
+_CTX_INJECTED_KEY = "dbt_ci_config_injected"
+_CTX_SOURCES_KEY = "dbt_ci_option_sources"
+
+# Labels for the config file layers
+TOP_LEVEL = "config file"
 
 
 def _resolve_env_refs(val: str) -> str:
@@ -208,14 +217,18 @@ def _apply_config_when_ready(ctx) -> None:
         return
 
     path, raw = loaded
+    ctx.meta[_CTX_PATH_KEY] = path
     flat = _flatten_config({k: v for k, v in raw.items() if k != "profiles"})
+    origin = {env_key: TOP_LEVEL for env_key in flat}
     if profile:
         profiles = raw.get("profiles") or {}
         if profile in profiles:
             logger.info(f"Applying config profile '{profile}' from {path}")
             # Flattening each side first makes a profile's value replace the top-level
             # one whichever spelling (project-dir, project_dir, DBT_PROJECT_DIR) each uses
-            flat.update(_flatten_config(profiles[profile] or {}))
+            profile_flat = _flatten_config(profiles[profile] or {})
+            flat.update(profile_flat)
+            origin.update({env_key: f"profile '{profile}'" for env_key in profile_flat})
         elif inherited:
             logger.warning(
                 f"Ignoring profile '{profile}' recorded by init: it is not defined in {path}."
@@ -244,13 +257,18 @@ def _apply_config_when_ready(ctx) -> None:
                 resolved[env_key] = text
 
     ctx.meta[_CTX_META_KEY] = resolved
+    ctx.meta[_CTX_ORIGIN_KEY] = origin
 
     # Backward-compat: also inject into os.environ for options without make_config_callback
+    injected: set[str] = set()
     for env_key, val in resolved.items():
+        if env_key not in os.environ:
+            injected.add(env_key)
         if isinstance(val, list):
             os.environ.setdefault(env_key, ",".join(val))
         else:
             os.environ.setdefault(env_key, str(val))
+    ctx.meta[_CTX_INJECTED_KEY] = injected
 
     logger.debug("Load Config: %s", resolved)
 
@@ -282,6 +300,8 @@ def make_config_callback(config_key: str | tuple[str, ...], *, then=None):
         keys = (config_key,) if isinstance(config_key, str) else config_key
         found = next((key for key in keys if key in config), None)
         if found is not None:
+            origin: dict[str, str] = ctx.meta.get(_CTX_ORIGIN_KEY, {})
+            ctx.meta.setdefault(_CTX_SOURCES_KEY, {})[param.name] = origin.get(found, TOP_LEVEL)
             config_val = config[found]
             result: Any
             if param.multiple and isinstance(config_val, list):
@@ -302,3 +322,22 @@ def make_config_callback(config_key: str | tuple[str, ...], *, then=None):
         return then(value) if then else value
 
     return callback
+
+
+def config_provenance(ctx) -> dict[str, Any]:
+    """
+    Return what a context recorded about where its settings came from.
+
+    Keys: path (the config file, or None), profile and profile_inherited, origin (the
+    layer each flat config key came from), injected (config keys copied into os.environ)
+    and sources (the config layer that set each option, by parameter name).
+    """
+    profile, inherited = ctx.meta.get(_CTX_PROFILE_KEY, (None, False))
+    return {
+        "path": ctx.meta.get(_CTX_PATH_KEY),
+        "profile": profile,
+        "profile_inherited": inherited,
+        "origin": ctx.meta.get(_CTX_ORIGIN_KEY, {}),
+        "injected": ctx.meta.get(_CTX_INJECTED_KEY, set()),
+        "sources": ctx.meta.get(_CTX_SOURCES_KEY, {}),
+    }
