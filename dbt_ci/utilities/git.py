@@ -29,14 +29,25 @@ DEEPEN_STEPS = (50, 200, 1000)
 class GitAdapter:
     """Adapter for git operations used during state comparison."""
 
-    def __init__(self, args: Namespace):
+    def __init__(self, args: Namespace, best_effort: bool = False):
+        """
+        Fetch the base branch and diff HEAD against it.
+
+        best_effort=True is for callers that can do without git and only trust the diff
+        when merge_base_found is True: git never prompts for credentials, its fetch
+        output is not printed, and a missing merge base is not warned about.
+        """
         self.args: Namespace = args
+        self.best_effort = best_effort
+        # Whether the diff is against the merge base (True) or the base branch tip
+        self.merge_base_found = False
         self.base_branch = self._resolve_base_branch()
 
         subprocess.run(
             ["git", "fetch", "origin", self.base_branch],
             check=True,
-            capture_output=False,
+            capture_output=best_effort,
+            env=self._fetch_env(),
         )
 
         self.changes: list[list[str]] = self._diff_against_base()
@@ -58,10 +69,12 @@ class GitAdapter:
         if result.returncode != 0 and self._deepen_until_merge_base(base):
             result = subprocess.run(three_dot, capture_output=True, text=True)
         if result.returncode == 0:
+            self.merge_base_found = True
             return [line.split("\t") for line in result.stdout.splitlines()]
 
         logger.debug(f"'{' '.join(three_dot)}' failed: {result.stderr.strip()}")
-        logger.warning(self._missing_merge_base_message(base))
+        if not getattr(self, "best_effort", False):
+            logger.warning(self._missing_merge_base_message(base))
 
         two_dot = ["git", "diff", "--name-status", base, "HEAD"]
         result = subprocess.run(two_dot, capture_output=True, text=True)
@@ -123,11 +136,17 @@ class GitAdapter:
         base_only = ["git", "fetch", f"--deepen={depth}", "origin", self.base_branch]
         attempts = [base_only + [head_sha], base_only] if head_sha else [base_only]
         for command in attempts:
-            result = subprocess.run(command, capture_output=True, text=True)
+            result = subprocess.run(command, capture_output=True, text=True, env=self._fetch_env())
             if result.returncode == 0:
                 return True
             logger.debug(f"'{' '.join(command)}' failed: {result.stderr.strip()}")
         return False
+
+    def _fetch_env(self) -> dict[str, str] | None:
+        """Return the environment for fetches: no credential prompts in best-effort mode."""
+        if not getattr(self, "best_effort", False):
+            return None
+        return {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
 
     @staticmethod
     def _missing_merge_base_message(base: str) -> str:

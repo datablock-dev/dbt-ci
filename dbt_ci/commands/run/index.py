@@ -77,6 +77,7 @@ def run(args: Namespace):
             target_graph=target_graph,
             changed_nodes=changed_nodes,
             changed_nodes_dict=changed_nodes_dict,
+            reasons=prev_cache.get("reasons") or {},
         )
 
         cache.update_report("run", "completed")

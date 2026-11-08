@@ -148,7 +148,15 @@ class TestCommonStateChangeCommand:
 # ---------------------------------------------------------------------------
 
 
-def _node(name: str, path: str, macros=(), parents=(), patch_path: str | None = None) -> dict:
+def _node(
+    name: str,
+    path: str,
+    macros=(),
+    parents=(),
+    patch_path: str | None = None,
+    checksum: str = "same",
+    materialized: str = "table",
+) -> dict:
     """Build a manifest node entry for a model."""
     return {
         "name": name,
@@ -157,7 +165,8 @@ def _node(name: str, path: str, macros=(), parents=(), patch_path: str | None = 
         "schema": "sc",
         "original_file_path": path,
         "patch_path": patch_path,
-        "config": {"materialized": "table"},
+        "checksum": {"name": "sha256", "checksum": checksum},
+        "config": {"materialized": materialized},
         "columns": {},
         "depends_on": {"macros": list(macros), "nodes": list(parents)},
     }
@@ -291,3 +300,147 @@ class TestChangeClassification:
             strategy, {"modified": ["models/plain.sql"]}, dbt_ids={"modified": ["model.pkg.plain"]}
         )
         assert _ids(summary, "modified_nodes") == {"model.pkg.plain"}
+
+
+def _reasons(
+    strategy: str,
+    changed_files: dict,
+    target_nodes=None,
+    reference_nodes=None,
+    dbt_ids=None,
+    merge_base_found: bool = True,
+    git_error: Exception | None = None,
+) -> dict[str, list[str]]:
+    """Run a strategy like _classify and return the reasons recorded for its change set."""
+    state = StateModified(_args(comparison_strategy=strategy))
+    state._target_graph = _graph(target_nodes or BASE_NODES, MACROS)
+    state._reference_graph = _graph(reference_nodes or BASE_NODES, MACROS)
+    dbt_ids = dbt_ids or {}
+
+    with (
+        patch("dbt_ci.commands.init.state_modified.GitAdapter") as mock_git,
+        patch.object(StateModified, "common_state_change") as mock_common,
+    ):
+        if git_error is not None:
+            mock_git.side_effect = git_error
+        mock_git.return_value.get_changed_files.return_value = changed_files
+        mock_git.return_value.merge_base_found = merge_base_found
+        mock_git.return_value.base_branch = "main"
+        mock_common.return_value = {
+            "modified_node_ids": set(dbt_ids.get("modified", ())),
+            "deleted_node_ids": set(dbt_ids.get("deleted", ())),
+            "new_node_ids": set(dbt_ids.get("new", ())),
+        }
+        summary = state.get_state_modified()
+    return state.reasons.for_summary(summary, state.reference_graph, state.target_graph)
+
+
+@pytest.mark.parametrize("strategy", ["git", "hybrid"])
+class TestGitReasons:
+    """Test the reasons recorded when git explains a change."""
+
+    def test_changed_file(self, strategy):
+        """A model whose own file changed names that file."""
+        reasons = _reasons(
+            strategy, {"modified": ["models/plain.sql"]}, dbt_ids={"modified": ["model.pkg.plain"]}
+        )
+        assert reasons == {"model.pkg.plain": ["`models/plain.sql` changed"]}
+
+    def test_properties_file(self, strategy):
+        """A model selected through its YAML properties says so."""
+        reasons = _reasons(
+            strategy, {"modified": ["models/schema.yml"]}, dbt_ids={"modified": ["model.pkg.stg"]}
+        )
+        assert reasons["model.pkg.stg"] == ["properties in `models/schema.yml` changed"]
+
+    def test_changed_macro(self, strategy):
+        """Users of a changed macro, directly or through another macro, name the macro."""
+        reasons = _reasons(
+            strategy,
+            {"modified": ["macros/cents.sql", "models/plain.sql"]},
+            dbt_ids={"modified": ["model.pkg.stg", "model.pkg.other", "model.pkg.plain"]},
+        )
+        assert reasons["model.pkg.stg"] == ["uses changed macro `cents`"]
+        assert reasons["model.pkg.other"] == ["uses changed macro `cents`"]
+
+    def test_moved_model(self, strategy):
+        """A moved file is explained as a move, not only as a delete and an add."""
+        reasons = _reasons(
+            strategy, MOVE, target_nodes=MOVED_TARGET, dbt_ids={"modified": ["model.pkg.stg"]}
+        )
+        assert "moved or renamed" in reasons["model.pkg.stg"]
+
+
+CHANGED_CODE = {
+    **BASE_NODES,
+    "model.pkg.plain": _node("plain", "models/plain.sql", checksum="new"),
+}
+
+
+class TestDbtReasons:
+    """Test the reasons recorded when only dbt's state comparison flagged a node."""
+
+    def test_code_changed_on_this_branch(self):
+        """A code difference the branch made is reported without a drift note."""
+        reasons = _reasons(
+            "dbt",
+            {"modified": ["models/plain.sql"]},
+            target_nodes=CHANGED_CODE,
+            dbt_ids={"modified": ["model.pkg.plain"]},
+        )
+        assert reasons == {"model.pkg.plain": ["code differs from the reference manifest"]}
+
+    def test_drift_is_called_out(self):
+        """Code that differs although the branch never touched the file is flagged as drift."""
+        reasons = _reasons(
+            "dbt",
+            {"modified": ["models/other.sql"]},
+            target_nodes=CHANGED_CODE,
+            dbt_ids={"modified": ["model.pkg.plain"]},
+        )
+        assert reasons["model.pkg.plain"][0] == "code differs from the reference manifest"
+        assert reasons["model.pkg.plain"][1].startswith("not changed on this branch: `main`")
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [{"merge_base_found": False}, {"git_error": RuntimeError("not a git repository")}],
+    )
+    def test_no_drift_claim_without_a_reliable_diff(self, kwargs):
+        """Without a merge-base diff (or any git), nothing is claimed about the branch."""
+        reasons = _reasons(
+            "dbt",
+            {},
+            target_nodes=CHANGED_CODE,
+            dbt_ids={"modified": ["model.pkg.plain"]},
+            **kwargs,
+        )
+        assert reasons == {"model.pkg.plain": ["code differs from the reference manifest"]}
+
+    def test_config_difference_names_the_keys(self):
+        """A config-only difference lists the keys that differ."""
+        target = {
+            **BASE_NODES,
+            "model.pkg.plain": _node("plain", "models/plain.sql", materialized="view"),
+        }
+        reasons = _reasons(
+            "dbt", {}, target_nodes=target, dbt_ids={"modified": ["model.pkg.plain"]}
+        )
+        assert reasons == {"model.pkg.plain": ["config differs: `materialized`"]}
+
+    def test_new_and_deleted(self):
+        """New and deleted nodes say which manifest they are missing from."""
+        target = {k: v for k, v in BASE_NODES.items() if k != "model.pkg.plain"}
+        target["model.pkg.fresh"] = _node("fresh", "models/fresh.sql")
+        reasons = _reasons(
+            "dbt",
+            {},
+            target_nodes=target,
+            dbt_ids={"new": ["model.pkg.fresh"], "deleted": ["model.pkg.plain"]},
+        )
+        assert reasons["model.pkg.fresh"] == ["not in the reference manifest"]
+        assert reasons["model.pkg.plain"] == ["no longer in the project"]
+
+    def test_unexplained_difference(self):
+        """A node dbt flagged for a reason the manifests don't show still gets a reason."""
+        reasons = _reasons("dbt", {}, dbt_ids={"modified": ["model.pkg.plain"]})
+        assert reasons == {"model.pkg.plain": ["flagged by dbt's state comparison"]}

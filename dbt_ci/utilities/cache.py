@@ -37,8 +37,12 @@ class CacheManager:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.dir_path = self.cache_dir.resolve()
 
-    def write_cache(self, data: StateChangeSummary | None = None) -> None:
-        """Write data to the cache file."""
+    def write_cache(
+        self,
+        data: StateChangeSummary | None = None,
+        reasons: dict[str, list[str]] | None = None,
+    ) -> None:
+        """Write the change set, why each node is in it, and init's settings to the cache."""
         connector_type = cast(SupportedConnectors, get_profile(self.args)["type"])
         # init may have defaulted the state path (e.g. <project>/.dbtstate after a
         # --state-uri download); record where it actually put it so later commands
@@ -50,6 +54,8 @@ class CacheManager:
             "modified_nodes": data.get("modified_nodes") if data else None,
             "new_nodes": data.get("new_nodes") if data else None,
             "deleted_nodes": data.get("deleted_nodes") if data else None,
+            # unique_id -> plain-language reasons the node is in the change set
+            "reasons": reasons or {},
             "config": {
                 "connector": connector_type,
                 "comparison_strategy": getattr(self.args, "comparison_strategy"),

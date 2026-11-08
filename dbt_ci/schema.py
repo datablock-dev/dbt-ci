@@ -358,6 +358,8 @@ class DependencyGraphNode(TypedDict):
     patch_path: Optional[str]
     compiled_path: Optional[str]
     compiled_code: Optional[str]
+    # dbt's checksum of the node's code; absent for macros and older caches
+    checksum: NotRequired[Optional[str]]
     config: Config
     columns: Set[str]
     materialized: Optional[DBTMaterialized]
@@ -580,6 +582,8 @@ class DbtCiManifest(TypedDict):
     modified_nodes: StructuredNodes | None
     deleted_nodes: StructuredNodes | None
     new_nodes: StructuredNodes | None
+    # Why each node is in the change set, by unique_id; absent in older caches
+    reasons: NotRequired[dict[str, list[str]]]
 
 
 ###################################################################

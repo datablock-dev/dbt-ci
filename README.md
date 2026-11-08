@@ -22,15 +22,15 @@ Every pull request gets a comment like this one, updated on each push:
 >
 > **Modified (1)**
 >
-> - `stg_customers` (model)
+> - `stg_customers` (model): `models/staging/stg_customers.sql` changed
 >
 > **New (1)**
 >
-> - `orders_daily` (model)
+> - `orders_daily` (model): `models/marts/orders_daily.sql` added
 >
 > **Deleted (1)**
 >
-> - `legacy_orders` (model)
+> - `legacy_orders` (model): `models/marts/legacy_orders.sql` deleted
 >
 > ### ⚠️ Affects 1 exposure(s)
 >
@@ -127,7 +127,8 @@ flowchart LR
 ```
 
 1. **`init`** downloads the production manifest, compares it with the pull request, and
-   caches the change set: modified, new and deleted nodes.
+   caches the change set: modified, new and deleted nodes, each with the reason it is
+   there.
 2. **`run`**, **`ephemeral`**, **`delete`** and **`migration`** read that cache, so the
    state is resolved once per CI run.
 3. **`report`** renders the change set, the exposures it affects and the status of each

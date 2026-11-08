@@ -204,6 +204,17 @@ class TestWriteCacheConfig:
             cache.write_cache()
         return json.loads((tmp_path / "cache" / "cache.json").read_text(encoding="utf-8"))["config"]
 
+    def test_records_reasons(self, tmp_path):
+        """init's reasons for each changed node are written next to the change set."""
+        cache = CacheManager(
+            Namespace(comparison_strategy="dbt", runner="local"), cache_dir=tmp_path / "cache"
+        )
+        reasons = {"model.p.a": ["code differs from the reference manifest"]}
+        with patch("dbt_ci.utilities.cache.get_profile", return_value={"type": "bigquery"}):
+            cache.write_cache(reasons=reasons)
+        written = json.loads((tmp_path / "cache" / "cache.json").read_text(encoding="utf-8"))
+        assert written["reasons"] == reasons
+
     def test_records_state_as_absolute_path(self, tmp_path, monkeypatch):
         """init records its state directory as absolute, so later commands can pass it on."""
         monkeypatch.chdir(tmp_path)
