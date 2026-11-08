@@ -150,6 +150,8 @@ class FakeGit:
         def done(code=0, stdout=""):
             return subprocess.CompletedProcess(command, code, stdout=stdout, stderr="")
 
+        if command == ["git", "rev-parse", "HEAD"]:
+            return done(stdout="abc123\n")
         if command[:2] == ["git", "rev-parse"]:
             return done(stdout="true\n" if self.shallow else "false\n")
         if command[:2] == ["git", "fetch"]:
@@ -180,7 +182,8 @@ class TestMissingMergeBase:
         assert _diff(fake) == [["A", "dbt/models/mine.sql"]]
         fetches = [c for c in fake.commands if c[:2] == ["git", "fetch"]]
         assert [c[2] for c in fetches] == ["--deepen=50", "--deepen=200"]
-        assert fetches[0][3:] == ["origin", "main"]
+        # HEAD's own history is asked for too, not only the base branch's
+        assert fetches[0][3:] == ["origin", "main", "abc123"]
         assert "Could not find where this branch started" not in caplog.text
 
     def test_warns_when_history_runs_out(self, caplog):
@@ -202,11 +205,12 @@ class TestMissingMergeBase:
         assert "share no history" in caplog.text
 
     def test_failed_fetch_stops_deepening(self, caplog):
-        """A fetch that fails (e.g. no network) stops early and warns."""
+        """A fetch that fails (e.g. no network) is retried without HEAD, then stops."""
         fake = FakeGit(shallow=True, found_after=1, fetch_fails=True)
         with caplog.at_level("WARNING"):
             _diff(fake)
-        assert fake.fetches == 1
+        fetches = [c for c in fake.commands if c[:2] == ["git", "fetch"]]
+        assert [c[3:] for c in fetches] == [["origin", "main", "abc123"], ["origin", "main"]]
         assert "fetch-depth: 0" in caplog.text
 
 
@@ -223,7 +227,7 @@ def _git(cwd, *args):
 class TestShallowCloneEndToEnd:
     """Test deepening against real git repositories."""
 
-    def test_merge_commit_checkout_at_depth_one(self, tmp_path, monkeypatch):
+    def test_merge_commit_checkout_at_depth_one(self, tmp_path, monkeypatch, caplog):
         """A depth-1 PR merge checkout finds only its own files after main moved on.
 
         Without the merge base, the direct diff would also report 'later', merged into
@@ -263,7 +267,10 @@ class TestShallowCloneEndToEnd:
 
         adapter = GitAdapter.__new__(GitAdapter)
         adapter.base_branch = "main"
-        assert adapter._diff_against_base() == [["A", "mine"]]
+        with caplog.at_level("DEBUG", logger="dbt_ci.utilities.git"):
+            changes = adapter._diff_against_base()
+        # On failure, show what git said, since this depends on the installed git version
+        assert changes == [["A", "mine"]], caplog.text
 
 
 class TestProjectDirMatching:

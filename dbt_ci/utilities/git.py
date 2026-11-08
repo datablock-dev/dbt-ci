@@ -91,6 +91,9 @@ class GitAdapter:
         if shallow.stdout.strip() != "true":
             return False
 
+        head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
+        head_sha = head.stdout.strip() if head.returncode == 0 else ""
+
         fetched = 0
         for depth in DEEPEN_STEPS:
             fetched += depth
@@ -98,13 +101,7 @@ class GitAdapter:
                 f"Shallow clone: fetching {fetched} more commits of history to find where "
                 f"this branch started from '{base}'..."
             )
-            result = subprocess.run(
-                ["git", "fetch", f"--deepen={depth}", "origin", self.base_branch],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                logger.debug(f"Deepening the clone failed: {result.stderr.strip()}")
+            if not self._deepen(depth, head_sha):
                 return False
             merge_base = subprocess.run(
                 ["git", "merge-base", base, "HEAD"], capture_output=True, text=True
@@ -112,6 +109,24 @@ class GitAdapter:
             if merge_base.returncode == 0:
                 logger.info(f"Found where this branch started from '{base}'.")
                 return True
+        return False
+
+    def _deepen(self, depth: int, head_sha: str) -> bool:
+        """
+        Deepen the history of both the base branch and HEAD by `depth` commits.
+
+        Fetching only the base branch deepens its history, but whether HEAD's history
+        (e.g. the parents of a PR merge commit) comes along depends on the git version,
+        so HEAD's commit is asked for explicitly. A remote that refuses to serve a commit
+        by its ID gets a second request for the base branch alone.
+        """
+        base_only = ["git", "fetch", f"--deepen={depth}", "origin", self.base_branch]
+        attempts = [base_only + [head_sha], base_only] if head_sha else [base_only]
+        for command in attempts:
+            result = subprocess.run(command, capture_output=True, text=True)
+            if result.returncode == 0:
+                return True
+            logger.debug(f"'{' '.join(command)}' failed: {result.stderr.strip()}")
         return False
 
     @staticmethod
