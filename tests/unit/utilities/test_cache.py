@@ -1,6 +1,8 @@
 """Unit tests for the cache directory manager."""
 
 import json
+import tempfile
+from pathlib import Path
 from argparse import Namespace
 from unittest.mock import patch
 
@@ -8,16 +10,51 @@ import pytest
 
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.utilities.logging import LOG_FILE_NAME
-from dbt_ci.utilities.paths import get_cache_dir
+from dbt_ci.utilities.paths import CI_JOB_IDS, CI_JOB_TEMP_DIRS, get_cache_dir
 
 
 class TestGetCacheDir:
     """Test cache directory resolution."""
 
-    def test_defaults_to_temp_dir(self, monkeypatch):
-        """Without an override the cache lives under the system temp directory."""
-        monkeypatch.delenv("DBT_CI_CACHE_DIR", raising=False)
-        assert get_cache_dir().name == "dbt-ci"
+    @pytest.fixture
+    def outside_ci(self, monkeypatch):
+        """Clear the override and every CI variable the cache location looks at."""
+        for name in ("DBT_CI_CACHE_DIR", *CI_JOB_TEMP_DIRS, *CI_JOB_IDS):
+            monkeypatch.delenv(name, raising=False)
+
+    def test_defaults_to_temp_dir(self, outside_ci):
+        """Outside CI and without an override the cache lives under the system temp dir."""
+        assert get_cache_dir() == Path(tempfile.gettempdir()) / "dbt-ci"
+
+    @pytest.mark.parametrize("name", CI_JOB_TEMP_DIRS)
+    def test_ci_job_temp_dir(self, outside_ci, monkeypatch, tmp_path, name):
+        """GitHub Actions and Azure Pipelines jobs use the temp dir the runner gives them."""
+        monkeypatch.setenv(name, str(tmp_path))
+        assert get_cache_dir() == tmp_path / "dbt-ci"
+
+    @pytest.mark.parametrize("name", CI_JOB_IDS)
+    def test_ci_job_id(self, outside_ci, monkeypatch, name):
+        """Other CI systems get a directory named after the job."""
+        monkeypatch.setenv(name, "1234")
+        assert get_cache_dir() == Path(tempfile.gettempdir()) / "dbt-ci-1234"
+
+    def test_job_id_is_made_safe_for_a_path(self, outside_ci, monkeypatch):
+        """Braces and slashes in an ID (Bitbucket's {uuid}) cannot escape the temp dir."""
+        monkeypatch.setenv("BITBUCKET_STEP_UUID", "{ab/../cd}")
+        assert get_cache_dir() == Path(tempfile.gettempdir()) / "dbt-ci-abcd"
+
+    def test_concurrent_jobs_get_different_directories(self, outside_ci, monkeypatch):
+        """Two GitLab jobs on one shared runner no longer share a cache."""
+        monkeypatch.setenv("CI_JOB_ID", "1")
+        first = get_cache_dir()
+        monkeypatch.setenv("CI_JOB_ID", "2")
+        assert get_cache_dir() != first
+
+    def test_override_beats_ci_detection(self, outside_ci, monkeypatch, tmp_path):
+        """An explicit DBT_CI_CACHE_DIR still wins inside CI."""
+        monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
+        monkeypatch.setenv("DBT_CI_CACHE_DIR", str(tmp_path / "mine"))
+        assert get_cache_dir() == tmp_path / "mine"
 
     def test_env_var_overrides_location(self, monkeypatch, tmp_path):
         """DBT_CI_CACHE_DIR relocates the cache so concurrent runs can be isolated."""
