@@ -327,8 +327,12 @@ each CI job its own directory automatically:
 |---|---|
 | GitHub Actions | `$RUNNER_TEMP/dbt-ci` |
 | Azure Pipelines | `$AGENT_TEMPDIRECTORY/dbt-ci` |
-| GitLab CI, Buildkite, CircleCI, Bitbucket Pipelines | `<temp dir>/dbt-ci-<job id>` (from `CI_JOB_ID`, `BUILDKITE_JOB_ID`, `CIRCLE_WORKFLOW_JOB_ID` or `BITBUCKET_STEP_UUID`) |
+| GitLab CI, Buildkite, CircleCI, Bitbucket Pipelines | `<temp dir>/dbt-ci/<job id>` (from `CI_JOB_ID`, `BUILDKITE_JOB_ID`, `CIRCLE_WORKFLOW_JOB_ID` or `BITBUCKET_STEP_UUID`) |
 | Anywhere else, e.g. your laptop | `<temp dir>/dbt-ci` |
+
+On GitHub Actions and Azure Pipelines the runner cleans up the job's temp directory
+itself. Everywhere else, every dbt-ci cache lives under `<temp dir>/dbt-ci`, so deleting
+that one directory clears them all; don't do it while a job is running.
 
 Set `DBT_CI_CACHE_DIR` to choose the directory yourself. It wins over the defaults
 above, and is the way to isolate concurrent runs on other CI systems, e.g. Jenkins:

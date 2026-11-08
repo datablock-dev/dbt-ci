@@ -28,8 +28,12 @@ def get_cache_dir() -> Path:
     DBT_CI_CACHE_DIR wins when set. Otherwise, in a recognised CI job the cache gets a
     directory of its own, so two jobs running at once on a shared runner don't overwrite
     each other's state: the job's temp directory where the CI system provides one, else
-    '<temp dir>/dbt-ci-<job id>'. Every command in a job sees the same environment, so
+    '<temp dir>/dbt-ci/<job id>'. Every command in a job sees the same environment, so
     they all find the same cache. Elsewhere it is '<temp dir>/dbt-ci'.
+
+    Job directories sit inside '<temp dir>/dbt-ci', so deleting that one directory
+    removes every dbt-ci cache on the machine. Clearing a cache never touches them: it
+    removes files only and skips subdirectories (see CacheManager.clear_cache).
     """
     override = os.environ.get("DBT_CI_CACHE_DIR")
     if override:
@@ -41,7 +45,7 @@ def get_cache_dir() -> Path:
     for name in CI_JOB_IDS:
         job_id = re.sub(r"[^A-Za-z0-9_-]", "", os.environ.get(name, ""))
         if job_id:
-            return Path(tempfile.gettempdir()) / f"dbt-ci-{job_id}"
+            return Path(tempfile.gettempdir()) / "dbt-ci" / job_id
     return Path(tempfile.gettempdir()) / "dbt-ci"
 
 

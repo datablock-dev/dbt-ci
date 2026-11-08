@@ -34,14 +34,14 @@ class TestGetCacheDir:
 
     @pytest.mark.parametrize("name", CI_JOB_IDS)
     def test_ci_job_id(self, outside_ci, monkeypatch, name):
-        """Other CI systems get a directory named after the job."""
+        """Other CI systems get a directory per job inside the shared dbt-ci directory."""
         monkeypatch.setenv(name, "1234")
-        assert get_cache_dir() == Path(tempfile.gettempdir()) / "dbt-ci-1234"
+        assert get_cache_dir() == Path(tempfile.gettempdir()) / "dbt-ci" / "1234"
 
     def test_job_id_is_made_safe_for_a_path(self, outside_ci, monkeypatch):
         """Braces and slashes in an ID (Bitbucket's {uuid}) cannot escape the temp dir."""
         monkeypatch.setenv("BITBUCKET_STEP_UUID", "{ab/../cd}")
-        assert get_cache_dir() == Path(tempfile.gettempdir()) / "dbt-ci-abcd"
+        assert get_cache_dir() == Path(tempfile.gettempdir()) / "dbt-ci" / "abcd"
 
     def test_concurrent_jobs_get_different_directories(self, outside_ci, monkeypatch):
         """Two GitLab jobs on one shared runner no longer share a cache."""
@@ -49,6 +49,22 @@ class TestGetCacheDir:
         first = get_cache_dir()
         monkeypatch.setenv("CI_JOB_ID", "2")
         assert get_cache_dir() != first
+
+    def test_clearing_the_local_cache_keeps_job_caches(self, outside_ci, monkeypatch, tmp_path):
+        """A job's cache inside <temp dir>/dbt-ci survives the local cache being cleared."""
+        monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path))
+        monkeypatch.setenv("CI_JOB_ID", "7")
+        job_cache = CacheManager(Namespace())
+        (job_cache.dir_path / "cache.json").write_text("{}", encoding="utf-8")
+
+        monkeypatch.delenv("CI_JOB_ID")
+        local_cache = CacheManager(Namespace())
+        (local_cache.dir_path / "cache.json").write_text("{}", encoding="utf-8")
+        local_cache.clear_cache()
+
+        assert local_cache.dir_path == tmp_path / "dbt-ci"
+        assert not (local_cache.dir_path / "cache.json").exists()
+        assert (tmp_path / "dbt-ci" / "7" / "cache.json").exists()
 
     def test_override_beats_ci_detection(self, outside_ci, monkeypatch, tmp_path):
         """An explicit DBT_CI_CACHE_DIR still wins inside CI."""
