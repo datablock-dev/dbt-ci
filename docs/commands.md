@@ -34,7 +34,7 @@ dbt-ci init \
 
 > All [common options](configuration.md#common-options) also apply.
 
-**Git comparison and clone depth:** the `git` and `hybrid` strategies diff `origin/<base-ref>...HEAD` — the merge base — so only the commits on your branch count as changes. Shallow clones often don't contain the merge base; dbt-ci falls back to a direct diff and logs a debug message when that happens. For an accurate change set, fetch full history (`actions/checkout` with `fetch-depth: 0`).
+**Git comparison and clone depth:** the `git` and `hybrid` strategies diff `origin/<base-ref>...HEAD` — the merge base — so only the commits on your branch count as changes. Shallow clones often don't contain the merge base, so dbt-ci fetches more history in steps (50, then 200, then 1,000 more commits) until it finds it. If it still can't, it falls back to a direct diff against the latest base branch and logs a **warning**: changes merged into the base branch since this branch was created may then be counted as this branch's own. Fetching full history up front (`actions/checkout` with `fetch-depth: 0`, or `GIT_DEPTH: 0` in GitLab CI) avoids the extra fetches entirely.
 
 How git's file-level changes are mapped to nodes:
 
