@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import tempfile
 import yaml
 import json
@@ -12,16 +13,39 @@ from dbt_ci.schema import DBTManifest, DBTProfile
 logger = logging.getLogger(__name__)
 
 
+# Temp directories CI systems give each job and clean up after it:
+# GitHub Actions and Azure Pipelines
+CI_JOB_TEMP_DIRS = ("RUNNER_TEMP", "AGENT_TEMPDIRECTORY")
+# IDs unique to one job, for CI systems without such a directory:
+# GitLab CI, Buildkite, CircleCI and Bitbucket Pipelines
+CI_JOB_IDS = ("CI_JOB_ID", "BUILDKITE_JOB_ID", "CIRCLE_WORKFLOW_JOB_ID", "BITBUCKET_STEP_UUID")
+
+
 def get_cache_dir() -> Path:
     """
     Return the directory holding dbt-ci's cache and log files.
 
-    Defaults to '<temp dir>/dbt-ci'. Set DBT_CI_CACHE_DIR to relocate it, which is what
-    concurrent CI jobs sharing a runner need so they don't overwrite each other's state.
+    DBT_CI_CACHE_DIR wins when set. Otherwise, in a recognised CI job the cache gets a
+    directory of its own, so two jobs running at once on a shared runner don't overwrite
+    each other's state: the job's temp directory where the CI system provides one, else
+    '<temp dir>/dbt-ci/<job id>'. Every command in a job sees the same environment, so
+    they all find the same cache. Elsewhere it is '<temp dir>/dbt-ci'.
+
+    Job directories sit inside '<temp dir>/dbt-ci', so deleting that one directory
+    removes every dbt-ci cache on the machine. Clearing a cache never touches them: it
+    removes files only and skips subdirectories (see CacheManager.clear_cache).
     """
     override = os.environ.get("DBT_CI_CACHE_DIR")
     if override:
         return Path(override)
+    for name in CI_JOB_TEMP_DIRS:
+        job_temp = os.environ.get(name)
+        if job_temp:
+            return Path(job_temp) / "dbt-ci"
+    for name in CI_JOB_IDS:
+        job_id = re.sub(r"[^A-Za-z0-9_-]", "", os.environ.get(name, ""))
+        if job_id:
+            return Path(tempfile.gettempdir()) / "dbt-ci" / job_id
     return Path(tempfile.gettempdir()) / "dbt-ci"
 
 

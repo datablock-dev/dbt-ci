@@ -293,7 +293,7 @@ dbt-ci run
 - `DBT_PROFILES_DIR` - Path to profiles.yml location
 - `DBT_TARGET` - Target environment to use
 - `DBT_RUNNER` - Runner type (local, docker, bash, dbt)
-- `DBT_CI_CACHE_DIR` - Where the state cache and log file live (default: `<temp dir>/dbt-ci`)
+- `DBT_CI_CACHE_DIR` - Where the state cache and log file live (default: a directory per CI job, see [Cache Location](#cache-location))
 
 **Note:** State management is cache-based. Run `init` once, then subsequent commands automatically use the cached state.
 
@@ -317,18 +317,32 @@ Passing the flag explicitly still wins — the cache only fills in what was left
 
 ### Cache Location
 
-`init` writes its cache (state comparison, manifests, run report and log file) to
-`<temp dir>/dbt-ci`, and later commands read it from there. Because the location is
-fixed, two dbt-ci runs executing at the same time on the same machine — for example two
-pull request jobs on a shared self-hosted runner — would overwrite each other's state.
+`init` writes its cache (state comparison, manifests, run report and log file) to a
+cache directory, and later commands read it from there. Two jobs running at the same
+time on one machine, such as two pull request jobs on a shared self-hosted runner, must
+not share that directory, or they overwrite each other's state. dbt-ci therefore gives
+each CI job its own directory automatically:
 
-Set `DBT_CI_CACHE_DIR` to give each run its own directory:
+| Where dbt-ci runs | Cache directory |
+|---|---|
+| GitHub Actions | `$RUNNER_TEMP/dbt-ci` |
+| Azure Pipelines | `$AGENT_TEMPDIRECTORY/dbt-ci` |
+| GitLab CI, Buildkite, CircleCI, Bitbucket Pipelines | `<temp dir>/dbt-ci/<job id>` (from `CI_JOB_ID`, `BUILDKITE_JOB_ID`, `CIRCLE_WORKFLOW_JOB_ID` or `BITBUCKET_STEP_UUID`) |
+| Anywhere else, e.g. your laptop | `<temp dir>/dbt-ci` |
+
+On GitHub Actions and Azure Pipelines the runner cleans up the job's temp directory
+itself. Everywhere else, every dbt-ci cache lives under `<temp dir>/dbt-ci`, so deleting
+that one directory clears them all; don't do it while a job is running.
+
+Set `DBT_CI_CACHE_DIR` to choose the directory yourself. It wins over the defaults
+above, and is the way to isolate concurrent runs on other CI systems, e.g. Jenkins:
 
 ```bash
-export DBT_CI_CACHE_DIR="/tmp/dbt-ci-${GITHUB_RUN_ID}"
+export DBT_CI_CACHE_DIR="/tmp/dbt-ci-${BUILD_TAG}"
 dbt-ci init ...
 dbt-ci run ...
 ```
 
 All commands in the same CI job must see the same value, since that is how `run`,
-`delete`, `ephemeral` and `finalize` find the cache written by `init`.
+`delete`, `ephemeral` and `finalize` find the cache written by `init`. This is also why
+`init` and the commands after it must run in the same job.
