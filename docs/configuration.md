@@ -293,7 +293,7 @@ dbt-ci run
 - `DBT_PROFILES_DIR` - Path to profiles.yml location
 - `DBT_TARGET` - Target environment to use
 - `DBT_RUNNER` - Runner type (local, docker, bash, dbt)
-- `DBT_CI_CACHE_DIR` - Where the state cache and log file live (default: `<temp dir>/dbt-ci`)
+- `DBT_CI_CACHE_DIR` - Where the state cache and log file live (default: a directory per CI job, see [Cache Location](#cache-location))
 
 **Note:** State management is cache-based. Run `init` once, then subsequent commands automatically use the cached state.
 
