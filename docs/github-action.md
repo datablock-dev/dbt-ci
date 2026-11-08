@@ -142,5 +142,6 @@ The outputs are empty when `init` did not run or failed.
   its own dbt-ci cache under `RUNNER_TEMP`, so concurrent jobs on one self-hosted runner
   don't overwrite each other's state.
 - With a shallow checkout (the `actions/checkout` default), the action warns that the git
-  comparison may not find the merge base. Use `fetch-depth: 0`, or
-  `comparison-strategy: dbt`.
+  comparison may not find the merge base. dbt-ci then fetches more history itself until
+  it finds it, and warns again only if it can't. `fetch-depth: 0` avoids the extra
+  fetches, or use `comparison-strategy: dbt`.

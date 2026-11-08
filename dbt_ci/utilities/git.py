@@ -21,6 +21,10 @@ GIT_STATUS_MAPPING = {
 
 type GitChangeType = Literal["modified", "added", "deleted"]
 
+# Commits fetched per step when a shallow clone lacks the merge base: 50, then 200 more,
+# then 1000 more, so a recent branch costs one small fetch and an old one still resolves
+DEEPEN_STEPS = (50, 200, 1000)
+
 
 class GitAdapter:
     """Adapter for git operations used during state comparison."""
@@ -43,29 +47,108 @@ class GitAdapter:
 
         The three-dot form is what CI wants: it reports only what this branch changed,
         whereas a two-dot diff also reports commits landed on the base branch since the
-        branch point as (reversed) changes, inflating the change set. Shallow clones may
-        not contain the merge base, so the two-dot form is kept as a fallback.
+        branch point as (reversed) changes, inflating the change set. Shallow clones
+        often lack the merge base, so more history is fetched until it turns up. Only if
+        that fails is the two-dot form used, with a warning that the change set may
+        include other people's changes.
         """
         base = f"origin/{self.base_branch}"
-        attempts = [
-            ["git", "diff", "--name-status", f"{base}...HEAD"],
-            ["git", "diff", "--name-status", base, "HEAD"],
-        ]
+        three_dot = ["git", "diff", "--name-status", f"{base}...HEAD"]
+        result = subprocess.run(three_dot, capture_output=True, text=True)
+        if result.returncode != 0 and self._deepen_until_merge_base(base):
+            result = subprocess.run(three_dot, capture_output=True, text=True)
+        if result.returncode == 0:
+            return [line.split("\t") for line in result.stdout.splitlines()]
 
+        logger.debug(f"'{' '.join(three_dot)}' failed: {result.stderr.strip()}")
+        logger.warning(self._missing_merge_base_message(base))
+
+        two_dot = ["git", "diff", "--name-status", base, "HEAD"]
+        result = subprocess.run(two_dot, capture_output=True, text=True)
+        if result.returncode == 0:
+            return [line.split("\t") for line in result.stdout.splitlines()]
+
+        logger.debug(f"'{' '.join(two_dot)}' failed: {result.stderr.strip()}")
+        raise RuntimeError(
+            f"Could not diff against '{base}'. Ensure the base branch has been fetched and "
+            "that the repository has enough history (e.g. actions/checkout with "
+            "fetch-depth: 0)."
+        )
+
+    def _deepen_until_merge_base(self, base: str) -> bool:
+        """
+        Fetch more history of a shallow clone until HEAD and the base branch meet.
+
+        CI checkouts are often shallow (actions/checkout fetches one commit by default),
+        so the commit this branch started from is missing. Deepening in growing steps
+        usually finds it within a few fetches without downloading the whole history.
+        Returns True once the merge base exists; False if the clone is not shallow or
+        the history ran out.
+        """
+        shallow = subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"], capture_output=True, text=True
+        )
+        if shallow.stdout.strip() != "true":
+            return False
+
+        head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
+        head_sha = head.stdout.strip() if head.returncode == 0 else ""
+
+        fetched = 0
+        for depth in DEEPEN_STEPS:
+            fetched += depth
+            logger.info(
+                f"Shallow clone: fetching {fetched} more commits of history to find where "
+                f"this branch started from '{base}'..."
+            )
+            if not self._deepen(depth, head_sha):
+                return False
+            merge_base = subprocess.run(
+                ["git", "merge-base", base, "HEAD"], capture_output=True, text=True
+            )
+            if merge_base.returncode == 0:
+                logger.info(f"Found where this branch started from '{base}'.")
+                return True
+        return False
+
+    def _deepen(self, depth: int, head_sha: str) -> bool:
+        """
+        Deepen the history of both the base branch and HEAD by `depth` commits.
+
+        Fetching only the base branch deepens its history, but whether HEAD's history
+        (e.g. the parents of a PR merge commit) comes along depends on the git version,
+        so HEAD's commit is asked for explicitly. A remote that refuses to serve a commit
+        by its ID gets a second request for the base branch alone.
+        """
+        base_only = ["git", "fetch", f"--deepen={depth}", "origin", self.base_branch]
+        attempts = [base_only + [head_sha], base_only] if head_sha else [base_only]
         for command in attempts:
             result = subprocess.run(command, capture_output=True, text=True)
             if result.returncode == 0:
-                return [line.split("\t") for line in result.stdout.splitlines()]
+                return True
+            logger.debug(f"'{' '.join(command)}' failed: {result.stderr.strip()}")
+        return False
 
-            logger.debug(
-                f"'{' '.join(command)}' failed ({result.stderr.strip()}). If this repository "
-                "was cloned shallowly, fetch more history (e.g. actions/checkout with "
-                "fetch-depth: 0) for an accurate change set."
+    @staticmethod
+    def _missing_merge_base_message(base: str) -> str:
+        """Explain that the merge base is missing, what that does and how to fix it."""
+        shallow = subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"], capture_output=True, text=True
+        )
+        if shallow.stdout.strip() == "true":
+            cause = (
+                "This is a shallow clone without enough history. Fetch the full history, "
+                "e.g. actions/checkout with fetch-depth: 0 or GIT_DEPTH: 0 in GitLab CI."
             )
-
-        raise RuntimeError(
-            f"Could not diff against 'origin/{self.base_branch}'. Ensure the base branch has "
-            "been fetched and that the repository has enough history."
+        else:
+            cause = (
+                f"HEAD and '{base}' share no history. Check that --base-ref names the "
+                "branch this one was created from."
+            )
+        return (
+            f"Could not find where this branch started from '{base}', so changes are "
+            f"compared with the latest '{base}' instead. Changes merged into it since this "
+            f"branch was created may be counted as this branch's own. {cause}"
         )
 
     def _resolve_base_branch(self) -> str:
