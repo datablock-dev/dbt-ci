@@ -296,32 +296,37 @@ class TestFinalizeKeepsACopyPerCommit:
     """Test that finalize keeps the manifest per commit next to the latest one."""
 
     def test_copy_next_to_the_latest(self):
-        """The manifest goes to <uri>/manifest.json and <uri>/<commit>/manifest.json."""
+        """The manifest goes to <uri>/<commit>/manifest.json and <uri>/manifest.json."""
         cache = MagicMock()
         cache.get_cache.return_value = {"nodes": {}}
         storage = MagicMock()
         with patch("dbt_ci.commands.finalize.upload.current_commit_sha", return_value=SHA[0]):
             upload_manifest("gs://b/dbt-state", cache, storage)
         assert [c.args[0] for c in storage.call_args_list] == [
-            "gs://b/dbt-state/manifest.json",
             f"gs://b/dbt-state/{SHA[0]}/manifest.json",
+            "gs://b/dbt-state/manifest.json",
+            "gs://b/dbt-state/manifest.commit.json",
         ]
 
     def test_no_commit_no_copy(self):
-        """Without a known commit only the latest manifest is uploaded."""
+        """Without a known commit only the latest manifest (and a null record) is uploaded."""
         cache = MagicMock()
         cache.get_cache.return_value = {"nodes": {}}
         storage = MagicMock()
         with patch("dbt_ci.commands.finalize.upload.current_commit_sha", return_value=None):
             upload_manifest("gs://b/dbt-state", cache, storage)
-        assert storage.call_count == 1
+        assert [c.args[0] for c in storage.call_args_list] == [
+            "gs://b/dbt-state/manifest.json",
+            "gs://b/dbt-state/manifest.commit.json",
+        ]
+        assert storage.call_args_list[1].args[1]["commit"] is None
 
     def test_commit_from_git_or_ci_environment(self, monkeypatch):
         """git is asked first; without a checkout the CI system's variable is used."""
         done = subprocess.CompletedProcess([], 0, stdout=SHA[0] + "\n", stderr="")
-        with patch("dbt_ci.commands.finalize.upload.subprocess.run", return_value=done):
+        with patch("dbt_ci.commands.finalize.publish_order.subprocess.run", return_value=done):
             assert current_commit_sha() == SHA[0]
         failed = subprocess.CompletedProcess([], 128, stdout="", stderr="not a repo")
         monkeypatch.setenv("GITHUB_SHA", SHA[1])
-        with patch("dbt_ci.commands.finalize.upload.subprocess.run", return_value=failed):
+        with patch("dbt_ci.commands.finalize.publish_order.subprocess.run", return_value=failed):
             assert current_commit_sha() == SHA[1]

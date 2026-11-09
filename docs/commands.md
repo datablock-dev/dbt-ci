@@ -489,6 +489,7 @@ dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
 |------|---------|-----------|---------|-------------|
 | `--artifacts-uri` | | `DBT_ARTIFACTS_URI`, `ARTIFACTS_URI` | `None` | Object storage URI for uploading run artifacts such as the updated `manifest.json` (e.g. `s3://bucket/dbt-artifacts/`) |
 | `--files` | | `DBT_FINALIZE_FILES` | `manifest` | Which artifacts to upload (repeatable): `manifest`, `cache`, `log` |
+| `--force-manifest` | | `DBT_FINALIZE_FORCE_MANIFEST` | `false` | Replace the published `manifest.json` even when it was built from a newer commit than this run's, e.g. to roll back (`finalize.force-manifest` in the config file). See [Deploys finishing out of order](#deploys-finishing-out-of-order) |
 | `--clean-ephemeral` | `--destroy-ephemeral` | `DBT_CLEAN_EPHEMERAL`, `DBT_DESTROY_EPHEMERAL` | `false` | **Deprecated — use [`ephemeral destroy`](#ephemeral-destroy).** Drop the datasets that `ephemeral` cloned into, the same way `ephemeral destroy` does |
 
 Next to `<artifacts-uri>/manifest.json`, `finalize` keeps a copy for the commit it ran on at
@@ -513,5 +514,38 @@ still uploaded, the step fails, and the cache is kept so a re-run can retry the 
 > the log does not publish your Slack webhook or credentials passed via `--docker-env`.
 > This is a name-based heuristic — review your artifact bucket's access controls before
 > enabling `--files log`.
+
+### Deploys finishing out of order
+
+Two deploys can finish in a different order than they started: a queued deploy of an
+older commit ends after the deploy of a newer one, or someone re-runs an old deploy job.
+Uploading last would put the older state back as `manifest.json`, and the next pull
+requests would compare against it.
+
+So next to `manifest.json`, `finalize` records the commit it was built from in
+`<artifacts-uri>/manifest.commit.json`, and before replacing the manifest it checks that
+the published one isn't from a newer commit:
+
+- git decides when it can: when the published commit comes after this run's in the
+  history, the published manifest is kept. A commit missing from a shallow clone is
+  fetched first.
+- When git can't tell (the commits diverged, or the fetch failed), the commit times decide.
+- When there is no record yet, or this run's commit is unknown, the manifest is uploaded
+  as before.
+
+A skipped upload is not an error: `finalize` logs which commit is published and still
+keeps this run's per-commit copy. To publish an older manifest on purpose, e.g. to roll
+back, pass `--force-manifest`.
+
+The check runs just before the upload, so two deploys finishing at the same moment can
+still race. Run deploys one at a time, e.g. with a GitHub Actions `concurrency` group:
+
+```yaml
+jobs:
+  deploy:
+    concurrency:
+      group: dbt-deploy
+      cancel-in-progress: false   # queue deploys instead of cancelling them
+```
 
 > All [common options](configuration.md#common-options) also apply.

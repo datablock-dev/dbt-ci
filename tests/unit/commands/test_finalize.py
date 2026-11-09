@@ -232,7 +232,7 @@ class TestUploadManifest:
 
         upload_manifest("gs://bucket/path", cache, storage_fn)
 
-        storage_fn.assert_called_once_with(
+        storage_fn.assert_any_call(
             "gs://bucket/path/manifest.json", {"key": "value"}, "application/json"
         )
 
@@ -245,7 +245,7 @@ class TestUploadManifest:
 
         upload_manifest("gs://bucket/path", cache, storage_fn)
 
-        storage_fn.assert_called_once_with(
+        storage_fn.assert_any_call(
             "gs://bucket/path/manifest.json", {"ref": "data"}, "application/json"
         )
 
