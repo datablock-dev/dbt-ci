@@ -82,7 +82,10 @@ def init(args: Namespace):
 
         target_manifest_file = get_manifest_file(dbt_project_dir)
         state_change_summary = state_modified.get_state_modified()
-        cache.write_cache(state_change_summary)
+        reasons = state_modified.reasons.for_summary(
+            state_change_summary, state_modified.reference_graph, state_modified.target_graph
+        )
+        cache.write_cache(state_change_summary, reasons=reasons)
 
         if reference_target and reference_target != getattr(args, "target", None):
             # Different targets - will compile again later with actual target
@@ -104,7 +107,7 @@ def init(args: Namespace):
         # Will generate summary and output it in the logs. It also covers:
         # 1. Migration plan for partitioning changes
         # 2. Ephemeral plan
-        init_summary(state_change_summary, args)
+        init_summary(state_change_summary, args, reasons)
 
         # Deleted-node dependency validation is left to dbt: compiling the project
         # already fails when a ref()/source() points at a node removed in this change set.
@@ -126,7 +129,11 @@ def init(args: Namespace):
         sys.exit(1)
 
 
-def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> None:
+def init_summary(
+    state_change_summary: StateChangeSummary,
+    args: Namespace,
+    reasons: dict[str, list[str]] | None = None,
+) -> None:
     """
     The following method will call the following steps to generate a summary of changes,
     but also migration, ephemeral:
@@ -145,9 +152,12 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
         total_count = sum(len(node_dict) for node_dict in values.values())
         logger.info(f"\n{change_type.replace('_', ' ').title()}: {total_count}")
         for node_dict in values.values():
-            for node in node_dict.values():
+            for node_id, node in node_dict.items():
                 node = cast(DependencyGraphNode, node)
-                logger.info(f"  • {node['name']} [{node['resource_type']}]")
+                why = "; ".join((reasons or {}).get(node_id, []))
+                logger.info(
+                    f"  • {node['name']} [{node['resource_type']}]" + (f": {why}" if why else "")
+                )
     logger.info("\n------------------------------------------------------")
 
     slack_webhook = getattr(args, "slack_webhook", None)

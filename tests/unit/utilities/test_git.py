@@ -323,3 +323,29 @@ class TestProjectDirMatching:
         adapter = _make_adapter(self.CHANGES, dbt_project_dir="dbt")
         adapter.repo_root = str(real)
         assert adapter.get_changed_files() == {"modified": ["models/a.sql"]}
+
+
+class TestBestEffort:
+    """Test the mode used when git is optional (explaining dbt-strategy changes)."""
+
+    def test_fetches_never_prompt_and_missing_merge_base_is_not_warned(self, caplog):
+        """No credential prompt on fetch, and no warning, since the diff is not relied on."""
+        fake = FakeGit(shallow=True, found_after=None)
+        adapter = GitAdapter.__new__(GitAdapter)
+        adapter.base_branch = "main"
+        adapter.best_effort = True
+        envs = []
+
+        def recording(command, **kwargs):
+            """Record the environment each fetch runs with."""
+            if command[:2] == ["git", "fetch"]:
+                envs.append(kwargs.get("env"))
+            return fake(command, **kwargs)
+
+        with caplog.at_level("WARNING"):
+            with patch("dbt_ci.utilities.git.subprocess.run", side_effect=recording):
+                adapter._diff_against_base()
+
+        assert envs and all(env["GIT_TERMINAL_PROMPT"] == "0" for env in envs)
+        assert "Could not find where this branch started" not in caplog.text
+        assert not getattr(adapter, "merge_base_found", False)

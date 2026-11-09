@@ -13,6 +13,14 @@ from dbt_ci.schema import (
     StateChangeSummaryKeys,
 )
 from dbt_ci.utilities.git import GitAdapter, GitChangeType
+from dbt_ci.commands.init.reasons import (
+    ChangeReasons,
+    code_differs,
+    compare_with_reference,
+    drift_reason,
+    file_reason,
+    macro_reason,
+)
 from dbt_ci.graph.graph_utils import (
     get_deleted_nodes,
     get_new_nodes,
@@ -54,28 +62,34 @@ def parse_ls_unique_ids(output: str) -> list[str]:
 def add_macro_users(
     git_modified_nodes: dict[GitChangeType, set[str]],
     target_graph: DependencyGraph,
+    reasons: ChangeReasons | None = None,
 ) -> None:
     """
     Mark every node that uses a changed macro as modified.
 
     A macro has no downstream edges in the manifest, so selecting the macro itself runs
     nothing; the nodes calling it (directly or via other macros) are what need to rebuild.
+    Each user is credited with the macro (or macros) that brought it in.
     """
-    changed_macros = {
+    changed_macros = sorted(
         node_id
         for node_ids in git_modified_nodes.values()
         for node_id in node_ids
         if node_id.startswith("macro.")
-    }
-    for node_id in get_nodes_using_macros(target_graph, changed_macros):
-        if node_id not in git_modified_nodes["added"]:
-            git_modified_nodes["modified"].add(node_id)
+    )
+    for macro_id in changed_macros:
+        for node_id in get_nodes_using_macros(target_graph, {macro_id}):
+            if node_id not in git_modified_nodes["added"]:
+                git_modified_nodes["modified"].add(node_id)
+            if reasons is not None:
+                reasons.add(node_id, macro_reason(macro_id))
 
 
 def reconcile_with_graphs(
     git_modified_nodes: dict[GitChangeType, set[str]],
     target_graph: DependencyGraph,
     reference_graph: DependencyGraph,
+    reasons: ChangeReasons | None = None,
 ) -> None:
     """
     Re-classify git's file-level changes by whether the node exists in each manifest.
@@ -88,10 +102,14 @@ def reconcile_with_graphs(
         if get_node(target_graph, node_id) is not None:
             git_modified_nodes["deleted"].discard(node_id)
             git_modified_nodes["modified"].add(node_id)
+            if reasons is not None:
+                reasons.add(node_id, "moved or renamed")
     for node_id in list(git_modified_nodes["added"]):
         if get_node(reference_graph, node_id) is not None:
             git_modified_nodes["added"].discard(node_id)
             git_modified_nodes["modified"].add(node_id)
+            if reasons is not None:
+                reasons.add(node_id, "moved or renamed")
 
 
 def empty_change_set() -> dict[GitChangeType, set[str]]:
@@ -115,6 +133,8 @@ class StateModified:
         self.strategy: ComparisonStrategy = getattr(args, "comparison_strategy")
         self._target_graph: DependencyGraph | None = None
         self._reference_graph: DependencyGraph | None = None
+        # Why each node ended up in the change set, filled in by the strategies
+        self.reasons = ChangeReasons()
 
     @property
     def target_graph(self) -> DependencyGraph:
@@ -170,14 +190,17 @@ class StateModified:
                 if nodes_at_path:
                     for node_info in nodes_at_path:
                         git_modified_nodes[change_type].add(node_info["id"])
+                        self.reasons.add(
+                            node_info["id"], file_reason(change_type, file_path, node_info)
+                        )
                 else:
                     logger.debug(
                         f"File {file_path} changed according to git but no corresponding node "
                         "found in either target or reference graph (e.g. a non-dbt file)."
                     )
 
-        add_macro_users(git_modified_nodes, target_dict)
-        reconcile_with_graphs(git_modified_nodes, target_dict, reference_dict)
+        add_macro_users(git_modified_nodes, target_dict, self.reasons)
+        reconcile_with_graphs(git_modified_nodes, target_dict, reference_dict, self.reasons)
 
         return {
             "modified_nodes": get_structured_modified_nodes(
@@ -223,6 +246,7 @@ class StateModified:
                 if nodes_at_path:
                     for node_info in nodes_at_path:
                         node_id = node_info["id"]
+                        self.reasons.add(node_id, file_reason(change_type, file_path, node_info))
                         if new_nodes and node_id in new_nodes:
                             git_modified_nodes["added"].add(node_id)
                         else:
@@ -276,9 +300,14 @@ class StateModified:
             for file_path in list(unmatched_paths):  # copy — we mutate the set inside
                 found = False
                 for dbt_key, target_git_key in dbt_key_to_git_key.items():
-                    current_data = structured_modified_nodes_dbt.get(dbt_key) or {}
-                    for node_id, dbt_node in current_data.items():
+                    # Structured nodes are grouped by resource type: {type: {id: node}}
+                    buckets = structured_modified_nodes_dbt.get(dbt_key) or {}
+                    dbt_nodes = [item for bucket in buckets.values() for item in bucket.items()]
+                    for node_id, dbt_node in dbt_nodes:
                         if dbt_node.get("original_file_path") == file_path:
+                            self.reasons.add(
+                                node_id, file_reason(unmatched_type, file_path, dbt_node)
+                            )
                             if new_nodes and node_id in new_nodes:
                                 # New according to dbt, so added, even if git says the
                                 # file was modified
@@ -299,9 +328,10 @@ class StateModified:
             node = get_node(target_graph, node_id)
             if node is not None and node.get("patch_path") in changed_paths:
                 git_modified_nodes["modified"].add(node_id)
+                self.reasons.add(node_id, f"properties in `{node.get('patch_path')}` changed")
 
-        add_macro_users(git_modified_nodes, target_graph)
-        reconcile_with_graphs(git_modified_nodes, target_graph, reference_graph)
+        add_macro_users(git_modified_nodes, target_graph, self.reasons)
+        reconcile_with_graphs(git_modified_nodes, target_graph, reference_graph, self.reasons)
 
         # Now lets see if there are any unmatched nodes left
         for unmatched_type, unmatched_paths in unmatched_files.items():
@@ -317,6 +347,7 @@ class StateModified:
             logger.debug(
                 "Git returned no changed files — falling back to dbt state:modified output."
             )
+            self.explain_against_reference(structured_modified_nodes_dbt, git)
             return structured_modified_nodes_dbt
 
         return {
@@ -340,7 +371,7 @@ class StateModified:
         """Resolve the change set from dbt's state:modified comparison alone."""
         data = self.common_state_change()
 
-        return {
+        summary: StateChangeSummary = {
             "modified_nodes": get_structured_modified_nodes(
                 get_nodes(
                     dependency_graph=self.target_graph, node_ids=list(data["modified_node_ids"])
@@ -356,6 +387,59 @@ class StateModified:
                 get_nodes(dependency_graph=self.target_graph, node_ids=list(data["new_node_ids"]))
             ),
         }
+        self.explain_against_reference(summary)
+        return summary
+
+    def explain_against_reference(
+        self, summary: StateChangeSummary, git: GitAdapter | None = None
+    ) -> None:
+        """
+        Record why dbt's state comparison flagged each node, and spot drift.
+
+        dbt says that a node changed, not why, so each version is compared with the
+        reference manifest (code checksum, config keys). When git can tell what this
+        branch changed, a node whose code differs although the branch never touched its
+        file is marked as such: that difference comes from the base branch and the
+        reference manifest being out of step, not from this pull request.
+        """
+        for change_key in ("modified_nodes", "new_nodes", "deleted_nodes"):
+            for nodes in (summary.get(change_key) or {}).values():  # type: ignore[attr-defined]
+                for node_id in nodes:
+                    for reason in compare_with_reference(
+                        node_id, change_key, self.reference_graph, self.target_graph
+                    ):
+                        self.reasons.add(node_id, reason)
+
+        branch_diff = self._branch_changed_paths(git)
+        if branch_diff is None:
+            return
+        changed_paths, base_branch = branch_diff
+        for nodes in (summary.get("modified_nodes") or {}).values():
+            for node_id, node in nodes.items():
+                reference = get_node(self.reference_graph, node_id)
+                target = get_node(self.target_graph, node_id)
+                if reference is None or target is None or not code_differs(reference, target):
+                    continue
+                if node.get("original_file_path") not in changed_paths:
+                    self.reasons.add(node_id, drift_reason(base_branch))
+
+    def _branch_changed_paths(self, git: GitAdapter | None) -> tuple[set[str], str] | None:
+        """
+        Return the files this branch changed and its base branch, or None if unknown.
+
+        Only a diff against the merge base says what this branch changed; without one
+        (no repository, no remote, history that cannot be found) nothing is claimed.
+        """
+        try:
+            if git is None:
+                git = GitAdapter(self.args, best_effort=True)
+            if not getattr(git, "merge_base_found", False):
+                return None
+            changed = {path for paths in git.get_changed_files().values() for path in paths}
+            return changed, git.base_branch
+        except Exception as e:
+            logger.debug(f"Not checking the branch's git diff to explain changes: {e}")
+            return None
 
     def common_state_change(self) -> CommonStateChangeSummary:
         """

@@ -5,6 +5,7 @@ from argparse import Namespace
 from itertools import chain
 from typing import cast
 from dbt_ci.graph.dependency_graph import DbtGraph
+from dbt_ci.commands.run.explain import explain_selection
 from dbt_ci.runners import run_dbt_command, resolve_dbt_commands
 from dbt_ci.graph.graph_utils import (
     filter_node_ids_by_type,
@@ -35,8 +36,13 @@ def run_nodes(
     target_graph: DbtGraph,
     changed_nodes: list[str],
     changed_nodes_dict: dict[str, list[str]],
+    reasons: dict[str, list[str]] | None = None,
 ) -> None:
-    """Build the selected seeds, snapshots, models and tests in order, stopping at a failure."""
+    """
+    Build the selected seeds, snapshots, models and tests in order, stopping at a failure.
+
+    reasons (from init's cache) explains why each changed node is in the run.
+    """
     mode: RunModes = getattr(args, "nodes", "all")
     # Snapshots run before models so that models built on a changed snapshot read
     # its new state, and tests run last once everything they check exists.
@@ -68,7 +74,7 @@ def run_nodes(
 
         # Print information
         logger.info(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
-        log_nodes_to_run(nodes_to_run, changed_nodes_dict, target_graph)
+        log_nodes_to_run(nodes_to_run, changed_nodes_dict, target_graph, reasons)
 
         if getattr(args, "dry_run", False):
             logger.info("DRY RUN: Command would be executed")
@@ -327,8 +333,9 @@ def log_nodes_to_run(
     nodes_to_run: list[str],
     changed_nodes_dict: dict[str, list[str]],
     target_graph: DbtGraph | None = None,
+    reasons: dict[str, list[str]] | None = None,
 ) -> None:
-    """Print the nodes about to run, grouped by why they were selected."""
+    """Print the nodes about to run, grouped by why they were selected, with the reason."""
     mapping: dict[str, set[str]] = {
         "new": set(),
         "modified": set(),
@@ -350,10 +357,14 @@ def log_nodes_to_run(
     logger.info(f"Found {len(nodes_to_run)} node(s) to run:")
 
     graph = target_graph.to_dict() if target_graph else None
+    changed_ids = set(
+        chain(changed_nodes_dict.get("modified_nodes", []), changed_nodes_dict.get("new_nodes", []))
+    )
     for type, nodes in mapping.items():
         if len(nodes) == 0:
             continue
         logger.info(f"\n{type.upper()} NODES:")
         for node in sorted(nodes):
-            logger.info(f"  • {get_display_name(graph, node)}")
+            why = explain_selection(graph, node, changed_ids, reasons) if graph else ""
+            logger.info(f"  • {get_display_name(graph, node)}" + (f": {why}" if why else ""))
     logger.info("-------------------------------------------------------\n")

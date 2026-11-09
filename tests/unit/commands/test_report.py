@@ -63,6 +63,22 @@ class TestRenderChangeSummary:
         assert "`customers` (model)" in rendered
         assert "`legacy` (model)" in rendered
 
+    def test_lists_reasons(self):
+        """Each node shows why it is in the change set, as recorded by init."""
+        cache = {
+            **CACHE,
+            "reasons": {
+                "model.p.customers": ["`models/customers.sql` changed", "uses changed macro `m`"],
+            },
+        }
+        rendered = "\n".join(render_change_summary(cache))
+        assert (
+            "- `customers` (model): `models/customers.sql` changed; uses changed macro `m`"
+            in rendered
+        )
+        # Nodes without recorded reasons (e.g. an older cache) are listed as before
+        assert "- `orders` (model)\n" in rendered + "\n"
+
     def test_reports_no_changes(self):
         """An empty change set says so rather than rendering empty tables."""
         empty = {"modified_nodes": None, "new_nodes": None, "deleted_nodes": None}

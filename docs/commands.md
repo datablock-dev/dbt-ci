@@ -43,6 +43,41 @@ How git's file-level changes are mapped to nodes:
 - **YAML-only changes** (config, contracts, columns in a `schema.yml`) select the model the YAML configures. With `git`, every model configured by a changed YAML file is selected; with `hybrid`, only those that dbt also flags as modified.
 - **`--dbt-project-dir`** is matched as a directory relative to the repository root, so `dbt`, `./dbt`, `dbt/` and an absolute path behave the same, and files in look-alike folders such as `analytics_dbt/` are ignored.
 
+### Why is a node in the change set?
+
+`init` records why each node is modified, new or deleted, and `init`'s log, `run`'s log
+and the report show it next to the node. The evidence depends on the comparison strategy:
+
+| Reason | Meaning |
+|---|---|
+| `` `models/stg.sql` changed `` (or `added`, `deleted`) | The node's own file changed on this branch (`git`, `hybrid`) |
+| ``properties in `models/schema.yml` changed`` | The YAML file holding the node's properties changed (`git`, `hybrid`) |
+| ``uses changed macro `cents_to_dollars` `` | A macro the node calls, directly or through another macro, changed (`git`, `hybrid`) |
+| `moved or renamed` | The node's file moved; its unique_id is unchanged (`git`, `hybrid`) |
+| `code differs from the reference manifest` | The node's code differs from the reference (`dbt`) |
+| ``config differs: `materialized` `` | These config keys differ from the reference (`dbt`) |
+| `not in the reference manifest` / `no longer in the project` | A new or deleted node (`dbt`) |
+| `flagged by dbt's state comparison` | dbt flagged the node, but the manifests don't show what differs (e.g. a description or contract) |
+| `not changed on this branch: ...` | The code differs from the reference, but this branch never touched the file (`dbt`) |
+
+The last one points at drift. The difference comes from the base branch and the reference
+manifest being out of step, for example a change merged into `main` after this branch was
+created, or one that isn't deployed yet, not from this pull request. dbt-ci only says this
+when it can diff the branch against its merge base (see
+[Git comparison and clone depth](#init---initialize-state)); without git, the reason is left
+out rather than guessed.
+
+`run` also explains nodes it selects because of a changed node:
+
+```
+MODIFIED NODES:
+  • stg: `models/staging/stg.sql` changed
+DEPENDENCY NODES:
+  • raw: used by `stg`
+  • agg: downstream of `stg`
+  • not_null_agg_n: tests `agg`
+```
+
 ---
 
 ## `run` - Run Modified Models
@@ -241,6 +276,8 @@ dbt-ci migration            # apply the changes
 
 ---
 
+---
+
 ## `report` - Summarise the Run
 
 Renders the change set detected by `init` and the status of every command that has run
@@ -257,7 +294,8 @@ dbt-ci report --pr-comment          # → also posted as a comment on the pull r
 
 The report covers:
 
-- **Change counts and node names**, grouped as modified / new / deleted. Long lists fold
+- **Change counts and node names**, grouped as modified / new / deleted, each with
+  [the reason it is in the change set](#why-is-a-node-in-the-change-set). Long lists fold
   into a collapsible block.
 - **Exposure impact** — the exposures downstream of the change set, including those
   downstream of *deleted* nodes, which is usually the case worth catching.

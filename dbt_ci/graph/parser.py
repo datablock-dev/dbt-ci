@@ -139,6 +139,9 @@ def generate_dependency_graph(manifest_file: DBTManifest) -> DependencyGraph:
             "patch_path": normalize_patch_path(full_item.get("patch_path", None)),
             "compiled_path": full_item.get("compiled_path"),
             "compiled_code": compiled_code,
+            # dbt's checksum of the node's code, used to tell a code change from a
+            # config-only one when explaining why a node changed
+            "checksum": (full_item.get("checksum") or {}).get("checksum"),
             "config": config,
             "columns": column_names(full_item.get("columns")),
             "materialized": config.get("materialized", None),

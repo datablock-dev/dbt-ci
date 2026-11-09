@@ -130,14 +130,18 @@ def render_change_summary(cache_dict: StateChangeSummary | None) -> list[str]:
         lines.append(f"| {label} | {counts[change_key]} |")
     lines.append("")
 
+    # Why each node is in the change set, recorded by init; older caches have none
+    reasons: dict[str, list[str]] = cache_dict.get("reasons") or {}  # type: ignore[assignment]
     for change_key, label in CHANGE_TYPES.items():
         structured = cache_dict.get(change_key) or {}
         if not structured:
             continue
         entries: list[str] = []
         for resource_type, nodes in sorted(structured.items()):
-            for node in nodes.values():
-                entries.append(f"- `{node.get('name', '?')}` ({resource_type})")
+            for node_id, node in nodes.items():
+                entry = f"- `{node.get('name', '?')}` ({resource_type})"
+                why = "; ".join(reasons.get(node_id, []))
+                entries.append(f"{entry}: {why}" if why else entry)
         lines.extend(collapsible(f"{label} ({len(entries)})", entries))
 
     return lines
