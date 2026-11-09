@@ -85,6 +85,7 @@ SCHEMA: dict[str, dict] = {
         "fields": {
             "artifacts-uri": {"aliases": ["artifacts_uri"], "type": "str"},
             "files": {"type": "list_of_enum", "choices": ["manifest", "cache", "log"]},
+            "force-manifest": {"aliases": ["force_manifest"], "type": "bool"},
             "clean-ephemeral": {"aliases": ["clean_ephemeral"], "type": "bool"},
         },
     },

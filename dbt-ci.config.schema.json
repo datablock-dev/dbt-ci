@@ -162,6 +162,8 @@
           ],
           "default": ["manifest"]
         },
+        "force-manifest": { "$ref": "#/definitions/forceManifest" },
+        "force_manifest": { "$ref": "#/definitions/forceManifest" },
         "clean-ephemeral": { "$ref": "#/definitions/cleanEphemeral" },
         "clean_ephemeral": { "$ref": "#/definitions/cleanEphemeral" }
       }
@@ -266,6 +268,7 @@
     "compareTo":            { "type": "string", "enum": ["auto", "merge-base", "latest"], "default": "auto", "description": "What to compare the pull request against: auto (the merge base when the branch has commits of its own, else the latest state), merge-base, or latest." },
     "baseRef":              { "type": "string", "description": "Base branch to diff against (e.g. main). Auto-detected from git/CI env if not set. Overrides GITHUB_BASE_REF and git auto-detection." },
     "artifactsUri":         { "type": "string", "description": "Object storage URI for storing artifacts (e.g. s3://bucket/dbt-artifacts/)." },
+    "forceManifest":        { "type": "boolean", "default": false, "description": "Replace the published manifest.json even when it was built from a newer commit than this run's, e.g. to roll back." },
     "cleanEphemeral":       { "type": "boolean", "default": false, "description": "Deprecated - use 'dbt-ci ephemeral destroy'. Drop the datasets 'ephemeral' cloned into when finalizing." },
     "keepEnv":              { "type": "boolean", "default": false, "description": "Deprecated - has no effect. Use 'dbt-ci ephemeral destroy' to tear the environment down." }
   }

@@ -48,6 +48,17 @@ def parse_and_validate_files(value):
     ),
 )
 @click.option(
+    "--force-manifest",
+    envvar=["DBT_FINALIZE_FORCE_MANIFEST"],
+    is_flag=True,
+    default=False,
+    callback=make_config_callback("DBT_FINALIZE_FORCE_MANIFEST"),
+    help=(
+        "Replace the published manifest.json even when it was built from a newer commit "
+        "than this run's, e.g. to roll back"
+    ),
+)
+@click.option(
     "--clean-ephemeral",
     "--destroy-ephemeral",
     envvar=["DBT_CLEAN_EPHEMERAL", "DBT_DESTROY_EPHEMERAL"],
