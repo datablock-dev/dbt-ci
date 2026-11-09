@@ -140,7 +140,7 @@ flowchart LR
 | Command | What it does |
 |---------|--------------|
 | [`init`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#init---initialize-state) | Compare the PR against the production state and cache the change set |
-| [`run`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#run---run-modified-models) | Build and test the changed nodes, optionally capped with `--downstream-depth` |
+| [`run`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#run---run-modified-models) | Build and test the changed nodes, optionally capped with `--downstream-depth` or narrowed with dbt selectors (`--select`, `--exclude`) |
 | [`ephemeral`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#ephemeral---ephemeral-environment) | Clone what the PR needs into an isolated schema, and tear it down afterwards |
 | [`delete`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#delete---delete-removed-models) | Drop the tables of models the PR removed |
 | [`migration`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#migration---migrate-partitioning-changes) | Rebuild tables whose partitioning configuration changed |

@@ -102,6 +102,17 @@ class TestFlags:
         assert flags_for(("init",), inputs) == ["--compare-to", "latest"]
         assert flags_for(("run",), inputs) == []
 
+    def test_select_and_exclude_go_to_run(self):
+        """select and exclude are run flags."""
+        inputs = {"select": "tag:finance", "exclude": "tag:ci_skip"}
+        assert flags_for(("run",), inputs) == [
+            "--select",
+            "tag:finance",
+            "--exclude",
+            "tag:ci_skip",
+        ]
+        assert flags_for(("init",), inputs) == []
+
     def test_pr_comment_false_overrides_the_config_file(self):
         """An explicit false is passed on, so it wins over notifications.pr-comment."""
         assert flags_for(("report",), {"pr-comment": "false"}) == ["--no-pr-comment"]
