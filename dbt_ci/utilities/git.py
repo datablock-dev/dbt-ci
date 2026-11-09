@@ -157,6 +157,28 @@ class GitAdapter:
         sha = result.stdout.strip()
         return sha if result.returncode == 0 and sha else None
 
+    def read_base_file(self, project_path: str) -> str | None:
+        """
+        Return a project file's contents at the merge base, or None if unavailable.
+
+        The path is relative to the dbt project, as get_changed_files() reports it. Reading
+        at the merge base, the commit the branch diff starts from, shows what this branch
+        changed in the file. None means no merge base, or the file did not exist there.
+        """
+        merge_base = self.merge_base_sha()
+        dbt_project_dir: str | None = getattr(self.args, "dbt_project_dir", None)
+        if merge_base is None or dbt_project_dir is None:
+            return None
+        prefix = self._project_path_in_repo(dbt_project_dir)
+        repo_path = f"{prefix}/{project_path}" if prefix else project_path
+        result = subprocess.run(
+            ["git", "show", f"{merge_base}:{repo_path}"], capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            logger.debug(f"Could not read '{repo_path}' at the merge base: {result.stderr.strip()}")
+            return None
+        return result.stdout
+
     @staticmethod
     def first_parent_history(sha: str, limit: int) -> list[str]:
         """

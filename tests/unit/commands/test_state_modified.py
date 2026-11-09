@@ -444,3 +444,75 @@ class TestDbtReasons:
         """A node dbt flagged for a reason the manifests don't show still gets a reason."""
         reasons = _reasons("dbt", {}, dbt_ids={"modified": ["model.pkg.plain"]})
         assert reasons == {"model.pkg.plain": ["flagged by dbt's state comparison"]}
+
+
+PROJECT_YML = "name: pkg\nmodels:\n  pkg:\n    +materialized: {}\n"
+
+
+def _project_change(strategy, tmp_path, changed_files, materialized="view", dbt_ids=None):
+    """Run a strategy where dbt_project.yml switched every model from table to view."""
+    (tmp_path / "dbt_project.yml").write_text(PROJECT_YML.format(materialized), encoding="utf-8")
+    target = {
+        node_id: {**node, "config": {"materialized": materialized}}
+        for node_id, node in BASE_NODES.items()
+    }
+    state = StateModified(_args(comparison_strategy=strategy, dbt_project_dir=str(tmp_path)))
+    state._target_graph = _graph(target, MACROS)
+    state._reference_graph = _graph(BASE_NODES, MACROS)
+    dbt_ids = dbt_ids or {}
+    with (
+        patch("dbt_ci.commands.init.state_modified.GitAdapter") as mock_git,
+        patch.object(StateModified, "common_state_change") as mock_common,
+    ):
+        git = mock_git.return_value
+        git.get_changed_files.return_value = changed_files
+        git.merge_base_sha.return_value = "a" * 40
+        git.read_base_file.return_value = PROJECT_YML.format("table")
+        mock_common.return_value = {
+            "modified_node_ids": set(dbt_ids.get("modified", ())),
+            "deleted_node_ids": set(),
+            "new_node_ids": set(),
+        }
+        summary = state.get_state_modified()
+    return summary, state.reasons.for_summary(summary, state.reference_graph, state.target_graph)
+
+
+@pytest.mark.parametrize("strategy", ["git", "hybrid"])
+class TestProjectFileChanges:
+    """Test changes made through dbt_project.yml and package files."""
+
+    def test_config_changed_in_dbt_project_yml(self, strategy, tmp_path):
+        """Every model whose materialization dbt_project.yml changed is modified."""
+        summary, reasons = _project_change(
+            strategy,
+            tmp_path,
+            {"modified": ["dbt_project.yml", "models/plain.sql"]},
+            dbt_ids={"modified": list(BASE_NODES)},
+        )
+        assert _ids(summary, "modified_nodes") == set(BASE_NODES)
+        assert reasons["model.pkg.other"] == ["config in `dbt_project.yml` changed: `materialized`"]
+        assert reasons["model.pkg.plain"][0] == "`models/plain.sql` changed"
+
+    def test_unrelated_dbt_project_change(self, strategy, tmp_path):
+        """A dbt_project.yml edit that leaves configs alone selects nothing extra."""
+        summary, _ = _project_change(
+            strategy,
+            tmp_path,
+            {"modified": ["dbt_project.yml", "models/plain.sql"]},
+            materialized="table",
+            dbt_ids={"modified": ["model.pkg.plain"]},
+        )
+        assert _ids(summary, "modified_nodes") == {"model.pkg.plain"}
+
+
+def test_package_change_keeps_dbt_flagged_nodes_in_hybrid(tmp_path):
+    """A packages.yml change keeps what dbt flagged, since macros changed out of git's view."""
+    summary, reasons = _project_change(
+        "hybrid",
+        tmp_path,
+        {"modified": ["packages.yml", "models/plain.sql"]},
+        materialized="table",
+        dbt_ids={"modified": ["model.pkg.plain", "model.pkg.stg"]},
+    )
+    assert _ids(summary, "modified_nodes") == {"model.pkg.plain", "model.pkg.stg"}
+    assert reasons["model.pkg.stg"] == ["flagged by dbt after `packages.yml` changed"]
