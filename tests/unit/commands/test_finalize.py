@@ -87,31 +87,6 @@ class TestFinalizeUploadFiles:
                 "No upload function found for resolved storage connector. Skipping artifact upload."
             )
 
-    def test_uploads_to_every_uri_with_the_commit_filled_in(self):
-        """A repeated --artifacts-uri uploads to each; {sha} becomes the commit."""
-        args = _make_args(
-            artifacts_uri=("gs://bucket/state/", "gs://bucket/state/{sha}/"), files=("manifest",)
-        )
-        storage = {"name": "GCS", "upload": MagicMock(), "download": MagicMock()}
-        uploaded = []
-        with (
-            patch("dbt_ci.commands.finalize.upload.CacheManager"),
-            patch(
-                "dbt_ci.commands.finalize.upload.init_storage_connector",
-                return_value=(storage, "gs://bucket/state"),
-            ),
-            patch(
-                "dbt_ci.commands.finalize.upload.fill_commit_sha",
-                side_effect=lambda uri: uri.replace("{sha}", "abc123"),
-            ),
-            patch.dict(
-                "dbt_ci.commands.finalize.upload.UPLOAD_MAPPING",
-                {"manifest": lambda uri, *_: uploaded.append(uri)},
-            ),
-        ):
-            finalize_upload_files(args)
-        assert uploaded == ["gs://bucket/state", "gs://bucket/state/abc123"]
-
     def test_calls_correct_upload_function_for_manifest(self):
         """upload_manifest should be called when 'manifest' is in files."""
         args = _make_args(artifacts_uri="gs://bucket/path", files=("manifest",))
@@ -241,6 +216,12 @@ class TestFinalizeUploadFiles:
 
 
 class TestUploadManifest:
+
+    @pytest.fixture(autouse=True)
+    def no_commit(self):
+        """Which manifest is uploaded is tested without the per-commit copy (see test_baseline)."""
+        with patch("dbt_ci.commands.finalize.upload.current_commit_sha", return_value=None):
+            yield
 
     def test_uploads_target_manifest_when_present(self):
         storage_fn = _make_storage_function()

@@ -104,7 +104,7 @@ on that and handles the parts you would otherwise script yourself:
 | Build only changed nodes and their dependents | ✅ `state:modified+` | ✅ |
 | Fetch the production manifest from GCS or S3 | You script it | ✅ `--state-uri` |
 | Ignore changes that only come from environment-specific config | ❌ | ✅ `hybrid` keeps only nodes the git diff also touches |
-| Ignore changes merged into `main` after the branch was created | ❌ | ✅ `init --baseline merge-base` compares against the merge base |
+| Ignore changes merged into `main` after the branch was created | ❌ | ✅ compares against the branch's merge base by default (`init --compare-to`) |
 | Comment the change set and affected exposures on the PR | ❌ | ✅ `report --pr-comment` |
 | Post a summary to Slack | ❌ | ✅ |
 | Zero-copy PR environment that is torn down afterwards | `dbt clone`, teardown by hand | ✅ `ephemeral create` / `destroy` |

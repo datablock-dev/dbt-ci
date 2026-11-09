@@ -136,7 +136,7 @@ class StateModified:
         # Why each node ended up in the change set, filled in by the strategies
         self.reasons = ChangeReasons()
         # State directory to compare against instead of the reference state, e.g. the
-        # manifest at the merge base (--baseline merge-base); set before comparing
+        # manifest at the merge base (init --compare-to); set before comparing
         self.comparison_state: str | None = None
 
     def _comparison_args(self) -> Namespace:

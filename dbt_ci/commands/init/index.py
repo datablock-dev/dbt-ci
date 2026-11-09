@@ -82,7 +82,7 @@ def init(args: Namespace):
         dbt_commands.reference_compile()
 
         target_manifest_file = get_manifest_file(dbt_project_dir)
-        # With --baseline merge-base, compare against the project as it was where this
+        # With --compare-to auto or merge-base, compare against the project as it was where this
         # branch started; defer, delete and ephemeral keep the latest state.
         baseline = resolve_baseline(args)
         if baseline is not None:

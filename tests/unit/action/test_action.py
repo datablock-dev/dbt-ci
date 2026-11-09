@@ -96,15 +96,10 @@ class TestFlags:
         for command in (("init",), ("run",), ("report",), ("ephemeral", "destroy")):
             assert flags_for(command, {"profile": "action"}) == ["--profile", "action"]
 
-    def test_baseline_inputs_go_to_init(self):
-        """baseline and baseline-uri are init flags."""
-        inputs = {"baseline": "merge-base", "baseline-uri": "gs://b/{sha}/manifest.json"}
-        assert flags_for(("init",), inputs) == [
-            "--baseline",
-            "merge-base",
-            "--baseline-uri",
-            "gs://b/{sha}/manifest.json",
-        ]
+    def test_compare_to_goes_to_init(self):
+        """compare-to is an init flag."""
+        inputs = {"compare-to": "latest"}
+        assert flags_for(("init",), inputs) == ["--compare-to", "latest"]
         assert flags_for(("run",), inputs) == []
 
     def test_pr_comment_false_overrides_the_config_file(self):

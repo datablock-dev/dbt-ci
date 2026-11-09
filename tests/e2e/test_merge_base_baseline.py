@@ -1,10 +1,11 @@
 """
-End-to-end check of `init --baseline merge-base` against real dbt and git.
+End-to-end check of `init --compare-to` against real dbt and git.
 
 The feature branch changes `stg`. After it was created, someone else merged a change to
 `other` into main and deployed it, so the production state includes the new `other`.
 Compared against the latest state, `other` shows up as part of the pull request; compared
-against the merge base (archived or compiled), only `stg` does.
+against the merge base (the default, from a kept copy or compiled), only `stg` does. A
+deploy job on main itself still compares against the latest state.
 
 Like the other e2e tests, it is opt-in and runs against whichever dbt and runner the
 environment selects (see dbt_env).
@@ -16,7 +17,14 @@ from pathlib import Path
 
 import pytest
 
-from .dbt_env import DBT_AVAILABLE, DOCKER_IMAGE, REFERENCE_DBT_BINARY, SKIP_REASON, dbt_ci, run_dbt
+from .dbt_env import (
+    DBT_AVAILABLE,
+    DOCKER_IMAGE,
+    REFERENCE_DBT_BINARY,
+    SKIP_REASON,
+    dbt_ci,
+    run_dbt,
+)
 
 pytestmark = [
     pytest.mark.e2e,
@@ -63,7 +71,12 @@ def parse_for_prod(project: Path, mount: Path) -> Path:
 
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
-    """Build the repo, the archived merge-base manifest and a production state that moved on."""
+    """
+    Build the repo and a production state that moved on after the branch was created.
+
+    The base commit's manifest is saved as tmp_path/merge_base.json, with its commit in
+    tmp_path/merge_base.sha, for tests that keep a copy of it next to the state.
+    """
     repo = tmp_path / "repo"
     dbt_dir = repo / "dbt"
     (dbt_dir / "models").mkdir(parents=True)
@@ -82,12 +95,8 @@ def project(tmp_path: Path) -> Path:
     git(repo, "init", "-q", "-b", "main")
     git(repo, "add", "-A")
     git(repo, "commit", "-qm", "base")
-    merge_base = git(repo, "rev-parse", "HEAD")
-
-    # The deploy of the base commit archived its manifest under the commit's SHA
-    archive = tmp_path / "archive" / merge_base
-    archive.mkdir(parents=True)
-    shutil.copy(parse_for_prod(repo, tmp_path), archive / "manifest.json")
+    (tmp_path / "merge_base.sha").write_text(git(repo, "rev-parse", "HEAD"))
+    shutil.copy(parse_for_prod(repo, tmp_path), tmp_path / "merge_base.json")
     shutil.rmtree(dbt_dir / "target")
 
     origin = tmp_path / "origin.git"
@@ -106,6 +115,7 @@ def project(tmp_path: Path) -> Path:
     git(elsewhere, "push", "-q", "origin", "main")
     (repo / "state").mkdir()
     shutil.copy(parse_for_prod(elsewhere, tmp_path), repo / "state" / "manifest.json")
+    shutil.rmtree(elsewhere / "dbt" / "target")
     return repo
 
 
@@ -132,26 +142,40 @@ def init(project: Path, tmp_path: Path, *extra: str) -> str:
 
 
 def test_latest_state_counts_other_peoples_changes(project: Path, tmp_path: Path):
-    """Without a baseline, the change merged into main shows up as the PR's own."""
-    out = init(project, tmp_path)
+    """With --compare-to latest, the change merged into main shows up as the PR's own."""
+    out = init(project, tmp_path, "--compare-to", "latest")
     assert "stg [model]" in out, out
     assert "other [model]" in out, out
 
 
-def test_archived_merge_base_leaves_them_out(project: Path, tmp_path: Path):
-    """Against the manifest archived for the merge base, only the PR's change counts."""
-    template = str(tmp_path / "archive" / "{sha}" / "manifest.json")
-    out = init(project, tmp_path, "--baseline", "merge-base", "--baseline-uri", template)
+def test_kept_copy_of_the_merge_base_is_used_by_default(project: Path, tmp_path: Path):
+    """A copy kept next to the state for the merge base is found without any flag."""
+    merge_base = (tmp_path / "merge_base.sha").read_text()
+    (project / "state" / merge_base).mkdir()
+    shutil.copy(tmp_path / "merge_base.json", project / "state" / merge_base / "manifest.json")
+
+    out = init(project, tmp_path)
     assert "Comparing against the manifest archived for the merge base" in out, out
     assert "stg [model]" in out, out
     assert "other [model]" not in out, out
 
 
 @pytest.mark.skipif(bool(DOCKER_IMAGE), reason="compiling the merge base needs a host runner")
-def test_compiled_merge_base_leaves_them_out(project: Path, tmp_path: Path):
-    """Without an archive, the merge base is compiled and only the PR's change counts."""
-    out = init(project, tmp_path, "--baseline", "merge-base")
+def test_merge_base_is_compiled_when_no_copy_is_kept(project: Path, tmp_path: Path):
+    """Without a kept copy, the merge base is compiled and only the PR's change counts."""
+    out = init(project, tmp_path)
     assert "compiled for this run" in out, out
     assert "stg [model]" in out, out
     assert "other [model]" not in out, out
     assert git(project, "worktree", "list").count("\n") == 0, "temporary worktree left behind"
+
+
+def test_a_deploy_on_main_compares_against_the_latest_state(project: Path, tmp_path: Path):
+    """On main itself there is no branch to isolate: the new commit is compared with prod."""
+    deploy = tmp_path / "elsewhere"
+    (deploy / "state").mkdir()
+    shutil.copy(tmp_path / "merge_base.json", deploy / "state" / "manifest.json")
+
+    out = init(deploy, tmp_path)
+    assert "Comparing against" not in out, out
+    assert "other [model]" in out, out

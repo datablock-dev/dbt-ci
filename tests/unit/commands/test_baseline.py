@@ -7,9 +7,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dbt_ci.commands.finalize.upload import fill_commit_sha
+from dbt_ci.commands.finalize.upload import current_commit_sha, upload_manifest
 from dbt_ci.commands.init.baseline import (
     Baseline,
+    archive_template,
     archived_shas,
     find_archived_manifest,
     prefix_of,
@@ -17,7 +18,6 @@ from dbt_ci.commands.init.baseline import (
 )
 from dbt_ci.commands.init.state_modified import StateModified
 from dbt_ci.commands.report.index import render_baseline
-from dbt_ci.errors import ConfigurationError
 from dbt_ci.runners import resolve_dbt_commands
 
 BASELINE = "dbt_ci.commands.init.baseline"
@@ -95,9 +95,9 @@ class TestFindArchivedManifest:
 def _args(tmp_path, **overrides) -> Namespace:
     """Build init args for resolving a baseline."""
     defaults = {
-        "baseline": "merge-base",
-        "baseline_uri": None,
-        "baseline_lookback": 50,
+        "compare_to": "merge-base",
+        "state_uri": None,
+        "reference_state": None,
         "dbt_project_dir": str(tmp_path),
         "runner": "local",
     }
@@ -113,20 +113,43 @@ def _git(merge_base: str | None = SHA[0]) -> MagicMock:
     return git
 
 
+HEAD = "f" * 40
+
+
 class TestResolveBaseline:
-    """Test the order in which a baseline is found, and the fallbacks."""
+    """Test when the merge base is used, how its manifest is found, and the fallbacks."""
 
-    def test_latest_is_the_default(self, tmp_path):
-        """Without --baseline merge-base nothing changes."""
-        assert resolve_baseline(_args(tmp_path, baseline="latest")) is None
+    @pytest.fixture(autouse=True)
+    def head(self):
+        """The branch has a commit of its own on top of the merge base."""
+        with patch(f"{BASELINE}._head_sha", return_value=HEAD):
+            yield
 
-    def test_archived_manifest(self, tmp_path):
-        """An archived manifest is written where the comparison reads it."""
+    def test_latest(self, tmp_path):
+        """--compare-to latest never looks at git."""
+        with patch(f"{BASELINE}.GitAdapter") as git:
+            assert resolve_baseline(_args(tmp_path, compare_to="latest")) is None
+        git.assert_not_called()
+
+    def test_programmatic_callers_default_to_latest(self, tmp_path):
+        """Only the CLI defaults to auto; args without compare_to keep the old behaviour."""
+        args = _args(tmp_path)
+        del args.compare_to
+        with patch(f"{BASELINE}.GitAdapter") as git:
+            assert resolve_baseline(args) is None
+        git.assert_not_called()
+
+    def test_kept_manifest_next_to_the_state(self, tmp_path):
+        """The copy finalize kept next to the state is used and written for the comparison."""
+        args = _args(tmp_path, state_uri="gs://bucket/dbt-state/manifest.json")
         with (
             patch(f"{BASELINE}.GitAdapter", return_value=_git()),
-            patch(f"{BASELINE}.find_archived_manifest", return_value=(SHA[2], {"nodes": {}})),
+            patch(
+                f"{BASELINE}.find_archived_manifest", return_value=(SHA[2], {"nodes": {}})
+            ) as find,
         ):
-            baseline = resolve_baseline(_args(tmp_path, baseline_uri=TEMPLATE))
+            baseline = resolve_baseline(args)
+        find.assert_called_once_with("gs://bucket/dbt-state/{sha}/manifest.json", SHA)
         assert baseline is not None
         assert (baseline.source, baseline.sha, baseline.commits_before_merge_base) == (
             "archived",
@@ -137,45 +160,79 @@ class TestResolveBaseline:
             "nodes": {}
         }
 
-    def test_compiles_when_nothing_is_archived(self, tmp_path):
-        """Without an archived manifest the merge base is compiled."""
+    def test_compiles_when_nothing_is_kept(self, tmp_path):
+        """Without a kept manifest the merge base is compiled."""
+        args = _args(tmp_path, state_uri="gs://bucket/dbt-state/manifest.json")
         with (
             patch(f"{BASELINE}.GitAdapter", return_value=_git()),
             patch(f"{BASELINE}.find_archived_manifest", return_value=None),
             patch(f"{BASELINE}.compile_merge_base") as compile_merge_base,
         ):
-            baseline = resolve_baseline(_args(tmp_path, baseline_uri=TEMPLATE))
+            baseline = resolve_baseline(args)
         assert baseline is not None and baseline.source == "compiled"
         compile_merge_base.assert_called_once()
+
+    @pytest.mark.parametrize("mode, level", [("auto", "INFO"), ("merge-base", "WARNING")])
+    def test_no_commits_of_its_own(self, tmp_path, caplog, mode, level):
+        """On the base branch itself (e.g. a deploy on main) the latest state is used."""
+        with (
+            caplog.at_level("INFO"),
+            patch(f"{BASELINE}.GitAdapter", return_value=_git(merge_base=HEAD)),
+            patch(f"{BASELINE}.compile_merge_base") as compile_merge_base,
+        ):
+            assert resolve_baseline(_args(tmp_path, compare_to=mode)) is None
+        compile_merge_base.assert_not_called()
+        record = next(r for r in caplog.records if "no commits of its own" in r.message)
+        assert record.levelname == level
 
     @pytest.mark.parametrize(
         "overrides, git, compile_error, expected",
         [
-            ({}, _git(merge_base=None), None, "could not find where this branch started"),
+            ({}, _git(merge_base=None), None, "Could not find where this branch started"),
             ({"runner": "docker"}, _git(), None, "not supported with the Docker runner"),
             ({}, _git(), RuntimeError("dbt parse failed"), "dbt parse failed"),
         ],
     )
-    def test_falls_back_to_latest_with_a_warning(
-        self, tmp_path, caplog, overrides, git, compile_error, expected
+    @pytest.mark.parametrize("mode, level", [("auto", "INFO"), ("merge-base", "WARNING")])
+    def test_falls_back_to_latest(
+        self, tmp_path, caplog, overrides, git, compile_error, expected, mode, level
     ):
-        """Anything that prevents a baseline leaves today's behaviour, and says why."""
+        """Anything that prevents a baseline leaves today's behaviour, quietly in auto mode."""
         with (
-            caplog.at_level("WARNING"),
+            caplog.at_level("INFO"),
             patch(f"{BASELINE}.GitAdapter", return_value=git),
             patch(f"{BASELINE}.compile_merge_base", side_effect=compile_error),
         ):
-            assert resolve_baseline(_args(tmp_path, **overrides)) is None
-        assert expected in caplog.text
-        assert "comparing against the latest state instead" in caplog.text
+            assert resolve_baseline(_args(tmp_path, compare_to=mode, **overrides)) is None
+        record = next(r for r in caplog.records if expected in r.message)
+        assert record.levelname == level
+        assert "comparing against the latest state" in record.message
 
-    def test_no_git_falls_back(self, tmp_path, caplog):
+    def test_no_git_falls_back(self, tmp_path):
         """No repository at all is a fallback, not a failure."""
-        with (
-            caplog.at_level("WARNING"),
-            patch(f"{BASELINE}.GitAdapter", side_effect=subprocess.CalledProcessError(128, "git")),
-        ):
-            assert resolve_baseline(_args(tmp_path)) is None
+        with patch(f"{BASELINE}.GitAdapter", side_effect=subprocess.CalledProcessError(128, "git")):
+            assert resolve_baseline(_args(tmp_path, compare_to="auto")) is None
+
+
+class TestArchiveTemplate:
+    """Test where kept manifests are looked for, derived from the state."""
+
+    @pytest.mark.parametrize(
+        "args, expected",
+        [
+            (
+                {"state_uri": "gs://b/dbt-state/manifest.json"},
+                "gs://b/dbt-state/{sha}/manifest.json",
+            ),
+            ({"state_uri": "s3://b/dbt-state/"}, "s3://b/dbt-state/{sha}/manifest.json"),
+            ({"reference_state": "state"}, "state/{sha}/manifest.json"),
+            ({"reference_state": "state/manifest.json"}, "state/{sha}/manifest.json"),
+            ({}, None),
+        ],
+    )
+    def test_next_to_the_state(self, args, expected):
+        """Copies sit in a folder per commit next to the state's manifest."""
+        assert archive_template(Namespace(**args)) == expected
 
 
 class TestDescribe:
@@ -235,31 +292,36 @@ class TestComparisonState:
         assert not hasattr(args, "comparison_state")
 
 
-class TestFillCommitSha:
-    """Test the {sha} placeholder in finalize's artifacts URI."""
+class TestFinalizeKeepsACopyPerCommit:
+    """Test that finalize keeps the manifest per commit next to the latest one."""
 
-    def test_no_placeholder(self):
-        """A URI without {sha} is used as given."""
-        assert fill_commit_sha("gs://b/latest/") == "gs://b/latest/"
+    def test_copy_next_to_the_latest(self):
+        """The manifest goes to <uri>/manifest.json and <uri>/<commit>/manifest.json."""
+        cache = MagicMock()
+        cache.get_cache.return_value = {"nodes": {}}
+        storage = MagicMock()
+        with patch("dbt_ci.commands.finalize.upload.current_commit_sha", return_value=SHA[0]):
+            upload_manifest("gs://b/dbt-state", cache, storage)
+        assert [c.args[0] for c in storage.call_args_list] == [
+            "gs://b/dbt-state/manifest.json",
+            f"gs://b/dbt-state/{SHA[0]}/manifest.json",
+        ]
 
-    def test_from_git(self):
-        """The checked-out commit fills {sha}."""
+    def test_no_commit_no_copy(self):
+        """Without a known commit only the latest manifest is uploaded."""
+        cache = MagicMock()
+        cache.get_cache.return_value = {"nodes": {}}
+        storage = MagicMock()
+        with patch("dbt_ci.commands.finalize.upload.current_commit_sha", return_value=None):
+            upload_manifest("gs://b/dbt-state", cache, storage)
+        assert storage.call_count == 1
+
+    def test_commit_from_git_or_ci_environment(self, monkeypatch):
+        """git is asked first; without a checkout the CI system's variable is used."""
         done = subprocess.CompletedProcess([], 0, stdout=SHA[0] + "\n", stderr="")
         with patch("dbt_ci.commands.finalize.upload.subprocess.run", return_value=done):
-            assert fill_commit_sha("gs://b/{sha}/") == f"gs://b/{SHA[0]}/"
-
-    def test_from_ci_environment(self, monkeypatch):
-        """Without git, the CI system's commit variable is used."""
+            assert current_commit_sha() == SHA[0]
         failed = subprocess.CompletedProcess([], 128, stdout="", stderr="not a repo")
         monkeypatch.setenv("GITHUB_SHA", SHA[1])
         with patch("dbt_ci.commands.finalize.upload.subprocess.run", return_value=failed):
-            assert fill_commit_sha("gs://b/{sha}/") == f"gs://b/{SHA[1]}/"
-
-    def test_unknown_commit_is_an_error(self, monkeypatch):
-        """Archiving under an unknown commit would make the manifest unfindable."""
-        failed = subprocess.CompletedProcess([], 128, stdout="", stderr="not a repo")
-        for name in ("GITHUB_SHA", "CI_COMMIT_SHA", "BUILDKITE_COMMIT", "CIRCLE_SHA1"):
-            monkeypatch.delenv(name, raising=False)
-        with patch("dbt_ci.commands.finalize.upload.subprocess.run", return_value=failed):
-            with pytest.raises(ConfigurationError, match="sha"):
-                fill_commit_sha("gs://b/{sha}/")
+            assert current_commit_sha() == SHA[1]

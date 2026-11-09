@@ -2,16 +2,22 @@
 Find the manifest a pull request should be compared against: the one at its merge base.
 
 Comparing against the latest production manifest counts everything merged and deployed
-since the branch was created as the pull request's own change. With `--baseline
-merge-base`, init compares against the project as it was at the commit the branch
-started from instead, found in this order:
+since the branch was created as the pull request's own change. `init --compare-to`
+decides what to compare against:
 
-1. A manifest archived for that commit, or the nearest commit before it on the base
-   branch, at `--baseline-uri` (a URI or path containing `{sha}`, filled by deploys with
-   `finalize --artifacts-uri .../{sha}/`).
+- `auto` (the CLI default): the merge base when git shows the branch has commits of its
+  own, otherwise the latest state. Any fallback is logged at info level.
+- `merge-base`: always the merge base, warning when it cannot be used.
+- `latest`: the latest state, as before this option existed.
+
+The merge base's manifest is found in this order:
+
+1. A manifest archived for that commit, or the nearest base-branch commit before it,
+   next to the state: `<state-uri directory>/<sha>/manifest.json`, or
+   `<state dir>/<sha>/manifest.json` for a local state. `finalize` keeps these copies.
 2. A manifest built on the spot: the merge base is checked out into a temporary git
    worktree and parsed with dbt, using the reference target and vars.
-3. Otherwise the latest state, as without the option, with a warning.
+3. Otherwise the latest state.
 
 Only the comparison uses the baseline. Defer, delete and ephemeral keep using the latest
 state, since that describes the tables that exist today.
@@ -78,22 +84,33 @@ def resolve_baseline(args: Namespace) -> Baseline | None:
     """
     Return the merge-base baseline to compare against, or None for the latest state.
 
-    None is returned when --baseline is not merge-base, and, with a warning, when no
-    baseline could be found, so init then behaves exactly as without the option.
+    Programmatic callers that don't set compare_to get the latest state; the CLI defaults
+    to auto. When no baseline can be used, None is returned and init behaves as before.
     """
-    if getattr(args, "baseline", "latest") != "merge-base":
+    mode = (getattr(args, "compare_to", None) or "latest").lower()
+    if mode == "latest":
         return None
+    # auto falls back quietly; an explicit merge-base says loudly why it could not
+    fallback = logger.info if mode == "auto" else logger.warning
 
     try:
         git = GitAdapter(args, best_effort=True)
         merge_base = git.merge_base_sha() if git.merge_base_found else None
+        head = _head_sha()
     except Exception as e:
         logger.debug(f"Could not use git to find the merge base: {e}")
-        merge_base = None
+        merge_base = head = None
     if merge_base is None:
-        logger.warning(
-            "--baseline merge-base: could not find where this branch started (no git "
-            "history or remote); comparing against the latest state instead."
+        fallback(
+            "Could not find where this branch started (no git history or remote); "
+            "comparing against the latest state."
+        )
+        return None
+    if merge_base == head:
+        # e.g. a deploy job on main: comparing the branch with itself would find nothing
+        fallback(
+            "This branch has no commits of its own (e.g. a run on the base branch); "
+            "comparing against the latest state."
         )
         return None
 
@@ -102,11 +119,10 @@ def resolve_baseline(args: Namespace) -> Baseline | None:
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True)
 
-    baseline_uri = getattr(args, "baseline_uri", None)
-    if baseline_uri:
-        lookback = getattr(args, "baseline_lookback", None) or DEFAULT_LOOKBACK
-        history = git.first_parent_history(merge_base, lookback)
-        found = find_archived_manifest(baseline_uri, history)
+    archive = archive_template(args)
+    if archive:
+        history = git.first_parent_history(merge_base, DEFAULT_LOOKBACK)
+        found = find_archived_manifest(archive, history)
         if found is not None:
             sha, manifest = found
             write_manifest(out_dir, manifest)
@@ -120,29 +136,53 @@ def resolve_baseline(args: Namespace) -> Baseline | None:
             logger.info(f"Comparing against {baseline.describe()}.")
             return baseline
         logger.info(
-            f"No manifest archived at {baseline_uri} for the merge base or the "
-            f"{len(history) - 1} commit(s) before it; compiling the merge base instead."
+            f"No manifest kept at {archive} for the merge base or the {len(history) - 1} "
+            "commit(s) before it; compiling the merge base instead."
         )
 
     if getattr(args, "runner", None) == "docker":
-        logger.warning(
-            "--baseline merge-base: compiling the merge base is not supported with the "
-            "Docker runner and no archived manifest was found (--baseline-uri); comparing "
-            "against the latest state instead."
+        fallback(
+            "Compiling the merge base is not supported with the Docker runner, and no "
+            "manifest was kept for it next to the state; comparing against the latest state."
         )
         return None
 
     try:
         compile_merge_base(args, git, merge_base, out_dir)
     except Exception as e:
-        logger.warning(
-            f"--baseline merge-base: compiling the merge base {merge_base[:12]} failed "
-            f"({e}); comparing against the latest state instead."
+        fallback(
+            f"Compiling the merge base {merge_base[:12]} failed ({e}); comparing against the "
+            "latest state."
         )
         return None
     baseline = Baseline(str(out_dir), merge_base, "compiled", merge_base)
     logger.info(f"Comparing against {baseline.describe()}.")
     return baseline
+
+
+def archive_template(args: Namespace) -> str | None:
+    """
+    Return where per-commit manifests are kept, with {sha} for the commit, if anywhere.
+
+    finalize keeps them next to the manifest it uploads, so they sit next to the state:
+    gs://bucket/dbt-state/manifest.json -> gs://bucket/dbt-state/{sha}/manifest.json.
+    """
+    state_uri = getattr(args, "state_uri", None)
+    if state_uri:
+        directory = state_uri.rsplit("/", 1)[0] if state_uri.endswith(".json") else state_uri
+        return f"{directory.rstrip('/')}/{SHA_PLACEHOLDER}/manifest.json"
+    state = getattr(args, "reference_state", None)
+    if state:
+        directory = os.path.dirname(state) if state.endswith(".json") else state
+        return os.path.join(directory, SHA_PLACEHOLDER, "manifest.json")
+    return None
+
+
+def _head_sha() -> str | None:
+    """Return the checked-out commit's SHA, or None outside a git checkout."""
+    result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
+    sha = result.stdout.strip()
+    return sha if result.returncode == 0 and sha else None
 
 
 def find_archived_manifest(uri_template: str, history: list[str]) -> tuple[str, Any] | None:
@@ -154,7 +194,9 @@ def find_archived_manifest(uri_template: str, history: list[str]) -> tuple[str, 
     turn. A local path template is checked file by file.
     """
     if SHA_PLACEHOLDER not in uri_template:
-        raise ValueError(f"--baseline-uri must contain {SHA_PLACEHOLDER}, got '{uri_template}'.")
+        raise ValueError(
+            f"The archive location must contain {SHA_PLACEHOLDER}, got '{uri_template}'."
+        )
     if not history:
         return None
 

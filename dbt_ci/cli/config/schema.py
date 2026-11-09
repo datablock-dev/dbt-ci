@@ -60,9 +60,11 @@ SCHEMA: dict[str, dict] = {
                 "choices": ["dbt", "git", "hybrid"],
             },
             "base-ref": {"aliases": ["base_ref"], "type": "str"},
-            "baseline": {"type": "enum", "choices": ["latest", "merge-base"]},
-            "baseline-uri": {"aliases": ["baseline_uri"], "type": "str"},
-            "baseline-lookback": {"aliases": ["baseline_lookback"], "type": "int"},
+            "compare-to": {
+                "aliases": ["compare_to"],
+                "type": "enum",
+                "choices": ["auto", "merge-base", "latest"],
+            },
         },
     },
     "run": {
@@ -79,7 +81,7 @@ SCHEMA: dict[str, dict] = {
     "finalize": {
         "type": "section",
         "fields": {
-            "artifacts-uri": {"aliases": ["artifacts_uri"], "type": "list_or_str"},
+            "artifacts-uri": {"aliases": ["artifacts_uri"], "type": "str"},
             "files": {"type": "list_of_enum", "choices": ["manifest", "cache", "log"]},
             "clean-ephemeral": {"aliases": ["clean_ephemeral"], "type": "bool"},
         },

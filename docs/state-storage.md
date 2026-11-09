@@ -22,26 +22,25 @@ dbt-ci init \
 dbt-ci run --dbt-project-dir dbt --mode models
 ```
 
-### Archiving a manifest per commit
+### Per-commit copies of the manifest
 
-To compare pull requests against the project where their branch started
-([`init --baseline merge-base`](commands.md#comparing-against-the-merge-base)), have the
-deploy keep a copy of each manifest under its commit as well as the latest one:
+`finalize` uploads `<artifacts-uri>/manifest.json` and also keeps a copy for the commit it
+ran on, at `<artifacts-uri>/<commit>/manifest.json`. When a deploy uploads to the same
+place pull requests read their state from, pull requests
+[compare against their merge base](commands.md#comparing-against-the-merge-base) using
+those copies, with no extra configuration:
 
 ```bash
-# In the deploy job on main
-dbt-ci finalize \
-  --artifacts-uri gs://my-bucket/dbt-state/ \
-  --artifacts-uri 'gs://my-bucket/dbt-state/{sha}/'
+# Deploy job on main: keeps gs://my-bucket/dbt-state/manifest.json and .../<commit>/manifest.json
+dbt-ci finalize --artifacts-uri gs://my-bucket/dbt-state/
 
-# In pull request CI
-dbt-ci init --state-uri gs://my-bucket/dbt-state/manifest.json --reference-target production \
-  --baseline merge-base --baseline-uri 'gs://my-bucket/dbt-state/{sha}/manifest.json'
+# Pull request CI: finds the copy for the commit its branch started from
+dbt-ci init --state-uri gs://my-bucket/dbt-state/manifest.json --reference-target production
 ```
 
-Looking archived manifests up needs permission to list the bucket prefix (e.g.
-`storage.objects.list`, or `s3:ListBucket`); without it dbt-ci tries each commit in turn.
-A lifecycle rule can expire old per-commit copies.
+Finding the copies needs permission to list the bucket prefix (e.g. `storage.objects.list`,
+or `s3:ListBucket`); without it dbt-ci tries each commit in turn. A lifecycle rule can
+expire old copies.
 
 **Benefits:**
 - 🔄 **Shared State**: Download the same reference state across different CI jobs

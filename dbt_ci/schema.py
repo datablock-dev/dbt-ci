@@ -573,7 +573,7 @@ class DbtCiConfig(TypedDict):
     runner: Runners
     reference: DbtCompileOptions
     target: DbtCompileOptions
-    # The merge-base manifest init compared against (--baseline merge-base), if any
+    # The merge-base manifest init compared against (init --compare-to), if any
     baseline: NotRequired[Optional[dict[str, Any]]]
     # The config profile init ran with, which later commands inherit
     profile: NotRequired[Optional[str]]
