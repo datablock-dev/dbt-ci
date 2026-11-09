@@ -76,6 +76,8 @@ SCHEMA: dict[str, dict] = {
                 "type": "list_of_enum",
                 "choices": ["models", "seeds", "snapshots", "tests"],
             },
+            "select": {"type": "list_or_str"},
+            "exclude": {"type": "list_or_str"},
         },
     },
     "finalize": {

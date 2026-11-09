@@ -136,6 +136,8 @@ dbt-ci run --dbt-project-dir dbt --mode models
 | `--mode` | `-m`, `--nodes`, `-n` | `DBT_NODES` | `all` | What to run: `all`, `models`, `seeds`, `snapshots`, `tests` |
 | `--downstream-depth` | | `DBT_DOWNSTREAM_DEPTH` | Full graph | How many levels of downstream dependencies to include (dbt's `model+N`) |
 | `--filters` | `-f` | `DBT_RUN_FILTERS` | `None` | Only run the tests that depend on one of these resource types (repeatable, choices: `models`, `seeds`, `snapshots`, `tests`). E.g. `--mode tests -f snapshots` runs only the tests that read a snapshot |
+| `--select` | `-s` | `DBT_RUN_SELECT` | `None` | Only build changed nodes (and what they affect) that also match these dbt selectors (repeatable). See [Narrowing a run](#narrowing-a-run) |
+| `--exclude` | | `DBT_RUN_EXCLUDE` | `None` | Leave nodes matching these dbt selectors out of the run (repeatable) |
 
 With `--mode all`, the steps run in dependency order: **seeds → snapshots → models → tests**, so models built on a changed snapshot read its new state and tests run once everything they check exists. The test step runs both data tests and dbt unit tests (dbt ≥ 1.8).
 
@@ -171,6 +173,34 @@ downstream nodes there. A node that depended on a deleted one has changed itself
 or test arguments differ) and is picked up as modified or new. This also covers generic
 tests whose arguments changed: dbt gives them a new `unique_id`, so they show up as one
 deleted and one new test.
+
+### Narrowing a run
+
+`--select` and `--exclude` take dbt's own selector syntax (`tag:`, `path:`, `package:`,
+graph operators, ...) and narrow what dbt-ci picked:
+
+```bash
+dbt-ci run --exclude tag:ci_skip            # keep heavy or slow models out of CI
+dbt-ci run --select path:models/finance     # only the finance part of this change
+```
+
+- `--select` keeps only the changed nodes, and the nodes built because of them, that also
+  match. `--exclude` leaves matching nodes out and wins over `--select`.
+- Tests follow the nodes they check: with `--select` a test stays when it or a node it
+  tests matches; with `--exclude` it is left out when it matches or everything it tests
+  was excluded.
+- Nodes downstream of an excluded node still run when they changed or depend on another
+  change; with `--defer` they read the production version of the excluded node.
+- dbt-ci resolves the selectors with `dbt ls` (also in a dry run, since it only reads the
+  project) and logs what each step leaves out.
+
+In the config file they go under `run:` as a list or a space-separated string:
+
+```yaml
+run:
+  exclude:
+    - tag:ci_skip
+```
 
 > All [common options](configuration.md#common-options) also apply.
 
