@@ -6,7 +6,7 @@ from argparse import Namespace
 import click
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.commands.ephemeral.destroy import clean_up_ephemeral
-from dbt_ci.commands.finalize.upload import finalize_upload_files
+from dbt_ci.commands.finalize.upload import artifacts_uris, finalize_upload_files
 from dbt_ci.utilities.logging import print_exception, redact_namespace
 
 logger = logging.getLogger(__name__)
@@ -51,10 +51,11 @@ def finalize(args: Namespace):
         # Upload files to storage if artifacts_uri is provided. A dry run must not
         # touch the artifacts location, which is often where production state lives.
         if dry_run:
-            if getattr(args, "artifacts_uri", None):
+            if artifacts_uris(args):
                 logger.info(
                     "Dry run enabled - skipping upload of "
-                    f"{list(getattr(args, 'files', []) or [])} to {args.artifacts_uri}."
+                    f"{list(getattr(args, 'files', []) or [])} to "
+                    f"{', '.join(artifacts_uris(args))}."
                 )
         else:
             finalize_upload_files(args)

@@ -1,19 +1,60 @@
 import logging
+import os
+import subprocess
 from argparse import Namespace
 from typing import Any, Callable, cast
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.connectors import init_storage_connector
+from dbt_ci.errors import ConfigurationError
 from dbt_ci.utilities.logging import LOG_FILE_NAME, flush_log_file
 
 logger = logging.getLogger(__name__)
 
 
+SHA_PLACEHOLDER = "{sha}"
+# Commit SHAs CI systems expose, for runs without a usable git checkout
+CI_COMMIT_SHA_VARS = ("GITHUB_SHA", "CI_COMMIT_SHA", "BUILDKITE_COMMIT", "CIRCLE_SHA1")
+
+
+def fill_commit_sha(artifacts_uri: str) -> str:
+    """
+    Replace {sha} in an artifacts URI with the checked-out commit's full SHA.
+
+    A deploy uploading to e.g. gs://bucket/dbt-state/{sha}/ archives one manifest per
+    commit, which `init --baseline merge-base --baseline-uri .../{sha}/manifest.json`
+    looks up for a pull request's merge base.
+    """
+    if SHA_PLACEHOLDER not in artifacts_uri:
+        return artifacts_uri
+    result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
+    sha = result.stdout.strip() if result.returncode == 0 else ""
+    if not sha:
+        sha = next((os.environ[name] for name in CI_COMMIT_SHA_VARS if os.environ.get(name)), "")
+    if not sha:
+        raise ConfigurationError(
+            f"--artifacts-uri contains {SHA_PLACEHOLDER}, but the commit could not be found: "
+            f"run finalize in the git checkout, or set one of {', '.join(CI_COMMIT_SHA_VARS)}."
+        )
+    return artifacts_uri.replace(SHA_PLACEHOLDER, sha)
+
+
 def finalize_upload_files(args: Namespace) -> None:
     """Upload files to specified storage location if artifacts_uri is provided in arguments."""
+    for artifacts_uri in artifacts_uris(args):
+        upload_to(fill_commit_sha(artifacts_uri), args)
+
+
+def artifacts_uris(args: Namespace) -> list[str]:
+    """Return the --artifacts-uri values: one string or several (the option is repeatable)."""
+    value = getattr(args, "artifacts_uri", None)
+    if not value:
+        return []
+    return [value] if isinstance(value, str) else [uri for uri in value if uri]
+
+
+def upload_to(artifacts_uri: str, args: Namespace) -> None:
+    """Upload the selected files to one artifacts location."""
     cache = CacheManager(args)
-    artifacts_uri = getattr(args, "artifacts_uri", None)
-    if artifacts_uri is None:
-        return
     # "gs://bucket/path/" would otherwise upload to "gs://bucket/path//manifest.json"
     artifacts_uri = artifacts_uri.rstrip("/")
 

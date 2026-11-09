@@ -85,6 +85,14 @@ inputs:
     description: Branch to diff against. Defaults to the pull request's base branch.
     required: false
     default: ""
+  baseline:
+    description: "What `init` compares against: `latest` (default) or `merge-base` (`--baseline`)."
+    required: false
+    default: ""
+  baseline-uri:
+    description: Where deploys archive a manifest per commit, with `{sha}`, e.g. `gs://bucket/dbt-state/{sha}/manifest.json` (`--baseline-uri`).
+    required: false
+    default: ""
 
   # run
   mode:

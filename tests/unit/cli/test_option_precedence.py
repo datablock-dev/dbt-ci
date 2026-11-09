@@ -113,7 +113,7 @@ class TestCommandSectionsReachTheirOptions:
     def test_finalize_artifacts_uri(self, project):
         """finalize.artifacts-uri selects the upload destination."""
         value = resolve("finalize", "artifacts_uri", "dbt_ci.commands.finalize.cli.finalize")
-        assert value == "s3://from-config/"
+        assert list(value) == ["s3://from-config/"]
 
     def test_finalize_clean_ephemeral(self, project):
         """Boolean flags are read from the config file too."""
@@ -128,7 +128,7 @@ class TestCommandSectionsReachTheirOptions:
             "dbt_ci.commands.finalize.cli.finalize",
             cli_args=["--artifacts-uri", "s3://from-cli/"],
         )
-        assert value == "s3://from-cli/"
+        assert list(value) == ["s3://from-cli/"]
 
 
 class TestNotifications:
@@ -328,3 +328,18 @@ class TestDockerEnvSplitting:
         )
         value = resolve("run", "docker_env", "dbt_ci.commands.run.cli.run")
         assert value == ('DBT_VARS={"a": 1, "b": 2}',)
+
+
+def test_init_baseline_from_config_file(tmp_path, monkeypatch):
+    """init.baseline and init.baseline-uri in the config file reach init."""
+    (tmp_path / "dbt-ci.config.yaml").write_text(
+        "init:\n  baseline: merge-base\n  baseline-uri: gs://b/{sha}/manifest.json\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    for key in list(os.environ):
+        if key.startswith("DBT_"):
+            monkeypatch.delenv(key, raising=False)
+    assert resolve("init", "baseline", "dbt_ci.commands.init.cli.init") == "merge-base"
+    value = resolve("init", "baseline_uri", "dbt_ci.commands.init.cli.init")
+    assert value == "gs://b/{sha}/manifest.json"

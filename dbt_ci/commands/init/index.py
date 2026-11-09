@@ -15,6 +15,7 @@ from dbt_ci.commands.init.state_modified import StateModified
 from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
+from dbt_ci.commands.init.baseline import resolve_baseline
 
 logger = logging.getLogger(__name__)
 
@@ -81,11 +82,20 @@ def init(args: Namespace):
         dbt_commands.reference_compile()
 
         target_manifest_file = get_manifest_file(dbt_project_dir)
+        # With --baseline merge-base, compare against the project as it was where this
+        # branch started; defer, delete and ephemeral keep the latest state.
+        baseline = resolve_baseline(args)
+        if baseline is not None:
+            state_modified.comparison_state = baseline.state_dir
         state_change_summary = state_modified.get_state_modified()
         reasons = state_modified.reasons.for_summary(
             state_change_summary, state_modified.reference_graph, state_modified.target_graph
         )
-        cache.write_cache(state_change_summary, reasons=reasons)
+        cache.write_cache(
+            state_change_summary,
+            reasons=reasons,
+            baseline=baseline.to_dict() if baseline else None,
+        )
 
         if reference_target and reference_target != getattr(args, "target", None):
             # Different targets - will compile again later with actual target

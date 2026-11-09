@@ -18,7 +18,12 @@ from dbt_ci.schema import RunnerConfig, Runners
 from dbt_ci.dbt.versions import get_dbt_distribution, is_dbt_v2
 from dbt_ci.runners.dbt import dbt_runner
 from dbt_ci.runners.local import local_runner
-from dbt_ci.runners.docker import docker_runner, get_container_paths
+from dbt_ci.runners.docker import (
+    docker_runner,
+    get_container_paths,
+    map_host_path_to_container,
+    parse_docker_volumes,
+)
 from dbt_ci.runners.bash import bash_runner
 from dbt_ci.utilities.paths import get_absolute_path
 
@@ -242,10 +247,16 @@ def resolve_dbt_commands(
         "reference_state": "--state",
     }
 
+    # init's state comparison may use a different state (the merge-base baseline) from
+    # the one every other command defers to; when set, it is what --state points at.
+    comparison_state = getattr(args, "comparison_state", None)
+
     # Runners that execute on the host (including a bash wrapper script) need absolute paths
     if runner in ["local", "dbt", "bash"]:
         for var, flag in path_flags.items():
             value = getattr(args, var, None)
+            if var == "reference_state" and comparison_state:
+                value = comparison_state
             if value is not None and value != "":
                 absolute_path = get_absolute_path(value)
                 commands.extend([flag, absolute_path])
@@ -254,6 +265,11 @@ def resolve_dbt_commands(
     elif runner == "docker":
         # Use the shared function to get container path mappings
         container_path_map = get_container_paths(cast(RunnerConfig, args.__dict__))
+        if comparison_state:
+            volume_map = parse_docker_volumes(cast(RunnerConfig, args.__dict__))
+            container_path_map["reference_state"] = (
+                map_host_path_to_container(comparison_state, volume_map) or comparison_state
+            )
 
         for var, flag in path_flags.items():
             container_path = container_path_map.get(var)

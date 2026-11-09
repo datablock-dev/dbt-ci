@@ -104,7 +104,12 @@
         "comparison-strategy": { "$ref": "#/definitions/comparisonStrategy" },
         "comparison_strategy": { "$ref": "#/definitions/comparisonStrategy" },
         "base-ref": { "$ref": "#/definitions/baseRef" },
-        "base_ref": { "$ref": "#/definitions/baseRef" }
+        "base_ref": { "$ref": "#/definitions/baseRef" },
+        "baseline": { "$ref": "#/definitions/baseline" },
+        "baseline-uri": { "$ref": "#/definitions/baselineUri" },
+        "baseline_uri": { "$ref": "#/definitions/baselineUri" },
+        "baseline-lookback": { "$ref": "#/definitions/baselineLookback" },
+        "baseline_lookback": { "$ref": "#/definitions/baselineLookback" }
       }
     },
 
@@ -258,8 +263,11 @@
     "targetCompile":        { "type": "boolean", "default": false, "description": "Compile towards the target (or default) after reference compile." },
     "skipReferenceCompile": { "type": "boolean", "default": false, "description": "Skip compiling towards the reference state." },
     "comparisonStrategy":   { "type": "string", "enum": ["dbt", "git", "hybrid"], "default": "hybrid", "description": "Strategy for state comparison." },
+    "baseline":             { "type": "string", "enum": ["latest", "merge-base"], "default": "latest", "description": "Compare against the latest reference state, or the project at the merge base so changes merged since the branch was created are not counted." },
+    "baselineUri":          { "type": "string", "description": "Where deploys archive a manifest per commit, with {sha} for the commit, e.g. gs://bucket/dbt-state/{sha}/manifest.json. Without a match the merge base is compiled." },
+    "baselineLookback":     { "type": "integer", "minimum": 1, "default": 50, "description": "How many base-branch commits before the merge base to search for an archived manifest." },
     "baseRef":              { "type": "string", "description": "Base branch to diff against (e.g. main). Auto-detected from git/CI env if not set. Overrides GITHUB_BASE_REF and git auto-detection." },
-    "artifactsUri":         { "type": "string", "description": "Object storage URI for storing artifacts (e.g. s3://bucket/dbt-artifacts/)." },
+    "artifactsUri":         { "description": "Object storage URI for storing artifacts (e.g. s3://bucket/dbt-artifacts/), or a list of them. {sha} is replaced with the commit, to archive a manifest per commit.", "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] },
     "cleanEphemeral":       { "type": "boolean", "default": false, "description": "Deprecated - use 'dbt-ci ephemeral destroy'. Drop the datasets 'ephemeral' cloned into when finalizing." },
     "keepEnv":              { "type": "boolean", "default": false, "description": "Deprecated - has no effect. Use 'dbt-ci ephemeral destroy' to tear the environment down." }
   }

@@ -142,6 +142,38 @@ class GitAdapter:
             logger.debug(f"'{' '.join(command)}' failed: {result.stderr.strip()}")
         return False
 
+    def merge_base_sha(self) -> str | None:
+        """
+        Return the commit this branch started from on the base branch, or None.
+
+        Constructing the adapter already deepened a shallow clone far enough to find it
+        where possible, so this only looks it up.
+        """
+        result = subprocess.run(
+            ["git", "merge-base", f"origin/{self.base_branch}", "HEAD"],
+            capture_output=True,
+            text=True,
+        )
+        sha = result.stdout.strip()
+        return sha if result.returncode == 0 and sha else None
+
+    @staticmethod
+    def first_parent_history(sha: str, limit: int) -> list[str]:
+        """
+        Return up to `limit` commits from `sha` back along first parents, newest first.
+
+        Following first parents from a base-branch commit walks the commits that were the
+        tip of the base branch in turn, whether pull requests are squashed or merged, so
+        these are the commits a deploy of the base branch could have run on. A shallow
+        clone returns as much as it has.
+        """
+        result = subprocess.run(
+            ["git", "rev-list", "--first-parent", f"--max-count={limit}", sha],
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.split() if result.returncode == 0 else []
+
     def _fetch_env(self) -> dict[str, str] | None:
         """Return the environment for fetches: no credential prompts in best-effort mode."""
         if not getattr(self, "best_effort", False):

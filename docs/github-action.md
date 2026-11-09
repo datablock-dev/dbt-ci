@@ -110,6 +110,8 @@ empty pass nothing, so the config file (found in the working directory or the
 | `reference-target` | | `init --reference-target` |
 | `comparison-strategy` | | `init --comparison-strategy` (`hybrid`, `git`, `dbt`) |
 | `base-ref` | PR base branch | `init --base-ref` |
+| `baseline` | `latest` | `init --baseline` (`latest`, `merge-base`) |
+| `baseline-uri` | | `init --baseline-uri`, e.g. `gs://bucket/dbt-state/{sha}/manifest.json` |
 | `mode` | | `run --mode` |
 | `downstream-depth` | | `run --downstream-depth` |
 | `artifacts-uri` | | `finalize --artifacts-uri` |

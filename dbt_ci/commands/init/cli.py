@@ -85,6 +85,40 @@ from dbt_ci.commands.init.index import init
     callback=make_config_callback("DBT_INIT_BASE_REF"),
     help="The base branch to diff against (e.g. main). Auto-detected from git/CI env if not set.",
 )
+@click.option(
+    "--baseline",
+    envvar=["DBT_BASELINE"],
+    default="latest",
+    type=click.Choice(["latest", "merge-base"], case_sensitive=False),
+    callback=make_config_callback("DBT_INIT_BASELINE"),
+    help=(
+        "What to compare the pull request against: 'latest' (the reference state, default) or "
+        "'merge-base' (the project where this branch started, so changes merged since are not "
+        "counted). Defer, delete and ephemeral still use the latest state."
+    ),
+)
+@click.option(
+    "--baseline-uri",
+    envvar=["DBT_BASELINE_URI"],
+    default=None,
+    callback=make_config_callback("DBT_INIT_BASELINE_URI"),
+    help=(
+        "Where deploys archive a manifest per commit, with {sha} for the commit, e.g. "
+        "gs://bucket/dbt-state/{sha}/manifest.json. Without it (or without a match) the merge "
+        "base is compiled instead."
+    ),
+)
+@click.option(
+    "--baseline-lookback",
+    envvar=["DBT_BASELINE_LOOKBACK"],
+    type=int,
+    default=50,
+    callback=make_config_callback("DBT_INIT_BASELINE_LOOKBACK"),
+    help=(
+        "How many base-branch commits before the merge base to search for an archived "
+        "manifest, for deploys that don't run on every merge (default: 50)."
+    ),
+)
 def init_cmd(**kwargs):
     """Initialize dbt CI state
 

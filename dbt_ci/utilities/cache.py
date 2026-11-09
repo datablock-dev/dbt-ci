@@ -41,6 +41,7 @@ class CacheManager:
         self,
         data: StateChangeSummary | None = None,
         reasons: dict[str, list[str]] | None = None,
+        baseline: dict[str, Any] | None = None,
     ) -> None:
         """Write the change set, why each node is in it, and init's settings to the cache."""
         connector_type = cast(SupportedConnectors, get_profile(self.args)["type"])
@@ -60,6 +61,8 @@ class CacheManager:
                 "connector": connector_type,
                 "comparison_strategy": getattr(self.args, "comparison_strategy"),
                 "runner": getattr(self.args, "runner"),
+                # The merge-base manifest the change set was compared against, if any
+                "baseline": baseline,
                 "profile": getattr(self.args, "profile", None),
                 "reference": {
                     "target": getattr(self.args, "reference_target", None),

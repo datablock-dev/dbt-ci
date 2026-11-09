@@ -30,10 +30,13 @@ def parse_and_validate_files(value):
     envvar=["DBT_ARTIFACTS_URI", "ARTIFACTS_URI"],
     default=None,
     type=str,
+    multiple=True,
     callback=make_config_callback("DBT_FINALIZE_ARTIFACTS_URI"),
     help=(
-        "S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., "
-        "s3://my-bucket/dbt-artifacts/)"
+        "Object storage URI for storing artifacts like the updated manifest.json (e.g. "
+        "s3://my-bucket/dbt-artifacts/). Repeatable, to upload to several places. {sha} is "
+        "replaced with the commit, to archive a manifest per commit for "
+        "'init --baseline merge-base'."
     ),
 )
 @click.option(

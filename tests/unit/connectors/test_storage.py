@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dbt_ci.connectors.aws.storage import aws_download_json, aws_upload
-from dbt_ci.connectors.google.storage import google_download_json, google_upload
+from dbt_ci.connectors.aws.storage import aws_download_json, aws_list, aws_upload
+from dbt_ci.connectors.google.storage import google_download_json, google_list, google_upload
 
 
 @pytest.fixture
@@ -149,3 +149,33 @@ class TestS3Storage:
             aws_download_json(uri)
         with pytest.raises(ValueError, match="Must start with 's3://'"):
             aws_upload(uri, {})
+
+
+class TestListing:
+    """Listing a prefix returns full URIs, used to find manifests archived per commit."""
+
+    def test_gcs(self, gcs_client):
+        """GCS lists blobs under the prefix in the bucket."""
+        blob = MagicMock()
+        blob.name = "dbt-state/abc/manifest.json"
+        gcs_client.list_blobs.return_value = [blob]
+        assert google_list("gs://state/dbt-state/") == ["gs://state/dbt-state/abc/manifest.json"]
+        gcs_client.list_blobs.assert_called_once_with("state", prefix="dbt-state/")
+
+    def test_s3_pages(self, s3_client):
+        """S3 follows every page of the listing."""
+        s3_client.get_paginator.return_value.paginate.return_value = [
+            {"Contents": [{"Key": "dbt-state/a/manifest.json"}]},
+            {"Contents": [{"Key": "dbt-state/b/manifest.json"}]},
+            {},
+        ]
+        assert aws_list("s3://state/dbt-state/") == [
+            "s3://state/dbt-state/a/manifest.json",
+            "s3://state/dbt-state/b/manifest.json",
+        ]
+
+    def test_errors_are_wrapped(self, gcs_client):
+        """A permission error surfaces as a RuntimeError naming the prefix."""
+        gcs_client.list_blobs.side_effect = PermissionError("403")
+        with pytest.raises(RuntimeError, match="gs://state/x"):
+            google_list("gs://state/x")

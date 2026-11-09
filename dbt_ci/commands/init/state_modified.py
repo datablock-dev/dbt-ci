@@ -135,6 +135,21 @@ class StateModified:
         self._reference_graph: DependencyGraph | None = None
         # Why each node ended up in the change set, filled in by the strategies
         self.reasons = ChangeReasons()
+        # State directory to compare against instead of the reference state, e.g. the
+        # manifest at the merge base (--baseline merge-base); set before comparing
+        self.comparison_state: str | None = None
+
+    def _comparison_args(self) -> Namespace:
+        """Return the args for the comparison: the baseline in place of the reference state."""
+        if not self.comparison_state:
+            return self.args
+        return Namespace(
+            **{
+                **vars(self.args),
+                "reference_state": self.comparison_state,
+                "comparison_state": self.comparison_state,
+            }
+        )
 
     @property
     def target_graph(self) -> DependencyGraph:
@@ -154,7 +169,7 @@ class StateModified:
     def reference_graph(self) -> DependencyGraph:
         """Return the reference dependency graph, parsing the manifest at most once."""
         if self._reference_graph is None:
-            self._reference_graph = DbtGraph(self.args, is_reference=True).to_dict()
+            self._reference_graph = DbtGraph(self._comparison_args(), is_reference=True).to_dict()
         return self._reference_graph
 
     def get_state_modified(self) -> StateChangeSummary:
@@ -471,7 +486,7 @@ class StateModified:
         if reference_vars:
             ls_command.extend(["--vars", reference_vars])
 
-        commands = resolve_dbt_commands(ls_command, self.args)
+        commands = resolve_dbt_commands(ls_command, self._comparison_args())
 
         logger.debug(f"Running dbt ls command with arguments: {commands}")
 

@@ -106,10 +106,20 @@ def render_markdown(
 ) -> str:
     """Render the full report as GitHub-flavoured markdown."""
     lines: list[str] = ["## dbt-ci run report", ""]
+    lines.extend(render_baseline(cache_dict))
     lines.extend(render_change_summary(cache_dict))
     lines.extend(render_exposure_impact(cache_dict, args))
     lines.extend(render_command_status(run_report))
     return "\n".join(lines).rstrip() + "\n"
+
+
+def render_baseline(cache_dict: StateChangeSummary | None) -> list[str]:
+    """Say which manifest the change set was compared against, when it was the merge base."""
+    # The cache holds init's config block next to the change set
+    cache = cast(dict[str, Any], cache_dict or {})
+    baseline = (cache.get("config") or {}).get("baseline") or {}
+    description = baseline.get("description")
+    return [f"Compared against {description}.", ""] if description else []
 
 
 def render_change_summary(cache_dict: StateChangeSummary | None) -> list[str]:
