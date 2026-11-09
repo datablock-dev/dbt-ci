@@ -349,3 +349,29 @@ class TestBestEffort:
         assert envs and all(env["GIT_TERMINAL_PROMPT"] == "0" for env in envs)
         assert "Could not find where this branch started" not in caplog.text
         assert not getattr(adapter, "merge_base_found", False)
+
+
+class TestReadBaseFile:
+    """Test reading a project file as it was at the merge base."""
+
+    def test_reads_at_the_merge_base_with_the_project_prefix(self):
+        """The project-relative path is prefixed and read at the merge base commit."""
+        adapter = _make_adapter([])
+        calls = []
+
+        def fake_run(command, **_kwargs):
+            """Answer merge-base with a sha and show with file contents."""
+            calls.append(command)
+            stdout = "abc123\n" if command[1] == "merge-base" else "name: demo\n"
+            return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+        with patch("dbt_ci.utilities.git.subprocess.run", side_effect=fake_run):
+            assert adapter.read_base_file("dbt_project.yml") == "name: demo\n"
+        assert calls[-1] == ["git", "show", "abc123:dbt/dbt_project.yml"]
+
+    def test_no_merge_base(self):
+        """Without a merge base there is nothing to read."""
+        adapter = _make_adapter([])
+        failed = subprocess.CompletedProcess([], 1, stdout="", stderr="no merge base")
+        with patch("dbt_ci.utilities.git.subprocess.run", return_value=failed):
+            assert adapter.read_base_file("dbt_project.yml") is None

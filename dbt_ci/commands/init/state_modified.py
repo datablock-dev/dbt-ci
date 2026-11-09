@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import logging
 from argparse import Namespace
 from typing import TypedDict, cast
@@ -13,6 +14,13 @@ from dbt_ci.schema import (
     StateChangeSummaryKeys,
 )
 from dbt_ci.utilities.git import GitAdapter, GitChangeType
+from dbt_ci.commands.init.project_config import (
+    PACKAGE_FILES,
+    PROJECT_FILE,
+    changed_project_config_keys,
+    nodes_with_project_config_change,
+    project_config_reason,
+)
 from dbt_ci.commands.init.reasons import (
     ChangeReasons,
     code_differs,
@@ -215,6 +223,11 @@ class StateModified:
                     )
 
         add_macro_users(git_modified_nodes, target_dict, self.reasons)
+        self.add_project_file_changes(
+            git_modified_nodes,
+            {path for paths in changed_files.values() for path in paths},
+            git,
+        )
         reconcile_with_graphs(git_modified_nodes, target_dict, reference_dict, self.reasons)
 
         return {
@@ -233,6 +246,45 @@ class StateModified:
                 get_nodes(dependency_graph=target_dict, node_ids=list(git_modified_nodes["added"]))
             ),
         }
+
+    def add_project_file_changes(
+        self,
+        git_modified_nodes: dict[GitChangeType, set[str]],
+        changed_paths: set[str],
+        git: GitAdapter,
+        dbt_flagged: set[str] | None = None,
+    ) -> None:
+        """
+        Mark nodes changed through project-level files that git cannot map to nodes.
+
+        A config changed in dbt_project.yml marks every node whose config differs from
+        the reference in that key. A changed package file (hybrid only, which has dbt's
+        comparison to go on) keeps the nodes dbt flagged, since a package version change
+        alters macros the git diff never shows.
+        """
+        if PROJECT_FILE in changed_paths:
+            if git.merge_base_sha() is None:
+                logger.debug(f"No merge base to compare {PROJECT_FILE} with; skipping it.")
+            else:
+                head_file = Path(getattr(self.args, "dbt_project_dir", None) or ".") / PROJECT_FILE
+                head = head_file.read_text(encoding="utf-8") if head_file.is_file() else None
+                keys = changed_project_config_keys(git.read_base_file(PROJECT_FILE), head)
+                changed_nodes = nodes_with_project_config_change(
+                    keys, self.target_graph, self.reference_graph
+                )
+                for node_id, node_keys in changed_nodes.items():
+                    if node_id not in git_modified_nodes["added"]:
+                        git_modified_nodes["modified"].add(node_id)
+                    self.reasons.add(node_id, project_config_reason(node_keys))
+
+        changed_package_files = sorted(changed_paths & set(PACKAGE_FILES))
+        if dbt_flagged and changed_package_files:
+            for node_id in dbt_flagged:
+                if node_id not in git_modified_nodes["added"]:
+                    git_modified_nodes["modified"].add(node_id)
+                self.reasons.add(
+                    node_id, f"flagged by dbt after `{changed_package_files[0]}` changed"
+                )
 
     def hybrid_strategy(self) -> StateChangeSummary:
         """
@@ -346,6 +398,12 @@ class StateModified:
                 self.reasons.add(node_id, f"properties in `{node.get('patch_path')}` changed")
 
         add_macro_users(git_modified_nodes, target_graph, self.reasons)
+        self.add_project_file_changes(
+            git_modified_nodes,
+            changed_paths,
+            git,
+            dbt_flagged=modified_nodes_dbt["modified_node_ids"],
+        )
         reconcile_with_graphs(git_modified_nodes, target_graph, reference_graph, self.reasons)
 
         # Now lets see if there are any unmatched nodes left

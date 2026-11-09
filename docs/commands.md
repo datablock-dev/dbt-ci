@@ -78,6 +78,8 @@ How git's file-level changes are mapped to nodes:
 - **Moved or renamed files** are reported by git as a delete of the old path plus an add of the new one. dbt identifies nodes by `unique_id`, which a move does not change, so a node that still exists in the target manifest is treated as **modified**, not deleted and re-added. Only nodes that are really gone are reported as deleted (and dropped by `delete`).
 - **Macro changes** select every node that calls the changed macro, directly or through another macro.
 - **YAML-only changes** (config, contracts, columns in a `schema.yml`) select the model the YAML configures. With `git`, every model configured by a changed YAML file is selected; with `hybrid`, only those that dbt also flags as modified.
+- **Config in `dbt_project.yml`** (e.g. `models: {my_project: {+materialized: table}}`) selects every node whose config differs from the reference in a key the change touched, compared with the file at the merge base. Only those keys count, so environment-specific differences in other keys stay out. `vars` and other top-level settings aren't mapped to nodes this way.
+- **Package files** (`packages.yml`, `dependencies.yml`, `package-lock.yml`): a version change alters macros git can't map to nodes, so `hybrid` keeps the nodes dbt flags as modified. `git` has no dbt comparison to rely on, so use `hybrid` or `dbt` when package upgrades should select the nodes they affect.
 - **`--dbt-project-dir`** is matched as a directory relative to the repository root, so `dbt`, `./dbt`, `dbt/` and an absolute path behave the same, and files in look-alike folders such as `analytics_dbt/` are ignored.
 
 ### Why is a node in the change set?
@@ -91,6 +93,8 @@ and the report show it next to the node. The evidence depends on the comparison 
 | ``properties in `models/schema.yml` changed`` | The YAML file holding the node's properties changed (`git`, `hybrid`) |
 | ``uses changed macro `cents_to_dollars` `` | A macro the node calls, directly or through another macro, changed (`git`, `hybrid`) |
 | `moved or renamed` | The node's file moved; its unique_id is unchanged (`git`, `hybrid`) |
+| ``config in `dbt_project.yml` changed: `materialized` `` | A config the node inherits from `dbt_project.yml` changed (`git`, `hybrid`) |
+| ``flagged by dbt after `packages.yml` changed`` | A package file changed and dbt flagged the node (`hybrid`) |
 | `code differs from the reference manifest` | The node's code differs from the reference (`dbt`) |
 | ``config differs: `materialized` `` | These config keys differ from the reference (`dbt`) |
 | `not in the reference manifest` / `no longer in the project` | A new or deleted node (`dbt`) |
