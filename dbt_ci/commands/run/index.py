@@ -5,6 +5,7 @@ import logging
 from argparse import Namespace
 import click
 from dbt_ci.commands.run.run import run_nodes
+from dbt_ci.commands.run.selection import resolve_user_selection
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.errors import DbtCiError
 from dbt_ci.utilities.cache import CacheManager
@@ -78,6 +79,7 @@ def run(args: Namespace):
             changed_nodes=changed_nodes,
             changed_nodes_dict=changed_nodes_dict,
             reasons=prev_cache.get("reasons") or {},
+            user_selection=resolve_user_selection(args),
         )
 
         cache.update_report("run", "completed")

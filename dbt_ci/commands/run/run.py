@@ -6,6 +6,7 @@ from itertools import chain
 from typing import cast
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.commands.run.explain import explain_selection
+from dbt_ci.commands.run.selection import UserSelection
 from dbt_ci.runners import run_dbt_command, resolve_dbt_commands
 from dbt_ci.graph.graph_utils import (
     filter_node_ids_by_type,
@@ -37,11 +38,13 @@ def run_nodes(
     changed_nodes: list[str],
     changed_nodes_dict: dict[str, list[str]],
     reasons: dict[str, list[str]] | None = None,
+    user_selection: UserSelection | None = None,
 ) -> None:
     """
     Build the selected seeds, snapshots, models and tests in order, stopping at a failure.
 
-    reasons (from init's cache) explains why each changed node is in the run.
+    reasons (from init's cache) explains why each changed node is in the run;
+    user_selection (from --select / --exclude) narrows what each step builds.
     """
     mode: RunModes = getattr(args, "nodes", "all")
     # Snapshots run before models so that models built on a changed snapshot read
@@ -67,6 +70,17 @@ def run_nodes(
             changed_nodes=changed_nodes,
             args=args,
         )
+
+        if nodes_to_run and user_selection is not None:
+            nodes_to_run, left_out = user_selection.split(nodes_to_run, target_graph.to_dict())
+            if left_out:
+                names = ", ".join(
+                    sorted(get_display_name(target_graph.to_dict(), node) for node in left_out)
+                )
+                logger.info(
+                    f"Leaving out of the {command} step by --select/--exclude "
+                    f"({len(left_out)}): {names}"
+                )
 
         if nodes_to_run is None or len(nodes_to_run) == 0:
             logger.info(f"No nodes to run for {command}, skipping...")

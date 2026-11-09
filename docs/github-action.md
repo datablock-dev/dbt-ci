@@ -113,6 +113,8 @@ empty pass nothing, so the config file (found in the working directory or the
 | `compare-to` | `auto` | `init --compare-to` (`auto`, `merge-base`, `latest`) |
 | `mode` | | `run --mode` |
 | `downstream-depth` | | `run --downstream-depth` |
+| `select` | | `run --select`, dbt selectors, space-separated |
+| `exclude` | | `run --exclude`, dbt selectors, space-separated |
 | `artifacts-uri` | | `finalize --artifacts-uri` |
 | `pr-comment` | `true` | `report --pr-comment`; `false` passes `--no-pr-comment` |
 | `github-token` | `${{ github.token }}` | Token used for the PR comment |
