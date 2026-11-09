@@ -152,7 +152,7 @@ flowchart LR
 
 | | Supported |
 |---|---|
-| dbt | dbt-core 1.10, 1.11 and 1.12, and [dbt v2](https://github.com/datablock-dev/dbt-ci/blob/main/docs/configuration.md#dbt-v2) |
+| dbt | dbt-core 1.10, 1.11 and 1.12, and [dbt v2](https://github.com/datablock-dev/dbt-ci/blob/main/docs/configuration.md#dbt-v2). Upcoming dbt releases are tested twice a week, before they ship |
 | Python | 3.12, 3.13, 3.14 |
 | Warehouses | Any dbt adapter, for every command except `migration`, which needs BigQuery |
 | State storage | GCS, S3 or a local path |

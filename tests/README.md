@@ -53,6 +53,18 @@ python -m venv /tmp/dbt-v2 && /tmp/dbt-v2/bin/pip install "dbt==2.0.9"
 DBT_CI_E2E_DBT_BINARY=/tmp/dbt-v2/bin/dbt pytest tests/e2e/test_dbt_versions.py
 ```
 
+Upcoming dbt releases are tested ahead of time by the `dbt pre-releases` workflow
+(`.github/workflows/dbt-prerelease.yml`), twice a week and on demand. It runs the suite
+against the newest dbt-core 1.x and the newest dbt v2 (`dbt`, and `dbt-core` 2.x), pre-releases
+included, and against state built by the latest stable dbt-core 1.x. A failed scheduled run
+opens an issue. To pick the same versions locally:
+
+```bash
+python .github/scripts/latest_release.py dbt-core --below 2   # e.g. 1.13.0rc1
+python .github/scripts/latest_release.py dbt-core --from 2    # e.g. 2.0.0rc10
+python .github/scripts/latest_release.py dbt                  # e.g. 2.0.11
+```
+
 `test_seed_only_change.py` runs `init`, `ephemeral create` and `run` for a PR that only adds
 a seed and tests on it. That change gives `ephemeral` nothing to clone, so it must skip
 `dbt clone`, and `run` must still seed and test the seed. It is skipped under the same
