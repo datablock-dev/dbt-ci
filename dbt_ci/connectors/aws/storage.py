@@ -58,3 +58,20 @@ def aws_download_json(uri: str) -> DBTManifest:
         raise RuntimeError(f"Failed to parse JSON from {uri}: {e}") from e
     except Exception as e:
         raise RuntimeError(f"Failed to download JSON from {uri}: {e}") from e
+
+
+def aws_list(prefix_uri: str) -> list[str]:
+    """Return the s3:// URIs of every object whose key starts with the given prefix."""
+    if not prefix_uri.startswith("s3://"):
+        raise ValueError(f"Invalid S3 URI: {prefix_uri}. Must start with 's3://'.")
+    bucket_name, _, prefix = prefix_uri[5:].partition("/")
+    try:
+        client = aws_storage_client()
+        uris: list[str] = []
+        for page in client.get_paginator("list_objects_v2").paginate(
+            Bucket=bucket_name, Prefix=prefix
+        ):
+            uris.extend(f"s3://{bucket_name}/{item['Key']}" for item in page.get("Contents", []))
+        return uris
+    except Exception as e:
+        raise RuntimeError(f"Failed to list {prefix_uri}: {e}") from e

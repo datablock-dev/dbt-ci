@@ -503,6 +503,8 @@ class StorageConnectorConfig(TypedDict):
     client: Callable[..., Any]
     upload: Callable[[str, Any, str], None]
     download: Callable[[str], DBTManifest]
+    # Every object URI under a prefix URI, e.g. to find manifests archived per commit
+    list: Callable[[str], list[str]]
 
 
 type SupportedStorageConnectors = Literal["google", "aws"]
@@ -571,6 +573,8 @@ class DbtCiConfig(TypedDict):
     runner: Runners
     reference: DbtCompileOptions
     target: DbtCompileOptions
+    # The merge-base manifest init compared against (init --compare-to), if any
+    baseline: NotRequired[Optional[dict[str, Any]]]
     # The config profile init ran with, which later commands inherit
     profile: NotRequired[Optional[str]]
 

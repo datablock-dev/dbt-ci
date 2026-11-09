@@ -110,6 +110,7 @@ empty pass nothing, so the config file (found in the working directory or the
 | `reference-target` | | `init --reference-target` |
 | `comparison-strategy` | | `init --comparison-strategy` (`hybrid`, `git`, `dbt`) |
 | `base-ref` | PR base branch | `init --base-ref` |
+| `compare-to` | `auto` | `init --compare-to` (`auto`, `merge-base`, `latest`) |
 | `mode` | | `run --mode` |
 | `downstream-depth` | | `run --downstream-depth` |
 | `artifacts-uri` | | `finalize --artifacts-uri` |

@@ -2,6 +2,7 @@ from dbt_ci.schema import ConnectorConfig, StorageConnectorConfig
 from dbt_ci.connectors.google.storage import (
     google_storage_client,
     google_download_json,
+    google_list,
     google_upload,
 )
 from dbt_ci.connectors.google.bigquery import (
@@ -16,6 +17,7 @@ bigquery_storage_connector: StorageConnectorConfig = {
     "client": google_storage_client,
     "upload": google_upload,
     "download": google_download_json,
+    "list": google_list,
 }
 
 bigquery_db_connector: ConnectorConfig = {

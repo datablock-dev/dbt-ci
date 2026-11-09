@@ -217,6 +217,12 @@ class TestFinalizeUploadFiles:
 
 class TestUploadManifest:
 
+    @pytest.fixture(autouse=True)
+    def no_commit(self):
+        """Which manifest is uploaded is tested without the per-commit copy (see test_baseline)."""
+        with patch("dbt_ci.commands.finalize.upload.current_commit_sha", return_value=None):
+            yield
+
     def test_uploads_target_manifest_when_present(self):
         storage_fn = _make_storage_function()
         cache = MagicMock()

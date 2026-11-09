@@ -22,6 +22,10 @@ init:
   # Comparison strategy: hybrid | dbt | git (default: hybrid)
   comparison-strategy: "hybrid"
 
+  # What a pull request is compared against: auto | merge-base | latest (default: auto).
+  # auto uses the commit the branch started from, so changes merged since don't count.
+  # compare-to: "auto"
+
 finalize:
   # Files to upload after a successful CI run: manifest | cache | log
   files:

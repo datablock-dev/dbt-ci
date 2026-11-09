@@ -104,7 +104,9 @@
         "comparison-strategy": { "$ref": "#/definitions/comparisonStrategy" },
         "comparison_strategy": { "$ref": "#/definitions/comparisonStrategy" },
         "base-ref": { "$ref": "#/definitions/baseRef" },
-        "base_ref": { "$ref": "#/definitions/baseRef" }
+        "base_ref": { "$ref": "#/definitions/baseRef" },
+        "compare-to": { "$ref": "#/definitions/compareTo" },
+        "compare_to": { "$ref": "#/definitions/compareTo" }
       }
     },
 
@@ -258,6 +260,7 @@
     "targetCompile":        { "type": "boolean", "default": false, "description": "Compile towards the target (or default) after reference compile." },
     "skipReferenceCompile": { "type": "boolean", "default": false, "description": "Skip compiling towards the reference state." },
     "comparisonStrategy":   { "type": "string", "enum": ["dbt", "git", "hybrid"], "default": "hybrid", "description": "Strategy for state comparison." },
+    "compareTo":            { "type": "string", "enum": ["auto", "merge-base", "latest"], "default": "auto", "description": "What to compare the pull request against: auto (the merge base when the branch has commits of its own, else the latest state), merge-base, or latest." },
     "baseRef":              { "type": "string", "description": "Base branch to diff against (e.g. main). Auto-detected from git/CI env if not set. Overrides GITHUB_BASE_REF and git auto-detection." },
     "artifactsUri":         { "type": "string", "description": "Object storage URI for storing artifacts (e.g. s3://bucket/dbt-artifacts/)." },
     "cleanEphemeral":       { "type": "boolean", "default": false, "description": "Deprecated - use 'dbt-ci ephemeral destroy'. Drop the datasets 'ephemeral' cloned into when finalizing." },

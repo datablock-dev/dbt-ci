@@ -85,6 +85,10 @@ inputs:
     description: Branch to diff against. Defaults to the pull request's base branch.
     required: false
     default: ""
+  compare-to:
+    description: "What `init` compares the pull request against: `auto` (default), `merge-base` or `latest` (`--compare-to`)."
+    required: false
+    default: ""
 
   # run
   mode:

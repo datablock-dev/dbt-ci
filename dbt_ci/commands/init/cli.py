@@ -85,6 +85,19 @@ from dbt_ci.commands.init.index import init
     callback=make_config_callback("DBT_INIT_BASE_REF"),
     help="The base branch to diff against (e.g. main). Auto-detected from git/CI env if not set.",
 )
+@click.option(
+    "--compare-to",
+    envvar=["DBT_COMPARE_TO"],
+    default="auto",
+    type=click.Choice(["auto", "merge-base", "latest"], case_sensitive=False),
+    callback=make_config_callback("DBT_INIT_COMPARE_TO"),
+    help=(
+        "What to compare the pull request against. 'auto' (default): the project where this "
+        "branch started (its merge base) when git shows the branch has commits of its own, "
+        "otherwise the latest state. 'merge-base': always the merge base. 'latest': the latest "
+        "state. Defer, delete and ephemeral always use the latest state."
+    ),
+)
 def init_cmd(**kwargs):
     """Initialize dbt CI state
 

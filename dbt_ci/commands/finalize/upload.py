@@ -1,4 +1,6 @@
 import logging
+import os
+import subprocess
 from argparse import Namespace
 from typing import Any, Callable, cast
 from dbt_ci.utilities.cache import CacheManager
@@ -88,6 +90,28 @@ def upload_manifest(
         return logger.warning("No manifest file found for upload, skipping...")
     storage_function(f"{artifacts_uri}/manifest.json", manifest_file, "application/json")
     logger.info(f"Uploading manifest.json to {artifacts_uri}/manifest.json...")
+
+    # Keep a copy per commit as well, so pull requests can compare against the manifest
+    # of the commit their branch started from (init --compare-to auto / merge-base)
+    sha = current_commit_sha()
+    if sha:
+        storage_function(f"{artifacts_uri}/{sha}/manifest.json", manifest_file, "application/json")
+        logger.info(f"Keeping a copy for commit {sha[:12]} at {artifacts_uri}/{sha}/manifest.json")
+    else:
+        logger.debug("No commit found, so no per-commit copy of the manifest was kept.")
+
+
+# Commit SHAs CI systems expose, for runs without a usable git checkout
+CI_COMMIT_SHA_VARS = ("GITHUB_SHA", "CI_COMMIT_SHA", "BUILDKITE_COMMIT", "CIRCLE_SHA1")
+
+
+def current_commit_sha() -> str | None:
+    """Return the checked-out commit's full SHA, from git or the CI environment."""
+    result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
+    sha = result.stdout.strip() if result.returncode == 0 else ""
+    if not sha:
+        sha = next((os.environ[name] for name in CI_COMMIT_SHA_VARS if os.environ.get(name)), "")
+    return sha or None
 
 
 UPLOAD_MAPPING: dict[str, Callable[[str, CacheManager, Callable[[str, Any, str], None]], None]] = {

@@ -60,6 +60,11 @@ SCHEMA: dict[str, dict] = {
                 "choices": ["dbt", "git", "hybrid"],
             },
             "base-ref": {"aliases": ["base_ref"], "type": "str"},
+            "compare-to": {
+                "aliases": ["compare_to"],
+                "type": "enum",
+                "choices": ["auto", "merge-base", "latest"],
+            },
         },
     },
     "run": {

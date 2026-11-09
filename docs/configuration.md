@@ -40,6 +40,7 @@ init:
   reference-target: production
   comparison-strategy: hybrid
   base-ref: main
+  compare-to: auto   # auto | merge-base | latest
 
 run:
   nodes: models

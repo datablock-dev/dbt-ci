@@ -31,10 +31,47 @@ dbt-ci init \
 | `--skip-reference-compile` | | `DBT_SKIP_REFERENCE_COMPILE` | `false` | Skip the compile pass against the reference/production state |
 | `--comparison-strategy` | `--comparison` | `DBT_COMPARISON_STRATEGY` | `hybrid` | Strategy for detecting changed nodes: `dbt`, `git`, or `hybrid` |
 | `--base-ref` | | `DBT_CI_BASE_REF` | Auto-detected | Base branch to diff against (e.g. `main`). Auto-detected from `GITHUB_BASE_REF` or git if not set |
+| `--compare-to` | | `DBT_COMPARE_TO` | `auto` | What to compare the pull request against: `auto`, `merge-base` or `latest`. See [Comparing against the merge base](#comparing-against-the-merge-base) |
 
 > All [common options](configuration.md#common-options) also apply.
 
 **Git comparison and clone depth:** the `git` and `hybrid` strategies diff `origin/<base-ref>...HEAD` — the merge base — so only the commits on your branch count as changes. Shallow clones often don't contain the merge base, so dbt-ci fetches more history in steps (50, then 200, then 1,000 more commits) until it finds it. If it still can't, it falls back to a direct diff against the latest base branch and logs a **warning**: changes merged into the base branch since this branch was created may then be counted as this branch's own. Fetching full history up front (`actions/checkout` with `fetch-depth: 0`, or `GIT_DEPTH: 0` in GitLab CI) avoids the extra fetches entirely.
+
+### Comparing against the merge base
+
+While a pull request is open, others keep merging and deploying. Compared with the latest
+production manifest, everything deployed since the branch was created would show up as
+part of the pull request (and the `dbt` strategy would build it). So by default `init`
+compares against the project as it was at the commit the branch started from, its
+**merge base**. `--compare-to` controls this:
+
+| `--compare-to` | Compared against |
+|---|---|
+| `auto` (default) | The merge base when git shows the branch has commits of its own; otherwise (e.g. a deploy job on `main`, or no git) the latest state |
+| `merge-base` | Always the merge base, with a warning when it can't be used |
+| `latest` | The latest state, as dbt-ci did before |
+
+dbt-ci finds the merge base with git (fetching more history in a shallow clone) and then
+its manifest, in this order:
+
+1. **A manifest kept for that commit**, next to the state: for
+   `--state-uri gs://my-bucket/dbt-state/manifest.json` that is
+   `gs://my-bucket/dbt-state/<commit>/manifest.json` (for a local `--state` directory,
+   `<state>/<commit>/manifest.json`). [`finalize`](#finalize---finalize-state) keeps these
+   copies automatically. If the merge base itself has none, the nearest of the 50 base-branch
+   commits before it is used, so deploys that run on every merge and batched deploys both
+   work, with squash or merge commits.
+2. **The merge base, compiled for this run**, if no copy is kept: dbt-ci checks it out into a
+   temporary git worktree and runs `dbt parse` (and `dbt deps` when the project has
+   packages) with the reference target and vars, then removes the worktree. This needs no
+   setup but costs a parse per run, and isn't available with the Docker runner.
+3. **The latest state**, as with `--compare-to latest`.
+
+Only the comparison uses the merge base. `--defer`, `delete`, `ephemeral` and `report`'s
+exposure impact keep using the latest state, which describes the tables that exist today.
+The merge base's manifest is written to `<dbt-project-dir>/.dbtstate-baseline/`, and the
+report names it, e.g. *"Compared against the manifest archived for the merge base
+5ec9c529d61a."*
 
 How git's file-level changes are mapped to nodes:
 
@@ -419,6 +456,12 @@ dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
 | `--artifacts-uri` | | `DBT_ARTIFACTS_URI`, `ARTIFACTS_URI` | `None` | Object storage URI for uploading run artifacts such as the updated `manifest.json` (e.g. `s3://bucket/dbt-artifacts/`) |
 | `--files` | | `DBT_FINALIZE_FILES` | `manifest` | Which artifacts to upload (repeatable): `manifest`, `cache`, `log` |
 | `--clean-ephemeral` | `--destroy-ephemeral` | `DBT_CLEAN_EPHEMERAL`, `DBT_DESTROY_EPHEMERAL` | `false` | **Deprecated — use [`ephemeral destroy`](#ephemeral-destroy).** Drop the datasets that `ephemeral` cloned into, the same way `ephemeral destroy` does |
+
+Next to `<artifacts-uri>/manifest.json`, `finalize` keeps a copy for the commit it ran on at
+`<artifacts-uri>/<commit>/manifest.json` (the commit comes from git, or `GITHUB_SHA` /
+`CI_COMMIT_SHA` / `BUILDKITE_COMMIT` / `CIRCLE_SHA1`). Pull requests use these to
+[compare against their merge base](#comparing-against-the-merge-base) without compiling it.
+A bucket lifecycle rule can expire old copies.
 
 Uploaded artifacts land at `<artifacts-uri>/manifest.json`, `<artifacts-uri>/cache.json`
 and `<artifacts-uri>/logs.txt` respectively (a trailing `/` on the URI is ignored).

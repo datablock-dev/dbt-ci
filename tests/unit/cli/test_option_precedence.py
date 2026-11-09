@@ -328,3 +328,14 @@ class TestDockerEnvSplitting:
         )
         value = resolve("run", "docker_env", "dbt_ci.commands.run.cli.run")
         assert value == ('DBT_VARS={"a": 1, "b": 2}',)
+
+
+def test_init_compare_to(tmp_path, monkeypatch):
+    """--compare-to defaults to auto on the CLI, and init.compare-to sets it."""
+    monkeypatch.chdir(tmp_path)
+    for key in list(os.environ):
+        if key.startswith("DBT_"):
+            monkeypatch.delenv(key, raising=False)
+    assert resolve("init", "compare_to", "dbt_ci.commands.init.cli.init") == "auto"
+    (tmp_path / "dbt-ci.config.yaml").write_text("init:\n  compare-to: latest\n", encoding="utf-8")
+    assert resolve("init", "compare_to", "dbt_ci.commands.init.cli.init") == "latest"
