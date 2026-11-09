@@ -375,3 +375,183 @@ class TestReadBaseFile:
         failed = subprocess.CompletedProcess([], 1, stdout="", stderr="no merge base")
         with patch("dbt_ci.utilities.git.subprocess.run", return_value=failed):
             assert adapter.read_base_file("dbt_project.yml") is None
+
+
+def _out(cwd, *args) -> str:
+    """Run a git command and return its output."""
+    return subprocess.run(
+        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+
+@pytest.fixture
+def repo(tmp_path, monkeypatch):
+    """
+    A clone on a feature branch, with an origin whose main has a merged side branch.
+
+    main: base -> side (merged with a merge commit) -> after; the feature branch starts
+    at `after` and changes dbt/models/a.sql. Returns (clone, {name: sha}).
+    """
+    origin_work = tmp_path / "work"
+    (origin_work / "dbt" / "models").mkdir(parents=True)
+    _git(origin_work, "init", "-q", "-b", "main")
+    (origin_work / "dbt" / "models" / "a.sql").write_text("select 1\n")
+    (origin_work / "dbt" / "dbt_project.yml").write_text("name: demo\n")
+    _git(origin_work, "add", "-A")
+    _git(origin_work, "commit", "-qm", "base")
+    shas = {"base": _out(origin_work, "rev-parse", "HEAD")}
+    _git(origin_work, "checkout", "-qb", "side")
+    (origin_work / "side.txt").write_text("side\n")
+    _git(origin_work, "add", "-A")
+    _git(origin_work, "commit", "-qm", "side")
+    shas["side"] = _out(origin_work, "rev-parse", "HEAD")
+    _git(origin_work, "checkout", "-q", "main")
+    _git(origin_work, "merge", "-q", "--no-ff", "side", "-m", "merge side")
+    shas["merge"] = _out(origin_work, "rev-parse", "HEAD")
+    (origin_work / "after.txt").write_text("after\n")
+    _git(origin_work, "add", "-A")
+    _git(origin_work, "commit", "-qm", "after")
+    shas["after"] = _out(origin_work, "rev-parse", "HEAD")
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(origin_work), str(origin)], check=True)
+
+    clone = tmp_path / "clone"
+    subprocess.run(["git", "clone", "-q", str(origin), str(clone)], check=True)
+    _git(clone, "checkout", "-qb", "feature")
+    (clone / "dbt" / "models" / "a.sql").write_text("select 2\n")
+    _git(clone, "commit", "-qam", "change a")
+    monkeypatch.chdir(clone)
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+    return clone, shas
+
+
+class TestAgainstARealRepository:
+    """Test the adapter end to end on real git history."""
+
+    def test_constructor_diffs_the_branch_against_its_merge_base(self, repo):
+        """Constructing fetches the base, diffs from the merge base and records it."""
+        _, shas = repo
+        adapter = GitAdapter(Namespace(dbt_project_dir="dbt", base_ref="main"))
+        assert adapter.merge_base_found
+        assert adapter.merge_base_sha() == shas["after"]
+        assert adapter.get_changed_files() == {"modified": ["models/a.sql"]}
+
+    def test_first_parent_history(self, repo):
+        """Following first parents skips the side branch's own commit."""
+        adapter = GitAdapter(Namespace(dbt_project_dir="dbt", base_ref="main"))
+        _, shas = repo
+        history = adapter.first_parent_history(shas["after"], 10)
+        assert history == [shas["after"], shas["merge"], shas["base"]]
+        assert adapter.first_parent_history(shas["after"], 2) == [shas["after"], shas["merge"]]
+        assert adapter.first_parent_history("0" * 40, 10) == []
+
+    def test_read_base_file(self, repo):
+        """A project file is read as it was at the merge base."""
+        clone, _ = repo
+        (clone / "dbt" / "dbt_project.yml").write_text("name: changed\n")
+        adapter = GitAdapter(Namespace(dbt_project_dir="dbt", base_ref="main"))
+        assert adapter.read_base_file("dbt_project.yml") == "name: demo\n"
+        assert adapter.read_base_file("missing.yml") is None
+
+    def test_base_branch_from_origin_head(self, repo):
+        """Without --base-ref, origin's default branch is used."""
+        assert GitAdapter(Namespace(dbt_project_dir="dbt")).base_branch == "main"
+
+    def test_base_branch_from_github(self, repo, monkeypatch):
+        """GITHUB_BASE_REF, set on pull_request events, comes before git's own guess."""
+        monkeypatch.setenv("GITHUB_BASE_REF", " main \n")
+        assert GitAdapter(Namespace(dbt_project_dir="dbt")).base_branch == "main"
+
+
+def _resolver(responses: dict[tuple[str, ...], int]):
+    """A fake git answering commands by their arguments, failing anything unlisted."""
+
+    def run(command, **_kwargs):
+        code = responses.get(tuple(command[1:]), 1)
+        stdout = "origin/develop\n" if command[1] == "symbolic-ref" and code == 0 else ""
+        return subprocess.CompletedProcess(command, code, stdout=stdout, stderr="")
+
+    return run
+
+
+class TestResolveBaseBranch:
+    """Test the order in which the base branch is worked out."""
+
+    def _resolve(self, responses, monkeypatch, **args):
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+        adapter = GitAdapter.__new__(GitAdapter)
+        adapter.args = Namespace(**args)
+        with patch("dbt_ci.utilities.git.subprocess.run", side_effect=_resolver(responses)):
+            return adapter._resolve_base_branch()
+
+    def test_explicit_base_ref_wins(self, monkeypatch):
+        """--base-ref is used as given, without asking git."""
+        assert self._resolve({}, monkeypatch, base_ref="release") == "release"
+
+    def test_origin_head_after_auto_detection(self, monkeypatch):
+        """If origin/HEAD isn't set yet, git is asked to detect it and asked again."""
+        calls = iter([1, 0])
+
+        def run(command, **_kwargs):
+            if command[1] == "symbolic-ref":
+                code = next(calls)
+                return subprocess.CompletedProcess(
+                    command, code, stdout="origin/develop\n" if code == 0 else "", stderr=""
+                )
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        adapter = GitAdapter.__new__(GitAdapter)
+        adapter.args = Namespace()
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+        with patch("dbt_ci.utilities.git.subprocess.run", side_effect=run):
+            assert adapter._resolve_base_branch() == "develop"
+
+    def test_probes_master_when_main_is_missing(self, monkeypatch):
+        """Without origin/HEAD, origin/main and then origin/master are tried."""
+        responses = {("rev-parse", "--verify", "origin/master"): 0}
+        assert self._resolve(responses, monkeypatch) == "master"
+
+    def test_nothing_found(self, monkeypatch):
+        """With no way to tell, the error says how to fix it."""
+        with pytest.raises(RuntimeError, match="--base-ref"):
+            self._resolve({}, monkeypatch)
+
+
+class TestChangedFilesEdgeCases:
+    """Test project-directory and extension handling in get_changed_files."""
+
+    def test_requires_a_project_dir(self):
+        """Without --dbt-project-dir changed files cannot be mapped."""
+        adapter = _make_adapter([["M", "dbt/models/a.sql"]])
+        adapter.args = Namespace(dbt_project_dir=None)
+        with pytest.raises(ValueError, match="project directory"):
+            adapter.get_changed_files()
+
+    def test_remove_extensions(self):
+        """remove_extensions drops file extensions from every path."""
+        adapter = _make_adapter([["M", "dbt/models/a.sql"], ["A", "dbt/models/b.yml"]])
+        assert adapter.get_changed_files(remove_extensions=True) == {
+            "modified": ["models/a"],
+            "added": ["models/b"],
+        }
+
+    def test_project_outside_the_repository(self, tmp_path, caplog):
+        """A project outside the repository matches nothing and says why."""
+        adapter = _make_adapter([["M", "dbt/models/a.sql"]], dbt_project_dir=str(tmp_path))
+        adapter.repo_root = str(tmp_path / "repo")
+        with caplog.at_level("WARNING"):
+            assert adapter.get_changed_files() == {}
+        assert "outside the git repository" in caplog.text
+
+    def test_repo_root_outside_git(self, tmp_path, monkeypatch):
+        """Outside any repository the working directory stands in for the root."""
+        monkeypatch.chdir(tmp_path)
+        failed = subprocess.CompletedProcess([], 128, stdout="", stderr="not a git repository")
+        with patch("dbt_ci.utilities.git.subprocess.run", return_value=failed):
+            assert GitAdapter._resolve_repo_root() == os.getcwd()
+
+
+def test_blank_diff_rows_are_skipped():
+    """An empty row in git's output (e.g. a trailing newline) is ignored."""
+    adapter = _make_adapter([[""], [], ["M", "dbt/models/a.sql"]])
+    assert adapter.get_changed_files() == {"modified": ["models/a.sql"]}
