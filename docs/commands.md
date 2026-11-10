@@ -370,6 +370,8 @@ The report covers:
   into a collapsible block.
 - **Exposure impact** — the exposures downstream of the change set, including those
   downstream of *deleted* nodes, which is usually the case worth catching.
+- **Run time** — how many nodes `run` built and the dbt run time they took, compared
+  with the recorded run time of the nodes it left out (see [Run time](#run-time)).
 - **Command status and duration** for each of `init`, `run`, `delete`, `ephemeral` and
   `migration` that has run.
 
@@ -382,6 +384,31 @@ The report covers:
 | `--pr-comment` / `--no-pr-comment` | | `DBT_NOTIFICATIONS_PR_COMMENT` | `false` | Also post the report as a comment on the GitHub pull request (`notifications.pr-comment` in the config file) |
 
 > All [common options](configuration.md#common-options) also apply.
+
+### Run time
+
+After each dbt command, `run` reads dbt's `run_results.json` and keeps every node's
+execution time. When `finalize` uploads the manifest, it merges those times into
+`<artifacts-uri>/run_times.json`, and `init` downloads that file from next to the state
+(`--state-uri`, or a `run_times.json` in the `--state` directory). The report then shows
+what this run skipped:
+
+```
+### Run time
+
+Built **4** node(s) in **1m 12s** of dbt run time.
+The **308** other node(s) with a recorded run time took about **37m 40s** when they last
+ran, so this run skipped about **97%** of the run time of a full build.
+```
+
+- Run time is the sum of each node's execution time as dbt reports it, not wall-clock
+  time. With several threads a build finishes sooner, but the warehouse still does the
+  work, so the sum tracks cost better than the job's duration does.
+- A node's recorded time is from the last deploy that built it. Deploys that only build
+  what changed keep the other nodes' earlier times, so one full build seeds the file.
+- Nodes no longer in the project are not counted. Without recorded times the section
+  shows only this run's time, and a dry run (which builds nothing) has no section.
+- `--format json` includes the times under `run_times`.
 
 ### Posting the report as a PR comment
 
@@ -497,6 +524,9 @@ Next to `<artifacts-uri>/manifest.json`, `finalize` keeps a copy for the commit 
 `CI_COMMIT_SHA` / `BUILDKITE_COMMIT` / `CIRCLE_SHA1`). Pull requests use these to
 [compare against their merge base](#comparing-against-the-merge-base) without compiling it.
 A bucket lifecycle rule can expire old copies.
+
+With the manifest, `finalize` also merges the node run times `run` measured into
+`<artifacts-uri>/run_times.json`, for the report's [run time](#run-time) section.
 
 Uploaded artifacts land at `<artifacts-uri>/manifest.json`, `<artifacts-uri>/cache.json`
 and `<artifacts-uri>/logs.txt` respectively (a trailing `/` on the URI is ignored).

@@ -16,6 +16,12 @@ from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
 from dbt_ci.commands.init.baseline import resolve_baseline
+from dbt_ci.utilities.run_times import (
+    RUN_TIMES_FILE,
+    download_run_times,
+    read_local_run_times,
+    sibling_uri,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +73,10 @@ def init(args: Namespace):
 
             # Reload reference manifest file after downloading from storage
             cache.write_reference_manifest(get_reference_manifest_file(str(local_state_dir)))
+            connector, state_uri = resolved_storage
+            cache.write_recorded_run_times(
+                download_run_times(sibling_uri(state_uri, RUN_TIMES_FILE), connector)
+            )
         elif reference_state_path:
             # A local --state directory is just as much a baseline as a downloaded one.
             # Caching it is what lets later commands resolve nodes that no longer exist
@@ -77,6 +87,7 @@ def init(args: Namespace):
                 cache.write_reference_manifest(get_reference_manifest_file(reference_state_path))
             except FileNotFoundError:
                 logger.debug(f"No reference manifest at '{reference_state_path}' to cache yet.")
+            cache.write_recorded_run_times(read_local_run_times(reference_state_path))
 
         # Compile dbt and generate reference manifest.json file
         dbt_commands.reference_compile()

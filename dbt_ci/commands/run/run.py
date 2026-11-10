@@ -2,12 +2,15 @@
 
 import logging
 from argparse import Namespace
+from datetime import datetime, timezone
 from itertools import chain
 from typing import cast
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.commands.run.explain import explain_selection
 from dbt_ci.commands.run.selection import UserSelection
 from dbt_ci.runners import run_dbt_command, resolve_dbt_commands
+from dbt_ci.utilities.cache import CacheManager
+from dbt_ci.utilities.run_times import read_node_times
 from dbt_ci.graph.graph_utils import (
     filter_node_ids_by_type,
     get_downstream_dependencies,
@@ -99,14 +102,30 @@ def run_nodes(
             logger.info(f"No resolvable selectors for {command}, skipping...")
             continue
 
-        # The runner raises DbtCommandError if dbt fails, which fails the run command
-        run_dbt_command(
-            command_args=resolve_dbt_commands(
-                [cast(str, command), "--select", " ".join(selectors)], args
-            ),
-            runner_config=cast(RunnerConfig, args.__dict__),
-        )
+        # The runner raises DbtCommandError if dbt fails, which fails the run command.
+        # The nodes that did run still cost time, so their times are kept either way.
+        started = datetime.now(timezone.utc)
+        try:
+            run_dbt_command(
+                command_args=resolve_dbt_commands(
+                    [cast(str, command), "--select", " ".join(selectors)], args
+                ),
+                runner_config=cast(RunnerConfig, args.__dict__),
+            )
+        finally:
+            record_run_times(args, started)
         logger.info(f"\n✅ Successfully ran {len(nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
+
+
+def record_run_times(args: Namespace, started: datetime) -> None:
+    """Keep the execution time of each node the last dbt command ran, for the report."""
+    dbt_project_dir = getattr(args, "dbt_project_dir", None)
+    if not dbt_project_dir:
+        return
+    try:
+        CacheManager(args).add_run_times(read_node_times(dbt_project_dir, started))
+    except Exception as e:  # timings are informational and must never fail a run
+        logger.debug(f"Could not record run times: {e}")
 
 
 def get_downstream_depth(args: Namespace) -> int | None:

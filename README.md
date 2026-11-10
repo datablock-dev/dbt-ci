@@ -36,6 +36,11 @@ Every pull request gets a comment like this one, updated on each push:
 >
 > - `revenue_dashboard`
 >
+> ### Run time
+>
+> Built **2** node(s) in **41s** of dbt run time.
+> The **186** other node(s) with a recorded run time took about **23m 10s** when they last ran, so this run skipped about **97%** of the run time of a full build.
+>
 > ### Commands
 >
 > | Command | Status | Duration |
@@ -106,6 +111,7 @@ on that and handles the parts you would otherwise script yourself:
 | Ignore changes that only come from environment-specific config | ❌ | ✅ `hybrid` keeps only nodes the git diff also touches |
 | Ignore changes merged into `main` after the branch was created | ❌ | ✅ compares against the branch's merge base by default (`init --compare-to`) |
 | Comment the change set and affected exposures on the PR | ❌ | ✅ `report --pr-comment` |
+| Show how much build time a PR skipped | ❌ | ✅ the report's run time section |
 | Post a summary to Slack | ❌ | ✅ |
 | Zero-copy PR environment that is torn down afterwards | `dbt clone`, teardown by hand | ✅ `ephemeral create` / `destroy` |
 | Drop tables of models deleted in the PR | ❌ | ✅ `delete` |

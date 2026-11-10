@@ -101,6 +101,20 @@ class CacheManager:
         """Write manifest data to a JSON file in the cache directory."""
         self._write(cast(dict, manifest_data), "target_manifest.json")
 
+    def add_run_times(self, times: dict[str, float]) -> None:
+        """Add node execution times measured in this run to run_times.json."""
+        if not times:
+            return
+        run_times = self.get_cache("run_times.json") or {}
+        run_times["this_run"] = {**(run_times.get("this_run") or {}), **times}
+        self._write(run_times, "run_times.json")
+
+    def write_recorded_run_times(self, times: dict[str, float]) -> None:
+        """Keep the node execution times recorded by earlier deploys in run_times.json."""
+        run_times = self.get_cache("run_times.json") or {}
+        run_times["recorded"] = times
+        self._write(run_times, "run_times.json")
+
     def get_cache(self, file_name: str = "cache.json") -> dict[str, Any] | None:
         """Load a JSON file from the cache directory, or None if it doesn't exist."""
         file_path = self._file_path(file_name)
