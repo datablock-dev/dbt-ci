@@ -9,16 +9,18 @@ from dbt_ci.commands.migration.index import migration
 @cli.command(name="migration")
 @common_options
 def migration_cmd(**kwargs):
-    """Run migration check workflow
+    """Move incremental tables onto a changed layout
 
-    Uses cached state from 'dbt-ci init' to detect breaking changes and run migration checks.
-    Useful for validating changes before merging to production.
+    Uses cached state from 'dbt-ci init' to find incremental models whose partitioning,
+    clustering, sort or distribution keys changed, and changes their tables to match,
+    keeping their rows (BigQuery, Snowflake, Redshift and Databricks).
 
     \b
     Examples:
         # Run after init
         dbt-ci init --state-uri gs://bucket/manifest.json --reference-target production
-        dbt-ci migration --runner docker
+        dbt-ci migration --dry-run   # show the tables and statements first
+        dbt-ci migration
     """
     setup_logging(to_namespace(kwargs).log_level)
     args = to_namespace(kwargs, command="migration")

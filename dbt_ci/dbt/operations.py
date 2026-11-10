@@ -136,3 +136,10 @@ def drop_schemas(args: Namespace, schemas: list[SchemaRef]) -> None:
     if not schemas:
         return
     run_operation(args, "dbt_ci_drop_schemas", {"schemas": schemas})
+
+
+def run_statements(args: Namespace, statements: list[str]) -> None:
+    """Run SQL statements on the warehouse in profiles.yml, raising if one fails."""
+    if not statements:
+        return
+    run_operation(args, "dbt_ci_run_statements", {"statements": statements})

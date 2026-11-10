@@ -46,3 +46,20 @@
         {{ log("dbt-ci: dropped schema " ~ relation, info=true) }}
     {% endfor %}
 {% endmacro %}
+
+{#
+    Runs DDL dbt-ci rendered for a table's new layout (see dbt_ci.commands.migration.layout).
+    run_query opens no transaction, so each statement runs in the connection's autocommit
+    mode: some ALTER TABLE forms cannot run inside a transaction block (Redshift) and
+    others commit on their own anyway (Snowflake, Databricks). On adapters that keep an
+    implicit transaction open, the trailing COMMIT makes the change stick.
+#}
+{% macro dbt_ci_run_statements(statements) %}
+    {% for sql in statements %}
+        {{ log("dbt-ci: " ~ sql, info=true) }}
+        {% do run_query(sql) %}
+    {% endfor %}
+    {% if adapter.type() in ["redshift", "postgres"] %}
+        {% do run_query("commit") %}
+    {% endif %}
+{% endmacro %}

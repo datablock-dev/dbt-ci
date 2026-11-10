@@ -487,6 +487,11 @@ class MigrationMapNodeEntry(TypedDict):
     cluster_by: NotRequired[str | list[str] | None]
     require_partition_filter: NotRequired[bool | None]
     partition_expiration_days: NotRequired[int | None]
+    # The layout config keys of the warehouse, before and after (see migration.layout)
+    relation_name: NotRequired[str | None]
+    old_layout: NotRequired[dict[str, Any]]
+    new_layout: NotRequired[dict[str, Any]]
+    config: NotRequired[dict[str, Any]]
 
 
 class MigrationMap(TypedDict):

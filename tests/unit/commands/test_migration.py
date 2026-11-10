@@ -35,39 +35,26 @@ class TestMigrationCommand:
 
     @patch("dbt_ci.commands.migration.index.get_profile")
     @patch("dbt_ci.commands.migration.index.CacheManager")
-    @patch("dbt_ci.commands.migration.index.DbtGraph")
     @patch("dbt_ci.commands.migration.index.get_connector")
-    @patch("dbt_ci.commands.migration.index.logger")
+    @patch("dbt_ci.commands.migration.index.generate_migration_map")
     @patch("dbt_ci.commands.migration.index.click.secho")
-    @patch("dbt_ci.commands.migration.index.sys.exit")
     def test_migration_unsupported_connector(
-        self,
-        mock_exit,
-        mock_secho,
-        mock_logger,
-        mock_get_connector,
-        mock_graph,
-        mock_cache,
-        mock_get_profile,
+        self, _secho, mock_map, mock_get_connector, mock_cache, mock_get_profile
     ):
-        """Test migration command with unsupported connector."""
-        # Setup mocks
+        """A layout change on a warehouse without a migration strategy fails with a hint."""
         mock_get_profile.return_value = {"type": "bigquery"}
-        mock_cache_instance = MagicMock()
-        mock_cache_instance.get_cache.return_value = {"modified_nodes": {}}
-        mock_cache.return_value = mock_cache_instance
         mock_get_connector.return_value = {"strategies": {"migration": None}}
+        mock_map.return_value = {
+            "connector": "bigquery",
+            "nodes": {"model.p.events": {"table_id": "p.d.events"}},
+        }
 
-        # Run command
-        args = Namespace(dbt_project_dir="/dbt", dry_run=False)
-        index(args)
+        with pytest.raises(SystemExit) as exc_info:
+            index(Namespace(dbt_project_dir="/dbt", dry_run=False))
 
-        # Verify error was logged
-        mock_logger.error.assert_called_once()
-        assert "does not have a migration strategy" in str(mock_logger.error.call_args)
-
-        # Verify exit with error
-        mock_exit.assert_called_with(1)
+        assert exc_info.value.code == 1
+        comment = mock_cache.return_value.update_report.call_args.kwargs["comment"]
+        assert "dbt run --full-refresh --select events" in comment
 
     @patch("dbt_ci.commands.migration.index.get_profile")
     @patch("dbt_ci.commands.migration.index.CacheManager")
