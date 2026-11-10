@@ -40,7 +40,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13"]
-        dbt-version: ["1.10.23", "1.11.16", "1.12.6"]
+        dbt-version: ["1.10.23", "1.11.17", "1.12.6"]
         # dbt-core declares Python 3.14 support from 1.12 onwards.
         include:
           - python-version: "3.14"
