@@ -45,6 +45,7 @@ init:
 run:
   nodes: models
   downstream-depth: 2
+  skip-test-only-changes: true
 
 finalize:
   artifacts-uri: s3://my-bucket/dbt-artifacts/
@@ -300,8 +301,8 @@ dbt-ci run
 
 ### Settings Inherited From `init`
 
-`init` records the `--target`, `--vars`, `--state` and `--profile` it ran with, and later
-commands reuse them, so they only need to be given once:
+`init` records the `--target`, `--vars`, `--state`, `--base-ref` and `--profile` it ran
+with, and later commands reuse them, so they only need to be given once:
 
 ```bash
 dbt-ci init --target ci --vars '{"use_production_data": false}' --state dbt/.dbtstate

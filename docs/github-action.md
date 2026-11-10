@@ -115,6 +115,7 @@ empty pass nothing, so the config file (found in the working directory or the
 | `downstream-depth` | | `run --downstream-depth` |
 | `select` | | `run --select`, dbt selectors, space-separated |
 | `exclude` | | `run --exclude`, dbt selectors, space-separated |
+| `skip-test-only-changes` | `false` | `run --skip-test-only-changes` |
 | `artifacts-uri` | | `finalize --artifacts-uri` |
 | `pr-comment` | `true` | `report --pr-comment`; `false` passes `--no-pr-comment` |
 | `github-token` | `${{ github.token }}` | Token used for the PR comment |

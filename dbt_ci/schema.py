@@ -568,6 +568,8 @@ class DbtCompileOptions(TypedDict, total=False):
     vars: str | None
     # Only recorded for the reference side: the state directory init used
     state: str | None
+    # Only recorded for the reference side: the --base-ref init diffed against, if given
+    base_ref: str | None
 
 
 class DbtCiConfig(TypedDict):
