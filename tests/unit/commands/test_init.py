@@ -326,6 +326,58 @@ class TestReferenceManifestCaching:
         mock_state_modified.return_value.get_state_modified.assert_called_once()
 
 
+class TestRecordedRunTimes:
+    """Test that init fetches the node run times kept next to the state."""
+
+    _args = TestReferenceManifestCaching._args
+
+    @patch("dbt_ci.commands.init.index.init_summary")
+    @patch("dbt_ci.commands.init.index.StateModified")
+    @patch("dbt_ci.commands.init.index.DbtCommands")
+    @patch("dbt_ci.commands.init.index.get_manifest_file")
+    @patch("dbt_ci.commands.init.index.get_reference_manifest_file")
+    @patch("dbt_ci.commands.init.index.CacheManager")
+    @patch("dbt_ci.commands.init.index.click.secho")
+    def test_from_storage_and_from_a_local_state(
+        self,
+        _secho,
+        mock_cache,
+        _ref_manifest,
+        mock_target_manifest,
+        _dbt_commands,
+        mock_state_modified,
+        _summary,
+        tmp_path,
+    ):
+        """run_times.json is read next to the state URI, or from the --state directory."""
+        mock_cache.return_value.get_cache.return_value = {"nodes": {}}
+        mock_target_manifest.return_value = {"nodes": {}}
+        mock_state_modified.return_value.get_state_modified.return_value = {}
+        connector = MagicMock()
+        uri = "gs://b/dbt-state/manifest.json"
+        with (
+            patch(
+                "dbt_ci.commands.init.index.init_storage_connector", return_value=(connector, uri)
+            ),
+            patch(
+                "dbt_ci.commands.init.index.resolve_manifest_file_from_storage",
+                return_value=tmp_path / "state",
+            ),
+            patch(
+                "dbt_ci.commands.init.index.download_run_times", return_value={"a": 1.0}
+            ) as download,
+        ):
+            index(self._args(tmp_path, state_uri=uri))
+        download.assert_called_once_with("gs://b/dbt-state/run_times.json", connector)
+        mock_cache.return_value.write_recorded_run_times.assert_called_once_with({"a": 1.0})
+
+        mock_cache.reset_mock()
+        (tmp_path / "state").mkdir()
+        (tmp_path / "state" / "run_times.json").write_text('{"nodes": {"b": 2.0}}')
+        index(self._args(tmp_path))
+        mock_cache.return_value.write_recorded_run_times.assert_called_once_with({"b": 2.0})
+
+
 class TestInitSummarySlack:
     """init posts its change summary to Slack, except on a dry run."""
 

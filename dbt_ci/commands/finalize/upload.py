@@ -14,6 +14,7 @@ from dbt_ci.commands.finalize.publish_order import (
     read_published_commit,
 )
 from dbt_ci.schema import StorageConnectorConfig
+from dbt_ci.utilities.run_times import RUN_TIMES_FILE, download_run_times, merge_times
 from dbt_ci.utilities.logging import LOG_FILE_NAME, flush_log_file
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,10 @@ def upload_manifest(
     else:
         logger.debug("No commit found, so no per-commit copy of the manifest was kept.")
 
+    # Measured times are right whichever manifest ends up published
+    if connector:
+        publish_run_times(artifacts_uri, cache, storage_function, connector)
+
     published = read_published_commit(artifacts_uri, connector) if connector else None
     if commit and published and published_is_newer(commit, published):
         if not force:
@@ -148,6 +153,22 @@ def upload_manifest(
     storage_function(f"{artifacts_uri}/manifest.json", manifest_file, "application/json")
     logger.info(f"Uploading manifest.json to {artifacts_uri}/manifest.json...")
     storage_function(f"{artifacts_uri}/{COMMIT_RECORD}", commit_record(commit), "application/json")
+
+
+def publish_run_times(
+    artifacts_uri: str,
+    cache: CacheManager,
+    storage_function: Callable[[str, Any, str], None],
+    connector: StorageConnectorConfig,
+) -> None:
+    """Merge the node times this run measured into run_times.json next to the manifest."""
+    measured = (cache.get_cache(RUN_TIMES_FILE) or {}).get("this_run") or {}
+    if not measured:
+        return
+    uri = f"{artifacts_uri}/{RUN_TIMES_FILE}"
+    published = {"nodes": download_run_times(uri, connector)}
+    storage_function(uri, merge_times(published, measured), "application/json")
+    logger.info(f"Recorded the run times of {len(measured)} node(s) in {uri}")
 
 
 UPLOAD_MAPPING: dict[str, Callable[[str, CacheManager, Callable[[str, Any, str], None]], None]] = {
