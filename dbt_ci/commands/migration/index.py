@@ -12,6 +12,13 @@ from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.schema import MigrationMap, SupportedConnectors
 from dbt_ci.connectors import get_connector
+from dbt_ci.commands.migration.layout import (
+    SQL_ADAPTERS,
+    UnsupportedLayoutChange,
+    layout_change,
+    plan_statements,
+)
+from dbt_ci.dbt.operations import run_statements
 from dbt_ci.utilities.paths import get_profile
 from dbt_ci.graph.graph_utils import (
     filter_node_ids_by_type,
@@ -25,11 +32,13 @@ logger = logging.getLogger(__name__)
 
 def migration(args: Namespace):
     """
-    Rebuild the incremental models whose partitioning configuration changed.
+    Move incremental models whose table layout changed onto their new layout.
 
-    The change set comes from the cache `init` wrote. Each affected table is copied into
-    a new table with the new partitioning (keeping its clustering and partition options),
-    then swapped into place, which only the native BigQuery connector supports.
+    The change set comes from the cache `init` wrote. On BigQuery each affected table is
+    copied into a new table with the new partitioning and swapped into place. On
+    Snowflake, Redshift and Databricks the change is applied with DDL that keeps the
+    table's rows (see dbt_ci.commands.migration.layout). Other warehouses have no layout
+    config for dbt-ci to apply, so there is nothing to migrate.
     """
     try:
         click.secho("DBT CI Migration", fg="green", bold=True)
@@ -38,55 +47,99 @@ def migration(args: Namespace):
         cache.start_report("migrate", args)
         apply_cached_config(args)
         connector_type = cast(SupportedConnectors, get_profile(args)["type"])
-        connector = get_connector(connector_type)
 
-        if connector is None:
-            logger.error(
-                f"Connector '{connector_type}' does not support migration strategy, which is "
-                "required for migration command."
-            )
-            sys.exit(1)
-
-        # Setup migraiton connector
-        migration_connector = connector.get("strategies").get("migration", None)
-        if migration_connector is None:
-            logger.error(
-                f"Connector '{connector_type}' does not have a migration strategy implemented, "
-                "which is required for migration command."
-            )
-            sys.exit(1)
-
-        # Determine if there has been a change in clustering or partitioning configuration
         migration_map = generate_migration_map(args, cache)
-
         if len(migration_map["nodes"]) == 0:
-            logger.info("No partitioning changes detected between target and reference graphs.")
+            logger.info("No table layout changes detected between target and reference graphs.")
+            cache.update_report("migrate", "completed", comment="nothing to migrate")
             sys.exit(0)
+
+        logger.info(f"Detected {len(migration_map['nodes'])} model(s) with layout changes.")
+        logger.info("\n------------------------------------------------------")
+        for node_id, node_info in migration_map["nodes"].items():
+            logger.info(f"Model: {node_id}")
+            logger.info(f"  - Table ID: {node_info['table_id']}")
+            logger.info(f"  - Old layout: {node_info.get('old_layout')}")
+            logger.info(f"  - New layout: {node_info.get('new_layout')}")
+        logger.info("------------------------------------------------------\n")
+
+        if connector_type in SQL_ADAPTERS:
+            migrate_with_sql(args, connector_type, migration_map)
         else:
-            logger.info(f"Detected {len(migration_map['nodes'])} models with partitioning changes.")
-            logger.info("\n------------------------------------------------------")
-            for node_id, node_info in migration_map["nodes"].items():
-                logger.info(f"Model: {node_id}")
-                logger.info(f"  - Table ID: {node_info['table_id']}")
-                logger.info(f"  - Old Partitioning: {node_info['old_partitioning']}")
-                logger.info(f"  - New Partitioning: {node_info['new_partitioning']}")
-            logger.info("------------------------------------------------------\n")
+            migrate_with_connector(args, connector_type, migration_map)
 
-        if getattr(args, "dry_run", False):
-            logger.info("Dry run mode enabled - no changes will be applied.")
-            sys.exit(0)
-
-        # Apply partitioning changes
-        migration_connector(migration_map, args)
         cache.update_report(
             "migrate", "completed", comment=str(list(migration_map["nodes"].keys()))
         )
-        logger.info("Migration completed successfully.")
+        if not getattr(args, "dry_run", False):
+            logger.info("Migration completed successfully.")
     except Exception as e:
         cache = CacheManager(args)
         cache.update_report("migrate", "failed", comment=str(e))
         print_exception(e, "Migration failed")
         sys.exit(1)
+
+
+def migrate_with_connector(
+    args: Namespace, connector_type: SupportedConnectors, migration_map: MigrationMap
+) -> None:
+    """Apply the migration with the warehouse's native connector (BigQuery)."""
+    connector = get_connector(connector_type)
+    strategies = cast(dict[str, Any], connector.get("strategies") or {}) if connector else {}
+    migration_connector = strategies.get("migration")
+    if migration_connector is None:
+        raise DbtCiError(
+            f"dbt-ci cannot migrate tables on '{connector_type}'. Rebuild the models with "
+            f"'dbt run --full-refresh --select {' '.join(model_names(migration_map))}'."
+        )
+    if getattr(args, "dry_run", False):
+        logger.info("Dry run mode enabled - no changes will be applied.")
+        return
+    migration_connector(migration_map, args)
+
+
+def migrate_with_sql(args: Namespace, adapter_type: str, migration_map: MigrationMap) -> None:
+    """
+    Plan the DDL for every model, then run it through dbt run-operation.
+
+    Everything is planned before anything runs, so a change that needs a rebuild stops
+    the command before any table was touched.
+    """
+    plans: dict[str, list[str]] = {}
+    unsupported: list[str] = []
+    for node_id, node in migration_map["nodes"].items():
+        try:
+            plans[node_id] = plan_statements(
+                adapter_type,
+                node.get("relation_name") or node["table_id"],
+                node.get("old_layout") or {},
+                node.get("new_layout") or {},
+                node.get("config"),
+            )
+        except UnsupportedLayoutChange as e:
+            unsupported.append(f"{node_id}: {e}")
+    if unsupported:
+        raise DbtCiError(
+            "These layout changes need the table rebuilt, which would lose rows an "
+            "incremental model can't rebuild from its sources. Rebuild them with "
+            "'dbt run --full-refresh' if that is safe:\n  " + "\n  ".join(unsupported)
+        )
+
+    for node_id, statements in plans.items():
+        logger.info(f"{node_id}:")
+        for statement in statements:
+            logger.info(f"  {statement}")
+    if getattr(args, "dry_run", False):
+        logger.info("Dry run mode enabled - no changes will be applied.")
+        return
+    for node_id, statements in plans.items():
+        run_statements(args, statements)
+        logger.info(f"Migrated {node_id}")
+
+
+def model_names(migration_map: MigrationMap) -> list[str]:
+    """Return the model names in a migration map, for a dbt --select."""
+    return [node_id.split(".")[-1] for node_id in migration_map["nodes"]]
 
 
 def generate_migration_map(
@@ -124,20 +177,29 @@ def generate_migration_map(
     target_nodes = get_nodes(target_graph.to_dict(), selected_nodes) or {}
     reference_nodes = get_nodes(reference_graph.to_dict(), selected_nodes) or {}
 
+    adapter_type = get_profile(args)["type"]
     for node_id, node_metadata in target_nodes.items():
         node_config = cast(dict[str, Any], node_metadata.get("config") or {})
         reference_node = reference_nodes.get(node_id)
-        reference_config = cast(dict[str, Any], reference_node["config"] if reference_node else {})
+        # A model new on this branch has no table to migrate yet
+        if reference_node is None:
+            continue
+        reference_config = cast(dict[str, Any], reference_node.get("config") or {})
         target_partitioning_config = node_config.get("partition_by", None)
         reference_partitioning_config = reference_config.get("partition_by", None)
         # Only incremental models keep their table between runs, so only they need migrating
         if node_config.get("materialized", None) != "incremental":
             continue
 
-        # Check if partitioning has been changed
-        # Dict comparison is order-insensitive since Python 3.7+
-        if target_partitioning_config != reference_partitioning_config:
+        # Each warehouse sets the layout with its own config keys
+        change = layout_change(adapter_type, node_config, reference_config)
+        if change is not None:
+            old_layout, new_layout = change
             migration_map["nodes"][node_id] = {
+                "relation_name": cast(str | None, node_metadata.get("relation_name")),
+                "old_layout": old_layout,
+                "new_layout": new_layout,
+                "config": node_config,
                 "table_id": ".".join(
                     [
                         node_metadata.get("database") or "",

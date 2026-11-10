@@ -319,33 +319,51 @@ Relations that no longer exist are skipped, so a teardown or delete can be re-ru
 
 ---
 
-## `migration` - Migrate Partitioning Changes
+## `migration` - Migrate Table Layout Changes
 
-Detects models whose partitioning configuration changed between the reference and target
-state, and rebuilds the affected tables with the new partitioning spec. Uses cached state
-from `init`.
+Detects incremental models whose table layout changed between the reference and target
+state (partitioning, clustering, sort or distribution keys) and moves their existing
+tables onto the new layout, keeping their rows. Uses cached state from `init`.
 
-BigQuery cannot change a table's partitioning in place, so each affected table is copied
-into a temporary table with the new spec (keeping the model's `cluster_by`,
-`require_partition_filter` and `partition_expiration_days`). The original is then renamed
-to `<table>__dbt_ci_backup`, the copy is renamed into place, and only then is the backup
-dropped — if the swap fails, the original data is still in the backup table. The table
-migrated is the relation dbt resolves for the model, including its `alias`. Only **incremental** models are considered — other materializations are
-rebuilt by dbt anyway.
+Only **incremental** models are considered: they keep their table between runs, while
+other materializations are rebuilt by dbt anyway. A model that is new on the branch has
+no table yet and is skipped. The table migrated is the relation dbt resolves for the
+model, including its `alias`.
 
 ```bash
-dbt-ci migration --dry-run  # list the tables that would be rebuilt
+dbt-ci migration --dry-run  # list the tables and the statements that would run
 dbt-ci migration            # apply the changes
 ```
 
-> **Warning:** this rewrites tables in place. Always review the `--dry-run` output first.
-> Requires a connector implementing a migration strategy — currently BigQuery only.
+What counts as a layout change, and how it is applied, depends on the warehouse:
+
+| Warehouse | Config compared | How the table changes |
+|---|---|---|
+| BigQuery | `partition_by` | Copied into a new table with the new partitioning (keeping `cluster_by`, `require_partition_filter` and `partition_expiration_days`), then swapped into place. The original is renamed to `<table>__dbt_ci_backup` and only dropped once the copy is in place, so a failed swap leaves the data in the backup. |
+| Snowflake | `cluster_by` | `alter table ... cluster by (...)`, or `drop clustering key` when it was removed. In place; Snowflake reclusters in the background. |
+| Redshift | `sort`, `sort_type`, `dist` | `alter table ... alter diststyle ...` and `alter sortkey (...)` / `none` / `auto`. In place; Redshift redistributes and re-sorts in the background. |
+| Databricks | `partition_by`, `clustered_by`, `buckets`, `liquid_clustered_by` | Liquid clustering: `alter table ... cluster by (...)` / `none`, in place. Partitioning and bucketing are fixed when a table is created, so the table is rewritten with one atomic `create or replace table ... as select * from` itself, which keeps its Delta history; `tblproperties` from the model's config are applied again. |
+| Others (Postgres, DuckDB, ...) | none | dbt has no layout config for them, so there is nothing to migrate and the command succeeds. |
+
+- BigQuery uses its native client (the `gcp` extra). The other warehouses run the
+  statements through `dbt run-operation` with the connection in your `profiles.yml`, the
+  same way [`delete`](#how-dbt-ci-drops-relations) drops relations, so they need no
+  extra driver. Each statement runs outside a transaction block, as some `alter table`
+  forms require; Redshift needs its default `autocommit: true`.
+- Every model's statements are planned before any runs. A change that can only be applied
+  by rebuilding the table, such as a Redshift interleaved sort key, stops the command
+  before anything is touched and names the models: a rebuild loses rows an incremental
+  model can't recreate from its sources, so run `dbt run --full-refresh` yourself if that
+  is safe.
+- The DDL for Snowflake, Redshift and Databricks is covered by unit tests over the
+  rendered SQL, and the macro that runs it by an end-to-end test on DuckDB; it has not run
+  against those warehouses in dbt-ci's CI.
+
+> **Warning:** this changes production tables. Always review the `--dry-run` output first.
 
 **Flags:**
 
 > Only [common options](configuration.md#common-options) apply — no command-specific flags.
-
----
 
 ---
 
