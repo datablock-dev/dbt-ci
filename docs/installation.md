@@ -44,7 +44,7 @@ above, and Python 3.14 on dbt-core 1.12, the first release that supports it.
 `pip install dbt-ci` resolves the newest dbt-core 1.x (`>=1.10.13,<2.0.0`). To stay on an
 older minor version, pin it alongside dbt-ci, e.g. `pip install dbt-ci 'dbt-core~=1.11.0'`.
 
-The published Docker images are tagged per dbt-core version (`dbt-1.10.23`, `dbt-1.11.16`,
+The published Docker images are tagged per dbt-core version (`dbt-1.10.23`, `dbt-1.11.17`,
 `dbt-1.12.6`); `latest` tracks the newest supported minor version.
 
 ## From GitHub
