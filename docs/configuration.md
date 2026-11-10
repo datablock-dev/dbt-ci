@@ -40,6 +40,7 @@ init:
   reference-target: production
   comparison-strategy: hybrid
   base-ref: main
+  compare-to: auto   # auto | merge-base | latest
 
 run:
   nodes: models
@@ -82,6 +83,16 @@ Other keys accepted in the config file include `dbt-version`, a `report:` sectio
 3. The top-level settings in `dbt-ci.config.yaml`
 4. Shell environment variables
 5. Built-in defaults
+
+**Empty values count as not set.** A flag given an empty value (`--vars ''` or
+`--vars=`), an empty value in the config file (`target: ""`, or a `${VAR}` that is set but
+empty) and an empty environment variable are all ignored, so the next source in the list
+applies. This keeps CI templates such as `--vars '${{ inputs.vars }}'` from wiping the
+config file, the selected profile or what `init` recorded when the input is empty. To
+pass empty dbt vars on purpose, use `--vars '{}'`.
+
+To see which value won and why, run [`dbt-ci config show`](commands.md#config-show---show-resolved-settings)
+with the command and flags you plan to use, e.g. `dbt-ci config show run --profile action`.
 
 The config file sits **above** shell environment variables: a value you commit to
 `dbt-ci.config.yaml` is deliberate, whereas the environment a CI runner happens to
@@ -284,14 +295,14 @@ dbt-ci run
 - `DBT_PROFILES_DIR` - Path to profiles.yml location
 - `DBT_TARGET` - Target environment to use
 - `DBT_RUNNER` - Runner type (local, docker, bash, dbt)
-- `DBT_CI_CACHE_DIR` - Where the state cache and log file live (default: `<temp dir>/dbt-ci`)
+- `DBT_CI_CACHE_DIR` - Where the state cache and log file live (default: a directory per CI job, see [Cache Location](#cache-location))
 
 **Note:** State management is cache-based. Run `init` once, then subsequent commands automatically use the cached state.
 
 ### Settings Inherited From `init`
 
-`init` records the `--target`, `--vars`, `--state` and `--profile` it ran with, and later
-commands reuse them, so they only need to be given once:
+`init` records the `--target`, `--vars`, `--state`, `--base-ref` and `--profile` it ran
+with, and later commands reuse them, so they only need to be given once:
 
 ```bash
 dbt-ci init --target ci --vars '{"use_production_data": false}' --state dbt/.dbtstate
@@ -308,18 +319,32 @@ Passing the flag explicitly still wins — the cache only fills in what was left
 
 ### Cache Location
 
-`init` writes its cache (state comparison, manifests, run report and log file) to
-`<temp dir>/dbt-ci`, and later commands read it from there. Because the location is
-fixed, two dbt-ci runs executing at the same time on the same machine — for example two
-pull request jobs on a shared self-hosted runner — would overwrite each other's state.
+`init` writes its cache (state comparison, manifests, run report and log file) to a
+cache directory, and later commands read it from there. Two jobs running at the same
+time on one machine, such as two pull request jobs on a shared self-hosted runner, must
+not share that directory, or they overwrite each other's state. dbt-ci therefore gives
+each CI job its own directory automatically:
 
-Set `DBT_CI_CACHE_DIR` to give each run its own directory:
+| Where dbt-ci runs | Cache directory |
+|---|---|
+| GitHub Actions | `$RUNNER_TEMP/dbt-ci` |
+| Azure Pipelines | `$AGENT_TEMPDIRECTORY/dbt-ci` |
+| GitLab CI, Buildkite, CircleCI, Bitbucket Pipelines | `<temp dir>/dbt-ci/<job id>` (from `CI_JOB_ID`, `BUILDKITE_JOB_ID`, `CIRCLE_WORKFLOW_JOB_ID` or `BITBUCKET_STEP_UUID`) |
+| Anywhere else, e.g. your laptop | `<temp dir>/dbt-ci` |
+
+On GitHub Actions and Azure Pipelines the runner cleans up the job's temp directory
+itself. Everywhere else, every dbt-ci cache lives under `<temp dir>/dbt-ci`, so deleting
+that one directory clears them all; don't do it while a job is running.
+
+Set `DBT_CI_CACHE_DIR` to choose the directory yourself. It wins over the defaults
+above, and is the way to isolate concurrent runs on other CI systems, e.g. Jenkins:
 
 ```bash
-export DBT_CI_CACHE_DIR="/tmp/dbt-ci-${GITHUB_RUN_ID}"
+export DBT_CI_CACHE_DIR="/tmp/dbt-ci-${BUILD_TAG}"
 dbt-ci init ...
 dbt-ci run ...
 ```
 
 All commands in the same CI job must see the same value, since that is how `run`,
-`delete`, `ephemeral` and `finalize` find the cache written by `init`.
+`delete`, `ephemeral` and `finalize` find the cache written by `init`. This is also why
+`init` and the commands after it must run in the same job.

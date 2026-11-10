@@ -231,3 +231,33 @@ class TestSkipTestOnlyNodes:
             skip_test_only_nodes(Namespace(defer=False), graph, changed)
 
         assert "Without --defer" in caplog.text
+
+    def test_report_says_why_the_node_was_not_rebuilt(self, tmp_path):
+        """The skipped node keeps init's reason, followed by why run left it out."""
+        from dbt_ci.commands.run.index import SKIPPED_REASON
+        from dbt_ci.utilities.cache import CacheManager
+
+        cache = CacheManager(Namespace(), cache_dir=tmp_path)
+        cache._write({"reasons": {"model.demo.a": ["`models/schema.yml` changed"]}}, "cache.json")
+        graph = MagicMock()
+        graph.to_dict.return_value = _manifest_graph()
+        changed = {"modified_nodes": ["model.demo.a"], "new_nodes": [], "deleted_nodes": []}
+
+        with (
+            patch("dbt_ci.commands.run.index.CacheManager", return_value=cache),
+            patch(
+                "dbt_ci.commands.run.index.find_test_only_changes", return_value={"model.demo.a"}
+            ),
+        ):
+            skip_test_only_nodes(Namespace(defer=True), graph, changed)
+            # A second run records the reason once
+            skip_test_only_nodes(
+                Namespace(defer=True),
+                graph,
+                {"modified_nodes": ["model.demo.a"], "new_nodes": [], "deleted_nodes": []},
+            )
+
+        assert cache.get_cache()["reasons"]["model.demo.a"] == [
+            "`models/schema.yml` changed",
+            SKIPPED_REASON,
+        ]

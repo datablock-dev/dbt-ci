@@ -39,10 +39,13 @@ COMMAND_VALUE_FLAGS: Dict[str, Dict[str, str]] = {
         "reference-target": "--reference-target",
         "comparison-strategy": "--comparison-strategy",
         "base-ref": "--base-ref",
+        "compare-to": "--compare-to",
     },
     "run": {
         "mode": "--mode",
         "downstream-depth": "--downstream-depth",
+        "select": "--select",
+        "exclude": "--exclude",
     },
     "finalize": {
         "artifacts-uri": "--artifacts-uri",

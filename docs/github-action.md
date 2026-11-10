@@ -110,8 +110,11 @@ empty pass nothing, so the config file (found in the working directory or the
 | `reference-target` | | `init --reference-target` |
 | `comparison-strategy` | | `init --comparison-strategy` (`hybrid`, `git`, `dbt`) |
 | `base-ref` | PR base branch | `init --base-ref` |
+| `compare-to` | `auto` | `init --compare-to` (`auto`, `merge-base`, `latest`) |
 | `mode` | | `run --mode` |
 | `downstream-depth` | | `run --downstream-depth` |
+| `select` | | `run --select`, dbt selectors, space-separated |
+| `exclude` | | `run --exclude`, dbt selectors, space-separated |
 | `skip-test-only-changes` | `false` | `run --skip-test-only-changes` |
 | `artifacts-uri` | | `finalize --artifacts-uri` |
 | `pr-comment` | `true` | `report --pr-comment`; `false` passes `--no-pr-comment` |
@@ -143,5 +146,6 @@ The outputs are empty when `init` did not run or failed.
   its own dbt-ci cache under `RUNNER_TEMP`, so concurrent jobs on one self-hosted runner
   don't overwrite each other's state.
 - With a shallow checkout (the `actions/checkout` default), the action warns that the git
-  comparison may not find the merge base. Use `fetch-depth: 0`, or
-  `comparison-strategy: dbt`.
+  comparison may not find the merge base. dbt-ci then fetches more history itself until
+  it finds it, and warns again only if it can't. `fetch-depth: 0` avoids the extra
+  fetches, or use `comparison-strategy: dbt`.

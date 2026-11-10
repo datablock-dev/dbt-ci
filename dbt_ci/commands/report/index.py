@@ -25,6 +25,7 @@ from dbt_ci.graph.graph_utils import (
 from dbt_ci.schema import DependencyGraph, StateChangeSummary, StateChangeSummaryKeys
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.utilities.logging import print_exception
+from dbt_ci.utilities.run_times import RUN_TIMES_FILE, format_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,11 @@ def report(args: Namespace) -> None:
         )
         if output_format == "json":
             rendered = json.dumps(
-                {"report": run_report, "changes": cache_dict},
+                {
+                    "report": run_report,
+                    "changes": cache_dict,
+                    "run_times": cache.get_cache(RUN_TIMES_FILE),
+                },
                 indent=2,
                 default=lambda o: list(o) if isinstance(o, set) else str(o),
             )
@@ -106,10 +111,21 @@ def render_markdown(
 ) -> str:
     """Render the full report as GitHub-flavoured markdown."""
     lines: list[str] = ["## dbt-ci run report", ""]
+    lines.extend(render_baseline(cache_dict))
     lines.extend(render_change_summary(cache_dict))
     lines.extend(render_exposure_impact(cache_dict, args))
+    lines.extend(render_run_time(args))
     lines.extend(render_command_status(run_report))
     return "\n".join(lines).rstrip() + "\n"
+
+
+def render_baseline(cache_dict: StateChangeSummary | None) -> list[str]:
+    """Say which manifest the change set was compared against, when it was the merge base."""
+    # The cache holds init's config block next to the change set
+    cache = cast(dict[str, Any], cache_dict or {})
+    baseline = (cache.get("config") or {}).get("baseline") or {}
+    description = baseline.get("description")
+    return [f"Compared against {description}.", ""] if description else []
 
 
 def render_change_summary(cache_dict: StateChangeSummary | None) -> list[str]:
@@ -130,14 +146,18 @@ def render_change_summary(cache_dict: StateChangeSummary | None) -> list[str]:
         lines.append(f"| {label} | {counts[change_key]} |")
     lines.append("")
 
+    # Why each node is in the change set, recorded by init; older caches have none
+    reasons: dict[str, list[str]] = cache_dict.get("reasons") or {}  # type: ignore[assignment]
     for change_key, label in CHANGE_TYPES.items():
         structured = cache_dict.get(change_key) or {}
         if not structured:
             continue
         entries: list[str] = []
         for resource_type, nodes in sorted(structured.items()):
-            for node in nodes.values():
-                entries.append(f"- `{node.get('name', '?')}` ({resource_type})")
+            for node_id, node in nodes.items():
+                entry = f"- `{node.get('name', '?')}` ({resource_type})"
+                why = "; ".join(reasons.get(node_id, []))
+                entries.append(f"{entry}: {why}" if why else entry)
         lines.extend(collapsible(f"{label} ({len(entries)})", entries))
 
     return lines
@@ -186,6 +206,65 @@ def render_exposure_impact(cache_dict: StateChangeSummary | None, args: Namespac
 
     listed = sorted(f"- `{name}`" for name in entries)
     return [f"### ⚠️ Affects {len(listed)} exposure(s)", "", *listed, ""]
+
+
+def render_run_time(args: Namespace) -> list[str]:
+    """
+    Compare the dbt run time this run spent with the recorded time of what it left out.
+
+    The recorded times come from earlier deploys (see dbt_ci.utilities.run_times); nodes
+    no longer in the project are not counted. Without them only this run's time is shown.
+    """
+    run_times = CacheManager(args).get_cache(RUN_TIMES_FILE) or {}
+    this_run: dict[str, float] = run_times.get("this_run") or {}
+    if not this_run:
+        return []
+    spent = sum(this_run.values())
+    lines = [
+        "### Run time",
+        "",
+        f"Built **{len(this_run)}** node(s) in **{format_seconds(spent)}** of dbt run time.",
+    ]
+
+    recorded: dict[str, float] = run_times.get("recorded") or {}
+    graph = load_graph(args)
+    in_project = _node_ids(graph) if graph is not None else None
+    left_out = [
+        seconds
+        for node_id, seconds in recorded.items()
+        if node_id not in this_run and (in_project is None or node_id in in_project)
+    ]
+    if left_out:
+        skipped = sum(left_out)
+        share = round(100 * skipped / (skipped + spent)) if skipped + spent else 0
+        lines.append(
+            f"The **{len(left_out)}** other node(s) with a recorded run time took about "
+            f"**{format_seconds(skipped)}** when they last ran, so this run skipped about "
+            f"**{share}%** of the run time of a full build."
+        )
+    else:
+        lines.append(
+            "Publish run times with `dbt-ci finalize` on deploys to see what the rest of the "
+            "project would have taken."
+        )
+    lines.extend(
+        [
+            "",
+            "<sub>Run time is the sum of each node's execution time as dbt reports it, not "
+            "wall-clock time: it is what the warehouse spent working.</sub>",
+            "",
+        ]
+    )
+    return lines
+
+
+def _node_ids(graph: DependencyGraph) -> set[str]:
+    """Return every node id in a dependency graph."""
+    ids: set[str] = set()
+    for nodes in graph.values():
+        if isinstance(nodes, dict):
+            ids.update(nodes)
+    return ids
 
 
 def load_graph(args: Namespace, is_reference: bool = False) -> DependencyGraph | None:

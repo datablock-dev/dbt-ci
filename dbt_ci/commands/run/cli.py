@@ -56,6 +56,29 @@ from dbt_ci.commands.run.index import run
     ),
 )
 @click.option(
+    "--select",
+    "-s",
+    envvar=["DBT_RUN_SELECT"],
+    multiple=True,
+    default=None,
+    callback=make_config_callback("DBT_RUN_SELECT"),
+    help=(
+        "Only build changed nodes (and what they affect) that also match these dbt "
+        "selectors, e.g. --select tag:finance. Repeatable; dbt's selector syntax."
+    ),
+)
+@click.option(
+    "--exclude",
+    envvar=["DBT_RUN_EXCLUDE"],
+    multiple=True,
+    default=None,
+    callback=make_config_callback("DBT_RUN_EXCLUDE"),
+    help=(
+        "Leave nodes matching these dbt selectors out of the run, e.g. --exclude "
+        "tag:ci_skip. Tests of nodes left out are skipped too. Repeatable."
+    ),
+)
+@click.option(
     "--skip-test-only-changes",
     envvar=["DBT_SKIP_TEST_ONLY_CHANGES"],
     is_flag=True,

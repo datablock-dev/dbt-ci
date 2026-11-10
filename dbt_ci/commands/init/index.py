@@ -15,6 +15,13 @@ from dbt_ci.commands.init.state_modified import StateModified
 from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
+from dbt_ci.commands.init.baseline import resolve_baseline
+from dbt_ci.utilities.run_times import (
+    RUN_TIMES_FILE,
+    download_run_times,
+    read_local_run_times,
+    sibling_uri,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +73,10 @@ def init(args: Namespace):
 
             # Reload reference manifest file after downloading from storage
             cache.write_reference_manifest(get_reference_manifest_file(str(local_state_dir)))
+            connector, state_uri = resolved_storage
+            cache.write_recorded_run_times(
+                download_run_times(sibling_uri(state_uri, RUN_TIMES_FILE), connector)
+            )
         elif reference_state_path:
             # A local --state directory is just as much a baseline as a downloaded one.
             # Caching it is what lets later commands resolve nodes that no longer exist
@@ -76,13 +87,26 @@ def init(args: Namespace):
                 cache.write_reference_manifest(get_reference_manifest_file(reference_state_path))
             except FileNotFoundError:
                 logger.debug(f"No reference manifest at '{reference_state_path}' to cache yet.")
+            cache.write_recorded_run_times(read_local_run_times(reference_state_path))
 
         # Compile dbt and generate reference manifest.json file
         dbt_commands.reference_compile()
 
         target_manifest_file = get_manifest_file(dbt_project_dir)
+        # With --compare-to auto or merge-base, compare against the project as it was where this
+        # branch started; defer, delete and ephemeral keep the latest state.
+        baseline = resolve_baseline(args)
+        if baseline is not None:
+            state_modified.comparison_state = baseline.state_dir
         state_change_summary = state_modified.get_state_modified()
-        cache.write_cache(state_change_summary)
+        reasons = state_modified.reasons.for_summary(
+            state_change_summary, state_modified.reference_graph, state_modified.target_graph
+        )
+        cache.write_cache(
+            state_change_summary,
+            reasons=reasons,
+            baseline=baseline.to_dict() if baseline else None,
+        )
 
         if reference_target and reference_target != getattr(args, "target", None):
             # Different targets - will compile again later with actual target
@@ -104,7 +128,7 @@ def init(args: Namespace):
         # Will generate summary and output it in the logs. It also covers:
         # 1. Migration plan for partitioning changes
         # 2. Ephemeral plan
-        init_summary(state_change_summary, args)
+        init_summary(state_change_summary, args, reasons)
 
         # Deleted-node dependency validation is left to dbt: compiling the project
         # already fails when a ref()/source() points at a node removed in this change set.
@@ -126,7 +150,11 @@ def init(args: Namespace):
         sys.exit(1)
 
 
-def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> None:
+def init_summary(
+    state_change_summary: StateChangeSummary,
+    args: Namespace,
+    reasons: dict[str, list[str]] | None = None,
+) -> None:
     """
     The following method will call the following steps to generate a summary of changes,
     but also migration, ephemeral:
@@ -145,9 +173,12 @@ def init_summary(state_change_summary: StateChangeSummary, args: Namespace) -> N
         total_count = sum(len(node_dict) for node_dict in values.values())
         logger.info(f"\n{change_type.replace('_', ' ').title()}: {total_count}")
         for node_dict in values.values():
-            for node in node_dict.values():
+            for node_id, node in node_dict.items():
                 node = cast(DependencyGraphNode, node)
-                logger.info(f"  • {node['name']} [{node['resource_type']}]")
+                why = "; ".join((reasons or {}).get(node_id, []))
+                logger.info(
+                    f"  • {node['name']} [{node['resource_type']}]" + (f": {why}" if why else "")
+                )
     logger.info("\n------------------------------------------------------")
 
     slack_webhook = getattr(args, "slack_webhook", None)

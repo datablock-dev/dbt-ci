@@ -29,6 +29,11 @@ CONFIG_SECTION: dict[str, str] = {
 }
 
 
+# Settings later commands fill from init's cache when they were not given. base_ref lets
+# run diff against the same branch init did (--skip-test-only-changes).
+INHERITED_FROM_INIT: tuple[str, ...] = ("target", "vars", "reference_state", "base_ref")
+
+
 def get_cached_config(args: Namespace) -> dict[str, Any]:
     """Return the config block init recorded, or an empty mapping when unavailable."""
     cache_manifest = cast(DbtCiManifest | None, CacheManager(args).get_cache())
@@ -58,8 +63,7 @@ def apply_cached_config(args: Namespace) -> Namespace:
     The state path matters most: when init defaulted it, a later command that is not
     told it would run `dbt clone` and other deferring commands without --state.
     """
-    # base_ref lets run diff against the same branch init did (--skip-test-only-changes)
-    for key in ("target", "vars", "reference_state", "base_ref"):
+    for key in INHERITED_FROM_INIT:
         current = getattr(args, key, None)
         if current:
             continue

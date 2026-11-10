@@ -73,3 +73,18 @@ def google_download_json(uri: str) -> DBTManifest:
         raise RuntimeError(f"Failed to parse JSON from {uri}: {e}") from e
     except Exception as e:
         raise RuntimeError(f"Failed to download blob from {uri}: {e}") from e
+
+
+def google_list(prefix_uri: str) -> list[str]:
+    """Return the gs:// URIs of every object whose name starts with the given prefix."""
+    if not prefix_uri.startswith("gs://"):
+        raise ValueError(f"Invalid GCS URI: {prefix_uri}. Must start with 'gs://'.")
+    bucket_name, _, prefix = prefix_uri[5:].partition("/")
+    try:
+        client = google_storage_client()
+        return [
+            f"gs://{bucket_name}/{blob.name}"
+            for blob in client.list_blobs(bucket_name, prefix=prefix)
+        ]
+    except Exception as e:
+        raise RuntimeError(f"Failed to list {prefix_uri}: {e}") from e

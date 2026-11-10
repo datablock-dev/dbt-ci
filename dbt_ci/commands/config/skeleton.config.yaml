@@ -13,7 +13,7 @@ state: "dbt/.dbtstate"
 runner: "docker"
 
 init:
-  # Remote URI for the reference manifest (gs://, s3://, or az:// supported)
+  # Remote URI for the reference manifest (gs:// or s3://)
   # state-uri: "gs://my-bucket/dbt-state/manifest.json"
 
   # dbt target to compile the reference manifest against
@@ -21,6 +21,10 @@ init:
 
   # Comparison strategy: hybrid | dbt | git (default: hybrid)
   comparison-strategy: "hybrid"
+
+  # What a pull request is compared against: auto | merge-base | latest (default: auto).
+  # auto uses the commit the branch started from, so changes merged since don't count.
+  # compare-to: "auto"
 
 finalize:
   # Files to upload after a successful CI run: manifest | cache | log

@@ -31,17 +31,93 @@ dbt-ci init \
 | `--skip-reference-compile` | | `DBT_SKIP_REFERENCE_COMPILE` | `false` | Skip the compile pass against the reference/production state |
 | `--comparison-strategy` | `--comparison` | `DBT_COMPARISON_STRATEGY` | `hybrid` | Strategy for detecting changed nodes: `dbt`, `git`, or `hybrid` |
 | `--base-ref` | | `DBT_CI_BASE_REF` | Auto-detected | Base branch to diff against (e.g. `main`). Auto-detected from `GITHUB_BASE_REF` or git if not set |
+| `--compare-to` | | `DBT_COMPARE_TO` | `auto` | What to compare the pull request against: `auto`, `merge-base` or `latest`. See [Comparing against the merge base](#comparing-against-the-merge-base) |
 
 > All [common options](configuration.md#common-options) also apply.
 
-**Git comparison and clone depth:** the `git` and `hybrid` strategies diff `origin/<base-ref>...HEAD` — the merge base — so only the commits on your branch count as changes. Shallow clones often don't contain the merge base; dbt-ci falls back to a direct diff and logs a debug message when that happens. For an accurate change set, fetch full history (`actions/checkout` with `fetch-depth: 0`).
+**Git comparison and clone depth:** the `git` and `hybrid` strategies diff `origin/<base-ref>...HEAD` — the merge base — so only the commits on your branch count as changes. Shallow clones often don't contain the merge base, so dbt-ci fetches more history in steps (50, then 200, then 1,000 more commits) until it finds it. If it still can't, it falls back to a direct diff against the latest base branch and logs a **warning**: changes merged into the base branch since this branch was created may then be counted as this branch's own. Fetching full history up front (`actions/checkout` with `fetch-depth: 0`, or `GIT_DEPTH: 0` in GitLab CI) avoids the extra fetches entirely.
+
+### Comparing against the merge base
+
+While a pull request is open, others keep merging and deploying. Compared with the latest
+production manifest, everything deployed since the branch was created would show up as
+part of the pull request (and the `dbt` strategy would build it). So by default `init`
+compares against the project as it was at the commit the branch started from, its
+**merge base**. `--compare-to` controls this:
+
+| `--compare-to` | Compared against |
+|---|---|
+| `auto` (default) | The merge base when git shows the branch has commits of its own; otherwise (e.g. a deploy job on `main`, or no git) the latest state |
+| `merge-base` | Always the merge base, with a warning when it can't be used |
+| `latest` | The latest state, as dbt-ci did before |
+
+dbt-ci finds the merge base with git (fetching more history in a shallow clone) and then
+its manifest, in this order:
+
+1. **A manifest kept for that commit**, next to the state: for
+   `--state-uri gs://my-bucket/dbt-state/manifest.json` that is
+   `gs://my-bucket/dbt-state/<commit>/manifest.json` (for a local `--state` directory,
+   `<state>/<commit>/manifest.json`). [`finalize`](#finalize---finalize-state) keeps these
+   copies automatically. If the merge base itself has none, the nearest of the 50 base-branch
+   commits before it is used, so deploys that run on every merge and batched deploys both
+   work, with squash or merge commits.
+2. **The merge base, compiled for this run**, if no copy is kept: dbt-ci checks it out into a
+   temporary git worktree and runs `dbt parse` (and `dbt deps` when the project has
+   packages) with the reference target and vars, then removes the worktree. This needs no
+   setup but costs a parse per run, and isn't available with the Docker runner.
+3. **The latest state**, as with `--compare-to latest`.
+
+Only the comparison uses the merge base. `--defer`, `delete`, `ephemeral` and `report`'s
+exposure impact keep using the latest state, which describes the tables that exist today.
+The merge base's manifest is written to `<dbt-project-dir>/.dbtstate-baseline/`, and the
+report names it, e.g. *"Compared against the manifest archived for the merge base
+5ec9c529d61a."*
 
 How git's file-level changes are mapped to nodes:
 
 - **Moved or renamed files** are reported by git as a delete of the old path plus an add of the new one. dbt identifies nodes by `unique_id`, which a move does not change, so a node that still exists in the target manifest is treated as **modified**, not deleted and re-added. Only nodes that are really gone are reported as deleted (and dropped by `delete`).
 - **Macro changes** select every node that calls the changed macro, directly or through another macro.
 - **YAML-only changes** (config, contracts, columns in a `schema.yml`) select the model the YAML configures. With `git`, every model configured by a changed YAML file is selected; with `hybrid`, only those that dbt also flags as modified.
+- **Config in `dbt_project.yml`** (e.g. `models: {my_project: {+materialized: table}}`) selects every node whose config differs from the reference in a key the change touched, compared with the file at the merge base. Only those keys count, so environment-specific differences in other keys stay out. `vars` and other top-level settings aren't mapped to nodes this way.
+- **Package files** (`packages.yml`, `dependencies.yml`, `package-lock.yml`): a version change alters macros git can't map to nodes, so `hybrid` keeps the nodes dbt flags as modified. `git` has no dbt comparison to rely on, so use `hybrid` or `dbt` when package upgrades should select the nodes they affect.
 - **`--dbt-project-dir`** is matched as a directory relative to the repository root, so `dbt`, `./dbt`, `dbt/` and an absolute path behave the same, and files in look-alike folders such as `analytics_dbt/` are ignored.
+
+### Why is a node in the change set?
+
+`init` records why each node is modified, new or deleted, and `init`'s log, `run`'s log
+and the report show it next to the node. The evidence depends on the comparison strategy:
+
+| Reason | Meaning |
+|---|---|
+| `` `models/stg.sql` changed `` (or `added`, `deleted`) | The node's own file changed on this branch (`git`, `hybrid`) |
+| ``properties in `models/schema.yml` changed`` | The YAML file holding the node's properties changed (`git`, `hybrid`) |
+| ``uses changed macro `cents_to_dollars` `` | A macro the node calls, directly or through another macro, changed (`git`, `hybrid`) |
+| `moved or renamed` | The node's file moved; its unique_id is unchanged (`git`, `hybrid`) |
+| ``config in `dbt_project.yml` changed: `materialized` `` | A config the node inherits from `dbt_project.yml` changed (`git`, `hybrid`) |
+| ``flagged by dbt after `packages.yml` changed`` | A package file changed and dbt flagged the node (`hybrid`) |
+| `code differs from the reference manifest` | The node's code differs from the reference (`dbt`) |
+| ``config differs: `materialized` `` | These config keys differ from the reference (`dbt`) |
+| `not in the reference manifest` / `no longer in the project` | A new or deleted node (`dbt`) |
+| `flagged by dbt's state comparison` | dbt flagged the node, but the manifests don't show what differs (e.g. a description or contract) |
+| `not changed on this branch: ...` | The code differs from the reference, but this branch never touched the file (`dbt`) |
+
+The last one points at drift. The difference comes from the base branch and the reference
+manifest being out of step, for example a change merged into `main` after this branch was
+created, or one that isn't deployed yet, not from this pull request. dbt-ci only says this
+when it can diff the branch against its merge base (see
+[Git comparison and clone depth](#init---initialize-state)); without git, the reason is left
+out rather than guessed.
+
+`run` also explains nodes it selects because of a changed node:
+
+```
+MODIFIED NODES:
+  • stg: `models/staging/stg.sql` changed
+DEPENDENCY NODES:
+  • raw: used by `stg`
+  • agg: downstream of `stg`
+  • not_null_agg_n: tests `agg`
+```
 
 ---
 
@@ -60,6 +136,8 @@ dbt-ci run --dbt-project-dir dbt --mode models
 | `--mode` | `-m`, `--nodes`, `-n` | `DBT_NODES` | `all` | What to run: `all`, `models`, `seeds`, `snapshots`, `tests` |
 | `--downstream-depth` | | `DBT_DOWNSTREAM_DEPTH` | Full graph | How many levels of downstream dependencies to include (dbt's `model+N`) |
 | `--filters` | `-f` | `DBT_RUN_FILTERS` | `None` | Only run the tests that depend on one of these resource types (repeatable, choices: `models`, `seeds`, `snapshots`, `tests`). E.g. `--mode tests -f snapshots` runs only the tests that read a snapshot |
+| `--select` | `-s` | `DBT_RUN_SELECT` | `None` | Only build changed nodes (and what they affect) that also match these dbt selectors (repeatable). See [Narrowing a run](#narrowing-a-run) |
+| `--exclude` | | `DBT_RUN_EXCLUDE` | `None` | Leave nodes matching these dbt selectors out of the run (repeatable) |
 | `--skip-test-only-changes` | | `DBT_SKIP_TEST_ONLY_CHANGES` | `false` | Don't rebuild a model, seed or snapshot when only its tests changed; run just the changed tests. See [Skipping test-only changes](#skipping-test-only-changes) |
 
 With `--mode all`, the steps run in dependency order: **seeds → snapshots → models → tests**, so models built on a changed snapshot read its new state and tests run once everything they check exists. The test step runs both data tests and dbt unit tests (dbt ≥ 1.8).
@@ -97,6 +175,34 @@ or test arguments differ) and is picked up as modified or new. This also covers 
 tests whose arguments changed: dbt gives them a new `unique_id`, so they show up as one
 deleted and one new test.
 
+### Narrowing a run
+
+`--select` and `--exclude` take dbt's own selector syntax (`tag:`, `path:`, `package:`,
+graph operators, ...) and narrow what dbt-ci picked:
+
+```bash
+dbt-ci run --exclude tag:ci_skip            # keep heavy or slow models out of CI
+dbt-ci run --select path:models/finance     # only the finance part of this change
+```
+
+- `--select` keeps only the changed nodes, and the nodes built because of them, that also
+  match. `--exclude` leaves matching nodes out and wins over `--select`.
+- Tests follow the nodes they check: with `--select` a test stays when it or a node it
+  tests matches; with `--exclude` it is left out when it matches or everything it tests
+  was excluded.
+- Nodes downstream of an excluded node still run when they changed or depend on another
+  change; with `--defer` they read the production version of the excluded node.
+- dbt-ci resolves the selectors with `dbt ls` (also in a dry run, since it only reads the
+  project) and logs what each step leaves out.
+
+In the config file they go under `run:` as a list or a space-separated string:
+
+```yaml
+run:
+  exclude:
+    - tag:ci_skip
+```
+
 ### Skipping test-only changes
 
 A model's data tests live in its YAML properties file. Editing a test there can mark the
@@ -126,6 +232,10 @@ dbt-ci run --skip-test-only-changes --defer
 The skipped model isn't built in the CI target, so its tests need a table to query. Use
 `--defer` so they read the production table, or create the tables first with
 [`ephemeral`](#ephemeral---ephemeral-environment).
+
+In the [report](#report---summarise-the-run), a skipped node is still listed as modified,
+with *not rebuilt: only its tests changed* after the reasons `init` recorded, and its
+recorded build time counts towards the [run time](#run-time) the pull request skipped.
 
 > All [common options](configuration.md#common-options) also apply.
 
@@ -272,6 +382,8 @@ dbt-ci migration            # apply the changes
 
 ---
 
+---
+
 ## `report` - Summarise the Run
 
 Renders the change set detected by `init` and the status of every command that has run
@@ -288,10 +400,13 @@ dbt-ci report --pr-comment          # → also posted as a comment on the pull r
 
 The report covers:
 
-- **Change counts and node names**, grouped as modified / new / deleted. Long lists fold
+- **Change counts and node names**, grouped as modified / new / deleted, each with
+  [the reason it is in the change set](#why-is-a-node-in-the-change-set). Long lists fold
   into a collapsible block.
 - **Exposure impact** — the exposures downstream of the change set, including those
   downstream of *deleted* nodes, which is usually the case worth catching.
+- **Run time** — how many nodes `run` built and the dbt run time they took, compared
+  with the recorded run time of the nodes it left out (see [Run time](#run-time)).
 - **Command status and duration** for each of `init`, `run`, `delete`, `ephemeral` and
   `migration` that has run.
 
@@ -304,6 +419,31 @@ The report covers:
 | `--pr-comment` / `--no-pr-comment` | | `DBT_NOTIFICATIONS_PR_COMMENT` | `false` | Also post the report as a comment on the GitHub pull request (`notifications.pr-comment` in the config file) |
 
 > All [common options](configuration.md#common-options) also apply.
+
+### Run time
+
+After each dbt command, `run` reads dbt's `run_results.json` and keeps every node's
+execution time. When `finalize` uploads the manifest, it merges those times into
+`<artifacts-uri>/run_times.json`, and `init` downloads that file from next to the state
+(`--state-uri`, or a `run_times.json` in the `--state` directory). The report then shows
+what this run skipped:
+
+```
+### Run time
+
+Built **4** node(s) in **1m 12s** of dbt run time.
+The **308** other node(s) with a recorded run time took about **37m 40s** when they last
+ran, so this run skipped about **97%** of the run time of a full build.
+```
+
+- Run time is the sum of each node's execution time as dbt reports it, not wall-clock
+  time. With several threads a build finishes sooner, but the warehouse still does the
+  work, so the sum tracks cost better than the job's duration does.
+- A node's recorded time is from the last deploy that built it. Deploys that only build
+  what changed keep the other nodes' earlier times, so one full build seeds the file.
+- Nodes no longer in the project are not counted. Without recorded times the section
+  shows only this run's time, and a dry run (which builds nothing) has no section.
+- `--format json` includes the times under `run_times`.
 
 ### Posting the report as a PR comment
 
@@ -352,6 +492,48 @@ dbt-ci config --force                  # overwrite an existing file
 
 > This command does not take the [common options](configuration.md#common-options).
 
+### `config show` - Show resolved settings
+
+Prints the settings a command would run with and where each one came from: the command
+line, the selected [profile](configuration.md#profiles), the top level of the config
+file, an environment variable, or [what `init` recorded](configuration.md#settings-inherited-from-init).
+Pass the command and its flags exactly as you would run them. Nothing is executed.
+
+```bash
+dbt-ci config show                          # init, the default
+dbt-ci config show init --profile action
+dbt-ci config show run --mode models
+dbt-ci config show ephemeral destroy
+```
+
+```
+Command:     dbt-ci init
+Config file: dbt-ci.config.yaml
+Profile:     action (command line)
+
+init options
+OPTION                 VALUE                         SOURCE
+--comparison-strategy  dbt                           profile 'action'
+--reference-target     production                    config file
+--state-uri            gs://my-bucket/manifest.json  config file
+
+Common options
+OPTION                 VALUE                         SOURCE
+--defer                true                          profile 'action'
+--log-level            DEBUG                         environment (DBT_LOG_LEVEL)
+--slack-webhook        ***                           config file
+--target               ci                            profile 'action'
+
+Defaults are hidden; pass --all to list every option.
+```
+
+Secrets such as webhooks are masked. Its own flags go before the command:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--all` | `false` | Also list options left at their default or unset |
+| `--json` | `false` | Print the result as JSON, e.g. for a CI step to check |
+
 ---
 
 ## `finalize` - Finalize State
@@ -369,7 +551,17 @@ dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
 |------|---------|-----------|---------|-------------|
 | `--artifacts-uri` | | `DBT_ARTIFACTS_URI`, `ARTIFACTS_URI` | `None` | Object storage URI for uploading run artifacts such as the updated `manifest.json` (e.g. `s3://bucket/dbt-artifacts/`) |
 | `--files` | | `DBT_FINALIZE_FILES` | `manifest` | Which artifacts to upload (repeatable): `manifest`, `cache`, `log` |
+| `--force-manifest` | | `DBT_FINALIZE_FORCE_MANIFEST` | `false` | Replace the published `manifest.json` even when it was built from a newer commit than this run's, e.g. to roll back (`finalize.force-manifest` in the config file). See [Deploys finishing out of order](#deploys-finishing-out-of-order) |
 | `--clean-ephemeral` | `--destroy-ephemeral` | `DBT_CLEAN_EPHEMERAL`, `DBT_DESTROY_EPHEMERAL` | `false` | **Deprecated — use [`ephemeral destroy`](#ephemeral-destroy).** Drop the datasets that `ephemeral` cloned into, the same way `ephemeral destroy` does |
+
+Next to `<artifacts-uri>/manifest.json`, `finalize` keeps a copy for the commit it ran on at
+`<artifacts-uri>/<commit>/manifest.json` (the commit comes from git, or `GITHUB_SHA` /
+`CI_COMMIT_SHA` / `BUILDKITE_COMMIT` / `CIRCLE_SHA1`). Pull requests use these to
+[compare against their merge base](#comparing-against-the-merge-base) without compiling it.
+A bucket lifecycle rule can expire old copies.
+
+With the manifest, `finalize` also merges the node run times `run` measured into
+`<artifacts-uri>/run_times.json`, for the report's [run time](#run-time) section.
 
 Uploaded artifacts land at `<artifacts-uri>/manifest.json`, `<artifacts-uri>/cache.json`
 and `<artifacts-uri>/logs.txt` respectively (a trailing `/` on the URI is ignored).
@@ -387,5 +579,38 @@ still uploaded, the step fails, and the cache is kept so a re-run can retry the 
 > the log does not publish your Slack webhook or credentials passed via `--docker-env`.
 > This is a name-based heuristic — review your artifact bucket's access controls before
 > enabling `--files log`.
+
+### Deploys finishing out of order
+
+Two deploys can finish in a different order than they started: a queued deploy of an
+older commit ends after the deploy of a newer one, or someone re-runs an old deploy job.
+Uploading last would put the older state back as `manifest.json`, and the next pull
+requests would compare against it.
+
+So next to `manifest.json`, `finalize` records the commit it was built from in
+`<artifacts-uri>/manifest.commit.json`, and before replacing the manifest it checks that
+the published one isn't from a newer commit:
+
+- git decides when it can: when the published commit comes after this run's in the
+  history, the published manifest is kept. A commit missing from a shallow clone is
+  fetched first.
+- When git can't tell (the commits diverged, or the fetch failed), the commit times decide.
+- When there is no record yet, or this run's commit is unknown, the manifest is uploaded
+  as before.
+
+A skipped upload is not an error: `finalize` logs which commit is published and still
+keeps this run's per-commit copy. To publish an older manifest on purpose, e.g. to roll
+back, pass `--force-manifest`.
+
+The check runs just before the upload, so two deploys finishing at the same moment can
+still race. Run deploys one at a time, e.g. with a GitHub Actions `concurrency` group:
+
+```yaml
+jobs:
+  deploy:
+    concurrency:
+      group: dbt-deploy
+      cancel-in-progress: false   # queue deploys instead of cancelling them
+```
 
 > All [common options](configuration.md#common-options) also apply.

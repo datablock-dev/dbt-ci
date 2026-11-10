@@ -21,18 +21,33 @@ GIT_STATUS_MAPPING = {
 
 type GitChangeType = Literal["modified", "added", "deleted"]
 
+# Commits fetched per step when a shallow clone lacks the merge base: 50, then 200 more,
+# then 1000 more, so a recent branch costs one small fetch and an old one still resolves
+DEEPEN_STEPS = (50, 200, 1000)
+
 
 class GitAdapter:
     """Adapter for git operations used during state comparison."""
 
-    def __init__(self, args: Namespace):
+    def __init__(self, args: Namespace, best_effort: bool = False):
+        """
+        Fetch the base branch and diff HEAD against it.
+
+        best_effort=True is for callers that can do without git and only trust the diff
+        when merge_base_found is True: git never prompts for credentials, its fetch
+        output is not printed, and a missing merge base is not warned about.
+        """
         self.args: Namespace = args
+        self.best_effort = best_effort
+        # Whether the diff is against the merge base (True) or the base branch tip
+        self.merge_base_found = False
         self.base_branch = self._resolve_base_branch()
 
         subprocess.run(
             ["git", "fetch", "origin", self.base_branch],
             check=True,
-            capture_output=False,
+            capture_output=best_effort,
+            env=self._fetch_env(),
         )
 
         self.changes: list[list[str]] = self._diff_against_base()
@@ -43,29 +58,170 @@ class GitAdapter:
 
         The three-dot form is what CI wants: it reports only what this branch changed,
         whereas a two-dot diff also reports commits landed on the base branch since the
-        branch point as (reversed) changes, inflating the change set. Shallow clones may
-        not contain the merge base, so the two-dot form is kept as a fallback.
+        branch point as (reversed) changes, inflating the change set. Shallow clones
+        often lack the merge base, so more history is fetched until it turns up. Only if
+        that fails is the two-dot form used, with a warning that the change set may
+        include other people's changes.
         """
         base = f"origin/{self.base_branch}"
-        attempts = [
-            ["git", "diff", "--name-status", f"{base}...HEAD"],
-            ["git", "diff", "--name-status", base, "HEAD"],
-        ]
+        three_dot = ["git", "diff", "--name-status", f"{base}...HEAD"]
+        result = subprocess.run(three_dot, capture_output=True, text=True)
+        if result.returncode != 0 and self._deepen_until_merge_base(base):
+            result = subprocess.run(three_dot, capture_output=True, text=True)
+        if result.returncode == 0:
+            self.merge_base_found = True
+            return [line.split("\t") for line in result.stdout.splitlines()]
 
-        for command in attempts:
-            result = subprocess.run(command, capture_output=True, text=True)
-            if result.returncode == 0:
-                return [line.split("\t") for line in result.stdout.splitlines()]
+        logger.debug(f"'{' '.join(three_dot)}' failed: {result.stderr.strip()}")
+        if not getattr(self, "best_effort", False):
+            logger.warning(self._missing_merge_base_message(base))
 
-            logger.debug(
-                f"'{' '.join(command)}' failed ({result.stderr.strip()}). If this repository "
-                "was cloned shallowly, fetch more history (e.g. actions/checkout with "
-                "fetch-depth: 0) for an accurate change set."
-            )
+        two_dot = ["git", "diff", "--name-status", base, "HEAD"]
+        result = subprocess.run(two_dot, capture_output=True, text=True)
+        if result.returncode == 0:
+            return [line.split("\t") for line in result.stdout.splitlines()]
 
+        logger.debug(f"'{' '.join(two_dot)}' failed: {result.stderr.strip()}")
         raise RuntimeError(
-            f"Could not diff against 'origin/{self.base_branch}'. Ensure the base branch has "
-            "been fetched and that the repository has enough history."
+            f"Could not diff against '{base}'. Ensure the base branch has been fetched and "
+            "that the repository has enough history (e.g. actions/checkout with "
+            "fetch-depth: 0)."
+        )
+
+    def _deepen_until_merge_base(self, base: str) -> bool:
+        """
+        Fetch more history of a shallow clone until HEAD and the base branch meet.
+
+        CI checkouts are often shallow (actions/checkout fetches one commit by default),
+        so the commit this branch started from is missing. Deepening in growing steps
+        usually finds it within a few fetches without downloading the whole history.
+        Returns True once the merge base exists; False if the clone is not shallow or
+        the history ran out.
+        """
+        shallow = subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"], capture_output=True, text=True
+        )
+        if shallow.stdout.strip() != "true":
+            return False
+
+        head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
+        head_sha = head.stdout.strip() if head.returncode == 0 else ""
+
+        fetched = 0
+        for depth in DEEPEN_STEPS:
+            fetched += depth
+            logger.info(
+                f"Shallow clone: fetching {fetched} more commits of history to find where "
+                f"this branch started from '{base}'..."
+            )
+            if not self._deepen(depth, head_sha):
+                return False
+            merge_base = subprocess.run(
+                ["git", "merge-base", base, "HEAD"], capture_output=True, text=True
+            )
+            if merge_base.returncode == 0:
+                logger.info(f"Found where this branch started from '{base}'.")
+                return True
+        return False
+
+    def _deepen(self, depth: int, head_sha: str) -> bool:
+        """
+        Deepen the history of both the base branch and HEAD by `depth` commits.
+
+        Fetching only the base branch deepens its history, but whether HEAD's history
+        (e.g. the parents of a PR merge commit) comes along depends on the git version,
+        so HEAD's commit is asked for explicitly. A remote that refuses to serve a commit
+        by its ID gets a second request for the base branch alone.
+        """
+        base_only = ["git", "fetch", f"--deepen={depth}", "origin", self.base_branch]
+        attempts = [base_only + [head_sha], base_only] if head_sha else [base_only]
+        for command in attempts:
+            result = subprocess.run(command, capture_output=True, text=True, env=self._fetch_env())
+            if result.returncode == 0:
+                return True
+            logger.debug(f"'{' '.join(command)}' failed: {result.stderr.strip()}")
+        return False
+
+    def merge_base_sha(self) -> str | None:
+        """
+        Return the commit this branch started from on the base branch, or None.
+
+        Constructing the adapter already deepened a shallow clone far enough to find it
+        where possible, so this only looks it up.
+        """
+        result = subprocess.run(
+            ["git", "merge-base", f"origin/{self.base_branch}", "HEAD"],
+            capture_output=True,
+            text=True,
+        )
+        sha = result.stdout.strip()
+        return sha if result.returncode == 0 and sha else None
+
+    def read_base_file(self, project_path: str) -> str | None:
+        """
+        Return a project file's contents at the merge base, or None if unavailable.
+
+        The path is relative to the dbt project, as get_changed_files() reports it. Reading
+        at the merge base, the commit the branch diff starts from, shows what this branch
+        changed in the file. None means no merge base, or the file did not exist there.
+        """
+        merge_base = self.merge_base_sha()
+        dbt_project_dir: str | None = getattr(self.args, "dbt_project_dir", None)
+        if merge_base is None or dbt_project_dir is None:
+            return None
+        prefix = self._project_path_in_repo(dbt_project_dir)
+        repo_path = f"{prefix}/{project_path}" if prefix else project_path
+        result = subprocess.run(
+            ["git", "show", f"{merge_base}:{repo_path}"], capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            logger.debug(f"Could not read '{repo_path}' at the merge base: {result.stderr.strip()}")
+            return None
+        return result.stdout
+
+    @staticmethod
+    def first_parent_history(sha: str, limit: int) -> list[str]:
+        """
+        Return up to `limit` commits from `sha` back along first parents, newest first.
+
+        Following first parents from a base-branch commit walks the commits that were the
+        tip of the base branch in turn, whether pull requests are squashed or merged, so
+        these are the commits a deploy of the base branch could have run on. A shallow
+        clone returns as much as it has.
+        """
+        result = subprocess.run(
+            ["git", "rev-list", "--first-parent", f"--max-count={limit}", sha],
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.split() if result.returncode == 0 else []
+
+    def _fetch_env(self) -> dict[str, str] | None:
+        """Return the environment for fetches: no credential prompts in best-effort mode."""
+        if not getattr(self, "best_effort", False):
+            return None
+        return {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+
+    @staticmethod
+    def _missing_merge_base_message(base: str) -> str:
+        """Explain that the merge base is missing, what that does and how to fix it."""
+        shallow = subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"], capture_output=True, text=True
+        )
+        if shallow.stdout.strip() == "true":
+            cause = (
+                "This is a shallow clone without enough history. Fetch the full history, "
+                "e.g. actions/checkout with fetch-depth: 0 or GIT_DEPTH: 0 in GitLab CI."
+            )
+        else:
+            cause = (
+                f"HEAD and '{base}' share no history. Check that --base-ref names the "
+                "branch this one was created from."
+            )
+        return (
+            f"Could not find where this branch started from '{base}', so changes are "
+            f"compared with the latest '{base}' instead. Changes merged into it since this "
+            f"branch was created may be counted as this branch's own. {cause}"
         )
 
     def _resolve_base_branch(self) -> str:
@@ -148,44 +304,6 @@ class GitAdapter:
             dbt_related_changes = self.remove_extensions(dbt_related_changes)
 
         return dbt_related_changes
-
-    def read_base_file(self, project_path: str) -> str | None:
-        """
-        Return a project file's contents as of the point this branch diverged from base.
-
-        The path is relative to the dbt project, as dbt and get_changed_files() report it.
-        It is read at the merge base, the same commit the three-dot diff compares against,
-        so commits landed on the base branch since do not count as changes on this branch.
-        Returns None when the file did not exist there or git cannot read it.
-        """
-        dbt_project_dir: str | None = getattr(self.args, "dbt_project_dir", None)
-        if dbt_project_dir is None:
-            raise ValueError("DBT project directory not specified in arguments.")
-
-        project_prefix = self._project_path_in_repo(dbt_project_dir)
-        repo_path = f"{project_prefix}/{project_path}" if project_prefix else project_path
-        result = subprocess.run(
-            ["git", "show", f"{self._base_commit()}:{repo_path}"],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            logger.debug(f"Could not read '{repo_path}' at the base: {result.stderr.strip()}")
-            return None
-        return result.stdout
-
-    def _base_commit(self) -> str:
-        """Return the merge base with the base branch, or the branch itself without one."""
-        base = f"origin/{self.base_branch}"
-        if getattr(self, "_merge_base", None) is None:
-            result = subprocess.run(
-                ["git", "merge-base", base, "HEAD"], capture_output=True, text=True
-            )
-            # Shallow clones may lack the merge base; fall back like _diff_against_base
-            self._merge_base = (
-                result.stdout.strip() if result.returncode == 0 and result.stdout.strip() else base
-            )
-        return self._merge_base
 
     def _project_path_in_repo(self, dbt_project_dir: str) -> str:
         """

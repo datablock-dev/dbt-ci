@@ -1,8 +1,20 @@
 import logging
 from argparse import Namespace
+from functools import partial
 from typing import Any, Callable, cast
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.connectors import init_storage_connector
+from dbt_ci.commands.finalize.publish_order import (
+    COMMIT_RECORD,
+    Commit,
+    commit_record,
+    commit_time,
+    current_commit_sha,
+    published_is_newer,
+    read_published_commit,
+)
+from dbt_ci.schema import StorageConnectorConfig
+from dbt_ci.utilities.run_times import RUN_TIMES_FILE, download_run_times, merge_times
 from dbt_ci.utilities.logging import LOG_FILE_NAME, flush_log_file
 
 logger = logging.getLogger(__name__)
@@ -42,6 +54,12 @@ def finalize_upload_files(args: Namespace) -> None:
 
     for file in getattr(args, "files", []):
         upload_func = UPLOAD_MAPPING.get(file)
+        if upload_func is upload_manifest:
+            upload_func = partial(
+                upload_manifest,
+                connector=resolved_storage,
+                force=bool(getattr(args, "force_manifest", False)),
+            )
         if upload_func is None:
             logger.warning(
                 f"No upload function found for file type '{file}'. Skipping upload for this file "
@@ -77,17 +95,80 @@ def upload_logs(
 
 
 def upload_manifest(
-    artifacts_uri: str, cache: CacheManager, storage_function: Callable[[str, Any, str], None]
+    artifacts_uri: str,
+    cache: CacheManager,
+    storage_function: Callable[[str, Any, str], None],
+    connector: StorageConnectorConfig | None = None,
+    force: bool = False,
 ) -> None:
-    """Upload manifest file to storage."""
+    """
+    Upload the manifest as the latest state, and a copy for the commit it was built from.
+
+    With a connector to read the published state, manifest.json is only replaced when
+    it does not come from a newer commit than this one, unless force is set (see
+    publish_order).
+    """
     manifest_file = cast(
         dict | None,
         cache.get_cache("target_manifest.json") or cache.get_cache("reference_manifest.json"),
     )
     if manifest_file is None:
         return logger.warning("No manifest file found for upload, skipping...")
+
+    sha = current_commit_sha()
+    commit = Commit(sha, commit_time(sha)) if sha else None
+
+    # Keep a copy per commit as well, so pull requests can compare against the manifest
+    # of the commit their branch started from (init --compare-to auto / merge-base). It
+    # is right for its commit whatever was published since, so it is always uploaded.
+    if commit:
+        storage_function(
+            f"{artifacts_uri}/{commit.sha}/manifest.json", manifest_file, "application/json"
+        )
+        logger.info(
+            f"Keeping a copy for commit {commit.sha[:12]} at "
+            f"{artifacts_uri}/{commit.sha}/manifest.json"
+        )
+    else:
+        logger.debug("No commit found, so no per-commit copy of the manifest was kept.")
+
+    # Measured times are right whichever manifest ends up published
+    if connector:
+        publish_run_times(artifacts_uri, cache, storage_function, connector)
+
+    published = read_published_commit(artifacts_uri, connector) if connector else None
+    if commit and published and published_is_newer(commit, published):
+        if not force:
+            return logger.warning(
+                f"Not replacing {artifacts_uri}/manifest.json: it was built from commit "
+                f"{published.sha[:12]}, which is newer than this run's {commit.sha[:12]} "
+                "(e.g. a later deploy finished first, or an older run was re-run). Pass "
+                "--force-manifest to replace it anyway, e.g. to roll back."
+            )
+        logger.warning(
+            f"Replacing the manifest of the newer commit {published.sha[:12]} with this "
+            f"run's {commit.sha[:12]} (--force-manifest)."
+        )
+
     storage_function(f"{artifacts_uri}/manifest.json", manifest_file, "application/json")
     logger.info(f"Uploading manifest.json to {artifacts_uri}/manifest.json...")
+    storage_function(f"{artifacts_uri}/{COMMIT_RECORD}", commit_record(commit), "application/json")
+
+
+def publish_run_times(
+    artifacts_uri: str,
+    cache: CacheManager,
+    storage_function: Callable[[str, Any, str], None],
+    connector: StorageConnectorConfig,
+) -> None:
+    """Merge the node times this run measured into run_times.json next to the manifest."""
+    measured = (cache.get_cache(RUN_TIMES_FILE) or {}).get("this_run") or {}
+    if not measured:
+        return
+    uri = f"{artifacts_uri}/{RUN_TIMES_FILE}"
+    published = {"nodes": download_run_times(uri, connector)}
+    storage_function(uri, merge_times(published, measured), "application/json")
+    logger.info(f"Recorded the run times of {len(measured)} node(s) in {uri}")
 
 
 UPLOAD_MAPPING: dict[str, Callable[[str, CacheManager, Callable[[str, Any, str], None]], None]] = {

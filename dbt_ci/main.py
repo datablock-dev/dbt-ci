@@ -1,8 +1,10 @@
 # Shared options for all commands
 import click
 
+from dbt_ci.cli.command import DbtCiGroup
 
-@click.group()
+
+@click.group(cls=DbtCiGroup)
 @click.version_option(package_name="dbt-ci", prog_name="dbt-ci")
 def cli():
     """dbt CI Tool - Intelligent CI for dbt projects

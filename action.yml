@@ -85,6 +85,10 @@ inputs:
     description: Branch to diff against. Defaults to the pull request's base branch.
     required: false
     default: ""
+  compare-to:
+    description: "What `init` compares the pull request against: `auto` (default), `merge-base` or `latest` (`--compare-to`)."
+    required: false
+    default: ""
 
   # run
   mode:
@@ -93,6 +97,14 @@ inputs:
     default: ""
   downstream-depth:
     description: How many levels of downstream dependents to build. Empty builds the full downstream graph.
+    required: false
+    default: ""
+  select:
+    description: Only build changed nodes that also match these dbt selectors, space-separated, e.g. `tag:finance` (`run --select`).
+    required: false
+    default: ""
+  exclude:
+    description: Leave nodes matching these dbt selectors out of the run, space-separated, e.g. `tag:ci_skip` (`run --exclude`).
     required: false
     default: ""
   skip-test-only-changes:

@@ -6,6 +6,7 @@ from argparse import Namespace
 import click
 from dbt_ci.commands.run.run import run_nodes
 from dbt_ci.commands.run.skip_test_only import find_test_only_changes
+from dbt_ci.commands.run.selection import resolve_user_selection
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.errors import DbtCiError
 from dbt_ci.utilities.cache import CacheManager
@@ -14,6 +15,8 @@ from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.graph.graph_utils import get_display_name, get_node_ids_from_structured_nodes
 
 logger = logging.getLogger(__name__)
+
+SKIPPED_REASON = "not rebuilt: only its tests changed (`--skip-test-only-changes`)"
 
 
 def run(args: Namespace):
@@ -81,6 +84,8 @@ def run(args: Namespace):
             target_graph=target_graph,
             changed_nodes=changed_nodes,
             changed_nodes_dict=changed_nodes_dict,
+            reasons=prev_cache.get("reasons") or {},
+            user_selection=resolve_user_selection(args),
         )
 
         cache.update_report("run", "completed")
@@ -111,6 +116,8 @@ def skip_test_only_nodes(
     changed_nodes_dict["modified_nodes"] = [
         node_id for node_id in changed_nodes_dict["modified_nodes"] if node_id not in skipped
     ]
+    # The report lists them as modified; say why they were not rebuilt
+    CacheManager(args).add_reasons({node_id: SKIPPED_REASON for node_id in skipped})
     graph = target_graph.to_dict()
     logger.info(f"\nSkipping {len(skipped)} node(s) whose only change is to their tests:")
     for node_id in sorted(skipped):

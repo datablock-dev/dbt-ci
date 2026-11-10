@@ -1,6 +1,8 @@
 """Unit tests for the cache directory manager."""
 
 import json
+import tempfile
+from pathlib import Path
 from argparse import Namespace
 from unittest.mock import patch
 
@@ -8,16 +10,67 @@ import pytest
 
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.utilities.logging import LOG_FILE_NAME
-from dbt_ci.utilities.paths import get_cache_dir
+from dbt_ci.utilities.paths import CI_JOB_IDS, CI_JOB_TEMP_DIRS, get_cache_dir
 
 
 class TestGetCacheDir:
     """Test cache directory resolution."""
 
-    def test_defaults_to_temp_dir(self, monkeypatch):
-        """Without an override the cache lives under the system temp directory."""
-        monkeypatch.delenv("DBT_CI_CACHE_DIR", raising=False)
-        assert get_cache_dir().name == "dbt-ci"
+    @pytest.fixture
+    def outside_ci(self, monkeypatch):
+        """Clear the override and every CI variable the cache location looks at."""
+        for name in ("DBT_CI_CACHE_DIR", *CI_JOB_TEMP_DIRS, *CI_JOB_IDS):
+            monkeypatch.delenv(name, raising=False)
+
+    def test_defaults_to_temp_dir(self, outside_ci):
+        """Outside CI and without an override the cache lives under the system temp dir."""
+        assert get_cache_dir() == Path(tempfile.gettempdir()) / "dbt-ci"
+
+    @pytest.mark.parametrize("name", CI_JOB_TEMP_DIRS)
+    def test_ci_job_temp_dir(self, outside_ci, monkeypatch, tmp_path, name):
+        """GitHub Actions and Azure Pipelines jobs use the temp dir the runner gives them."""
+        monkeypatch.setenv(name, str(tmp_path))
+        assert get_cache_dir() == tmp_path / "dbt-ci"
+
+    @pytest.mark.parametrize("name", CI_JOB_IDS)
+    def test_ci_job_id(self, outside_ci, monkeypatch, name):
+        """Other CI systems get a directory per job inside the shared dbt-ci directory."""
+        monkeypatch.setenv(name, "1234")
+        assert get_cache_dir() == Path(tempfile.gettempdir()) / "dbt-ci" / "1234"
+
+    def test_job_id_is_made_safe_for_a_path(self, outside_ci, monkeypatch):
+        """Braces and slashes in an ID (Bitbucket's {uuid}) cannot escape the temp dir."""
+        monkeypatch.setenv("BITBUCKET_STEP_UUID", "{ab/../cd}")
+        assert get_cache_dir() == Path(tempfile.gettempdir()) / "dbt-ci" / "abcd"
+
+    def test_concurrent_jobs_get_different_directories(self, outside_ci, monkeypatch):
+        """Two GitLab jobs on one shared runner no longer share a cache."""
+        monkeypatch.setenv("CI_JOB_ID", "1")
+        first = get_cache_dir()
+        monkeypatch.setenv("CI_JOB_ID", "2")
+        assert get_cache_dir() != first
+
+    def test_clearing_the_local_cache_keeps_job_caches(self, outside_ci, monkeypatch, tmp_path):
+        """A job's cache inside <temp dir>/dbt-ci survives the local cache being cleared."""
+        monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path))
+        monkeypatch.setenv("CI_JOB_ID", "7")
+        job_cache = CacheManager(Namespace())
+        (job_cache.dir_path / "cache.json").write_text("{}", encoding="utf-8")
+
+        monkeypatch.delenv("CI_JOB_ID")
+        local_cache = CacheManager(Namespace())
+        (local_cache.dir_path / "cache.json").write_text("{}", encoding="utf-8")
+        local_cache.clear_cache()
+
+        assert local_cache.dir_path == tmp_path / "dbt-ci"
+        assert not (local_cache.dir_path / "cache.json").exists()
+        assert (tmp_path / "dbt-ci" / "7" / "cache.json").exists()
+
+    def test_override_beats_ci_detection(self, outside_ci, monkeypatch, tmp_path):
+        """An explicit DBT_CI_CACHE_DIR still wins inside CI."""
+        monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
+        monkeypatch.setenv("DBT_CI_CACHE_DIR", str(tmp_path / "mine"))
+        assert get_cache_dir() == tmp_path / "mine"
 
     def test_env_var_overrides_location(self, monkeypatch, tmp_path):
         """DBT_CI_CACHE_DIR relocates the cache so concurrent runs can be isolated."""
@@ -150,6 +203,17 @@ class TestWriteCacheConfig:
         with patch("dbt_ci.utilities.cache.get_profile", return_value={"type": "bigquery"}):
             cache.write_cache()
         return json.loads((tmp_path / "cache" / "cache.json").read_text(encoding="utf-8"))["config"]
+
+    def test_records_reasons(self, tmp_path):
+        """init's reasons for each changed node are written next to the change set."""
+        cache = CacheManager(
+            Namespace(comparison_strategy="dbt", runner="local"), cache_dir=tmp_path / "cache"
+        )
+        reasons = {"model.p.a": ["code differs from the reference manifest"]}
+        with patch("dbt_ci.utilities.cache.get_profile", return_value={"type": "bigquery"}):
+            cache.write_cache(reasons=reasons)
+        written = json.loads((tmp_path / "cache" / "cache.json").read_text(encoding="utf-8"))
+        assert written["reasons"] == reasons
 
     def test_records_state_as_absolute_path(self, tmp_path, monkeypatch):
         """init records its state directory as absolute, so later commands can pass it on."""

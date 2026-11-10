@@ -104,7 +104,9 @@
         "comparison-strategy": { "$ref": "#/definitions/comparisonStrategy" },
         "comparison_strategy": { "$ref": "#/definitions/comparisonStrategy" },
         "base-ref": { "$ref": "#/definitions/baseRef" },
-        "base_ref": { "$ref": "#/definitions/baseRef" }
+        "base_ref": { "$ref": "#/definitions/baseRef" },
+        "compare-to": { "$ref": "#/definitions/compareTo" },
+        "compare_to": { "$ref": "#/definitions/compareTo" }
       }
     },
 
@@ -134,6 +136,8 @@
             }
           ]
         },
+        "select": { "$ref": "#/definitions/dbtSelectors" },
+        "exclude": { "$ref": "#/definitions/dbtSelectors" },
         "skip-test-only-changes": { "$ref": "#/definitions/skipTestOnlyChanges" },
         "skip_test_only_changes": { "$ref": "#/definitions/skipTestOnlyChanges" }
       }
@@ -160,6 +164,8 @@
           ],
           "default": ["manifest"]
         },
+        "force-manifest": { "$ref": "#/definitions/forceManifest" },
+        "force_manifest": { "$ref": "#/definitions/forceManifest" },
         "clean-ephemeral": { "$ref": "#/definitions/cleanEphemeral" },
         "clean_ephemeral": { "$ref": "#/definitions/cleanEphemeral" }
       }
@@ -241,6 +247,7 @@
     "entrypoint":           { "type": "string", "default": "dbt", "description": "Command entrypoint for dbt." },
     "adapter":              { "type": "string", "description": "The dbt adapter to use (e.g. bigquery, postgres, snowflake)." },
     "dbtVersion":           { "type": "string", "description": "Pin a specific dbt version (e.g. 1.10.13, or 2.0.9 for dbt v2). Requires runner 'local'." },
+    "dbtSelectors":         { "description": "dbt selectors (e.g. tag:ci_skip), as a list or a space-separated string.", "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] },
     "downstreamDepth":      { "type": "integer", "minimum": 0, "description": "How many levels of downstream dependencies to include (default: full graph)." },
     "skipTestOnlyChanges":  { "type": "boolean", "default": false, "description": "Don't rebuild a model, seed or snapshot when only its tests changed; run just the changed tests." },
     "reportFormat":         { "type": "string", "enum": ["markdown", "json"], "default": "markdown", "description": "Output format of 'dbt-ci report'." },
@@ -261,8 +268,10 @@
     "targetCompile":        { "type": "boolean", "default": false, "description": "Compile towards the target (or default) after reference compile." },
     "skipReferenceCompile": { "type": "boolean", "default": false, "description": "Skip compiling towards the reference state." },
     "comparisonStrategy":   { "type": "string", "enum": ["dbt", "git", "hybrid"], "default": "hybrid", "description": "Strategy for state comparison." },
+    "compareTo":            { "type": "string", "enum": ["auto", "merge-base", "latest"], "default": "auto", "description": "What to compare the pull request against: auto (the merge base when the branch has commits of its own, else the latest state), merge-base, or latest." },
     "baseRef":              { "type": "string", "description": "Base branch to diff against (e.g. main). Auto-detected from git/CI env if not set. Overrides GITHUB_BASE_REF and git auto-detection." },
     "artifactsUri":         { "type": "string", "description": "Object storage URI for storing artifacts (e.g. s3://bucket/dbt-artifacts/)." },
+    "forceManifest":        { "type": "boolean", "default": false, "description": "Replace the published manifest.json even when it was built from a newer commit than this run's, e.g. to roll back." },
     "cleanEphemeral":       { "type": "boolean", "default": false, "description": "Deprecated - use 'dbt-ci ephemeral destroy'. Drop the datasets 'ephemeral' cloned into when finalizing." },
     "keepEnv":              { "type": "boolean", "default": false, "description": "Deprecated - has no effect. Use 'dbt-ci ephemeral destroy' to tear the environment down." }
   }

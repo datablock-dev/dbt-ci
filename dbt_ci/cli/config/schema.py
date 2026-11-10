@@ -60,6 +60,11 @@ SCHEMA: dict[str, dict] = {
                 "choices": ["dbt", "git", "hybrid"],
             },
             "base-ref": {"aliases": ["base_ref"], "type": "str"},
+            "compare-to": {
+                "aliases": ["compare_to"],
+                "type": "enum",
+                "choices": ["auto", "merge-base", "latest"],
+            },
         },
     },
     "run": {
@@ -71,6 +76,8 @@ SCHEMA: dict[str, dict] = {
                 "type": "list_of_enum",
                 "choices": ["models", "seeds", "snapshots", "tests"],
             },
+            "select": {"type": "list_or_str"},
+            "exclude": {"type": "list_or_str"},
             "skip-test-only-changes": {"aliases": ["skip_test_only_changes"], "type": "bool"},
         },
     },
@@ -79,6 +86,7 @@ SCHEMA: dict[str, dict] = {
         "fields": {
             "artifacts-uri": {"aliases": ["artifacts_uri"], "type": "str"},
             "files": {"type": "list_of_enum", "choices": ["manifest", "cache", "log"]},
+            "force-manifest": {"aliases": ["force_manifest"], "type": "bool"},
             "clean-ephemeral": {"aliases": ["clean_ephemeral"], "type": "bool"},
         },
     },

@@ -37,8 +37,13 @@ class CacheManager:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.dir_path = self.cache_dir.resolve()
 
-    def write_cache(self, data: StateChangeSummary | None = None) -> None:
-        """Write data to the cache file."""
+    def write_cache(
+        self,
+        data: StateChangeSummary | None = None,
+        reasons: dict[str, list[str]] | None = None,
+        baseline: dict[str, Any] | None = None,
+    ) -> None:
+        """Write the change set, why each node is in it, and init's settings to the cache."""
         connector_type = cast(SupportedConnectors, get_profile(self.args)["type"])
         # init may have defaulted the state path (e.g. <project>/.dbtstate after a
         # --state-uri download); record where it actually put it so later commands
@@ -50,10 +55,14 @@ class CacheManager:
             "modified_nodes": data.get("modified_nodes") if data else None,
             "new_nodes": data.get("new_nodes") if data else None,
             "deleted_nodes": data.get("deleted_nodes") if data else None,
+            # unique_id -> plain-language reasons the node is in the change set
+            "reasons": reasons or {},
             "config": {
                 "connector": connector_type,
                 "comparison_strategy": getattr(self.args, "comparison_strategy"),
                 "runner": getattr(self.args, "runner"),
+                # The merge-base manifest the change set was compared against, if any
+                "baseline": baseline,
                 "profile": getattr(self.args, "profile", None),
                 "reference": {
                     "target": getattr(self.args, "reference_target", None),
@@ -92,6 +101,32 @@ class CacheManager:
     def write_target_manifest(self, manifest_data: DBTManifest) -> None:
         """Write manifest data to a JSON file in the cache directory."""
         self._write(cast(dict, manifest_data), "target_manifest.json")
+
+    def add_reasons(self, reasons: dict[str, str]) -> None:
+        """Append a reason to the nodes' recorded reasons in the cached change set."""
+        cache = self.get_cache()
+        if not cache or not reasons:
+            return
+        recorded: dict[str, list[str]] = cache.get("reasons") or {}
+        for node_id, reason in reasons.items():
+            if reason not in recorded.setdefault(node_id, []):
+                recorded[node_id].append(reason)
+        cache["reasons"] = recorded
+        self._write(cache, "cache.json")
+
+    def add_run_times(self, times: dict[str, float]) -> None:
+        """Add node execution times measured in this run to run_times.json."""
+        if not times:
+            return
+        run_times = self.get_cache("run_times.json") or {}
+        run_times["this_run"] = {**(run_times.get("this_run") or {}), **times}
+        self._write(run_times, "run_times.json")
+
+    def write_recorded_run_times(self, times: dict[str, float]) -> None:
+        """Keep the node execution times recorded by earlier deploys in run_times.json."""
+        run_times = self.get_cache("run_times.json") or {}
+        run_times["recorded"] = times
+        self._write(run_times, "run_times.json")
 
     def get_cache(self, file_name: str = "cache.json") -> dict[str, Any] | None:
         """Load a JSON file from the cache directory, or None if it doesn't exist."""

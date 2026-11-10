@@ -217,6 +217,12 @@ class TestFinalizeUploadFiles:
 
 class TestUploadManifest:
 
+    @pytest.fixture(autouse=True)
+    def no_commit(self):
+        """Which manifest is uploaded is tested without the per-commit copy (see test_baseline)."""
+        with patch("dbt_ci.commands.finalize.upload.current_commit_sha", return_value=None):
+            yield
+
     def test_uploads_target_manifest_when_present(self):
         storage_fn = _make_storage_function()
         cache = MagicMock()
@@ -226,7 +232,7 @@ class TestUploadManifest:
 
         upload_manifest("gs://bucket/path", cache, storage_fn)
 
-        storage_fn.assert_called_once_with(
+        storage_fn.assert_any_call(
             "gs://bucket/path/manifest.json", {"key": "value"}, "application/json"
         )
 
@@ -239,7 +245,7 @@ class TestUploadManifest:
 
         upload_manifest("gs://bucket/path", cache, storage_fn)
 
-        storage_fn.assert_called_once_with(
+        storage_fn.assert_any_call(
             "gs://bucket/path/manifest.json", {"ref": "data"}, "application/json"
         )
 

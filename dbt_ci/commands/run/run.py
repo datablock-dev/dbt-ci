@@ -2,10 +2,15 @@
 
 import logging
 from argparse import Namespace
+from datetime import datetime, timezone
 from itertools import chain
 from typing import cast
 from dbt_ci.graph.dependency_graph import DbtGraph
+from dbt_ci.commands.run.explain import explain_selection
+from dbt_ci.commands.run.selection import UserSelection
 from dbt_ci.runners import run_dbt_command, resolve_dbt_commands
+from dbt_ci.utilities.cache import CacheManager
+from dbt_ci.utilities.run_times import read_node_times
 from dbt_ci.graph.graph_utils import (
     filter_node_ids_by_type,
     get_downstream_dependencies,
@@ -35,8 +40,15 @@ def run_nodes(
     target_graph: DbtGraph,
     changed_nodes: list[str],
     changed_nodes_dict: dict[str, list[str]],
+    reasons: dict[str, list[str]] | None = None,
+    user_selection: UserSelection | None = None,
 ) -> None:
-    """Build the selected seeds, snapshots, models and tests in order, stopping at a failure."""
+    """
+    Build the selected seeds, snapshots, models and tests in order, stopping at a failure.
+
+    reasons (from init's cache) explains why each changed node is in the run;
+    user_selection (from --select / --exclude) narrows what each step builds.
+    """
     mode: RunModes = getattr(args, "nodes", "all")
     # Snapshots run before models so that models built on a changed snapshot read
     # its new state, and tests run last once everything they check exists.
@@ -62,13 +74,24 @@ def run_nodes(
             args=args,
         )
 
+        if nodes_to_run and user_selection is not None:
+            nodes_to_run, left_out = user_selection.split(nodes_to_run, target_graph.to_dict())
+            if left_out:
+                names = ", ".join(
+                    sorted(get_display_name(target_graph.to_dict(), node) for node in left_out)
+                )
+                logger.info(
+                    f"Leaving out of the {command} step by --select/--exclude "
+                    f"({len(left_out)}): {names}"
+                )
+
         if nodes_to_run is None or len(nodes_to_run) == 0:
             logger.info(f"No nodes to run for {command}, skipping...")
             continue
 
         # Print information
         logger.info(f"\n[{REVERSE_MODE_MAPPING[command].upper()}] - Running nodes...")
-        log_nodes_to_run(nodes_to_run, changed_nodes_dict, target_graph)
+        log_nodes_to_run(nodes_to_run, changed_nodes_dict, target_graph, reasons)
 
         if getattr(args, "dry_run", False):
             logger.info("DRY RUN: Command would be executed")
@@ -79,14 +102,30 @@ def run_nodes(
             logger.info(f"No resolvable selectors for {command}, skipping...")
             continue
 
-        # The runner raises DbtCommandError if dbt fails, which fails the run command
-        run_dbt_command(
-            command_args=resolve_dbt_commands(
-                [cast(str, command), "--select", " ".join(selectors)], args
-            ),
-            runner_config=cast(RunnerConfig, args.__dict__),
-        )
+        # The runner raises DbtCommandError if dbt fails, which fails the run command.
+        # The nodes that did run still cost time, so their times are kept either way.
+        started = datetime.now(timezone.utc)
+        try:
+            run_dbt_command(
+                command_args=resolve_dbt_commands(
+                    [cast(str, command), "--select", " ".join(selectors)], args
+                ),
+                runner_config=cast(RunnerConfig, args.__dict__),
+            )
+        finally:
+            record_run_times(args, started)
         logger.info(f"\n✅ Successfully ran {len(nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
+
+
+def record_run_times(args: Namespace, started: datetime) -> None:
+    """Keep the execution time of each node the last dbt command ran, for the report."""
+    dbt_project_dir = getattr(args, "dbt_project_dir", None)
+    if not dbt_project_dir:
+        return
+    try:
+        CacheManager(args).add_run_times(read_node_times(dbt_project_dir, started))
+    except Exception as e:  # timings are informational and must never fail a run
+        logger.debug(f"Could not record run times: {e}")
 
 
 def get_downstream_depth(args: Namespace) -> int | None:
@@ -327,8 +366,9 @@ def log_nodes_to_run(
     nodes_to_run: list[str],
     changed_nodes_dict: dict[str, list[str]],
     target_graph: DbtGraph | None = None,
+    reasons: dict[str, list[str]] | None = None,
 ) -> None:
-    """Print the nodes about to run, grouped by why they were selected."""
+    """Print the nodes about to run, grouped by why they were selected, with the reason."""
     mapping: dict[str, set[str]] = {
         "new": set(),
         "modified": set(),
@@ -350,10 +390,14 @@ def log_nodes_to_run(
     logger.info(f"Found {len(nodes_to_run)} node(s) to run:")
 
     graph = target_graph.to_dict() if target_graph else None
+    changed_ids = set(
+        chain(changed_nodes_dict.get("modified_nodes", []), changed_nodes_dict.get("new_nodes", []))
+    )
     for type, nodes in mapping.items():
         if len(nodes) == 0:
             continue
         logger.info(f"\n{type.upper()} NODES:")
         for node in sorted(nodes):
-            logger.info(f"  • {get_display_name(graph, node)}")
+            why = explain_selection(graph, node, changed_ids, reasons) if graph else ""
+            logger.info(f"  • {get_display_name(graph, node)}" + (f": {why}" if why else ""))
     logger.info("-------------------------------------------------------\n")
