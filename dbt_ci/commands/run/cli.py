@@ -78,6 +78,17 @@ from dbt_ci.commands.run.index import run
         "tag:ci_skip. Tests of nodes left out are skipped too. Repeatable."
     ),
 )
+@click.option(
+    "--skip-test-only-changes",
+    envvar=["DBT_SKIP_TEST_ONLY_CHANGES"],
+    is_flag=True,
+    default=False,
+    callback=make_config_callback("DBT_RUN_SKIP_TEST_ONLY_CHANGES"),
+    help=(
+        "Don't rebuild a model, seed or snapshot when only its tests changed; run just the "
+        "changed tests. Pair with --defer so they can read the production tables."
+    ),
+)
 def run_cmd(**kwargs):
     """Run modified dbt models
 

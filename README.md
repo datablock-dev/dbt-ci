@@ -116,6 +116,7 @@ on that and handles the parts you would otherwise script yourself:
 | Zero-copy PR environment that is torn down afterwards | `dbt clone`, teardown by hand | ✅ `ephemeral create` / `destroy` |
 | Drop tables of models deleted in the PR | ❌ | ✅ `delete` |
 | Rebuild tables whose partitioning changed | ❌ | ✅ `migration` |
+| Run a changed test without rebuilding its model | ❌ | ✅ `run --skip-test-only-changes` (opt-in) |
 
 On dbt Cloud, its CI jobs already run `state:modified+` with deferral. dbt-ci is for
 teams that run dbt Core in their own CI. It decides *what* to build; data-diff tools such
@@ -146,7 +147,7 @@ flowchart LR
 | Command | What it does |
 |---------|--------------|
 | [`init`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#init---initialize-state) | Compare the PR against the production state and cache the change set |
-| [`run`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#run---run-modified-models) | Build and test the changed nodes, optionally capped with `--downstream-depth` or narrowed with dbt selectors (`--select`, `--exclude`) |
+| [`run`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#run---run-modified-models) | Build and test the changed nodes, optionally capped with `--downstream-depth`, narrowed with dbt selectors (`--select`, `--exclude`) or with test-only changes skipped (`--skip-test-only-changes`) |
 | [`ephemeral`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#ephemeral---ephemeral-environment) | Clone what the PR needs into an isolated schema, and tear it down afterwards |
 | [`delete`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#delete---delete-removed-models) | Drop the tables of models the PR removed |
 | [`migration`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#migration---migrate-partitioning-changes) | Rebuild tables whose partitioning configuration changed |

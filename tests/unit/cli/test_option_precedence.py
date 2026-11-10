@@ -20,6 +20,7 @@ run:
   nodes: models
   filters:
     - snapshots
+  skip-test-only-changes: true
 finalize:
   artifacts-uri: s3://from-config/
   clean-ephemeral: true
@@ -109,6 +110,11 @@ class TestCommandSectionsReachTheirOptions:
             env={"DBT_RUN_FILTERS": "snapshots seeds"},
         )
         assert list(value) == ["snapshots", "seeds"]
+
+    def test_run_skip_test_only_changes(self, project):
+        """run.skip-test-only-changes turns the flag on."""
+        value = resolve("run", "skip_test_only_changes", "dbt_ci.commands.run.cli.run")
+        assert value is True
 
     def test_finalize_artifacts_uri(self, project):
         """finalize.artifacts-uri selects the upload destination."""

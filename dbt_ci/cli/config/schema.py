@@ -78,6 +78,7 @@ SCHEMA: dict[str, dict] = {
             },
             "select": {"type": "list_or_str"},
             "exclude": {"type": "list_or_str"},
+            "skip-test-only-changes": {"aliases": ["skip_test_only_changes"], "type": "bool"},
         },
     },
     "finalize": {

@@ -68,6 +68,7 @@ class CacheManager:
                     "target": getattr(self.args, "reference_target", None),
                     "vars": getattr(self.args, "reference_vars", None),
                     "state": get_absolute_path(reference_state) if reference_state else None,
+                    "base_ref": getattr(self.args, "base_ref", None),
                 },
                 "target": {
                     "target": getattr(self.args, "target", None),
@@ -100,6 +101,18 @@ class CacheManager:
     def write_target_manifest(self, manifest_data: DBTManifest) -> None:
         """Write manifest data to a JSON file in the cache directory."""
         self._write(cast(dict, manifest_data), "target_manifest.json")
+
+    def add_reasons(self, reasons: dict[str, str]) -> None:
+        """Append a reason to the nodes' recorded reasons in the cached change set."""
+        cache = self.get_cache()
+        if not cache or not reasons:
+            return
+        recorded: dict[str, list[str]] = cache.get("reasons") or {}
+        for node_id, reason in reasons.items():
+            if reason not in recorded.setdefault(node_id, []):
+                recorded[node_id].append(reason)
+        cache["reasons"] = recorded
+        self._write(cache, "cache.json")
 
     def add_run_times(self, times: dict[str, float]) -> None:
         """Add node execution times measured in this run to run_times.json."""

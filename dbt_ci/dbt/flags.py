@@ -25,11 +25,13 @@ CONFIG_SECTION: dict[str, str] = {
     "reference_target": "reference",
     "reference_vars": "reference",
     "reference_state": "reference",
+    "base_ref": "reference",
 }
 
 
-# Settings later commands fill from init's cache when they were not given
-INHERITED_FROM_INIT: tuple[str, ...] = ("target", "vars", "reference_state")
+# Settings later commands fill from init's cache when they were not given. base_ref lets
+# run diff against the same branch init did (--skip-test-only-changes).
+INHERITED_FROM_INIT: tuple[str, ...] = ("target", "vars", "reference_state", "base_ref")
 
 
 def get_cached_config(args: Namespace) -> dict[str, Any]:
