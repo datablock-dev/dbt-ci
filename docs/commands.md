@@ -262,6 +262,15 @@ dbt-ci run --runner docker --mode models
 down. Plain `dbt-ci ephemeral` (no subcommand) still means `create`, so existing pipelines
 keep working. Options go after the subcommand (`dbt-ci ephemeral destroy --target ci`).
 
+Both subcommands are dry runs when `ephemeral.dry-run` is `true` in the config file,
+without making `run` one; `--dry-run` on the command line still wins, and without the key
+the top-level `dry-run` applies (see [Sections](configuration.md#sections)):
+
+```yaml
+ephemeral:
+  dry-run: true
+```
+
 ### `ephemeral create`
 
 Clones changed models and their downstream dependencies into an isolated target schema using **`dbt clone`**, allowing integration testing without affecting production. Uses cached state from `init`.
@@ -309,8 +318,8 @@ step.
 - Use `if: always()` so a failed `run` step doesn't leave the datasets behind.
 - It doesn't upload anything or clear the cache, so it can run before or after `finalize`,
   and a failed teardown can be retried by running it again.
-- `--target` defaults to the one `init` recorded. With `--dry-run` it only lists the
-  datasets it would drop.
+- `--target` defaults to the one `init` recorded. With `--dry-run` (or `ephemeral.dry-run`
+  in the config file) it only lists the datasets it would drop.
 
 > All [common options](configuration.md#common-options) also apply.
 
@@ -326,6 +335,17 @@ dbt-ci delete            # execute deletions
 ```
 
 The tables dropped are the ones in the **reference** manifest (usually production), so run the real delete only after the removal is merged, and use `--dry-run` everywhere else.
+
+`delete.dry-run` in the config file does the same as `--dry-run` for `delete` alone, so a
+pull request can preview deletions while `run` still builds. It wins over the top-level
+`dry-run`, and `--dry-run` on the command line wins over both:
+
+```yaml
+on:
+  pull-request:
+    delete:
+      dry-run: true
+```
 
 A node is only dropped if it is really gone from the current project. Nodes that still exist in the target manifest (for example a model whose file was moved or renamed, which git reports as delete + add) are skipped, as are relations that another target node still builds (for example through an `alias`). `delete` fails if `init` has not run, instead of passing without doing anything. The connection comes from the `profile` named in `dbt_project.yml` and the `--target` output in `profiles.yml`; see [How dbt-ci drops relations](#how-dbt-ci-drops-relations).
 
@@ -395,6 +415,16 @@ What counts as a layout change, and how it is applied, depends on the warehouse:
   against those warehouses in dbt-ci's CI.
 
 > **Warning:** this changes production tables. Always review the `--dry-run` output first.
+
+`migration.dry-run` in the config file does the same as `--dry-run` for `migration` alone.
+It wins over the top-level `dry-run`, and `--dry-run` on the command line wins over both:
+
+```yaml
+on:
+  pull-request:
+    migration:
+      dry-run: true
+```
 
 **Flags:**
 

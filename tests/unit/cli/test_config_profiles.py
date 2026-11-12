@@ -130,6 +130,20 @@ class TestProfileSelection:
         args = resolved(INIT, ["--profile", "action", "--target", "local"])
         assert args.target == "local"
 
+    def test_profile_on_a_subcommand(self, project):
+        """`ephemeral destroy --profile` applies the profile, not what the group resolved."""
+        captured = {}
+        with (
+            patch(
+                "dbt_ci.commands.ephemeral.cli.destroy",
+                side_effect=lambda a: captured.update(args=a),
+            ),
+            patch("dbt_ci.commands.ephemeral.cli.CacheManager"),
+        ):
+            result = CliRunner().invoke(cli, ["ephemeral", "destroy", "--profile", "action"])
+        assert result.exit_code in (0, None), result.output
+        assert captured["args"].target == "ci"
+
     def test_unknown_profile_fails(self, project):
         """A typo fails and lists the profiles that exist."""
         result, _ = invoke(INIT, ["--profile", "acton"])

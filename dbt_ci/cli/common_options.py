@@ -1,3 +1,4 @@
+import functools
 import os
 import re
 import click
@@ -130,6 +131,32 @@ def parse_multiple_option(value):
     return value if isinstance(value, tuple) else tuple(value)
 
 
+def dry_run_option(section: str | None = None):
+    """
+    Return the --dry-run option, reading the config file's `<section>.dry-run` first.
+
+    With a section (delete, migration, ephemeral) the order is the CLI flag, the
+    command's own `dry-run` key, the top-level `dry-run` key, DBT_DRY_RUN, then false;
+    without one the command only reads the top-level key.
+    """
+    keys: tuple[str, ...] = ("DBT_DRY_RUN",)
+    help_text = "Print commands without executing them"
+    if section:
+        keys = (f"DBT_{section.upper()}_DRY_RUN", *keys)
+        help_text += f" (config file: {section}.dry-run, then dry-run)"
+    return click.option(
+        "--dry-run",
+        envvar=["DBT_DRY_RUN"],
+        is_flag=True,
+        default=False,
+        callback=make_config_callback(keys),
+        help=help_text,
+    )
+
+
+# The --dry-run every command gets unless common_options is given a dry_run_section
+DRY_RUN_OPTION = dry_run_option()
+
 COMMON_OPTIONS = [
     click.option(
         "--config",
@@ -253,14 +280,7 @@ COMMON_OPTIONS = [
         callback=make_config_callback("DBT_ENTRYPOINT"),
         help="Command entrypoint for dbt (default: dbt)",
     ),
-    click.option(
-        "--dry-run",
-        envvar=["DBT_DRY_RUN"],
-        is_flag=True,
-        default=False,
-        callback=make_config_callback("DBT_DRY_RUN"),
-        help="Print commands without executing them",
-    ),
+    DRY_RUN_OPTION,
     click.option(
         "--log-level",
         envvar=["DBT_LOG_LEVEL"],
@@ -381,8 +401,16 @@ COMMON_OPTIONS = [
 ]
 
 
-def common_options(func):
-    """Add common dbt-ci options to a Click command."""
+def common_options(func=None, *, dry_run_section: str | None = None):
+    """
+    Add common dbt-ci options to a Click command.
+
+    Use it bare (@common_options), or name the config file section whose `dry-run` key
+    the command reads before the top-level one (@common_options(dry_run_section="delete")).
+    """
+    if func is None:
+        return functools.partial(common_options, dry_run_section=dry_run_section)
+    dry_run = dry_run_option(dry_run_section) if dry_run_section else DRY_RUN_OPTION
     for option in COMMON_OPTIONS:
-        func = option(func)
+        func = (dry_run if option is DRY_RUN_OPTION else option)(func)
     return func
