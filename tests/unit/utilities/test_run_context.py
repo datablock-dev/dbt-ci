@@ -1,6 +1,8 @@
 """Tests for the git and CI context init records in report.json."""
 
 import json
+import subprocess
+import sys
 from argparse import Namespace
 from unittest.mock import patch
 
@@ -22,7 +24,7 @@ SHA = "0123456789abcdef0123456789abcdef01234567"
 def local_git():
     """Stand in for git, so a test only sees the variables it sets."""
     with (
-        patch("dbt_ci.utilities.run_context.current_commit_sha", return_value=SHA),
+        patch("dbt_ci.commands.finalize.publish_order.current_commit_sha", return_value=SHA),
         patch("dbt_ci.utilities.ci_event._git_current_branch", return_value=None),
         patch("dbt_ci.utilities.ci_event._git_default_branch", return_value=None),
     ):
@@ -109,7 +111,9 @@ class TestCollectGitContext:
 
     def test_a_failing_value_is_none(self):
         """An error reading one value leaves it None instead of failing init."""
-        with patch("dbt_ci.utilities.run_context.current_commit_sha", side_effect=OSError("git")):
+        with patch(
+            "dbt_ci.commands.finalize.publish_order.current_commit_sha", side_effect=OSError("git")
+        ):
             context = collect_git_context(Namespace(), env={})
         assert context["commit"] is None
 
@@ -179,3 +183,13 @@ class TestProviders:
     def test_run_url(self, env, expected):
         """Each CI system links to its run, or nothing when it doesn't say where."""
         assert run_url(env) == expected
+
+
+def test_imports_on_its_own():
+    """The module imports first, without dbt_ci.commands loaded (no circular import)."""
+    result = subprocess.run(
+        [sys.executable, "-c", "import dbt_ci.utilities.run_context"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr

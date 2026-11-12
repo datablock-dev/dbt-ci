@@ -15,7 +15,6 @@ from typing import Any, Mapping
 import click
 
 from dbt_ci.cli.config.parser import config_event
-from dbt_ci.commands.finalize.publish_order import current_commit_sha
 from dbt_ci.utilities.ci_event import (
     _github_payload,
     current_branch,
@@ -127,6 +126,9 @@ def head_commit(env: Mapping[str, str]) -> str | None:
         sha = ((_github_payload(env).get("pull_request") or {}).get("head") or {}).get("sha")
         if isinstance(sha, str) and sha:
             return sha
+    # Imported here: dbt_ci.commands imports init, which imports this module
+    from dbt_ci.commands.finalize.publish_order import current_commit_sha
+
     return current_commit_sha()
 
 
