@@ -188,11 +188,13 @@ profiles:
   the top-level one.
 - **`push` means a push to the default branch.** A push to any other branch, a tag, a
   schedule, a manual run or a local run is no event, and only the settings outside `on:`
-  apply. The default branch is `--base-ref` (`init.base-ref`) when set, else the CI
-  system's own variable (see below), else what git's `origin/HEAD` points at.
+  apply. The default branch is `--base-ref` (`DBT_CI_BASE_REF`, `init.base-ref`, or the
+  one `init` recorded) when set, else the CI system's own variable (see below), else what
+  git's `origin/HEAD` points at.
 - `--event pull-request|push|none` (or `DBT_CI_EVENT`) names the event yourself, for a CI
   system dbt-ci doesn't recognise or a manual run. `none` applies no event block.
-- `dbt-ci config show` prints the event, why it was chosen, and which block set each value,
+- When the file has an `on:` block (or `--event` is given), `dbt-ci config show` prints
+  the event, why it was chosen, and which block set each value,
   e.g. `Event: push (GitHub Actions push to the default branch 'main')` and a source of
   `event 'push'`.
 - YAML 1.1 parsers read a bare `on:` key as `true`; dbt-ci reads it as `on`, so no quotes

@@ -150,3 +150,29 @@ class TestValidation:
     def test_valid_in_profiles(self):
         """A profile can have its own event blocks."""
         assert validate_config({"profiles": {"p": {"on": {"push": {"target": "x"}}}}}) == []
+
+
+class TestDefaultBranch:
+    """The default branch a push must be to comes from --base-ref, the config, or init."""
+
+    def env(self, project, branch="release"):
+        """A GitHub push to `release`, with main as the repository default."""
+        return push_env(project, branch)
+
+    def test_base_ref_flag(self, project, monkeypatch):
+        """--base-ref on the command line names the deploy branch."""
+        monkeypatch.setattr("sys.argv", ["dbt-ci", "finalize", "--base-ref", "release"])
+        _, by_option = settings(["finalize"], self.env(project))
+        assert by_option["--artifacts-uri"][1] == "event 'push'"
+
+    def test_recorded_by_init(self, project):
+        """Commands after init use the base ref init recorded."""
+        cache = {"config": {"reference": {"base_ref": "release"}}}
+        (project / "cache" / "cache.json").write_text(json.dumps(cache))
+        resolved, _ = settings(["finalize"], self.env(project))
+        assert resolved.event == "push"
+
+    def test_without_one_the_repository_default_counts(self, project):
+        """Without any of them, a push to release is not a push to the default branch."""
+        resolved, _ = settings(["finalize"], self.env(project))
+        assert resolved.event is None

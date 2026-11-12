@@ -139,16 +139,41 @@ def event_callback(ctx, param, value):
     return value or None
 
 
+def _base_ref(ctx, flat: dict[str, Any]) -> str | None:
+    """
+    Return the default branch for telling pushes apart, before options are parsed.
+
+    In order: --base-ref on the command line, DBT_CI_BASE_REF, init.base-ref in the config
+    file, then (for commands after init) the base ref init recorded.
+    """
+    argv = sys.argv[1:]
+    for i, arg in enumerate(argv):
+        if arg == "--base-ref" and i + 1 < len(argv):
+            return argv[i + 1]
+        if arg.startswith("--base-ref="):
+            return arg.split("=", 1)[1] or None
+    from_config = os.environ.get("DBT_CI_BASE_REF") or _text(flat.get("DBT_INIT_BASE_REF"))
+    if from_config or ctx.command.name == "init":
+        return from_config
+    return _recorded_by_init("reference", "base_ref")
+
+
 def _profile_recorded_by_init() -> str | None:
     """Return the profile init recorded in its cache, or None when there isn't one."""
+    return _recorded_by_init("profile")
+
+
+def _recorded_by_init(*path: str) -> str | None:
+    """Return a setting from the config block init recorded in its cache, if any."""
     cache_file = get_cache_dir() / "cache.json"
     try:
         with open(cache_file, encoding="utf-8") as f:
-            cached = json.load(f)
-    except (OSError, ValueError):
+            value: Any = (json.load(f) or {}).get("config") or {}
+    except (OSError, ValueError, AttributeError):
         return None
-    profile = ((cached or {}).get("config") or {}).get("profile")
-    return profile if isinstance(profile, str) and profile else None
+    for key in path:
+        value = value.get(key) if isinstance(value, dict) else None
+    return value if isinstance(value, str) and value else None
 
 
 def _read_config_file(value: str | None) -> tuple[str, dict] | None:
@@ -266,11 +291,7 @@ def _apply_config_when_ready(ctx) -> None:
     override = ctx.meta.get(_CTX_EVENT_ARG_KEY)
     if override or any(blocks_for for blocks_for, _ in blocks):
         try:
-            event = resolve_event(
-                override,
-                base_branch=_text(flat.get("DBT_INIT_BASE_REF"))
-                or os.environ.get("DBT_CI_BASE_REF"),
-            )
+            event = resolve_event(override, base_branch=_base_ref(ctx, flat))
         except ValueError as e:
             raise click.BadParameter(str(e), param_hint="'--event'")
         ctx.meta[_CTX_EVENT_KEY] = (event.name, event.reason)
