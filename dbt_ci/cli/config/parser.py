@@ -7,7 +7,7 @@ import logging
 from typing import Any
 import click
 
-from dbt_ci.utilities.ci_event import resolve_event
+from dbt_ci.utilities.ci_event import PUSH, resolve_event
 from dbt_ci.utilities.paths import get_cache_dir
 from .schema import validate_config
 
@@ -32,6 +32,8 @@ TOP_LEVEL = "config file"
 # The config file key holding per-event settings. YAML 1.1 (PyYAML) reads a bare `on`
 # key as the boolean true, as GitHub Actions users know, so that spelling is accepted too.
 EVENTS_KEY = "on"
+# The key in an `on: push:` block listing the deploy branches; not a setting itself
+BRANCHES_KEY = "branches"
 
 
 def _resolve_env_refs(val: str) -> str:
@@ -291,14 +293,18 @@ def _apply_config_when_ready(ctx) -> None:
     override = ctx.meta.get(_CTX_EVENT_ARG_KEY)
     if override or any(blocks_for for blocks_for, _ in blocks):
         try:
-            event = resolve_event(override, base_branch=_base_ref(ctx, flat))
+            event = resolve_event(
+                override,
+                base_branch=_base_ref(ctx, flat),
+                push_branches=_push_branches(raw, profile_raw),
+            )
         except ValueError as e:
             raise click.BadParameter(str(e), param_hint="'--event'")
         ctx.meta[_CTX_EVENT_KEY] = (event.name, event.reason)
         logger.info(f"Event: {event.name or 'none'} ({event.reason})")
         for block, block_profile in blocks:
             if event.name and block.get(event.name):
-                event_flat = _flatten_config(block[event.name])
+                event_flat = _flatten_config(_settings(block[event.name]))
                 flat.update(event_flat)
                 label = f"event '{event.name}'"
                 if block_profile:
@@ -349,8 +355,24 @@ def normalize_event_keys(raw: Any) -> Any:
 
 
 def _settings(raw: dict) -> dict:
-    """Return a config mapping without its profiles and per-event blocks."""
-    return {k: v for k, v in raw.items() if k not in ("profiles", EVENTS_KEY)}
+    """Return a config mapping without its profiles, per-event blocks and push branches."""
+    return {k: v for k, v in raw.items() if k not in ("profiles", EVENTS_KEY, BRANCHES_KEY)}
+
+
+def _push_branches(raw: dict, profile_raw: dict) -> list[str] | None:
+    """
+    Return the branches a push must be to, or None for the default branch only.
+
+    The selected profile's `on.push.branches` replaces the top-level list as a whole.
+    ${VAR} references are resolved, and a list left empty counts as not set.
+    """
+    for config in (profile_raw, raw):
+        value = ((config.get(EVENTS_KEY) or {}).get(PUSH) or {}).get(BRANCHES_KEY)
+        items = [value] if isinstance(value, str) else value or []
+        patterns = [text for item in items if (text := _resolve_env_refs(str(item)).strip())]
+        if patterns:
+            return patterns
+    return None
 
 
 def _text(value: Any) -> str | None:

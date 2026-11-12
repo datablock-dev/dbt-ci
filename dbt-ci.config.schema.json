@@ -24,19 +24,20 @@
     "log-level": { "$ref": "#/definitions/logLevel" },
     "log_level": { "$ref": "#/definitions/logLevel" },
     "quiet": { "$ref": "#/definitions/quiet" },
+    "branches": { "$ref": "#/definitions/pushBranches" },
 
     "profiles": {
       "type": "object",
       "description": "Named sets of settings, selected with --profile (or DBT_CI_PROFILE) and applied over the top-level settings. A profile takes the same keys as the top level, except 'profiles'. Commands after init reuse the profile init ran with.",
-      "additionalProperties": { "$ref": "#" }
+      "additionalProperties": { "allOf": [{ "$ref": "#" }, { "$ref": "#/definitions/withoutBranches" }] }
     },
 
     "on": {
       "type": "object",
-      "description": "Settings per CI event, applied over the top-level settings and the selected profile: 'pull-request' for pull/merge request runs, 'push' for pushes to the default branch. The event is detected from the CI system, or set with --event (DBT_CI_EVENT). Each takes the same keys as the top level, except 'profiles' and 'on'.",
+      "description": "Settings per CI event, applied over the top-level settings and the selected profile: 'pull-request' for pull/merge request runs, 'push' for pushes to the default branch, or to the branches 'push.branches' lists. The event is detected from the CI system, or set with --event (DBT_CI_EVENT). Each takes the same keys as the top level, except 'profiles' and 'on'.",
       "additionalProperties": false,
       "properties": {
-        "pull-request": { "$ref": "#" },
+        "pull-request": { "allOf": [{ "$ref": "#" }, { "$ref": "#/definitions/withoutBranches" }] },
         "push": { "$ref": "#" }
       }
     },
@@ -248,6 +249,18 @@
   },
 
   "definitions": {
+    "pushBranches": {
+      "description": "Only valid under on.push (top level or a profile's). The branches a push deploys from: names or fnmatch-style patterns, where '*' matches any characters including '/' (so 'release/*' also matches 'release/1.2/hotfix'), '?' one character and '[...]' a set; matching is case-sensitive. A push counts when its branch matches any of them; without this list, only a push to the default branch counts. A profile's own list replaces the top-level one. Not a setting: it is not passed to any command.",
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      ],
+      "examples": [["main", "release/*"], "develop"]
+    },
+    "withoutBranches": {
+      "description": "'branches' is only valid under on.push.",
+      "properties": { "branches": false }
+    },
     "projectDir":           { "type": "string", "description": "Path to the dbt project directory.", "default": "." },
     "profilesDir":          { "type": "string", "description": "Path to the directory containing profiles.yml." },
     "state":                { "type": "string", "description": "Local path where the reference manifest.json is stored or downloaded to." },
