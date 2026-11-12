@@ -160,7 +160,7 @@ COMMON_OPTIONS = [
         envvar=["DBT_CI_EVENT"],
         default=None,
         is_eager=True,
-        type=click.Choice(["pull-request", "push", "none"], case_sensitive=False),
+        type=click.Choice(["pull-request", "push", "schedule", "none"], case_sensitive=False),
         callback=event_callback,
         help=(
             "Which event this run is for, applying the config file's matching 'on:' block. "

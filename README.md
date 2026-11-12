@@ -170,7 +170,7 @@ flowchart LR
 - [GitHub Action](https://github.com/datablock-dev/dbt-ci/blob/main/docs/github-action.md): inputs, outputs and command lists
 - [Installation](https://github.com/datablock-dev/dbt-ci/blob/main/docs/installation.md): extras, supported versions, development install
 - [Commands](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md): every command and its flags
-- [Configuration](https://github.com/datablock-dev/dbt-ci/blob/main/docs/configuration.md): `dbt-ci.config.yaml`, its profiles and per-event (pull request / push) settings, common flags, environment variables, cache
+- [Configuration](https://github.com/datablock-dev/dbt-ci/blob/main/docs/configuration.md): `dbt-ci.config.yaml`, its profiles and per-event (pull request / push / schedule) settings, common flags, environment variables, cache
 - [Runners](https://github.com/datablock-dev/dbt-ci/blob/main/docs/runners.md): in-process, local, Docker and bash
 - [State storage](https://github.com/datablock-dev/dbt-ci/blob/main/docs/state-storage.md): keeping the production manifest in GCS or S3
 - [CI/CD examples](https://github.com/datablock-dev/dbt-ci/blob/main/docs/ci-examples.md): GitHub Actions without the action, a reusable workflow built on profiles, GitLab CI, common workflows

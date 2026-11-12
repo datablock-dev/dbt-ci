@@ -33,10 +33,11 @@
 
     "on": {
       "type": "object",
-      "description": "Settings per CI event, applied over the top-level settings and the selected profile: 'pull-request' for pull/merge request runs, 'push' for pushes to the default branch. The event is detected from the CI system, or set with --event (DBT_CI_EVENT). Each takes the same keys as the top level, except 'profiles' and 'on'.",
+      "description": "Settings per CI event, applied over the top-level settings and the selected profile: 'pull-request' for pull/merge request runs, 'push' for pushes to the default branch, 'schedule' for scheduled runs, whatever branch they run on. The event is detected from the CI system, or set with --event (DBT_CI_EVENT). Each takes the same keys as the top level, except 'profiles' and 'on'.",
       "additionalProperties": false,
       "properties": {
         "pull-request": { "$ref": "#" },
+        "schedule": { "$ref": "#" },
         "push": { "$ref": "#" }
       }
     },

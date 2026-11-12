@@ -1,11 +1,17 @@
-"""Tests for telling pull request runs from pushes to the default branch, per CI system."""
+"""Tests for telling pull requests, pushes to the default branch and schedules apart."""
 
 import json
 from unittest.mock import patch
 
 import pytest
 
-from dbt_ci.utilities.ci_event import PULL_REQUEST, PUSH, detect_event, resolve_event
+from dbt_ci.utilities.ci_event import (
+    PULL_REQUEST,
+    PUSH,
+    SCHEDULE,
+    detect_event,
+    resolve_event,
+)
 
 GIT_DEFAULT = "dbt_ci.utilities.ci_event._git_default_branch"
 
@@ -31,7 +37,7 @@ def github_payload(tmp_path, default_branch="main") -> str:
         ({"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "pull_request"}, PULL_REQUEST),
         ({"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "pull_request_target"}, PULL_REQUEST),
         ({"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "merge_group"}, PULL_REQUEST),
-        ({"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "schedule"}, None),
+        ({"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "schedule"}, SCHEDULE),
         ({"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "workflow_dispatch"}, None),
         # GitLab CI
         ({"GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "merge_request_event"}, PULL_REQUEST),
@@ -53,10 +59,11 @@ def github_payload(tmp_path, default_branch="main") -> str:
             },
             None,
         ),
-        ({"GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "schedule"}, None),
+        ({"GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "schedule"}, SCHEDULE),
         # Azure Pipelines
         ({"TF_BUILD": "True", "BUILD_REASON": "PullRequest"}, PULL_REQUEST),
         ({"TF_BUILD": "True", "BUILD_REASON": "Manual"}, None),
+        ({"TF_BUILD": "True", "BUILD_REASON": "Schedule"}, SCHEDULE),
         # Bitbucket Pipelines
         ({"BITBUCKET_BUILD_NUMBER": "7", "BITBUCKET_PR_ID": "12"}, PULL_REQUEST),
         # CircleCI
@@ -77,6 +84,14 @@ def github_payload(tmp_path, default_branch="main") -> str:
             {"BUILDKITE": "true", "BUILDKITE_PULL_REQUEST": "false", "BUILDKITE_SOURCE": "ui"},
             None,
         ),
+        (
+            {
+                "BUILDKITE": "true",
+                "BUILDKITE_PULL_REQUEST": "false",
+                "BUILDKITE_SOURCE": "schedule",
+            },
+            SCHEDULE,
+        ),
         # Jenkins multibranch
         ({"JENKINS_URL": "https://ci", "CHANGE_ID": "3"}, PULL_REQUEST),
         # No CI at all
@@ -86,6 +101,77 @@ def github_payload(tmp_path, default_branch="main") -> str:
 def test_detection_per_ci_system(env, expected):
     """Each CI system's own variables decide the event."""
     assert detect_event(env=env).name == expected
+
+
+class TestSchedules:
+    """A scheduled run is a schedule whatever branch it runs on."""
+
+    @pytest.mark.parametrize(
+        "env, provider",
+        [
+            (
+                {
+                    "GITHUB_ACTIONS": "true",
+                    "GITHUB_EVENT_NAME": "schedule",
+                    "GITHUB_REF": "refs/heads/feature",
+                },
+                "GitHub Actions",
+            ),
+            (
+                {
+                    "GITLAB_CI": "true",
+                    "CI_PIPELINE_SOURCE": "schedule",
+                    "CI_COMMIT_BRANCH": "feature",
+                    "CI_DEFAULT_BRANCH": "main",
+                },
+                "GitLab CI",
+            ),
+            (
+                {
+                    "TF_BUILD": "True",
+                    "BUILD_REASON": "Schedule",
+                    "BUILD_SOURCEBRANCH": "refs/heads/feature",
+                },
+                "Azure Pipelines",
+            ),
+            (
+                {
+                    "BUILDKITE": "true",
+                    "BUILDKITE_SOURCE": "schedule",
+                    "BUILDKITE_BRANCH": "feature",
+                    "BUILDKITE_PIPELINE_DEFAULT_BRANCH": "main",
+                },
+                "Buildkite",
+            ),
+        ],
+    )
+    def test_any_branch(self, env, provider, no_git_default):
+        """The branch, the default branch and --base-ref don't matter to a schedule."""
+        event = detect_event(base_branch="main", env=env)
+        assert (event.name, event.reason) == (SCHEDULE, f"{provider} scheduled run")
+        assert detect_event(env=env).name == SCHEDULE
+        no_git_default.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "env",
+        [
+            {"BITBUCKET_BUILD_NUMBER": "7", "BITBUCKET_BRANCH": "main"},
+            {"CIRCLECI": "true", "CIRCLE_BRANCH": "main"},
+            {"JENKINS_URL": "https://ci", "BRANCH_NAME": "main"},
+        ],
+    )
+    def test_ci_systems_without_a_schedule_variable(self, env):
+        """Bitbucket, CircleCI and Jenkins don't mark scheduled runs: --event names them."""
+        assert detect_event(base_branch="main", env=env).name == PUSH
+        assert resolve_event("schedule", base_branch="main", env=env).name == SCHEDULE
+        assert resolve_event(None, env={**env, "DBT_CI_EVENT": "Schedule"}).name == SCHEDULE
+
+    def test_override_wins_over_a_detected_schedule(self):
+        """--event push or none replaces a detected schedule."""
+        env = {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "schedule"}
+        assert resolve_event(None, env=env).name == SCHEDULE
+        assert resolve_event("push", env=env).name == PUSH
+        assert resolve_event("none", env=env).name is None
 
 
 class TestPushes:
@@ -163,5 +249,5 @@ class TestOverride:
 
     def test_unknown_event(self):
         """Anything else is an error naming the choices."""
-        with pytest.raises(ValueError, match="pull-request, push or none"):
+        with pytest.raises(ValueError, match="pull-request, push, schedule or none"):
             resolve_event("deploy", env={})

@@ -158,9 +158,10 @@ dbt-ci run                     # reuses profile 'action'
 
 #### Settings per CI event
 
-Pull requests and deploys often need different settings, most of all where `finalize`
-publishes the state: a pull request must never replace production's. An `on:` block holds
-settings for one event, applied over the top level and the selected profile:
+Pull requests, deploys and scheduled runs often need different settings, most of all
+where `finalize` publishes the state: a pull request must never replace production's. An
+`on:` block holds settings for one event, applied over the top level and the selected
+profile:
 
 ```yaml
 finalize:
@@ -187,12 +188,14 @@ profiles:
   contain `profiles` or another `on:`. A profile can have its own `on:` block, applied after
   the top-level one.
 - **`push` means a push to the default branch.** A push to any other branch, a tag, a
-  schedule, a manual run or a local run is no event, and only the settings outside `on:`
+  manual run or a local run is no event, and only the settings outside `on:`
   apply. The default branch is `--base-ref` (`DBT_CI_BASE_REF`, `init.base-ref`, or the
   one `init` recorded) when set, else the CI system's own variable (see below), else what
   git's `origin/HEAD` points at.
-- `--event pull-request|push|none` (or `DBT_CI_EVENT`) names the event yourself, for a CI
-  system dbt-ci doesn't recognise or a manual run. `none` applies no event block.
+- **`schedule` means a scheduled run** (a nightly build, a drift check), whatever branch it
+  runs on. See [Scheduled runs](#scheduled-runs).
+- `--event pull-request|push|schedule|none` (or `DBT_CI_EVENT`) names the event yourself,
+  for a CI system dbt-ci doesn't recognise or a manual run. `none` applies no event block.
 - When the file has an `on:` block (or `--event` is given), `dbt-ci config show` prints
   the event, why it was chosen, and which block set each value,
   e.g. `Event: push (GitHub Actions push to the default branch 'main')` and a source of
@@ -202,15 +205,15 @@ profiles:
 
 dbt-ci tells the events apart from the variables each CI system sets:
 
-| CI system | Pull request | Push | Default branch |
-|---|---|---|---|
-| GitHub Actions | `GITHUB_EVENT_NAME` is `pull_request`, `pull_request_target` or `merge_group` | `GITHUB_EVENT_NAME` is `push` (tags excluded) | The event payload |
-| GitLab CI | `CI_PIPELINE_SOURCE` is `merge_request_event` or `external_pull_request_event` | `CI_PIPELINE_SOURCE` is `push` | `CI_DEFAULT_BRANCH` |
-| Azure Pipelines | `BUILD_REASON` is `PullRequest` | `BUILD_REASON` is `IndividualCI` or `BatchedCI` | `--base-ref` or git |
-| Bitbucket Pipelines | `BITBUCKET_PR_ID` is set | Otherwise | `--base-ref` or git |
-| CircleCI | `CIRCLE_PULL_REQUEST` is set | Otherwise | `--base-ref` or git |
-| Buildkite | `BUILDKITE_PULL_REQUEST` is a number | `BUILDKITE_SOURCE` is `webhook` | `BUILDKITE_PIPELINE_DEFAULT_BRANCH` |
-| Jenkins (multibranch) | `CHANGE_ID` is set | Otherwise | `--base-ref` or git |
+| CI system | Pull request | Push | Schedule | Default branch |
+|---|---|---|---|---|
+| GitHub Actions | `GITHUB_EVENT_NAME` is `pull_request`, `pull_request_target` or `merge_group` | `GITHUB_EVENT_NAME` is `push` (tags excluded) | `GITHUB_EVENT_NAME` is `schedule` | The event payload |
+| GitLab CI | `CI_PIPELINE_SOURCE` is `merge_request_event` or `external_pull_request_event` | `CI_PIPELINE_SOURCE` is `push` | `CI_PIPELINE_SOURCE` is `schedule` | `CI_DEFAULT_BRANCH` |
+| Azure Pipelines | `BUILD_REASON` is `PullRequest` | `BUILD_REASON` is `IndividualCI` or `BatchedCI` | `BUILD_REASON` is `Schedule` | `--base-ref` or git |
+| Bitbucket Pipelines | `BITBUCKET_PR_ID` is set | Otherwise | `--event schedule` | `--base-ref` or git |
+| CircleCI | `CIRCLE_PULL_REQUEST` is set | Otherwise | `--event schedule` | `--base-ref` or git |
+| Buildkite | `BUILDKITE_PULL_REQUEST` is a number | `BUILDKITE_SOURCE` is `webhook` | `BUILDKITE_SOURCE` is `schedule` | `BUILDKITE_PIPELINE_DEFAULT_BRANCH` |
+| Jenkins (multibranch) | `CHANGE_ID` is set | Otherwise | `--event schedule` | `--base-ref` or git |
 
 On any other CI system the event is none unless `--event` names it. The same applies to
 the commit `finalize` keeps a [per-commit copy](commands.md#finalize---finalize-state) for:
@@ -218,6 +221,34 @@ it comes from git, or from `GITHUB_SHA`, `CI_COMMIT_SHA`, `BUILDKITE_COMMIT` or
 `CIRCLE_SHA1` without a usable checkout.
 
 > **Note:** `dbt-ci.config.yaml` is ignored by git by default (it is listed in `.gitignore`). Use it for local developer overrides and commit a `.example` variant for your team.
+
+##### Scheduled runs
+
+A nightly full build or drift check can take its own settings from `on: schedule:`:
+
+```yaml
+on:
+  schedule:
+    notifications:
+      format: compact
+```
+
+```yaml
+# .github/workflows/nightly.yml
+on:
+  schedule:
+    - cron: "0 3 * * *"         # detected: GITHUB_EVENT_NAME is schedule
+```
+
+- Only the `schedule` block applies to a scheduled run, never `push`'s, even on the default
+  branch. To publish state from a nightly build, give `schedule` its own
+  `finalize.artifacts-uri`. The [pull request guard](commands.md#pull-requests-and-the-production-state)
+  doesn't apply to schedules.
+- Bitbucket Pipelines, CircleCI and Jenkins set no variable that marks a scheduled run
+  (CircleCI only has the config-time pipeline values `pipeline.trigger.type` and
+  `pipeline.schedule.name`, not an environment variable), so there a scheduled run reads
+  as a push to its branch. Pass `--event schedule` (or set `DBT_CI_EVENT: schedule`) in the
+  pipeline or job the schedule triggers.
 
 ### Core
 
@@ -235,7 +266,7 @@ it comes from git, or from `GITHUB_SHA`, `CI_COMMIT_SHA`, `BUILDKITE_COMMIT` or
 | `--adapter` | `-a` | `DBT_ADAPTER` | `None` | dbt adapter to install (e.g. `dbt-bigquery`, `dbt-duckdb=1.10.0`). **Requires `--runner local`** |
 | `--config` | `-c` | `DBT_CONFIG` | `dbt-ci.config.yaml` | Path to a dbt-ci YAML configuration file |
 | `--profile` | | `DBT_CI_PROFILE` | Inherited from `init` | [Profile](#profiles) from the config file's `profiles` section to apply over its top-level settings |
-| `--event` | | `DBT_CI_EVENT` | Detected | `pull-request`, `push` or `none`: which [`on:` block](#settings-per-ci-event) to apply. Detected from the CI system when not given |
+| `--event` | | `DBT_CI_EVENT` | Detected | `pull-request`, `push`, `schedule` or `none`: which [`on:` block](#settings-per-ci-event) to apply. Detected from the CI system when not given |
 | `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them (and without installing a pinned `--dbt-version`) |
 | `--quiet` | `-q` | `DBT_QUIET` | `false` | Run in quiet mode with minimal output |
 | `--log-level` | | `DBT_LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (dbt's `warn` and `none` are accepted too). dbt reads `DBT_LOG_LEVEL` as well, so dbt-ci rewrites it into dbt's lowercase form (`WARNING` → `warn`, `CRITICAL` → `error`) before running dbt |

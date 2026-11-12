@@ -117,8 +117,8 @@ profiles:
 - Instead of a profile per target, settings can also follow the CI event: an
   [`on:` block](configuration.md#settings-per-ci-event) with `pull-request:` and `push:`
   (pushes to the default branch) is detected on GitHub Actions, GitLab CI, Azure
-  Pipelines, Bitbucket, CircleCI, Buildkite and Jenkins. A pull request is never allowed
-  to publish over the production state.
+  Pipelines, Bitbucket, CircleCI, Buildkite and Jenkins, and `schedule:` covers scheduled
+  runs. A pull request is never allowed to publish over the production state.
 
 ### 2. Select the profile in the workflow
 

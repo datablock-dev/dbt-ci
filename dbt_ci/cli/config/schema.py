@@ -228,13 +228,15 @@ def _validate_profiles(value: Any, errors: list[str]) -> None:
 
 
 def _validate_events(path: str, value: Any, errors: list[str]) -> None:
-    """Check that an `on:` block maps pull-request and push to config mappings."""
+    """Check that an `on:` block maps pull-request, push and schedule to config mappings."""
     if not isinstance(value, dict):
-        errors.append(f"'{path}' must be a mapping of events (pull-request, push) to settings")
+        errors.append(
+            f"'{path}' must be a mapping of events (pull-request, push, schedule) to settings"
+        )
         return
     for event, settings in value.items():
-        if event not in ("pull-request", "push"):
-            errors.append(f"Unknown event '{path}.{event}': use pull-request or push")
+        if event not in ("pull-request", "push", "schedule"):
+            errors.append(f"Unknown event '{path}.{event}': use pull-request, push or schedule")
             continue
         if settings is None:
             continue

@@ -143,7 +143,7 @@ class TestValidation:
                 }
             }
         )
-        assert "Unknown event 'on.deploy': use pull-request or push" in errors
+        assert "Unknown event 'on.deploy': use pull-request, push or schedule" in errors
         assert "'on.push.profiles' is not allowed inside an event" in errors
         assert "on.push: Unknown key 'finalize.bogus'" in errors
 
