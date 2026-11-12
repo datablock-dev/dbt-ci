@@ -37,7 +37,7 @@ class TestFinalizeUploadFiles:
             patch("dbt_ci.commands.finalize.upload.CacheManager"),
             patch("dbt_ci.commands.finalize.upload.init_storage_connector") as mock_storage,
         ):
-            finalize_upload_files(args)
+            assert finalize_upload_files(args) == {"uploaded": [], "skipped": "no --artifacts-uri"}
             mock_storage.assert_not_called()
 
     def test_skips_when_no_files(self):
@@ -51,7 +51,7 @@ class TestFinalizeUploadFiles:
             patch("dbt_ci.commands.finalize.upload.logger") as mock_logger,
         ):
             mock_init.return_value = (mock_connector, "gs://bucket/path")
-            finalize_upload_files(args)
+            assert finalize_upload_files(args)["skipped"] == "no --files"
             mock_logger.info.assert_any_call(
                 "No files specified for upload. Please specify which files to upload using the "
                 "--files argument. Skipping artifact upload."
@@ -65,7 +65,11 @@ class TestFinalizeUploadFiles:
             patch("dbt_ci.commands.finalize.upload.init_storage_connector", return_value=None),
             patch("dbt_ci.commands.finalize.upload.logger") as mock_logger,
         ):
-            finalize_upload_files(args)
+            assert finalize_upload_files(args) == {
+                "artifacts_uri": "gs://bucket/path",
+                "uploaded": [],
+                "skipped": "no storage connector for the URI",
+            }
             mock_logger.warning.assert_any_call(
                 "No valid storage connector found for artifact upload. Skipping artifact upload."
             )
@@ -103,10 +107,18 @@ class TestFinalizeUploadFiles:
                 "dbt_ci.commands.finalize.upload.UPLOAD_MAPPING", {"manifest": mock_upload_manifest}
             ),
         ):
-            finalize_upload_files(args)
-            mock_upload_manifest.assert_called_once_with(
-                "gs://bucket/path", mock_cm.return_value, mock_storage_fn
+            summary = finalize_upload_files(args)
+            uri, cache, recorder = mock_upload_manifest.call_args.args
+            assert (uri, cache) == ("gs://bucket/path", mock_cm.return_value)
+            # The function handed on uploads through the connector and records the URI
+            recorder("gs://bucket/path/x.json", {}, "application/json")
+            mock_storage_fn.assert_called_once_with(
+                "gs://bucket/path/x.json", {}, "application/json"
             )
+            assert summary == {
+                "artifacts_uri": "gs://bucket/path",
+                "uploaded": ["gs://bucket/path/x.json"],
+            }
 
     def test_calls_correct_upload_function_for_cache(self):
         """upload_cache should be called when 'cache' is in files."""
@@ -124,10 +136,18 @@ class TestFinalizeUploadFiles:
                 "dbt_ci.commands.finalize.upload.UPLOAD_MAPPING", {"cache": mock_upload_cache}
             ),
         ):
-            finalize_upload_files(args)
-            mock_upload_cache.assert_called_once_with(
-                "s3://bucket/path", mock_cm.return_value, mock_storage_fn
+            summary = finalize_upload_files(args)
+            uri, cache, recorder = mock_upload_cache.call_args.args
+            assert (uri, cache) == ("s3://bucket/path", mock_cm.return_value)
+            # The function handed on uploads through the connector and records the URI
+            recorder("s3://bucket/path/x.json", {}, "application/json")
+            mock_storage_fn.assert_called_once_with(
+                "s3://bucket/path/x.json", {}, "application/json"
             )
+            assert summary == {
+                "artifacts_uri": "s3://bucket/path",
+                "uploaded": ["s3://bucket/path/x.json"],
+            }
 
     def test_calls_correct_upload_function_for_logs(self):
         """upload_logs should be called when 'log' is in files."""
@@ -143,10 +163,18 @@ class TestFinalizeUploadFiles:
             ),
             patch.dict("dbt_ci.commands.finalize.upload.UPLOAD_MAPPING", {"log": mock_upload_logs}),
         ):
-            finalize_upload_files(args)
-            mock_upload_logs.assert_called_once_with(
-                "gs://bucket/path", mock_cm.return_value, mock_storage_fn
+            summary = finalize_upload_files(args)
+            uri, cache, recorder = mock_upload_logs.call_args.args
+            assert (uri, cache) == ("gs://bucket/path", mock_cm.return_value)
+            # The function handed on uploads through the connector and records the URI
+            recorder("gs://bucket/path/x.json", {}, "application/json")
+            mock_storage_fn.assert_called_once_with(
+                "gs://bucket/path/x.json", {}, "application/json"
             )
+            assert summary == {
+                "artifacts_uri": "gs://bucket/path",
+                "uploaded": ["gs://bucket/path/x.json"],
+            }
 
     def test_calls_multiple_upload_functions(self):
         """Both upload functions are called when multiple file types are requested."""
@@ -379,6 +407,34 @@ class TestFinalizeDryRun:
         mock_upload.assert_not_called()
         mock_cm.return_value.clear_cache.assert_not_called()
 
+    def test_dry_run_records_what_it_would_upload(self):
+        """The report entry of a dry run names the files and where they would have gone."""
+        from dbt_ci.commands.finalize.index import finalize
+
+        args = _make_args(
+            artifacts_uri="gs://bucket/prod-state",
+            files=("manifest", "log"),
+            dry_run=True,
+            clean_ephemeral=False,
+        )
+        with (
+            patch("dbt_ci.commands.finalize.index.CacheManager") as mock_cm,
+            patch("dbt_ci.commands.finalize.index.finalize_upload_files"),
+            patch("dbt_ci.commands.finalize.index.click.secho"),
+            pytest.raises(SystemExit),
+        ):
+            finalize(args)
+        mock_cm.return_value.update_report.assert_called_with(
+            "finalize",
+            "completed",
+            {
+                "artifacts_uri": "gs://bucket/prod-state",
+                "uploaded": [],
+                "skipped": "dry run",
+                "files": ["manifest", "log"],
+            },
+        )
+
     def test_dry_run_cleanup_needs_no_client(self):
         """A dry-run cleanup lists datasets without creating a warehouse client."""
         cleanup = TestCleanUpEphemeral()
@@ -518,6 +574,7 @@ class TestFinalizeCleanupOrder:
             calls.append("upload")
             if upload_side_effect:
                 raise upload_side_effect
+            return {"artifacts_uri": "gs://bucket/prod-state", "uploaded": []}
 
         with (
             patch("dbt_ci.commands.finalize.index.CacheManager") as mock_cm,
@@ -539,6 +596,15 @@ class TestFinalizeCleanupOrder:
         assert code == 0
         assert calls == ["cleanup", "upload"]
         cache.clear_cache.assert_called_once()
+
+    def test_report_records_the_upload_not_the_cache(self):
+        """finalize's report entry is the upload summary, not a copy of cache.json."""
+        _, _, cache = self.run_finalize(manifest={"nodes": {}})
+        cache.update_report.assert_called_with(
+            "finalize",
+            "completed",
+            {"artifacts_uri": "gs://bucket/prod-state", "uploaded": [], "files": ["manifest"]},
+        )
 
     def test_cleans_up_without_a_manifest(self):
         """A missing manifest still fails finalize, but only after the teardown ran."""
@@ -625,9 +691,11 @@ class TestPullRequestGuard:
                 return_value=({"upload": storage}, "gs://b/dbt-state"),
             ),
         ):
-            finalize_upload_files(args)
+            summary = finalize_upload_files(args)
         storage.assert_not_called()
         assert "this run is for a pull request" in caplog.text
+        assert summary["skipped"] == "pull request would publish over the production state"
+        assert summary["uploaded"] == []
 
 
 class TestArtifactsUriPlaceholders:

@@ -624,6 +624,12 @@ With `--dry-run`, nothing is uploaded, the cache is kept, and `--clean-ephemeral
 lists the datasets it would drop. `log` uploads the run log that dbt-ci writes
 to `<cache dir>/dbt-ci.log`.
 
+`finalize`'s entry in `report.json` records what it uploaded: the resolved `artifacts_uri`,
+the `files` asked for, every URI written in `uploaded`, and a `skipped` reason when nothing
+was uploaded (no `--artifacts-uri`, no `--files`, a dry run, or a pull request that would
+have published over the production state). A `manifest.json` left alone because a newer
+commit is already published is simply missing from `uploaded`.
+
 `--clean-ephemeral` runs before the upload, so a missing manifest or a failed upload
 doesn't leave the CI datasets behind. If the cleanup itself fails, the artifacts are
 still uploaded, the step fails, and the cache is kept so a re-run can retry the cleanup.
