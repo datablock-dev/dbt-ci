@@ -1,20 +1,20 @@
 """
-Tell whether a CI run is for a pull request or a push to the default branch.
+Tell whether a CI run is for a pull request, a push to the default branch or a schedule.
 
-Config files can set values per event (`on: {pull-request: ..., push: ...}`), so a pull
-request can publish its state somewhere other than production. The event comes from the
-variables each CI system sets:
+Config files can set values per event (`on: {pull-request: ..., push: ..., schedule: ...}`),
+so a pull request can publish its state somewhere other than production. The event comes
+from the variables each CI system sets:
 
 - GitHub Actions: GITHUB_EVENT_NAME pull_request, pull_request_target or merge_group is
-  a pull request; push is a push.
+  a pull request; push is a push; schedule is a schedule.
 - GitLab CI: CI_PIPELINE_SOURCE merge_request_event (or external_pull_request_event) is
-  a pull request; push is a push.
+  a pull request; push is a push; schedule is a schedule.
 - Azure Pipelines: BUILD_REASON PullRequest is a pull request; IndividualCI and BatchedCI
-  are pushes.
+  are pushes; Schedule is a schedule.
 - Bitbucket Pipelines: BITBUCKET_PR_ID is set for pull requests; otherwise a push.
 - CircleCI: CIRCLE_PULL_REQUEST is set for pull requests; otherwise a push.
 - Buildkite: BUILDKITE_PULL_REQUEST is the PR number (not "false") for pull requests;
-  BUILDKITE_SOURCE webhook is a push.
+  BUILDKITE_SOURCE webhook is a push; schedule is a schedule.
 - Jenkins (multibranch): CHANGE_ID is set for pull requests; otherwise a push.
 
 A push only counts when it is to the default branch, so a push to a feature branch never
@@ -22,9 +22,11 @@ publishes production state. A config file can name the deploy branches instead
 (`on: {push: {branches: [main, release/*]}}`): a push then counts when its branch matches
 one of those names or fnmatch patterns, and the default branch is not consulted.
 
-Anything else (a tag, a schedule, a manual run, a local run, an unknown CI) is no event,
-and only the settings outside `on:` apply. `--event` (DBT_CI_EVENT) names the event
-explicitly, for CI systems not listed here.
+A schedule is a schedule whatever branch it runs on. Bitbucket Pipelines, CircleCI and
+Jenkins set no variable that marks a scheduled run, so there `--event schedule` names it.
+Anything else (a tag, a manual run, a local run, an unknown CI) is no event, and only the
+settings outside `on:` apply. `--event` (DBT_CI_EVENT) names the event explicitly, for CI
+systems not listed here.
 
 `pull_request_number` and `current_branch` read the same CI systems' variables for the
 `{pr}` and `{branch}` placeholders in `finalize --artifacts-uri`.
@@ -43,7 +45,8 @@ logger = logging.getLogger(__name__)
 
 PULL_REQUEST = "pull-request"
 PUSH = "push"
-EVENTS = (PULL_REQUEST, PUSH)
+SCHEDULE = "schedule"
+EVENTS = (PULL_REQUEST, PUSH, SCHEDULE)
 
 
 @dataclass(frozen=True)
@@ -69,7 +72,7 @@ def resolve_event(
             return CiEvent(value, "set with --event / DBT_CI_EVENT")
         if value == "none":
             return CiEvent(None, "set to none with --event / DBT_CI_EVENT")
-        raise ValueError(f"Unknown event '{override}'. Use pull-request, push or none.")
+        raise ValueError(f"Unknown event '{override}'. Use pull-request, push, schedule or none.")
     return detect_event(base_branch, env, push_branches)
 
 
@@ -100,6 +103,8 @@ def detect_event(
         provider, kind, branch, default_branch = found
         if kind == PULL_REQUEST:
             return CiEvent(PULL_REQUEST, f"{provider} pull request")
+        if kind == SCHEDULE:
+            return CiEvent(SCHEDULE, f"{provider} scheduled run")
         if kind != PUSH or not branch:
             return CiEvent(None, f"{provider} run that is neither a pull request nor a push")
         if push_branches:
@@ -141,6 +146,8 @@ def _github(env: Mapping[str, str]) -> Detected | None:
     event = env.get("GITHUB_EVENT_NAME", "")
     if event in ("pull_request", "pull_request_target", "merge_group"):
         return "GitHub Actions", PULL_REQUEST, None, None
+    if event == "schedule":
+        return "GitHub Actions", SCHEDULE, None, None
     if event != "push":
         return "GitHub Actions", None, None, None
     ref = env.get("GITHUB_REF", "")
@@ -179,6 +186,8 @@ def _gitlab(env: Mapping[str, str]) -> Detected | None:
         return "GitLab CI", PULL_REQUEST, None, default
     if source == "push":
         return "GitLab CI", PUSH, env.get("CI_COMMIT_BRANCH") or None, default
+    if source == "schedule":
+        return "GitLab CI", SCHEDULE, None, default
     return "GitLab CI", None, None, default
 
 
@@ -189,6 +198,8 @@ def _azure(env: Mapping[str, str]) -> Detected | None:
     reason = env.get("BUILD_REASON", "")
     if reason == "PullRequest":
         return "Azure Pipelines", PULL_REQUEST, None, None
+    if reason == "Schedule":
+        return "Azure Pipelines", SCHEDULE, None, None
     if reason in ("IndividualCI", "BatchedCI"):
         ref = env.get("BUILD_SOURCEBRANCH", "")
         branch = ref.removeprefix("refs/heads/") if ref.startswith("refs/heads/") else None
@@ -206,7 +217,13 @@ def _bitbucket(env: Mapping[str, str]) -> Detected | None:
 
 
 def _circleci(env: Mapping[str, str]) -> Detected | None:
-    """CircleCI: builds of a branch with an open pull request set CIRCLE_PULL_REQUEST."""
+    """
+    CircleCI: builds of a branch with an open pull request set CIRCLE_PULL_REQUEST.
+
+    CircleCI has no environment variable for a scheduled pipeline (only the config-time
+    pipeline values pipeline.trigger.type and pipeline.schedule.*), so a scheduled run
+    reads as a push to its branch unless --event schedule names it.
+    """
     if env.get("CIRCLECI") != "true":
         return None
     if env.get("CIRCLE_PULL_REQUEST"):
@@ -223,6 +240,8 @@ def _buildkite(env: Mapping[str, str]) -> Detected | None:
         return "Buildkite", PULL_REQUEST, None, default
     if env.get("BUILDKITE_SOURCE") == "webhook":
         return "Buildkite", PUSH, env.get("BUILDKITE_BRANCH") or None, default
+    if env.get("BUILDKITE_SOURCE") == "schedule":
+        return "Buildkite", SCHEDULE, None, default
     return "Buildkite", None, None, default
 
 
