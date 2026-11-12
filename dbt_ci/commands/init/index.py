@@ -9,6 +9,7 @@ from typing import cast
 import click
 from dbt_ci.utilities.logging import print_exception, redact_namespace
 from dbt_ci.utilities.cache import CacheManager
+from dbt_ci.utilities.run_context import collect_git_context
 from dbt_ci.dbt.dbt_commands import DbtCommands
 from dbt_ci.connectors import init_storage_connector
 from dbt_ci.commands.init.state_modified import StateModified
@@ -53,7 +54,8 @@ def init(args: Namespace):
         cache = CacheManager(args)
         state_modified = StateModified(args)
         cache.clear_cache()  # Clear cache at the start of init to avoid stale data issues
-        cache.start_report("init", args)
+        # The branch, commit and pull request this run is for, shown at the top of the report
+        cache.start_report("init", args, extra={"git": collect_git_context(args)})
         dbt_project_dir = getattr(args, "dbt_project_dir", None)
         reference_target = getattr(args, "reference_target", None)
         reference_state_path: str | None = getattr(args, "reference_state", None)

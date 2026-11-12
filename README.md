@@ -14,6 +14,8 @@ Every pull request gets a comment like this one, updated on each push:
 
 > ## dbt-ci run report
 >
+> `feature/orders-daily` → `main` · commit `1a2b3c4` · PR #42 · GitHub Actions pull-request ([run](#))
+>
 > | Change | Count |
 > |---|---:|
 > | Modified | 1 |

@@ -448,6 +448,10 @@ dbt-ci report --pr-comment          # → also posted as a comment on the pull r
 
 The report covers:
 
+- **What the run was for** — one line with the branch and the base branch it merges into,
+  the commit, the pull request number, the CI system and event, and a link to the CI run,
+  e.g. `` `feature/x` → `main` · commit `1a2b3c4` · PR #42 · GitHub Actions pull-request (run) ``.
+  `init` records it, so see [Git context](#git-context) for where each value comes from.
 - **Change counts and node names**, grouped as modified / new / deleted, each with
   [the reason it is in the change set](#why-is-a-node-in-the-change-set). Long lists fold
   into a collapsible block.
@@ -457,6 +461,38 @@ The report covers:
   with the recorded run time of the nodes it left out (see [Run time](#run-time)).
 - **Command status and duration** for each of `init`, `run`, `delete`, `ephemeral` and
   `migration` that has run.
+
+### Git context
+
+`init` records the context of the run under `git` in its `report.json` entry, and
+`report --format json` repeats it as a top-level `git` key:
+
+```json
+{
+  "provider": "GitHub Actions",
+  "repository": "acme/analytics",
+  "event": "pull-request",
+  "branch": "feature/new-model",
+  "base_branch": "main",
+  "commit": "1a2b3c4d...",
+  "pull_request": 42,
+  "run_url": "https://github.com/acme/analytics/actions/runs/987"
+}
+```
+
+| Key | Where it comes from |
+|-----|---------------------|
+| `provider` | The CI system: GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket Pipelines, CircleCI, Buildkite or Jenkins; `null` locally |
+| `repository` | `GITHUB_REPOSITORY`, `CI_PROJECT_PATH`, `BUILD_REPOSITORY_NAME`, `BITBUCKET_REPO_FULL_NAME`, `CIRCLE_PROJECT_USERNAME`/`CIRCLE_PROJECT_REPONAME` or `BUILDKITE_REPO` |
+| `event` | The event the config's [`on:` blocks](configuration.md#settings-per-ci-event) were resolved for, or `--event`, or the one detected from CI: `pull-request`, `push`, `schedule` or `null` |
+| `branch` | The pull request's source branch, or the branch CI built, else the branch git has checked out (the same as `{branch}` in `finalize --artifacts-uri`) |
+| `base_branch` | `--base-ref`, else the branch the pull request merges into (`GITHUB_BASE_REF`, `CI_MERGE_REQUEST_TARGET_BRANCH_NAME`, `SYSTEM_PULLREQUEST_TARGETBRANCH`, `BITBUCKET_PR_DESTINATION_BRANCH`, `BUILDKITE_PULL_REQUEST_BASE_BRANCH`, `CHANGE_TARGET`) |
+| `commit` | The checked-out commit; on a GitHub pull request, the pull request's head rather than the merge commit GitHub tests |
+| `pull_request` | The pull or merge request number (the same as `{pr}`) |
+| `run_url` | A link to the CI run, where the CI system says where it is |
+
+A value dbt-ci cannot tell is `null` and left out of the report line. Reading the context
+never fails `init`.
 
 **Flags:**
 

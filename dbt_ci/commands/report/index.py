@@ -65,6 +65,7 @@ def report(args: Namespace) -> None:
         if output_format == "json":
             rendered = json.dumps(
                 {
+                    "git": git_context(run_report) or None,
                     "report": run_report,
                     "changes": cache_dict,
                     "run_times": cache.get_cache(RUN_TIMES_FILE),
@@ -111,12 +112,47 @@ def render_markdown(
 ) -> str:
     """Render the full report as GitHub-flavoured markdown."""
     lines: list[str] = ["## dbt-ci run report", ""]
+    lines.extend(render_git_context(run_report))
     lines.extend(render_baseline(cache_dict))
     lines.extend(render_change_summary(cache_dict))
     lines.extend(render_exposure_impact(cache_dict, args))
     lines.extend(render_run_time(args))
     lines.extend(render_command_status(run_report))
     return "\n".join(lines).rstrip() + "\n"
+
+
+def git_context(run_report: dict[str, Any] | None) -> dict[str, Any]:
+    """Return the git and CI context init recorded, or {} for an older report."""
+    context = ((run_report or {}).get("init") or {}).get("git")
+    return context if isinstance(context, dict) else {}
+
+
+def render_git_context(run_report: dict[str, Any] | None) -> list[str]:
+    """
+    Render one line naming the branch, base branch, commit, pull request and CI run.
+
+    e.g. "`feature/x` → `main` · commit `1a2b3c4` · PR #42 · GitHub Actions pull-request
+    ([run](...))". Values init could not tell are left out.
+    """
+    context = git_context(run_report)
+    parts: list[str] = []
+    branch, base = context.get("branch"), context.get("base_branch")
+    if branch and base and branch != base:
+        parts.append(f"`{branch}` → `{base}`")
+    elif branch:
+        parts.append(f"`{branch}`")
+    if context.get("commit"):
+        parts.append(f"commit `{str(context['commit'])[:7]}`")
+    if context.get("pull_request"):
+        parts.append(f"PR #{context['pull_request']}")
+    ran_on = " ".join(str(v) for v in (context.get("provider"), context.get("event")) if v)
+    if ran_on and context.get("run_url"):
+        ran_on = f"{ran_on} ([run]({context['run_url']}))"
+    elif context.get("run_url"):
+        ran_on = f"[run]({context['run_url']})"
+    if ran_on:
+        parts.append(ran_on)
+    return [" · ".join(parts), ""] if parts else []
 
 
 def render_baseline(cache_dict: StateChangeSummary | None) -> list[str]:
