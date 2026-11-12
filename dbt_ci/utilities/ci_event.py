@@ -18,9 +18,13 @@ variables each CI system sets:
 - Jenkins (multibranch): CHANGE_ID is set for pull requests; otherwise a push.
 
 A push only counts when it is to the default branch, so a push to a feature branch never
-publishes production state. Anything else (a tag, a schedule, a manual run, a local run,
-an unknown CI) is no event, and only the settings outside `on:` apply. `--event`
-(DBT_CI_EVENT) names the event explicitly, for CI systems not listed here.
+publishes production state. A config file can name the deploy branches instead
+(`on: {push: {branches: [main, release/*]}}`): a push then counts when its branch matches
+one of those names or fnmatch patterns, and the default branch is not consulted.
+
+Anything else (a tag, a schedule, a manual run, a local run, an unknown CI) is no event,
+and only the settings outside `on:` apply. `--event` (DBT_CI_EVENT) names the event
+explicitly, for CI systems not listed here.
 
 `pull_request_number` and `current_branch` read the same CI systems' variables for the
 `{pr}` and `{branch}` placeholders in `finalize --artifacts-uri`.
@@ -32,7 +36,8 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass
-from typing import Mapping
+from fnmatch import fnmatchcase
+from typing import Mapping, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +58,7 @@ def resolve_event(
     override: str | None,
     base_branch: str | None = None,
     env: Mapping[str, str] | None = None,
+    push_branches: Sequence[str] | None = None,
 ) -> CiEvent:
     """Return the event named by --event or DBT_CI_EVENT, or the one detected from CI."""
     env = os.environ if env is None else env
@@ -64,11 +70,20 @@ def resolve_event(
         if value == "none":
             return CiEvent(None, "set to none with --event / DBT_CI_EVENT")
         raise ValueError(f"Unknown event '{override}'. Use pull-request, push or none.")
-    return detect_event(base_branch, env)
+    return detect_event(base_branch, env, push_branches)
 
 
-def detect_event(base_branch: str | None = None, env: Mapping[str, str] | None = None) -> CiEvent:
-    """Detect the event from the CI system's environment variables."""
+def detect_event(
+    base_branch: str | None = None,
+    env: Mapping[str, str] | None = None,
+    push_branches: Sequence[str] | None = None,
+) -> CiEvent:
+    """
+    Detect the event from the CI system's environment variables.
+
+    A push counts when its branch matches one of `push_branches` (names or fnmatch
+    patterns) when any are given, and otherwise only when it is to the default branch.
+    """
     env = os.environ if env is None else env
     for detector in (
         _github,
@@ -87,6 +102,8 @@ def detect_event(base_branch: str | None = None, env: Mapping[str, str] | None =
             return CiEvent(PULL_REQUEST, f"{provider} pull request")
         if kind != PUSH or not branch:
             return CiEvent(None, f"{provider} run that is neither a pull request nor a push")
+        if push_branches:
+            return _match_push_branches(provider, branch, push_branches)
         default = base_branch or default_branch or _git_default_branch()
         if default is None:
             return CiEvent(
@@ -98,6 +115,18 @@ def detect_event(base_branch: str | None = None, env: Mapping[str, str] | None =
             return CiEvent(None, f"{provider} push to '{branch}', not the default branch")
         return CiEvent(PUSH, f"{provider} push to the default branch '{branch}'")
     return CiEvent(None, "no CI system detected")
+
+
+def _match_push_branches(provider: str, branch: str, patterns: Sequence[str]) -> CiEvent:
+    """Return a push when the branch matches one of the deploy branch patterns."""
+    # fnmatchcase: branch names are case-sensitive on every platform, and `*` matches `/`
+    pattern = next((p for p in patterns if fnmatchcase(branch, p)), None)
+    if pattern is None:
+        listed = ", ".join(patterns)
+        return CiEvent(
+            None, f"{provider} push to '{branch}', not one of the push branches ({listed})"
+        )
+    return CiEvent(PUSH, f"{provider} push to '{branch}' (matches {pattern})")
 
 
 # Each detector returns (provider, kind, pushed branch, default branch) for its CI system,

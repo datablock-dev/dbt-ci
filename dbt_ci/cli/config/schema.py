@@ -258,8 +258,29 @@ def _validate_events(path: str, value: Any, errors: list[str]) -> None:
         for nested in ("profiles", "on"):
             if nested in settings:
                 errors.append(f"'{path}.{event}.{nested}' is not allowed inside an event")
-        body = {k: v for k, v in settings.items() if k not in ("profiles", "on")}
+        if "branches" in settings:
+            if event == "push":
+                _validate_branches(f"{path}.{event}.branches", settings["branches"], errors)
+            else:
+                errors.append(
+                    f"'{path}.{event}.branches' is only allowed under push: it lists the "
+                    "branches a push deploys from"
+                )
+        body = {k: v for k, v in settings.items() if k not in ("profiles", "on", "branches")}
         errors.extend(f"{path}.{event}: {error}" for error in validate_config(body))
+
+
+def _validate_branches(path: str, value: Any, errors: list[str]) -> None:
+    """Check that push branches are a branch name or pattern, or a non-empty list of them."""
+    items = [value] if isinstance(value, str) else value
+    if not isinstance(items, list) or not items:
+        errors.append(
+            f"'{path}' must be a branch name or pattern, or a list of them, got {value!r}"
+        )
+        return
+    for item in items:
+        if not isinstance(item, str) or not item.strip():
+            errors.append(f"'{path}' items must be non-empty strings, got {item!r}")
 
 
 def validate_config(raw: dict) -> list[str]:
