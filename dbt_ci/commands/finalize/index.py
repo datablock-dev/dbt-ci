@@ -3,6 +3,7 @@
 import sys
 import logging
 from argparse import Namespace
+from typing import Any
 import click
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.commands.ephemeral.destroy import clean_up_ephemeral
@@ -56,14 +57,20 @@ def finalize(args: Namespace):
 
         # Upload files to storage if artifacts_uri is provided. A dry run must not
         # touch the artifacts location, which is often where production state lives.
+        files = list(getattr(args, "files", []) or [])
         if dry_run:
+            upload_summary: dict[str, Any] = {
+                "artifacts_uri": getattr(args, "artifacts_uri", None),
+                "uploaded": [],
+                "skipped": "dry run",
+            }
             if getattr(args, "artifacts_uri", None):
                 logger.info(
-                    "Dry run enabled - skipping upload of "
-                    f"{list(getattr(args, 'files', []) or [])} to {args.artifacts_uri}."
+                    f"Dry run enabled - skipping upload of {files} to {args.artifacts_uri}."
                 )
         else:
-            finalize_upload_files(args)
+            upload_summary = finalize_upload_files(args)
+        upload_summary["files"] = files
 
         if cleanup_error is not None:
             # Keep the cache: it holds the ephemeral map a re-run needs to retry the teardown.
@@ -72,7 +79,8 @@ def finalize(args: Namespace):
             )
             sys.exit(1)
 
-        cache.update_report("finalize", "completed", cache.get_cache())
+        # What finalize did, not a copy of the cache it is about to clear
+        cache.update_report("finalize", "completed", upload_summary)
 
         if dry_run:
             logger.info("Dry run enabled - keeping the cache.")

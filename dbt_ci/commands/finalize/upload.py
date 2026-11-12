@@ -23,17 +23,30 @@ from dbt_ci.utilities.logging import LOG_FILE_NAME, flush_log_file
 logger = logging.getLogger(__name__)
 
 
-def finalize_upload_files(args: Namespace) -> None:
-    """Upload files to specified storage location if artifacts_uri is provided in arguments."""
+def finalize_upload_files(args: Namespace) -> dict[str, Any]:
+    """
+    Upload the chosen files to --artifacts-uri, and return what was uploaded.
+
+    The summary, recorded in report.json, holds the resolved `artifacts_uri`, every URI
+    written in `uploaded`, and a `skipped` reason when nothing could be uploaded.
+    """
     cache = CacheManager(args)
     artifacts_uri = getattr(args, "artifacts_uri", None)
     if artifacts_uri is None:
-        return
+        return {"uploaded": [], "skipped": "no --artifacts-uri"}
     # {pr} and {branch} are filled in before anything else, so the pull request guard
     # below compares the location the files would really go to
     artifacts_uri = resolve_uri_placeholders(artifacts_uri, "--artifacts-uri")
     # "gs://bucket/path/" would otherwise upload to "gs://bucket/path//manifest.json"
     artifacts_uri = artifacts_uri.rstrip("/")
+    uploaded: list[str] = []
+
+    def summary(skipped: str | None = None) -> dict[str, Any]:
+        """The upload summary so far."""
+        result: dict[str, Any] = {"artifacts_uri": artifacts_uri, "uploaded": uploaded}
+        if skipped:
+            result["skipped"] = skipped
+        return result
 
     init_storage = init_storage_connector(artifacts_uri)
 
@@ -41,29 +54,35 @@ def finalize_upload_files(args: Namespace) -> None:
         logger.warning(
             "No valid storage connector found for artifact upload. Skipping artifact upload."
         )
-        return
+        return summary("no storage connector for the URI")
 
     resolved_storage, _ = init_storage
     if publishes_pull_request_over_production(args, artifacts_uri):
-        return logger.warning(
+        logger.warning(
             f"Not uploading to {artifacts_uri}: this run is for a pull request, and that is "
             "where init reads the production state from. Give pull requests their own "
             "location (on: pull-request: finalize: artifacts-uri: ...), or pass "
             "--force-manifest to publish anyway."
         )
-    storage_function = resolved_storage.get("upload")
-    if storage_function is None:
+        return summary("pull request would publish over the production state")
+    upload = resolved_storage.get("upload")
+    if upload is None:
         logger.warning(
             "No upload function found for resolved storage connector. Skipping artifact upload."
         )
-        return
+        return summary("the storage connector cannot upload")
 
     if not getattr(args, "files", None) or len(getattr(args, "files", [])) == 0:
         logger.info(
             "No files specified for upload. Please specify which files to upload using the "
             "--files argument. Skipping artifact upload."
         )
-        return
+        return summary("no --files")
+
+    def storage_function(uri: str, data: Any, content_type: str) -> None:
+        """Upload through the connector, recording each URI written."""
+        upload(uri, data, content_type)
+        uploaded.append(uri)
 
     for file in getattr(args, "files", []):
         upload_func = UPLOAD_MAPPING.get(file)
@@ -80,6 +99,7 @@ def finalize_upload_files(args: Namespace) -> None:
             )
             continue
         upload_func(artifacts_uri, cache, storage_function)
+    return summary()
 
 
 def publishes_pull_request_over_production(args: Namespace, artifacts_uri: str) -> bool:
