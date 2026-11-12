@@ -94,6 +94,20 @@ SCHEMA: dict[str, dict] = {
         "type": "section",
         "fields": {
             "keep-env": {"aliases": ["keep_env"], "type": "bool"},
+            # Read by ephemeral create and destroy before the top-level dry-run
+            "dry-run": {"aliases": ["dry_run"], "type": "bool"},
+        },
+    },
+    "delete": {
+        "type": "section",
+        "fields": {
+            "dry-run": {"aliases": ["dry_run"], "type": "bool"},
+        },
+    },
+    "migration": {
+        "type": "section",
+        "fields": {
+            "dry-run": {"aliases": ["dry_run"], "type": "bool"},
         },
     },
     "notifications": {
