@@ -217,7 +217,9 @@ jobs:
   depends on the event, not on the profile. Empty flags are ignored, so
   `${{ env.DRY_RUN }}` on a deploy simply runs for real.
 - The Slack webhook and `GITHUB_TOKEN` stay secrets in the workflow; the config file only
-  says where to post.
+  says where to post. As written, `init` posts to Slack on pull requests and deploys
+  alike; to post on deploys only, see
+  [Slack notifications only on deploys](#slack-notifications-only-on-deploys).
 - To change a setting for one repository, pass the flag in that step (a flag wins over
   the profile) or add a profile to its `dbt-ci.config.yaml`.
 
@@ -257,6 +259,91 @@ it. Add `--json` to check a value in a script, e.g. that a deploy really targets
 dbt-ci config show --json run \
   | jq -e '.settings[] | select(.option == "--target") | .value == "prod"'
 ```
+
+## Slack notifications only on deploys
+
+`init` is the only command that posts to Slack, and it posts whenever it has a webhook,
+wherever the webhook came from: `--slack-webhook`, `notifications.webhook` in the config
+file, the `DBT_NOTIFICATIONS_WEBHOOK`, `SLACK_WEBHOOK` or `SLACK_WEBHOOK_URL` environment
+variables, or the GitHub Action's `slack-webhook` input. So the webhook is the switch:
+
+- `notifications.provider` does not turn posting on or off. `slack` is its only value and
+  already the default, so `on: push: notifications: provider: slack` on its own changes
+  nothing.
+- A pull request can't turn off a webhook set elsewhere. There is no `none` provider, and
+  an empty value counts as not set, so `webhook: ""` in an `on: pull-request:` block
+  leaves the webhook from the top level or the environment in place.
+
+To post on deploys only, give the webhook to the `push` event alone, and keep the URL
+itself in a secret:
+
+```yaml
+# dbt-ci.config.yaml
+notifications:
+  format: compact
+
+on:
+  push:                         # pushes to the default branch
+    notifications:
+      webhook: ${DEPLOY_SLACK_WEBHOOK}
+```
+
+```yaml
+# The workflow
+- name: Initialize dbt-ci state
+  env:
+    DEPLOY_SLACK_WEBHOOK: ${{ secrets.DBT_CI_SLACK_WEBHOOK_URL }}
+  run: dbt-ci init
+```
+
+- **Name the variable something dbt-ci doesn't read itself**, such as
+  `DEPLOY_SLACK_WEBHOOK`. It only reaches dbt-ci through the `push` block. If the job
+  also exports `SLACK_WEBHOOK`, `SLACK_WEBHOOK_URL` or `DBT_NOTIFICATIONS_WEBHOOK`, or
+  sets the Action's `slack-webhook` input, `init` posts on pull requests too, whatever the
+  file says.
+- The variable can be set on every run, pull requests included: on a pull request the
+  `push` block is not applied, so `${DEPLOY_SLACK_WEBHOOK}` is never read.
+- If the variable is missing on a deploy, the reference is left as it is and posting
+  fails without failing the job. `init` logs
+  `Failed to send Slack message: unknown url type: '${DEPLOY_SLACK_WEBHOOK}'`.
+- A push to any other branch, a tag or a manual run is no event, so it doesn't post
+  either. See [Settings per CI event](configuration.md#settings-per-ci-event) for how
+  each CI system's deploys are recognised.
+
+Check both sides before you push. The webhook is masked, and its source shows that only
+the `push` block sets it:
+
+```
+$ dbt-ci config show init --event push
+Command:     dbt-ci init
+Config file: dbt-ci.config.yaml
+Profile:     none
+Event:       push (set with --event / DBT_CI_EVENT)
+
+Common options
+OPTION                  VALUE    SOURCE
+--event                 push     command line
+--notifications-format  compact  config file
+--slack-webhook         ***      event 'push'
+
+Defaults are hidden; pass --all to list every option.
+
+$ dbt-ci config show init --event pull-request
+Command:     dbt-ci init
+Config file: dbt-ci.config.yaml
+Profile:     none
+Event:       pull-request (set with --event / DBT_CI_EVENT)
+
+Common options
+OPTION                  VALUE         SOURCE
+--event                 pull-request  command line
+--notifications-format  compact       config file
+
+Defaults are hidden; pass --all to list every option.
+```
+
+If `--slack-webhook` shows up on the pull request with a source such as
+`environment (SLACK_WEBHOOK)`, a variable dbt-ci reads directly is still exported.
 
 ## GitLab CI Example
 

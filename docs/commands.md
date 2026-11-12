@@ -552,6 +552,12 @@ Secrets such as webhooks are masked. Its own flags go before the command:
 | `--all` | `false` | Also list options left at their default or unset |
 | `--json` | `false` | Print the result as JSON, e.g. for a CI step to check |
 
+> **Tip:** with an [`on:` block](configuration.md#settings-per-ci-event) in the config
+> file, add `--event push` or `--event pull-request` to preview locally what a deploy or a
+> pull request would run with, before pushing anything:
+> `dbt-ci config show finalize --event push`. The output names the event, and values that
+> came from its block show a source such as `event 'push'`.
+
 ---
 
 ## `finalize` - Finalize State
