@@ -260,6 +260,38 @@ A top-level `dry-run: true` in the `pull-request` block would make `run` a dry r
 - YAML 1.1 parsers read a bare `on:` key as `true`; dbt-ci reads it as `on`, so no quotes
   are needed.
 
+**Preview a CI run before you push.** On your laptop no event is detected, so pass
+`--event` to [`dbt-ci config show`](commands.md#config-show---show-resolved-settings) to
+see exactly what a deploy or a pull request would run with. Nothing is executed. With the
+file above:
+
+```
+$ dbt-ci config show finalize --profile prod --event push
+Command:     dbt-ci finalize
+Config file: dbt-ci.config.yaml
+Profile:     prod (command line)
+Event:       push (set with --event / DBT_CI_EVENT)
+
+finalize options
+OPTION           VALUE                      SOURCE
+--artifacts-uri  gs://my-bucket/dbt-state/  event 'push'
+--files          manifest, cache            profile 'prod', event 'push'
+
+Common options
+OPTION           VALUE                      SOURCE
+--event          push                       command line
+--profile        prod                       command line
+--target         prod                       profile 'prod'
+
+Defaults are hidden; pass --all to list every option.
+```
+
+The same command with `--event pull-request` shows the pull request writing to
+`gs://my-bucket/dbt-ci-prs/` with only `manifest` (source `event 'pull-request'` and
+`config file`), and `--event none` shows what a run outside both events gets. Pass the
+same `--profile` and flags your CI step uses, and add `--json` before the command to
+check a value in a script.
+
 dbt-ci tells the events apart from the variables each CI system sets:
 
 | CI system | Pull request | Push | Schedule | Default branch |
