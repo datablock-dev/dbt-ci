@@ -8,6 +8,7 @@ from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.commands.ephemeral.destroy import clean_up_ephemeral
 from dbt_ci.commands.finalize.upload import finalize_upload_files
 from dbt_ci.utilities.logging import print_exception, redact_namespace
+from dbt_ci.utilities.uri_placeholders import resolve_uri_placeholders
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,11 @@ def finalize(args: Namespace):
         if manifest_file is None:
             logger.warning("No manifest file found in cache to upload. Skipping artifact upload.")
             sys.exit(1)
+
+        # Fill in {pr} and {branch} first: an unresolvable placeholder fails finalize,
+        # dry run or not, rather than uploading to a literal "{pr}" folder.
+        if getattr(args, "artifacts_uri", None):
+            args.artifacts_uri = resolve_uri_placeholders(args.artifacts_uri, "--artifacts-uri")
 
         # Upload files to storage if artifacts_uri is provided. A dry run must not
         # touch the artifacts location, which is often where production state lives.

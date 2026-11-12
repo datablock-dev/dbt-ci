@@ -42,6 +42,14 @@ Finding the copies needs permission to list the bucket prefix (e.g. `storage.obj
 or `s3:ListBucket`); without it dbt-ci tries each commit in turn. A lifecycle rule can
 expire old copies.
 
+### Pull request artifacts
+
+Pull requests publish somewhere other than the state, and with `{pr}` in the URI each to a
+folder of its own, e.g. `gs://my-bucket/dbt-ci-prs/{pr}/` (see
+[A folder per pull request](commands.md#a-folder-per-pull-request), which also has a
+lifecycle rule for expiring those folders). `--state-uri` takes no placeholders: it is the
+production state, the same for every run.
+
 **Benefits:**
 - 🔄 **Shared State**: Download the same reference state across different CI jobs
 - 💾 **Cache-Based**: After init, commands use local cache (no repeated downloads)
