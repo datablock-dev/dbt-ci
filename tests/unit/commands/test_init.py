@@ -134,6 +134,28 @@ class TestInitCommand:
     @patch("dbt_ci.commands.init.index.init_storage_connector")
     @patch("dbt_ci.commands.init.index.DbtCommands")
     @patch("dbt_ci.commands.init.index.StateModified")
+    @patch("dbt_ci.commands.init.index.click.secho")
+    def test_state_uri_placeholders_are_refused(
+        self, _secho, _state_modified, mock_dbt_commands, mock_storage, _cache, caplog
+    ):
+        """{pr} and {branch} only work in finalize --artifacts-uri; init fails clearly."""
+        args = Namespace(
+            dbt_project_dir="/dbt",
+            state_uri="gs://b/dbt-ci-prs/{pr}/manifest.json",
+            reference_state=None,
+            dry_run=False,
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            index(args)
+        assert exc_info.value.code == 1
+        mock_storage.assert_not_called()
+        mock_dbt_commands.return_value.reference_compile.assert_not_called()
+        assert "only finalize --artifacts-uri fills in" in caplog.text
+
+    @patch("dbt_ci.commands.init.index.CacheManager")
+    @patch("dbt_ci.commands.init.index.init_storage_connector")
+    @patch("dbt_ci.commands.init.index.DbtCommands")
+    @patch("dbt_ci.commands.init.index.StateModified")
     @patch("dbt_ci.commands.init.index.get_manifest_file")
     @patch("dbt_ci.commands.init.index.click.secho")
     def test_init_with_reference_target(

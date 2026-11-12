@@ -591,13 +591,14 @@ Run after `run`, `delete`, or `ephemeral` to upload artifacts and clean up the l
 ```bash
 dbt-ci finalize
 dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
+dbt-ci finalize --artifacts-uri gs://my-bucket/dbt-ci-prs/{pr}/
 ```
 
 **Flags:**
 
 | Flag | Aliases | Env Var(s) | Default | Description |
 |------|---------|-----------|---------|-------------|
-| `--artifacts-uri` | | `DBT_ARTIFACTS_URI`, `ARTIFACTS_URI` | `None` | Object storage URI for uploading run artifacts such as the updated `manifest.json` (e.g. `s3://bucket/dbt-artifacts/`) |
+| `--artifacts-uri` | | `DBT_ARTIFACTS_URI`, `ARTIFACTS_URI` | `None` | Object storage URI for uploading run artifacts such as the updated `manifest.json` (e.g. `s3://bucket/dbt-artifacts/`). `{pr}` and `{branch}` are filled in for the run, see [A folder per pull request](#a-folder-per-pull-request) |
 | `--files` | | `DBT_FINALIZE_FILES` | `manifest` | Which artifacts to upload (repeatable): `manifest`, `cache`, `log` |
 | `--force-manifest` | | `DBT_FINALIZE_FORCE_MANIFEST` | `false` | Replace the published `manifest.json` even when it was built from a newer commit than this run's, e.g. to roll back, or publish from a pull request to the production state location (`finalize.force-manifest` in the config file). See [Deploys finishing out of order](#deploys-finishing-out-of-order) and [Pull requests and the production state](#pull-requests-and-the-production-state) |
 | `--clean-ephemeral` | `--destroy-ephemeral` | `DBT_CLEAN_EPHEMERAL`, `DBT_DESTROY_EPHEMERAL` | `false` | **Deprecated — use [`ephemeral destroy`](#ephemeral-destroy).** Drop the datasets that `ephemeral` cloned into, the same way `ephemeral destroy` does |
@@ -640,13 +641,74 @@ pull request (see [Settings per CI event](configuration.md#settings-per-ci-event
 on:
   pull-request:
     finalize:
-      artifacts-uri: gs://my-bucket/dbt-ci-prs/
+      artifacts-uri: gs://my-bucket/dbt-ci-prs/{pr}/
   push:
     finalize:
       artifacts-uri: gs://my-bucket/dbt-state/
 ```
 
 `--force-manifest` publishes anyway.
+
+### A folder per pull request
+
+With one `artifacts-uri` for every pull request, each upload replaces the previous pull
+request's files. Put a placeholder in it and every pull request publishes to a folder of
+its own:
+
+```yaml
+on:
+  pull-request:
+    finalize:
+      artifacts-uri: gs://my-bucket/dbt-ci-prs/{pr}/
+```
+
+| Placeholder | Replaced with |
+|---|---|
+| `{pr}` | The number of the pull or merge request: GitHub's event payload (`pull_request.number`), `GITHUB_REF` `refs/pull/<n>/merge`, or a merge queue's `gh-readonly-queue/<base>/pr-<n>-<sha>` branch; `CI_MERGE_REQUEST_IID` (or `CI_EXTERNAL_PULL_REQUEST_IID`) on GitLab; `SYSTEM_PULLREQUEST_PULLREQUESTNUMBER`, else `SYSTEM_PULLREQUEST_PULLREQUESTID`, on Azure Pipelines; `BITBUCKET_PR_ID`; the number at the end of `CIRCLE_PULL_REQUEST`; `BUILDKITE_PULL_REQUEST`; `CHANGE_ID` on Jenkins |
+| `{branch}` | The branch the run is for: a pull request's source branch (`GITHUB_HEAD_REF`, `CI_MERGE_REQUEST_SOURCE_BRANCH_NAME`, `SYSTEM_PULLREQUEST_SOURCEBRANCH` without `refs/heads/`, `BITBUCKET_BRANCH`, `CIRCLE_BRANCH`, `BUILDKITE_BRANCH`, `CHANGE_BRANCH`), otherwise the branch that was built (`GITHUB_REF` or Azure's `BUILD_SOURCEBRANCH` without `refs/heads/`, `CI_COMMIT_BRANCH` on GitLab, `BRANCH_NAME` on Jenkins; Bitbucket, CircleCI and Buildkite use the same variable for both), otherwise the branch git has checked out (`git rev-parse --abbrev-ref HEAD`, unless HEAD is detached) |
+
+- **`{branch}` is made safe as one folder name:** every run of characters other than
+  ASCII letters, digits, `.`, `_` and `-` becomes a single `-`, and a leading or trailing
+  `-` or `.` is dropped. Case is kept. `feature/DBT-12 fix` becomes `feature-DBT-12-fix`,
+  so `feature/a` and `feature-a` share a folder; prefer `{pr}` when that matters.
+- **A placeholder that can't be resolved fails `finalize`**, dry run or not, instead of
+  uploading to a literal `{pr}` folder: `{pr}` on a run that isn't for a pull request, or
+  `{branch}` with no CI branch variable and a detached HEAD. Set the URI under
+  `on: pull-request:` so other runs don't use it. On a CI system not listed above, use
+  its own variable instead: `${PR_NUMBER}` in the config file (read from the environment
+  when the file loads), or `--artifacts-uri "gs://my-bucket/dbt-ci-prs/$PR_NUMBER/"`.
+- Any other `{...}` is an error too, and so is `{sha}`: `finalize` already keeps a copy
+  for each commit at `<artifacts-uri>/<commit>/manifest.json`, the layout `init` reads
+  [merge-base manifests](#comparing-against-the-merge-base) from.
+- `finalize` logs the resolved URI (`Resolved --artifacts-uri gs://my-bucket/dbt-ci-prs/{pr}/
+  to gs://my-bucket/dbt-ci-prs/42/`), and `--dry-run` shows where the files would go.
+  The [production state guard](#pull-requests-and-the-production-state) compares the
+  resolved URI with the state folder.
+- Placeholders work in `--artifacts-uri` only. `init --state-uri` is the production
+  state, the same for every run, and refuses `{pr}` and `{branch}` rather than read a
+  folder literally named `{pr}`.
+
+Pull request folders pile up, one per pull request. Keep them under their own prefix,
+apart from the state, and let a bucket lifecycle rule expire them; `init` never reads
+them, so deleting one costs nothing but its history. For example, 30 days after upload:
+
+```bash
+# GCS
+cat > lifecycle.json <<'JSON'
+{"rule": [{"action": {"type": "Delete"},
+           "condition": {"age": 30, "matchesPrefix": ["dbt-ci-prs/"]}}]}
+JSON
+gcloud storage buckets update gs://my-bucket --lifecycle-file=lifecycle.json
+
+# S3
+aws s3api put-bucket-lifecycle-configuration --bucket my-bucket --lifecycle-configuration \
+  '{"Rules": [{"ID": "expire-dbt-ci-prs", "Status": "Enabled",
+     "Filter": {"Prefix": "dbt-ci-prs/"}, "Expiration": {"Days": 30}}]}'
+```
+
+The age counts from each object's upload, so a pull request that is still being pushed
+to keeps a fresh `manifest.json`. Both commands replace the bucket's existing lifecycle
+rules, so merge in any you already have.
 
 ### Deploys finishing out of order
 

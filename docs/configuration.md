@@ -204,7 +204,7 @@ finalize:
 on:
   pull-request:                 # pull/merge request runs
     finalize:
-      artifacts-uri: gs://my-bucket/dbt-ci-prs/
+      artifacts-uri: gs://my-bucket/dbt-ci-prs/{pr}/   # a folder per pull request
   push:                         # pushes to the default branch
     finalize:
       artifacts-uri: gs://my-bucket/dbt-state/
@@ -241,6 +241,12 @@ A top-level `dry-run: true` in the `pull-request` block would make `run` a dry r
   apply. The default branch is `--base-ref` (`DBT_CI_BASE_REF`, `init.base-ref`, or the
   one `init` recorded) when set, else the CI system's own variable (see below), else what
   git's `origin/HEAD` points at.
+- `{pr}` in `artifacts-uri` is the pull request's number, so pull requests don't
+  overwrite each other's files (`gs://my-bucket/dbt-ci-prs/42/`); `{branch}` is its source
+  branch with `/` and other characters that aren't letters, digits, `.`, `_` or `-` turned
+  into `-`. A placeholder the run can't fill in fails `finalize`, which is why `{pr}` belongs
+  under `pull-request:`. See [A folder per pull request](commands.md#a-folder-per-pull-request)
+  for where the values come from, and a lifecycle rule that expires old pull request folders.
 - `--event pull-request|push|none` (or `DBT_CI_EVENT`) names the event yourself, for a CI
   system dbt-ci doesn't recognise or a manual run. `none` applies no event block.
 - When the file has an `on:` block (or `--event` is given), `dbt-ci config show` prints

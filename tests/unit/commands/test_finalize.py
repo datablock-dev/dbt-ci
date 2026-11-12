@@ -625,3 +625,123 @@ class TestPullRequestGuard:
             finalize_upload_files(args)
         storage.assert_not_called()
         assert "this run is for a pull request" in caplog.text
+
+
+class TestArtifactsUriPlaceholders:
+    """{pr} and {branch} in --artifacts-uri give every pull request its own folder."""
+
+    CI_VARS = (
+        "GITHUB_ACTIONS",
+        "GITHUB_EVENT_NAME",
+        "GITHUB_EVENT_PATH",
+        "GITHUB_REF",
+        "GITHUB_HEAD_REF",
+        "GITLAB_CI",
+        "TF_BUILD",
+        "BITBUCKET_BUILD_NUMBER",
+        "CIRCLECI",
+        "BUILDKITE",
+        "JENKINS_URL",
+        "DBT_CI_EVENT",
+    )
+    PR = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF": "refs/pull/42/merge",
+        "GITHUB_HEAD_REF": "feature/new-model",
+    }
+
+    @pytest.fixture(autouse=True)
+    def ci_env(self, monkeypatch):
+        """Start every test outside CI, on a detached HEAD, and return a setter."""
+        for key in self.CI_VARS:
+            monkeypatch.delenv(key, raising=False)
+        with patch("dbt_ci.utilities.ci_event._git_current_branch", return_value=None):
+            yield lambda env: [monkeypatch.setenv(k, v) for k, v in env.items()]
+
+    def upload(self, **args):
+        """Run finalize_upload_files with a mocked connector; return the upload mock."""
+        mock_upload_manifest = MagicMock()
+        connector = {"name": "GCS", "upload": MagicMock(), "download": MagicMock()}
+        with (
+            patch("dbt_ci.commands.finalize.upload.CacheManager"),
+            patch("dbt_ci.commands.finalize.upload.get_cached_value", return_value=None),
+            patch(
+                "dbt_ci.commands.finalize.upload.init_storage_connector",
+                side_effect=lambda uri: (connector, uri),
+            ) as init_storage,
+            patch.dict(
+                "dbt_ci.commands.finalize.upload.UPLOAD_MAPPING", {"manifest": mock_upload_manifest}
+            ),
+        ):
+            finalize_upload_files(_make_args(**args))
+        return mock_upload_manifest, init_storage
+
+    def test_uploads_to_the_resolved_uri(self, ci_env):
+        """The files go to the pull request's folder, never a literal {pr}."""
+        ci_env(self.PR)
+        upload, init_storage = self.upload(artifacts_uri="gs://b/prs/{pr}/{branch}/")
+        init_storage.assert_called_once_with("gs://b/prs/42/feature-new-model")
+        assert upload.call_args[0][0] == "gs://b/prs/42/feature-new-model"
+
+    def test_unresolved_placeholder_uploads_nothing(self, ci_env):
+        """A push has no {pr}: finalize_upload_files raises before touching storage."""
+        ci_env({"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "push"})
+        with pytest.raises(DbtCiError, match=r"Cannot resolve \{pr\}"):
+            self.upload(artifacts_uri="gs://b/prs/{pr}/")
+
+    def test_guard_compares_the_resolved_uri(self, ci_env):
+        """A {branch} that resolves to the state folder is stopped like a literal one."""
+        ci_env({**self.PR, "GITHUB_HEAD_REF": "dbt-state"})
+        upload, _ = self.upload(
+            artifacts_uri="gs://b/{branch}/", state_uri="gs://b/dbt-state/manifest.json"
+        )
+        upload.assert_not_called()
+
+        ci_env({"GITHUB_HEAD_REF": "feature"})
+        upload, _ = self.upload(
+            artifacts_uri="gs://b/{branch}/", state_uri="gs://b/dbt-state/manifest.json"
+        )
+        upload.assert_called_once()
+
+    def run_finalize(self, dry_run, artifacts_uri):
+        """Run the finalize command; return the exit code, upload mock and resolved args."""
+        from dbt_ci.commands.finalize.index import finalize
+
+        args = _make_args(artifacts_uri=artifacts_uri, dry_run=dry_run, clean_ephemeral=False)
+        with (
+            patch("dbt_ci.commands.finalize.index.CacheManager") as mock_cm,
+            patch("dbt_ci.commands.finalize.index.finalize_upload_files") as mock_upload,
+            patch("dbt_ci.commands.finalize.index.click.secho"),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            mock_cm.return_value.get_cache.return_value = {"nodes": {}}
+            finalize(args)
+        return exc_info.value.code, mock_upload, args, mock_cm.return_value
+
+    def test_dry_run_shows_the_resolved_uri(self, ci_env, caplog):
+        """A dry run says where the files would go, with the placeholders filled in."""
+        ci_env(self.PR)
+        with caplog.at_level("INFO"):
+            code, upload, _, _ = self.run_finalize(True, "gs://b/prs/{pr}/")
+        assert code == 0
+        upload.assert_not_called()
+        assert "skipping upload of ['manifest'] to gs://b/prs/42/." in caplog.text
+        assert "Resolved --artifacts-uri gs://b/prs/{pr}/ to gs://b/prs/42/" in caplog.text
+
+    def test_finalize_uploads_with_the_resolved_uri(self, ci_env):
+        """The upload step gets the resolved URI."""
+        ci_env(self.PR)
+        code, upload, args, _ = self.run_finalize(False, "gs://b/prs/{pr}/")
+        assert code == 0
+        upload.assert_called_once_with(args)
+        assert args.artifacts_uri == "gs://b/prs/42/"
+
+    @pytest.mark.parametrize("dry_run", [True, False])
+    def test_unresolved_placeholder_fails_finalize(self, ci_env, dry_run, caplog):
+        """Dry run or not, an unresolvable placeholder fails the step and keeps the cache."""
+        code, upload, _, cache = self.run_finalize(dry_run, "gs://b/prs/{pr}/")
+        assert code == 1
+        upload.assert_not_called()
+        cache.clear_cache.assert_not_called()
+        assert "Cannot resolve {pr} in --artifacts-uri 'gs://b/prs/{pr}/'" in caplog.text
