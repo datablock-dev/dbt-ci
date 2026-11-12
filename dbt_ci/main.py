@@ -11,7 +11,9 @@ def cli():
 
     Detect, run, and test only what changed based on state comparison.
 
-    Visit https://datablock.dev for more information.
+    \b
+    Website:       https://datablock.dev/dbt-ci
+    Documentation: https://datablock.dev/dbt-ci/docs
     """
 
 

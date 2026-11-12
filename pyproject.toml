@@ -32,6 +32,13 @@ dependencies = [
     "slack-sdk>=3.27,<4",
 ]
 
+[project.urls]
+Homepage = "https://datablock.dev/dbt-ci"
+Documentation = "https://datablock.dev/dbt-ci/docs"
+Repository = "https://github.com/datablock-dev/dbt-ci"
+Issues = "https://github.com/datablock-dev/dbt-ci/issues"
+Changelog = "https://github.com/datablock-dev/dbt-ci/releases"
+
 [project.optional-dependencies]
 # Cloud storage / warehouse connectors
 gcp = [
