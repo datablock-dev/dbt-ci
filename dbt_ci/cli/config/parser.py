@@ -26,6 +26,21 @@ _CTX_PATH_KEY = "dbt_ci_config_path"
 _CTX_ORIGIN_KEY = "dbt_ci_config_origin"
 _CTX_INJECTED_KEY = "dbt_ci_config_injected"
 _CTX_SOURCES_KEY = "dbt_ci_option_sources"
+# The context the keys above were recorded for. Click shares ctx.meta between a group and
+# its subcommand, so `ephemeral destroy` would otherwise reuse what the group resolved
+# and ignore its own --config, --profile and --event.
+_CTX_OWNER_KEY = "dbt_ci_config_owner"
+_CTX_KEYS = (
+    _CTX_META_KEY,
+    _CTX_RAW_KEY,
+    _CTX_PROFILE_KEY,
+    _CTX_EVENT_ARG_KEY,
+    _CTX_EVENT_KEY,
+    _CTX_PATH_KEY,
+    _CTX_ORIGIN_KEY,
+    _CTX_INJECTED_KEY,
+    _CTX_SOURCES_KEY,
+)
 
 # Labels for the config file layers
 TOP_LEVEL = "config file"
@@ -85,6 +100,14 @@ def _flatten_config(raw: dict, prefix: str = "") -> dict[str, Any]:
     return flat
 
 
+def _claim(ctx) -> None:
+    """Drop what a parent command's context recorded in the shared ctx.meta."""
+    if ctx.meta.get(_CTX_OWNER_KEY) is not ctx:
+        for key in _CTX_KEYS:
+            ctx.meta.pop(key, None)
+        ctx.meta[_CTX_OWNER_KEY] = ctx
+
+
 def load_config_callback(ctx, param, value):
     """
     Eager callback that reads the dbt-ci YAML config file.
@@ -110,6 +133,7 @@ def load_config_callback(ctx, param, value):
           env:
             - DBT_STATE=${DBT_STATE}
     """
+    _claim(ctx)
     ctx.meta[_CTX_RAW_KEY] = _read_config_file(value)
     _apply_config_when_ready(ctx)
     return value
@@ -123,6 +147,7 @@ def profile_callback(ctx, param, value):
     cache, so a profile chosen once for init carries through run, report and the rest.
     Returns the profile actually used, so commands (and init's cache) can see it.
     """
+    _claim(ctx)
     inherited = False
     if not value and ctx.command.name != "init":
         value = _profile_recorded_by_init()
@@ -134,6 +159,7 @@ def profile_callback(ctx, param, value):
 
 def event_callback(ctx, param, value):
     """Eager callback that records an explicit --event, applied once the config is read."""
+    _claim(ctx)
     ctx.meta[_CTX_EVENT_ARG_KEY] = value or None
     _apply_config_when_ready(ctx)
     return value or None

@@ -29,7 +29,7 @@ def run_create(kwargs: dict) -> None:
 
 
 @cli.group(name="ephemeral", invoke_without_command=True)
-@common_options
+@common_options(dry_run_section="ephemeral")
 @keep_env_option
 @click.pass_context
 def ephemeral_cmd(ctx: click.Context, **kwargs):
@@ -61,7 +61,7 @@ def ephemeral_cmd(ctx: click.Context, **kwargs):
 
 
 @ephemeral_cmd.command(name="create")
-@common_options
+@common_options(dry_run_section="ephemeral")
 @keep_env_option
 def ephemeral_create_cmd(**kwargs):
     """Clone the changed nodes and their dependencies into the CI target
@@ -78,7 +78,7 @@ def ephemeral_create_cmd(**kwargs):
 
 
 @ephemeral_cmd.command(name="destroy")
-@common_options
+@common_options(dry_run_section="ephemeral")
 def ephemeral_destroy_cmd(**kwargs):
     """Drop the datasets 'dbt-ci ephemeral' cloned into
 

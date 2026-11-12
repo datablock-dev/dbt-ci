@@ -14,7 +14,7 @@ dbt-ci supports a `dbt-ci.config.yaml` file as an alternative to passing every f
 
 If the config file is not found in the current directory, dbt-ci will automatically look for it inside `--dbt-project-dir` (or `DBT_PROJECT_DIR`). This means if your dbt project lives in a subdirectory (e.g. `dbt/`), placing `dbt-ci.config.yaml` there and setting `DBT_PROJECT_DIR=dbt` is enough — no `--config` flag needed.
 
-The file uses a **nested style** where top-level keys map to common options, and command-specific options live under their command's key (`init`, `run`, `finalize`, `ephemeral`, `docker`):
+The file uses a **nested style** where top-level keys map to common options, and command-specific options live under their command's key (see [Sections](#sections)).
 
 Add the following comment to the top of your `dbt-ci.config.yaml` to get autocompletion and validation in editors that support [yaml-language-server](https://github.com/redhat-developer/yaml-language-server) (e.g. VS Code with the [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)):
 
@@ -73,9 +73,7 @@ DBT_STATE: dbt/.dbtstate
 DBT_DOCKER_IMAGE: ghcr.io/dbt-labs/dbt-core:latest
 ```
 
-Other keys accepted in the config file include `dbt-version`, a `report:` section
-(`format`, `output`) and a `notifications:` section (`provider`, `format`, `webhook`,
-`pr-comment`), matching the flags of the same names.
+Other keys accepted in the config file are listed under [Sections](#sections).
 
 **Precedence (highest → lowest):**
 1. CLI flags
@@ -104,6 +102,43 @@ environment variable.
 The config file is validated on load. dbt-ci will exit with a clear error message if it contains unknown keys, invalid enum values (e.g. `runner: kubernetes`), or wrong types (e.g. `defer: "yes"` instead of a boolean).
 
 `${VAR_NAME}` references inside the config file are resolved from the shell environment at load time.
+
+#### Sections
+
+| Section | Keys |
+|---|---|
+| Top level | The [common options](#core): `project-dir`, `profiles-dir`, `state`, `target`, `vars`, `defer`, `dry-run`, `runner`, `entrypoint`, `dbt-version`, `adapter`, `log-level`, `quiet`, `shell-path` |
+| `init` | `reference-target`, `reference-vars`, `state-uri`, `reference-path`, `target-compile`, `skip-reference-compile`, `comparison-strategy`, `base-ref`, `compare-to` |
+| `run` | `nodes`, `downstream-depth`, `filters`, `select`, `exclude`, `skip-test-only-changes` |
+| `ephemeral` | `dry-run` (for `ephemeral create` and `ephemeral destroy`), `keep-env` (deprecated) |
+| `delete` | `dry-run` |
+| `migration` | `dry-run` |
+| `finalize` | `artifacts-uri`, `files`, `force-manifest`, `clean-ephemeral` |
+| `report` | `format`, `output` |
+| `notifications` | `provider`, `format`, `webhook`, `pr-comment` |
+| `docker` | `image`, `platform`, `volumes`, `env`, `network`, `user`, `args` |
+| `profiles` | Named sets of the keys above; see [Profiles](#profiles) |
+| `on` | The keys above per CI event; see [Settings per CI event](#settings-per-ci-event) |
+
+Keys match the flags of the same names. Hyphens and underscores are interchangeable
+(`dry-run` or `dry_run`).
+
+**Dry run per command.** The top-level `dry-run` applies to every command, `run`
+included. `delete`, `migration` and `ephemeral` also read a `dry-run` key of their own,
+so they can preview what they would change while `run` still builds:
+
+```yaml
+delete:
+  dry-run: true
+migration:
+  dry-run: true
+```
+
+For those three commands, the order is: `--dry-run` on the command line, the command's
+own `dry-run` (from the top level, a profile or an `on:` block, layered as usual), the
+top-level `dry-run`, `DBT_DRY_RUN`, then `false`. `delete.dry-run: false` therefore runs
+`delete` for real even when the top-level `dry-run` is `true`. `dbt-ci config show delete`
+shows which layer set it.
 
 #### Profiles
 
@@ -183,6 +218,21 @@ profiles:
           files: [manifest, cache]
 ```
 
+A pull request usually only previews the commands that change production tables, while
+`run` still builds its changes. The commands' own [`dry-run` keys](#sections) do that
+without touching `run`:
+
+```yaml
+on:
+  pull-request:
+    delete:
+      dry-run: true
+    migration:
+      dry-run: true
+```
+
+A top-level `dry-run: true` in the `pull-request` block would make `run` a dry run as well.
+
 - Each event takes the same keys as the top level, in the same places. An event can't
   contain `profiles` or another `on:`. A profile can have its own `on:` block, applied after
   the top-level one.
@@ -236,7 +286,7 @@ it comes from git, or from `GITHUB_SHA`, `CI_COMMIT_SHA`, `BUILDKITE_COMMIT` or
 | `--config` | `-c` | `DBT_CONFIG` | `dbt-ci.config.yaml` | Path to a dbt-ci YAML configuration file |
 | `--profile` | | `DBT_CI_PROFILE` | Inherited from `init` | [Profile](#profiles) from the config file's `profiles` section to apply over its top-level settings |
 | `--event` | | `DBT_CI_EVENT` | Detected | `pull-request`, `push` or `none`: which [`on:` block](#settings-per-ci-event) to apply. Detected from the CI system when not given |
-| `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them (and without installing a pinned `--dbt-version`) |
+| `--dry-run` | | `DBT_DRY_RUN` | `false` | Print commands without executing them (and without installing a pinned `--dbt-version`). In the config file, `delete`, `migration` and `ephemeral` read their own `dry-run` key before the top-level one; see [Sections](#sections) |
 | `--quiet` | `-q` | `DBT_QUIET` | `false` | Run in quiet mode with minimal output |
 | `--log-level` | | `DBT_LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (dbt's `warn` and `none` are accepted too). dbt reads `DBT_LOG_LEVEL` as well, so dbt-ci rewrites it into dbt's lowercase form (`WARNING` → `warn`, `CRITICAL` → `error`) before running dbt |
 | `--slack-webhook` | `--slack-webhook-url`, `--notifications-webhook` | `DBT_NOTIFICATIONS_WEBHOOK`, `SLACK_WEBHOOK`, `SLACK_WEBHOOK_URL` | `None` | Webhook URL for CI notifications (`notifications.webhook` in the config file; the top-level `slack-webhook` key still works). `init` posts a summary of the modified, new and deleted nodes, truncated to the provider's message limit |

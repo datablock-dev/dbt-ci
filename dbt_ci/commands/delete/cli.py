@@ -7,7 +7,7 @@ from dbt_ci.commands.delete.index import delete
 
 
 @cli.command(name="delete")
-@common_options
+@common_options(dry_run_section="delete")
 def delete_cmd(**kwargs):
     """Delete removed dbt models
 

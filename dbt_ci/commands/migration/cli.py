@@ -7,7 +7,7 @@ from dbt_ci.commands.migration.index import migration
 
 
 @cli.command(name="migration")
-@common_options
+@common_options(dry_run_section="migration")
 def migration_cmd(**kwargs):
     """Move incremental tables onto a changed layout
 

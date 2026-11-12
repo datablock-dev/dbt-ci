@@ -187,9 +187,32 @@
       "additionalProperties": false,
       "properties": {
         "keep-env": { "$ref": "#/definitions/keepEnv" },
-        "keep_env": { "$ref": "#/definitions/keepEnv" }
+        "keep_env": { "$ref": "#/definitions/keepEnv" },
+        "dry-run": { "$ref": "#/definitions/ephemeralDryRun" },
+        "dry_run": { "$ref": "#/definitions/ephemeralDryRun" }
       }
     },
+
+    "delete": {
+      "type": "object",
+      "description": "Options for the 'dbt-ci delete' command.",
+      "additionalProperties": false,
+      "properties": {
+        "dry-run": { "$ref": "#/definitions/deleteDryRun" },
+        "dry_run": { "$ref": "#/definitions/deleteDryRun" }
+      }
+    },
+
+    "migration": {
+      "type": "object",
+      "description": "Options for the 'dbt-ci migration' command.",
+      "additionalProperties": false,
+      "properties": {
+        "dry-run": { "$ref": "#/definitions/migrationDryRun" },
+        "dry_run": { "$ref": "#/definitions/migrationDryRun" }
+      }
+    },
+
     "notifications": {
       "type": "object",
       "description": "Where and how dbt-ci sends notifications.",
@@ -263,7 +286,7 @@
     "reportFormat":         { "type": "string", "enum": ["markdown", "json"], "default": "markdown", "description": "Output format of 'dbt-ci report'." },
     "reportOutput":         { "type": "string", "description": "Where to write the report (defaults to $GITHUB_STEP_SUMMARY when set, otherwise stdout)." },
     "defer":                { "type": "boolean", "default": false, "description": "Enable dbt's --defer flag." },
-    "dryRun":               { "type": "boolean", "default": false, "description": "Print commands without executing them." },
+    "dryRun":               { "type": "boolean", "default": false, "description": "Print commands without executing them, for every command. delete, migration and ephemeral read their own dry-run key (e.g. delete.dry-run) first." },
     "logLevel":             { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL", "NONE"], "default": "INFO", "description": "Logging level." },
     "quiet":                { "type": "boolean", "default": false, "description": "Run in quiet mode with minimal output." },
     "slackWebhook":         { "type": "string", "format": "uri", "description": "Webhook URL for notifications." },
@@ -283,6 +306,9 @@
     "artifactsUri":         { "type": "string", "description": "Object storage URI for storing artifacts (e.g. s3://bucket/dbt-artifacts/)." },
     "forceManifest":        { "type": "boolean", "default": false, "description": "Replace the published manifest.json even when it was built from a newer commit than this run's, e.g. to roll back." },
     "cleanEphemeral":       { "type": "boolean", "default": false, "description": "Deprecated - use 'dbt-ci ephemeral destroy'. Drop the datasets 'ephemeral' cloned into when finalizing." },
-    "keepEnv":              { "type": "boolean", "default": false, "description": "Deprecated - has no effect. Use 'dbt-ci ephemeral destroy' to tear the environment down." }
+    "keepEnv":              { "type": "boolean", "default": false, "description": "Deprecated - has no effect. Use 'dbt-ci ephemeral destroy' to tear the environment down." },
+    "deleteDryRun":         { "type": "boolean", "default": false, "description": "Only list the relations 'dbt-ci delete' would drop. Applies to delete alone, and wins over the top-level dry-run; --dry-run on the command line wins over both." },
+    "migrationDryRun":      { "type": "boolean", "default": false, "description": "Only list the tables and statements 'dbt-ci migration' would run. Applies to migration alone, and wins over the top-level dry-run; --dry-run on the command line wins over both." },
+    "ephemeralDryRun":      { "type": "boolean", "default": false, "description": "Only print what 'dbt-ci ephemeral create' would clone and 'ephemeral destroy' would drop. Applies to those commands alone, and wins over the top-level dry-run; --dry-run on the command line wins over both." }
   }
 }

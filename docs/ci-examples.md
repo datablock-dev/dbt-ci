@@ -215,11 +215,45 @@ jobs:
   the target, vars and state it ran with, so the later commands need no flags at all.
 - `DRY_RUN` stays a flag on the steps that change production, because whether to preview
   depends on the event, not on the profile. Empty flags are ignored, so
-  `${{ env.DRY_RUN }}` on a deploy simply runs for real.
+  `${{ env.DRY_RUN }}` on a deploy simply runs for real. The config file can make that
+  decision instead; see below.
 - The Slack webhook and `GITHUB_TOKEN` stay secrets in the workflow; the config file only
   says where to post.
 - To change a setting for one repository, pass the flag in that step (a flag wins over
   the profile) or add a profile to its `dbt-ci.config.yaml`.
+
+#### Dry runs from the config file instead of `DRY_RUN`
+
+`delete` and `migration` each read a `dry-run` key of their own, and an
+[`on: pull-request`](configuration.md#settings-per-ci-event) block applies it to pull
+requests only, so the `DRY_RUN` variable and its expressions can go:
+
+```yaml
+on:
+  pull-request:
+    delete:
+      dry-run: true
+
+profiles:
+  prod:
+    # ...the prod settings above, plus:
+    on:
+      pull-request:
+        migration:
+          dry-run: true
+```
+
+```yaml
+      - name: Migrate partitions
+        run: dbt-ci migration
+
+      - name: Delete removed models
+        if: ${{ inputs.run-delete }}
+        run: dbt-ci delete
+```
+
+As before, a pull request only previews `delete`, and previews `migration` only on the
+`prod` profile; `run` still builds, and a deploy on `main` runs everything for real.
 
 ### 3. Check what a step will run with
 
