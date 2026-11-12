@@ -236,11 +236,12 @@ A top-level `dry-run: true` in the `pull-request` block would make `run` a dry r
 - Each event takes the same keys as the top level, in the same places. An event can't
   contain `profiles` or another `on:`. A profile can have its own `on:` block, applied after
   the top-level one.
-- **`push` means a push to the default branch.** A push to any other branch, a tag, a
-  schedule, a manual run or a local run is no event, and only the settings outside `on:`
-  apply. The default branch is `--base-ref` (`DBT_CI_BASE_REF`, `init.base-ref`, or the
-  one `init` recorded) when set, else the CI system's own variable (see below), else what
-  git's `origin/HEAD` points at.
+- **`push` means a push to the default branch**, unless `push` lists its
+  [`branches`](#deploy-branches). A push to any other branch, a tag, a schedule, a manual
+  run or a local run is no event, and only the settings outside `on:` apply. The default
+  branch is `--base-ref` (`DBT_CI_BASE_REF`, `init.base-ref`, or the one `init` recorded)
+  when set, else the CI system's own variable (see below), else what git's `origin/HEAD`
+  points at.
 - `{pr}` in `artifacts-uri` is the pull request's number, so pull requests don't
   overwrite each other's files (`gs://my-bucket/dbt-ci-prs/42/`); `{branch}` is its source
   branch with `/` and other characters that aren't letters, digits, `.`, `_` or `-` turned
@@ -272,6 +273,54 @@ On any other CI system the event is none unless `--event` names it. The same app
 the commit `finalize` keeps a [per-commit copy](commands.md#finalize---finalize-state) for:
 it comes from git, or from `GITHUB_SHA`, `CI_COMMIT_SHA`, `BUILDKITE_COMMIT` or
 `CIRCLE_SHA1` without a usable checkout.
+
+##### Deploy branches
+
+Teams that deploy from more than the default branch, such as `main` plus `release/*`, or
+staging from `develop`, list those branches under `push`:
+
+```yaml
+on:
+  push:
+    branches:
+      - main
+      - release/*
+    finalize:
+      artifacts-uri: gs://my-bucket/dbt-state/
+
+profiles:
+  staging:
+    on:
+      push:
+        branches: develop       # replaces the top-level list for this profile
+        target: staging
+```
+
+- A push counts when its branch matches **any** entry. The list replaces the default-branch
+  rule rather than adding to it, so list the default branch too when it deploys. Without
+  `branches`, only a push to the default branch counts, as before.
+- Entries are branch names or [fnmatch](https://docs.python.org/3/library/fnmatch.html)
+  patterns: `*` matches any run of characters **including `/`**, `?` one character and
+  `[...]` one of a set. So `release/*` matches `release/1.2` and also
+  `release/1.2/hotfix`, unlike a GitHub Actions branch filter, where `*` stops at `/`.
+  Matching is case-sensitive and against the branch name without `refs/heads/`. A single
+  branch can be written as a string, `branches: develop`.
+- **Precedence:** the selected profile's `on.push.branches` replaces the top-level list as a
+  whole; a profile without one uses the top-level list. Only the list is taken from the
+  profile: once the run counts as a push, the top-level `push` settings still apply, then
+  the profile's own, as for any event.
+- With `branches`, the default branch is not needed, so a CI system that doesn't name it
+  (Azure Pipelines, Bitbucket, CircleCI, Jenkins) detects the push without `--base-ref` or
+  git's `origin/HEAD`, and `--base-ref` no longer decides which pushes count.
+  `--event push` still applies the `push` block whatever the branch.
+- `branches` is not a setting: it is never passed to a command. It is only allowed under
+  `push`, at the top level or in a profile's `on:`; anywhere else, including under
+  `pull-request`, is a validation error. `${VAR}` references are resolved, and a list
+  that resolves to empty counts as not set.
+- `dbt-ci config show` names the matching pattern, e.g.
+  `Event: push (GitHub Actions push to 'release/1.2' (matches release/*))`, or
+  `GitHub Actions push to 'feature/x', not one of the push branches (main, release/*)`
+  when none matches.
 
 > **Note:** `dbt-ci.config.yaml` is ignored by git by default (it is listed in `.gitignore`). Use it for local developer overrides and commit a `.example` variant for your team.
 
