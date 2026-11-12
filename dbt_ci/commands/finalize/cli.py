@@ -33,7 +33,8 @@ def parse_and_validate_files(value):
     callback=make_config_callback("DBT_FINALIZE_ARTIFACTS_URI"),
     help=(
         "S3/Object storage URI for storing artifacts like updated manifest.json files (e.g., "
-        "s3://my-bucket/dbt-artifacts/)"
+        "s3://my-bucket/dbt-artifacts/). {pr} and {branch} are replaced with the pull "
+        "request number and the branch, e.g. gs://my-bucket/dbt-ci-prs/{pr}/"
     ),
 )
 @click.option(
@@ -80,6 +81,7 @@ def finalize_cmd(**kwargs):
     Examples:
         dbt-ci finalize
         dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
+        dbt-ci finalize --artifacts-uri gs://my-bucket/dbt-ci-prs/{pr}/
     """
     setup_logging(to_namespace(kwargs).log_level)
     args = to_namespace(kwargs, command="finalize")

@@ -16,6 +16,7 @@ from dbt_ci.commands.finalize.publish_order import (
 from dbt_ci.dbt.flags import get_cached_value
 from dbt_ci.schema import StorageConnectorConfig
 from dbt_ci.utilities.ci_event import PULL_REQUEST, resolve_event
+from dbt_ci.utilities.uri_placeholders import resolve_uri_placeholders
 from dbt_ci.utilities.run_times import RUN_TIMES_FILE, download_run_times, merge_times
 from dbt_ci.utilities.logging import LOG_FILE_NAME, flush_log_file
 
@@ -28,6 +29,9 @@ def finalize_upload_files(args: Namespace) -> None:
     artifacts_uri = getattr(args, "artifacts_uri", None)
     if artifacts_uri is None:
         return
+    # {pr} and {branch} are filled in before anything else, so the pull request guard
+    # below compares the location the files would really go to
+    artifacts_uri = resolve_uri_placeholders(artifacts_uri, "--artifacts-uri")
     # "gs://bucket/path/" would otherwise upload to "gs://bucket/path//manifest.json"
     artifacts_uri = artifacts_uri.rstrip("/")
 
@@ -84,6 +88,7 @@ def publishes_pull_request_over_production(args: Namespace, artifacts_uri: str) 
 
     The state init downloads is meant to be production's, so a pull request publishing
     there would make later pull requests compare against an unmerged branch.
+    `artifacts_uri` must already have its placeholders resolved.
     """
     if getattr(args, "force_manifest", False):
         return False

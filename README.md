@@ -152,7 +152,7 @@ flowchart LR
 | [`delete`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#delete---delete-removed-models) | Drop the tables of models the PR removed |
 | [`migration`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#migration---migrate-table-layout-changes) | Move incremental tables onto a changed partitioning, clustering, sort or distribution key, keeping their rows |
 | [`report`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#report---summarise-the-run) | Write the run report to the job summary, a file or a PR comment |
-| [`finalize`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#finalize---finalize-state) | Upload artifacts to GCS or S3 and clear the cache, without letting an older deploy overwrite a newer one's manifest |
+| [`finalize`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#finalize---finalize-state) | Upload artifacts to GCS or S3 and clear the cache, without letting an older deploy overwrite a newer one's manifest. `{pr}` and `{branch}` in `--artifacts-uri` give every pull request its own folder |
 | [`config`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#config---generate-a-config-file) | Generate a commented `dbt-ci.config.yaml`, or `config show` the settings a command would run with and where each came from |
 
 ## Compatibility

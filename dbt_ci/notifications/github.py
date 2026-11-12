@@ -3,10 +3,11 @@
 import json
 import logging
 import os
-import re
 import urllib.error
 import urllib.request
 from typing import Any
+
+from dbt_ci.utilities.ci_event import github_pull_request_number
 
 logger = logging.getLogger(__name__)
 
@@ -34,22 +35,8 @@ def resolve_pull_request() -> tuple[str, int] | None:
     repository = os.environ.get("GITHUB_REPOSITORY")
     if not repository:
         return None
-
-    event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if event_path and os.path.isfile(event_path):
-        try:
-            with open(event_path, encoding="utf-8") as f:
-                event = json.load(f)
-            number = (event.get("pull_request") or {}).get("number")
-            if isinstance(number, int):
-                return repository, number
-        except (OSError, ValueError) as e:
-            logger.debug(f"Could not read the GitHub event payload at {event_path}: {e}")
-
-    match = re.fullmatch(r"refs/pull/(\d+)/(?:merge|head)", os.environ.get("GITHUB_REF", ""))
-    if match:
-        return repository, int(match.group(1))
-    return None
+    number = github_pull_request_number(os.environ)
+    return (repository, number) if number is not None else None
 
 
 def build_comment_body(markdown: str) -> str:

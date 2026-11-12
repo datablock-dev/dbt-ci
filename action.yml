@@ -114,7 +114,7 @@ inputs:
 
   # finalize
   artifacts-uri:
-    description: Object storage URI `finalize` uploads artifacts to, e.g. `gs://bucket/dbt-artifacts/`.
+    description: Object storage URI `finalize` uploads artifacts to, e.g. `gs://bucket/dbt-artifacts/`. `{pr}` and `{branch}` are replaced with the pull request number and the branch, e.g. `gs://bucket/dbt-ci-prs/{pr}/`.
     required: false
     default: ""
 

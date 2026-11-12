@@ -16,6 +16,7 @@ from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
 from dbt_ci.commands.init.baseline import resolve_baseline
+from dbt_ci.utilities.uri_placeholders import reject_uri_placeholders
 from dbt_ci.utilities.run_times import (
     RUN_TIMES_FILE,
     download_run_times,
@@ -56,6 +57,9 @@ def init(args: Namespace):
         dbt_project_dir = getattr(args, "dbt_project_dir", None)
         reference_target = getattr(args, "reference_target", None)
         reference_state_path: str | None = getattr(args, "reference_state", None)
+        # The state is production's, one location for every run: {pr} and {branch} are
+        # only for finalize --artifacts-uri, and here would name a folder literally
+        reject_uri_placeholders(getattr(args, "state_uri", None), "--state-uri")
         resolved_storage = init_storage_connector(getattr(args, "state_uri", None))
 
         # Exit if dbt_project_dir is not provided

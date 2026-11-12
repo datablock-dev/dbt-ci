@@ -21,11 +21,15 @@ A push only counts when it is to the default branch, so a push to a feature bran
 publishes production state. Anything else (a tag, a schedule, a manual run, a local run,
 an unknown CI) is no event, and only the settings outside `on:` apply. `--event`
 (DBT_CI_EVENT) names the event explicitly, for CI systems not listed here.
+
+`pull_request_number` and `current_branch` read the same CI systems' variables for the
+`{pr}` and `{branch}` placeholders in `finalize --artifacts-uri`.
 """
 
 import json
 import logging
 import os
+import re
 import subprocess
 from dataclasses import dataclass
 from typing import Mapping
@@ -117,16 +121,23 @@ def _github(env: Mapping[str, str]) -> Detected | None:
 
 def _github_default_branch(env: Mapping[str, str]) -> str | None:
     """Read the repository's default branch from the GitHub event payload."""
+    payload = _github_payload(env)
+    default = (payload.get("repository") or {}).get("default_branch")
+    return default if isinstance(default, str) and default else None
+
+
+def _github_payload(env: Mapping[str, str]) -> dict:
+    """Return the GitHub event payload GITHUB_EVENT_PATH points at, or {} without one."""
     path = env.get("GITHUB_EVENT_PATH")
     if not path:
-        return None
+        return {}
     try:
         with open(path, encoding="utf-8") as f:
             payload = json.load(f)
-    except (OSError, ValueError):
-        return None
-    default = (payload.get("repository") or {}).get("default_branch")
-    return default if isinstance(default, str) and default else None
+    except (OSError, ValueError) as e:
+        logger.debug(f"Could not read the GitHub event payload at {path}: {e}")
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def _gitlab(env: Mapping[str, str]) -> Detected | None:
@@ -206,3 +217,115 @@ def _git_default_branch() -> str | None:
     if result.returncode != 0 or not ref:
         return None
     return ref.removeprefix("origin/")
+
+
+def pull_request_number(env: Mapping[str, str] | None = None) -> int | None:
+    """
+    Return the number of the pull or merge request this run is for, or None.
+
+    Each CI system names it in its own variable, read only when that system is detected:
+    GitHub's event payload or GITHUB_REF (including a merge queue's branch),
+    CI_MERGE_REQUEST_IID (or CI_EXTERNAL_PULL_REQUEST_IID), SYSTEM_PULLREQUEST_
+    PULLREQUESTNUMBER (else ...PULLREQUESTID), BITBUCKET_PR_ID, the end of
+    CIRCLE_PULL_REQUEST, BUILDKITE_PULL_REQUEST and CHANGE_ID.
+    """
+    env = os.environ if env is None else env
+    value: str | None = None
+    if env.get("GITHUB_ACTIONS") == "true":
+        number = github_pull_request_number(env)
+        if number is None:
+            # A merge queue run builds gh-readonly-queue/<base>/pr-<n>-<sha>
+            match = re.fullmatch(
+                r"refs/heads/gh-readonly-queue/.+/pr-(\d+)-[0-9a-f]+", env.get("GITHUB_REF", "")
+            )
+            number = int(match.group(1)) if match else None
+        return number
+    if env.get("GITLAB_CI") == "true":
+        value = env.get("CI_MERGE_REQUEST_IID") or env.get("CI_EXTERNAL_PULL_REQUEST_IID")
+    elif env.get("TF_BUILD", "").lower() == "true":
+        value = env.get("SYSTEM_PULLREQUEST_PULLREQUESTNUMBER") or env.get(
+            "SYSTEM_PULLREQUEST_PULLREQUESTID"
+        )
+    elif env.get("BITBUCKET_BUILD_NUMBER"):
+        value = env.get("BITBUCKET_PR_ID")
+    elif env.get("CIRCLECI") == "true":
+        # The pull request's URL, e.g. https://github.com/org/repo/pull/12
+        match = re.search(r"/(\d+)/?$", env.get("CIRCLE_PULL_REQUEST", ""))
+        value = match.group(1) if match else None
+    elif env.get("BUILDKITE") == "true":
+        value = env.get("BUILDKITE_PULL_REQUEST")
+    elif env.get("JENKINS_URL"):
+        value = env.get("CHANGE_ID")
+    value = (value or "").strip()
+    return int(value) if value.isdecimal() and int(value) > 0 else None
+
+
+def github_pull_request_number(env: Mapping[str, str] | None = None) -> int | None:
+    """
+    Return the pull request number of a GitHub Actions run, or None.
+
+    It is read from the pull_request object of the event payload, and falls back to
+    GITHUB_REF (refs/pull/<n>/merge or refs/pull/<n>/head).
+    """
+    env = os.environ if env is None else env
+    number = (_github_payload(env).get("pull_request") or {}).get("number")
+    if isinstance(number, int) and not isinstance(number, bool) and number > 0:
+        return number
+    match = re.fullmatch(r"refs/pull/(\d+)/(?:merge|head)", env.get("GITHUB_REF", ""))
+    return int(match.group(1)) if match else None
+
+
+def current_branch(env: Mapping[str, str] | None = None) -> str | None:
+    """
+    Return the branch this run is for, unchanged, or None when it can't be told.
+
+    For a pull request that is its source branch; otherwise the branch the CI system
+    built (a pushed branch). Without either, the branch git has checked out, unless
+    HEAD is detached.
+    """
+    env = os.environ if env is None else env
+    branch: str | None = None
+    if env.get("GITHUB_ACTIONS") == "true":
+        branch = env.get("GITHUB_HEAD_REF") or _heads_branch(env.get("GITHUB_REF", ""))
+    elif env.get("GITLAB_CI") == "true":
+        branch = (
+            env.get("CI_MERGE_REQUEST_SOURCE_BRANCH_NAME")
+            or env.get("CI_EXTERNAL_PULL_REQUEST_SOURCE_BRANCH_NAME")
+            or env.get("CI_COMMIT_BRANCH")
+        )
+    elif env.get("TF_BUILD", "").lower() == "true":
+        branch = _heads_branch(env.get("SYSTEM_PULLREQUEST_SOURCEBRANCH", "")) or _heads_branch(
+            env.get("BUILD_SOURCEBRANCH", "")
+        )
+    elif env.get("BITBUCKET_BUILD_NUMBER"):
+        branch = env.get("BITBUCKET_BRANCH")
+    elif env.get("CIRCLECI") == "true":
+        branch = env.get("CIRCLE_BRANCH")
+    elif env.get("BUILDKITE") == "true":
+        branch = env.get("BUILDKITE_BRANCH")
+    elif env.get("JENKINS_URL"):
+        branch = env.get("CHANGE_BRANCH") or env.get("BRANCH_NAME")
+    return branch or _git_current_branch()
+
+
+def _heads_branch(ref: str) -> str | None:
+    """Return the branch of a refs/heads/ ref, None for any other ref, or a bare name as is."""
+    if ref.startswith("refs/heads/"):
+        return ref.removeprefix("refs/heads/") or None
+    if not ref or ref.startswith("refs/"):
+        return None
+    return ref
+
+
+def _git_current_branch() -> str | None:
+    """Return the branch git has checked out, or None when HEAD is detached or unknown."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True
+        )
+    except OSError:
+        return None
+    branch = result.stdout.strip()
+    if result.returncode != 0 or not branch or branch == "HEAD":
+        return None
+    return branch
