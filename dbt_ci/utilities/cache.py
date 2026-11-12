@@ -149,8 +149,8 @@ class CacheManager:
         """Write data to the report.json file."""
         self._write(data, "report.json")
 
-    def start_report(self, command: Commands, args: Namespace):
-        """Add information to report.json"""
+    def start_report(self, command: Commands, args: Namespace, extra: dict[str, Any] | None = None):
+        """Start the command's entry in report.json, with any extra keys it records."""
         report_cache = (
             {} if command == "init" else (cast(dict[str, Any], self.get_cache("report.json")) or {})
         )
@@ -162,6 +162,7 @@ class CacheManager:
                 "target": getattr(args, "target", None),
                 "reference_target": getattr(args, "reference_target", None),
             },
+            **(extra or {}),
         }
         self._write_report(report_cache)
 

@@ -475,3 +475,8 @@ def config_provenance(ctx) -> dict[str, Any]:
         "sources": ctx.meta.get(_CTX_SOURCES_KEY, {}),
         "event": ctx.meta.get(_CTX_EVENT_KEY),
     }
+
+
+def config_event(ctx: click.Context | None) -> tuple[str | None, str] | None:
+    """Return the event (name, reason) the config was resolved for, or None if it wasn't."""
+    return ctx.meta.get(_CTX_EVENT_KEY) if ctx is not None else None

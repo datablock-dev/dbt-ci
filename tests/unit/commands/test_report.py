@@ -15,6 +15,7 @@ from dbt_ci.commands.report.index import (
     render_change_summary,
     render_command_status,
     render_exposure_impact,
+    render_git_context,
     render_markdown,
     write_report,
 )
@@ -380,3 +381,53 @@ class TestSmallHelpers:
     def test_collapsible_without_entries(self):
         """An empty list renders nothing, not an empty heading."""
         assert collapsible("Modified (0)", []) == []
+
+
+class TestRenderGitContext:
+    """The line naming the branch, commit, pull request and CI run init recorded."""
+
+    @staticmethod
+    def report_with(**git):
+        """Return a run report whose init entry recorded the given git context."""
+        return {"init": {"status": "completed", "git": git}}
+
+    def test_pull_request(self):
+        """A pull request shows its branch into its base, commit, number and run."""
+        lines = render_git_context(
+            self.report_with(
+                provider="GitHub Actions",
+                event="pull-request",
+                branch="feature/x",
+                base_branch="main",
+                commit="0123456789abcdef",
+                pull_request=42,
+                run_url="https://github.com/acme/a/actions/runs/1",
+            )
+        )
+        assert lines[0] == (
+            "`feature/x` → `main` · commit `0123456` · PR #42 · GitHub Actions pull-request "
+            "([run](https://github.com/acme/a/actions/runs/1))"
+        )
+
+    def test_push_to_the_base_branch(self):
+        """A branch equal to its base is named once, and unknown values are left out."""
+        lines = render_git_context(self.report_with(branch="main", base_branch="main"))
+        assert lines[0] == "`main`"
+
+    def test_older_report_has_no_line(self):
+        """Reports recorded before init kept the git context render nothing."""
+        assert render_git_context({"init": {"status": "completed"}}) == []
+        assert render_git_context(None) == []
+
+    def test_markdown_and_json_include_it(self, tmp_path):
+        """The markdown report opens with the line, and the JSON report has a git key."""
+        run_report = self.report_with(branch="feature/x", commit="abcdef1234")
+        assert "`feature/x` · commit `abcdef1`" in render_markdown(None, run_report, Namespace())
+        cache = MagicMock()
+        cache.get_cache.side_effect = lambda name=None: (
+            run_report if name == "report.json" else None
+        )
+        with patch("dbt_ci.commands.report.index.CacheManager", return_value=cache):
+            report(Namespace(format="json", output=str(tmp_path / "r.json")))
+        written = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
+        assert written["git"] == {"branch": "feature/x", "commit": "abcdef1234"}

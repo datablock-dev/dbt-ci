@@ -141,6 +141,14 @@ class TestTrackReport:
         cache.start_report("run", Namespace())
         return cache
 
+    def test_start_report_records_extra_keys(self, tmp_path):
+        """init records the git context next to the entry's own keys."""
+        cache = self.make_cache(tmp_path)
+        cache.start_report("init", Namespace(), extra={"git": {"branch": "main"}})
+        entry = cache.get_cache("report.json")["init"]
+        assert entry["git"] == {"branch": "main"}
+        assert entry["status"] == "started"
+
     @staticmethod
     def status(cache, command="run"):
         """Read the status of a report entry."""
