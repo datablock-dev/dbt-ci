@@ -161,4 +161,6 @@ class TestScheduleValidation:
             Path(__file__).parents[3].joinpath("dbt-ci.config.schema.json").read_text()
         )
         events = schema["properties"]["on"]["properties"]
-        assert events["schedule"] == events["pull-request"] == {"$ref": "#"}
+        # schedule takes the same settings as pull-request (neither lists push branches)
+        assert set(events) == {"pull-request", "push", "schedule"}
+        assert events["schedule"] == events["pull-request"]
