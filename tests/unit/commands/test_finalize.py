@@ -592,6 +592,9 @@ class TestPullRequestGuard:
         assert not self.check(monkeypatch, "gs://b/prs", self.PR)
         assert not self.check(monkeypatch, "gs://b/dbt-state", {})
         assert not self.check(monkeypatch, "gs://b/dbt-state", {"DBT_CI_EVENT": "push"})
+        assert not self.check(monkeypatch, "gs://b/dbt-state", {"DBT_CI_EVENT": "schedule"})
+        schedule = {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "schedule"}
+        assert not self.check(monkeypatch, "gs://b/dbt-state", schedule)
         assert not self.check(monkeypatch, "gs://b/dbt-state", self.PR, state_uri=None)
         assert not self.check(monkeypatch, "gs://b/dbt-state", self.PR, force_manifest=True)
         assert self.check(monkeypatch, "gs://b/dbt-state", {}, event="pull-request")
