@@ -1,7 +1,12 @@
 import os
 import re
 import click
-from dbt_ci.cli.config import load_config_callback, make_config_callback, profile_callback
+from dbt_ci.cli.config import (
+    event_callback,
+    load_config_callback,
+    make_config_callback,
+    profile_callback,
+)
 
 # Values accepted in DEFER_FLAG. Pipelines usually hold the literal dbt flag in it
 # ("--defer" or empty) so it can be spliced into a dbt command, so both styles count.
@@ -148,6 +153,18 @@ COMMON_OPTIONS = [
         help=(
             "Config profile to apply from the 'profiles' section of the config file, on top "
             "of its top-level settings. Commands after init reuse the profile init ran with."
+        ),
+    ),
+    click.option(
+        "--event",
+        envvar=["DBT_CI_EVENT"],
+        default=None,
+        is_eager=True,
+        type=click.Choice(["pull-request", "push", "none"], case_sensitive=False),
+        callback=event_callback,
+        help=(
+            "Which event this run is for, applying the config file's matching 'on:' block. "
+            "Detected from the CI system when not given; 'none' applies no event block."
         ),
     ),
     click.option(

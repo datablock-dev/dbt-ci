@@ -47,6 +47,10 @@ class ResolvedSettings:
     profile: str | None
     profile_source: str | None
     settings: list[Setting]
+    # The event whose `on:` block applied (None for none), and how it was decided; both
+    # None when the config file has no `on:` block and --event was not given
+    event: str | None = None
+    event_reason: str | None = None
 
 
 def resolve_settings(cli: click.Group, tokens: list[str]) -> ResolvedSettings:
@@ -104,6 +108,8 @@ def resolve_settings(cli: click.Group, tokens: list[str]) -> ResolvedSettings:
         profile=provenance["profile"],
         profile_source=profile_source,
         settings=settings,
+        event=(provenance["event"] or (None, None))[0],
+        event_reason=(provenance["event"] or (None, None))[1],
     )
 
 
@@ -189,6 +195,8 @@ def render_table(resolved: ResolvedSettings, show_all: bool) -> str:
         f"Config file: {resolved.config_file or 'none found'}",
         f"Profile:     {profile}",
     ]
+    if resolved.event_reason:
+        lines.append(f"Event:       {resolved.event or 'none'} ({resolved.event_reason})")
     if not settings:
         hint = "" if show_all else " (pass --all to list defaults too)"
         return "\n".join(lines + ["", f"No options are set{hint}."])

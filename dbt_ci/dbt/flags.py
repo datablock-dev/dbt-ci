@@ -26,6 +26,7 @@ CONFIG_SECTION: dict[str, str] = {
     "reference_vars": "reference",
     "reference_state": "reference",
     "base_ref": "reference",
+    "reference_state_uri": "reference",
 }
 
 

@@ -118,6 +118,7 @@ SCHEMA: dict[str, dict] = {
     },
     # Named sets of settings applied over the top-level ones with --profile
     "profiles": {"type": "profiles"},
+    "on": {"type": "events"},
     "report": {
         "type": "section",
         "fields": {
@@ -226,6 +227,27 @@ def _validate_profiles(value: Any, errors: list[str]) -> None:
         errors.extend(f"profiles.{name}: {error}" for error in validate_config(body))
 
 
+def _validate_events(path: str, value: Any, errors: list[str]) -> None:
+    """Check that an `on:` block maps pull-request and push to config mappings."""
+    if not isinstance(value, dict):
+        errors.append(f"'{path}' must be a mapping of events (pull-request, push) to settings")
+        return
+    for event, settings in value.items():
+        if event not in ("pull-request", "push"):
+            errors.append(f"Unknown event '{path}.{event}': use pull-request or push")
+            continue
+        if settings is None:
+            continue
+        if not isinstance(settings, dict):
+            errors.append(f"'{path}.{event}' must be a mapping")
+            continue
+        for nested in ("profiles", "on"):
+            if nested in settings:
+                errors.append(f"'{path}.{event}.{nested}' is not allowed inside an event")
+        body = {k: v for k, v in settings.items() if k not in ("profiles", "on")}
+        errors.extend(f"{path}.{event}: {error}" for error in validate_config(body))
+
+
 def validate_config(raw: dict) -> list[str]:
     """Return a list of human-readable validation error messages for the raw config dict."""
     errors: list[str] = []
@@ -236,6 +258,8 @@ def validate_config(raw: dict) -> list[str]:
         rule = _find_rule(k, SCHEMA) or flat_aliases.get(k)
         if rule and rule["type"] == "profiles":
             _validate_profiles(v, errors)
+        elif rule and rule["type"] == "events":
+            _validate_events(k, v, errors)
         elif rule:
             _validate_value(k, v, rule, errors)
     return errors

@@ -563,3 +563,65 @@ class TestFinalizeCleanupOrder:
         cache.update_report.assert_called_with(
             "finalize", "failed", comment="Ephemeral cleanup failed: boom"
         )
+
+
+class TestPullRequestGuard:
+    """A pull request must not publish over the production state init reads."""
+
+    PR = {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "pull_request"}
+
+    def check(self, monkeypatch, artifacts_uri, env=None, **args):
+        """Return whether the guard stops an upload, with the given CI variables."""
+        from dbt_ci.commands.finalize.upload import publishes_pull_request_over_production
+
+        for key in ("GITHUB_ACTIONS", "GITHUB_EVENT_NAME", "GITLAB_CI", "DBT_CI_EVENT"):
+            monkeypatch.delenv(key, raising=False)
+        for key, value in (env or {}).items():
+            monkeypatch.setenv(key, value)
+        namespace = Namespace(**{"state_uri": "gs://b/dbt-state/manifest.json", **args})
+        with patch("dbt_ci.commands.finalize.upload.get_cached_value", return_value=None):
+            return publishes_pull_request_over_production(namespace, artifacts_uri)
+
+    def test_pull_request_to_the_state_location_is_stopped(self, monkeypatch):
+        """Same folder as the state, on a pull request: stopped."""
+        assert self.check(monkeypatch, "gs://b/dbt-state", self.PR)
+        assert self.check(monkeypatch, "gs://b/dbt-state/", self.PR)
+
+    def test_other_cases_upload(self, monkeypatch):
+        """Another folder, another event, no known state, or --force-manifest: uploaded."""
+        assert not self.check(monkeypatch, "gs://b/prs", self.PR)
+        assert not self.check(monkeypatch, "gs://b/dbt-state", {})
+        assert not self.check(monkeypatch, "gs://b/dbt-state", {"DBT_CI_EVENT": "push"})
+        assert not self.check(monkeypatch, "gs://b/dbt-state", self.PR, state_uri=None)
+        assert not self.check(monkeypatch, "gs://b/dbt-state", self.PR, force_manifest=True)
+        assert self.check(monkeypatch, "gs://b/dbt-state", {}, event="pull-request")
+
+    def test_state_uri_recorded_by_init(self, monkeypatch):
+        """finalize reads the state URI init recorded when it wasn't given one."""
+        from dbt_ci.commands.finalize.upload import publishes_pull_request_over_production
+
+        monkeypatch.setenv("DBT_CI_EVENT", "pull-request")
+        recorded = {"reference_state_uri": "s3://b/state/manifest.json", "base_ref": None}
+        with patch(
+            "dbt_ci.commands.finalize.upload.get_cached_value",
+            side_effect=lambda _args, key: recorded.get(key),
+        ):
+            assert publishes_pull_request_over_production(Namespace(), "s3://b/state/")
+
+    def test_upload_is_skipped_with_a_warning(self, monkeypatch, caplog):
+        """finalize_upload_files uploads nothing and says how to fix it."""
+        monkeypatch.setenv("DBT_CI_EVENT", "pull-request")
+        storage = MagicMock()
+        args = _make_args(
+            artifacts_uri="gs://b/dbt-state/", state_uri="gs://b/dbt-state/manifest.json"
+        )
+        with (
+            patch("dbt_ci.commands.finalize.upload.CacheManager"),
+            patch(
+                "dbt_ci.commands.finalize.upload.init_storage_connector",
+                return_value=({"upload": storage}, "gs://b/dbt-state"),
+            ),
+        ):
+            finalize_upload_files(args)
+        storage.assert_not_called()
+        assert "this run is for a pull request" in caplog.text

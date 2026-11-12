@@ -13,7 +13,9 @@ from dbt_ci.commands.finalize.publish_order import (
     published_is_newer,
     read_published_commit,
 )
+from dbt_ci.dbt.flags import get_cached_value
 from dbt_ci.schema import StorageConnectorConfig
+from dbt_ci.utilities.ci_event import PULL_REQUEST, resolve_event
 from dbt_ci.utilities.run_times import RUN_TIMES_FILE, download_run_times, merge_times
 from dbt_ci.utilities.logging import LOG_FILE_NAME, flush_log_file
 
@@ -38,6 +40,13 @@ def finalize_upload_files(args: Namespace) -> None:
         return
 
     resolved_storage, _ = init_storage
+    if publishes_pull_request_over_production(args, artifacts_uri):
+        return logger.warning(
+            f"Not uploading to {artifacts_uri}: this run is for a pull request, and that is "
+            "where init reads the production state from. Give pull requests their own "
+            "location (on: pull-request: finalize: artifacts-uri: ...), or pass "
+            "--force-manifest to publish anyway."
+        )
     storage_function = resolved_storage.get("upload")
     if storage_function is None:
         logger.warning(
@@ -67,6 +76,34 @@ def finalize_upload_files(args: Namespace) -> None:
             )
             continue
         upload_func(artifacts_uri, cache, storage_function)
+
+
+def publishes_pull_request_over_production(args: Namespace, artifacts_uri: str) -> bool:
+    """
+    Report whether a pull request run would upload to where the production state lives.
+
+    The state init downloads is meant to be production's, so a pull request publishing
+    there would make later pull requests compare against an unmerged branch.
+    """
+    if getattr(args, "force_manifest", False):
+        return False
+    state_uri = getattr(args, "state_uri", None) or get_cached_value(args, "reference_state_uri")
+    if not state_uri:
+        return False
+    if artifacts_uri.rstrip("/") != state_directory(state_uri).rstrip("/"):
+        return False
+    try:
+        event = resolve_event(
+            getattr(args, "event", None), base_branch=get_cached_value(args, "base_ref")
+        )
+    except ValueError:
+        return False
+    return event.name == PULL_REQUEST
+
+
+def state_directory(state_uri: str) -> str:
+    """Return the folder a state URI's manifest sits in, where finalize publishes it."""
+    return state_uri.rsplit("/", 1)[0] if state_uri.endswith(".json") else state_uri
 
 
 def upload_cache(
