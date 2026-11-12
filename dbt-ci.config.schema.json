@@ -227,6 +227,53 @@
         "pr_comment": { "$ref": "#/definitions/prComment" }
       }
     },
+    "review": {
+      "type": "object",
+      "description": "Options for the 'dbt-ci review' command, which reviews the changed models with Claude. Needs 'pip install dbt-ci[ai]' and ANTHROPIC_API_KEY. Only SQL and metadata are sent, never warehouse data.",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "claude-opus-5-5",
+          "examples": ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
+          "description": "Claude model that reviews the changes."
+        },
+        "effort": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "xhigh", "max"],
+          "default": "medium",
+          "description": "How hard the model thinks about each batch of models."
+        },
+        "max-models": { "$ref": "#/definitions/reviewMaxModels" },
+        "max_models": { "$ref": "#/definitions/reviewMaxModels" },
+        "exclude": {
+          "description": "Leave out models whose path matches these patterns, e.g. 'models/legacy/*'.",
+          "oneOf": [
+            { "type": "array", "items": { "type": "string" } },
+            { "type": "string", "description": "Comma-separated patterns." }
+          ]
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Extra guidance for the reviewer, such as your team's conventions."
+        },
+        "fail-on": { "$ref": "#/definitions/reviewFailOn" },
+        "fail_on": { "$ref": "#/definitions/reviewFailOn" },
+        "format": {
+          "type": "string",
+          "enum": ["markdown", "json"],
+          "default": "markdown",
+          "description": "Output format of the review."
+        },
+        "output": {
+          "type": "string",
+          "description": "Where to write the review. Defaults to stdout; 'dbt-ci report' shows it either way."
+        },
+        "dry-run": { "$ref": "#/definitions/reviewDryRun" },
+        "dry_run": { "$ref": "#/definitions/reviewDryRun" }
+      }
+    },
+
     "report": {
       "type": "object",
       "description": "Options for the 'dbt-ci report' command.",
@@ -273,6 +320,23 @@
   },
 
   "definitions": {
+    "reviewMaxModels": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 20,
+      "description": "Review at most this many changed models; the ones with the longest recorded run time are kept."
+    },
+    "reviewFailOn": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "never"],
+      "default": "never",
+      "description": "Exit 1 when a finding is at least this severe."
+    },
+    "reviewDryRun": {
+      "type": "boolean",
+      "default": false,
+      "description": "List the models the review would send, without calling Claude. Overrides the top-level dry-run for review."
+    },
     "pushBranches": {
       "description": "Only valid under on.push (top level or a profile's). The branches a push deploys from: names or fnmatch-style patterns, where '*' matches any characters including '/' (so 'release/*' also matches 'release/1.2/hotfix'), '?' one character and '[...]' a set; matching is case-sensitive. A push counts when its branch matches any of them; without this list, only a push to the default branch counts. A profile's own list replaces the top-level one. Not a setting: it is not passed to any command.",
       "oneOf": [

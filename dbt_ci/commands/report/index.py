@@ -23,6 +23,7 @@ from dbt_ci.graph.graph_utils import (
     get_node_ids_from_structured_nodes,
 )
 from dbt_ci.schema import DependencyGraph, StateChangeSummary, StateChangeSummaryKeys
+from dbt_ci.commands.review.render import REVIEW_FILE, render_review
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.utilities.logging import print_exception
 from dbt_ci.utilities.run_times import RUN_TIMES_FILE, format_seconds
@@ -69,6 +70,7 @@ def report(args: Namespace) -> None:
                     "report": run_report,
                     "changes": cache_dict,
                     "run_times": cache.get_cache(RUN_TIMES_FILE),
+                    "review": cache.get_cache(REVIEW_FILE),
                 },
                 indent=2,
                 default=lambda o: list(o) if isinstance(o, set) else str(o),
@@ -116,6 +118,7 @@ def render_markdown(
     lines.extend(render_baseline(cache_dict))
     lines.extend(render_change_summary(cache_dict))
     lines.extend(render_exposure_impact(cache_dict, args))
+    lines.extend(render_review(CacheManager(args).get_cache(REVIEW_FILE)))
     lines.extend(render_run_time(args))
     lines.extend(render_command_status(run_report))
     return "\n".join(lines).rstrip() + "\n"

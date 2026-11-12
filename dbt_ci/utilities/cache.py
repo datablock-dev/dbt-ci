@@ -116,6 +116,10 @@ class CacheManager:
         cache["reasons"] = recorded
         self._write(cache, "cache.json")
 
+    def write_review(self, review: dict[str, Any]) -> None:
+        """Keep the AI review's findings in review.json, for report to show."""
+        self._write(review, "review.json")
+
     def add_run_times(self, times: dict[str, float]) -> None:
         """Add node execution times measured in this run to run_times.json."""
         if not times:

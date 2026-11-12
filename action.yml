@@ -146,7 +146,7 @@ inputs:
     required: false
     default: ""
   extras:
-    description: "Comma-separated dbt-ci extras: `gcp` for gs:// and BigQuery, `aws` for s3://, `docker` for the Docker runner."
+    description: "Comma-separated dbt-ci extras: `gcp` for gs:// and BigQuery, `aws` for s3://, `docker` for the Docker runner, `ai` for `review`."
     required: false
     default: ""
   adapter:

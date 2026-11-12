@@ -114,6 +114,7 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 | `delete` | `dry-run` |
 | `migration` | `dry-run` |
 | `finalize` | `artifacts-uri`, `files`, `force-manifest`, `clean-ephemeral` |
+| `review` | `model`, `effort`, `max-models`, `exclude`, `instructions`, `fail-on`, `format`, `output`, `dry-run`; see [`review`](commands.md#review---ai-review-of-changed-models) |
 | `report` | `format`, `output` |
 | `notifications` | `provider`, `format`, `webhook`, `pr-comment` |
 | `docker` | `image`, `platform`, `volumes`, `env`, `network`, `user`, `args` |
