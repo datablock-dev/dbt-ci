@@ -569,7 +569,7 @@ dbt-ci finalize --artifacts-uri s3://my-bucket/dbt-artifacts/
 |------|---------|-----------|---------|-------------|
 | `--artifacts-uri` | | `DBT_ARTIFACTS_URI`, `ARTIFACTS_URI` | `None` | Object storage URI for uploading run artifacts such as the updated `manifest.json` (e.g. `s3://bucket/dbt-artifacts/`) |
 | `--files` | | `DBT_FINALIZE_FILES` | `manifest` | Which artifacts to upload (repeatable): `manifest`, `cache`, `log` |
-| `--force-manifest` | | `DBT_FINALIZE_FORCE_MANIFEST` | `false` | Replace the published `manifest.json` even when it was built from a newer commit than this run's, e.g. to roll back (`finalize.force-manifest` in the config file). See [Deploys finishing out of order](#deploys-finishing-out-of-order) |
+| `--force-manifest` | | `DBT_FINALIZE_FORCE_MANIFEST` | `false` | Replace the published `manifest.json` even when it was built from a newer commit than this run's, e.g. to roll back, or publish from a pull request to the production state location (`finalize.force-manifest` in the config file). See [Deploys finishing out of order](#deploys-finishing-out-of-order) and [Pull requests and the production state](#pull-requests-and-the-production-state) |
 | `--clean-ephemeral` | `--destroy-ephemeral` | `DBT_CLEAN_EPHEMERAL`, `DBT_DESTROY_EPHEMERAL` | `false` | **Deprecated — use [`ephemeral destroy`](#ephemeral-destroy).** Drop the datasets that `ephemeral` cloned into, the same way `ephemeral destroy` does |
 
 Next to `<artifacts-uri>/manifest.json`, `finalize` keeps a copy for the commit it ran on at
@@ -597,6 +597,26 @@ still uploaded, the step fails, and the cache is kept so a re-run can retry the 
 > the log does not publish your Slack webhook or credentials passed via `--docker-env`.
 > This is a name-based heuristic — review your artifact bucket's access controls before
 > enabling `--files log`.
+
+### Pull requests and the production state
+
+A pull request run must not publish its manifest where `init` reads the production state
+from: later pull requests would compare against an unmerged branch. When a run is for a
+pull request (see [Settings per CI event](configuration.md#settings-per-ci-event)) and
+`--artifacts-uri` is the folder of `--state-uri` (as given, or as `init` recorded it),
+`finalize` uploads nothing and says so. Give pull requests their own location instead:
+
+```yaml
+on:
+  pull-request:
+    finalize:
+      artifacts-uri: gs://my-bucket/dbt-ci-prs/
+  push:
+    finalize:
+      artifacts-uri: gs://my-bucket/dbt-state/
+```
+
+`--force-manifest` publishes anyway.
 
 ### Deploys finishing out of order
 

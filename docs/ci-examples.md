@@ -114,6 +114,11 @@ profiles:
   of each deployed manifest under `dbt-state/<commit>/` for this; see
   [Comparing against the merge base](commands.md#comparing-against-the-merge-base).
   A deploy on `main` itself compares with the latest state.
+- Instead of a profile per target, settings can also follow the CI event: an
+  [`on:` block](configuration.md#settings-per-ci-event) with `pull-request:` and `push:`
+  (pushes to the default branch) is detected on GitHub Actions, GitLab CI, Azure
+  Pipelines, Bitbucket, CircleCI, Buildkite and Jenkins. A pull request is never allowed
+  to publish over the production state.
 
 ### 2. Select the profile in the workflow
 

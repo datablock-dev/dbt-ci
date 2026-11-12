@@ -570,6 +570,8 @@ class DbtCompileOptions(TypedDict, total=False):
     state: str | None
     # Only recorded for the reference side: the --base-ref init diffed against, if given
     base_ref: str | None
+    # Only recorded for the reference side: the --state-uri init downloaded, if given
+    state_uri: str | None
 
 
 class DbtCiConfig(TypedDict):

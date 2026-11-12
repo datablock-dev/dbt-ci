@@ -7,6 +7,7 @@ import logging
 from typing import Any
 import click
 
+from dbt_ci.utilities.ci_event import resolve_event
 from dbt_ci.utilities.paths import get_cache_dir
 from .schema import validate_config
 
@@ -16,6 +17,9 @@ _CTX_META_KEY = "dbt_ci_config"
 # The parsed config file and the selected profile, kept until both eager callbacks ran
 _CTX_RAW_KEY = "dbt_ci_raw_config"
 _CTX_PROFILE_KEY = "dbt_ci_profile"
+# The --event override, and the event the config was resolved for (name, reason)
+_CTX_EVENT_ARG_KEY = "dbt_ci_event_arg"
+_CTX_EVENT_KEY = "dbt_ci_event"
 # Where values came from, for `dbt-ci config show`: the config file path, the layer each
 # flat key came from, the keys injected into os.environ, and per option which layer won
 _CTX_PATH_KEY = "dbt_ci_config_path"
@@ -25,6 +29,9 @@ _CTX_SOURCES_KEY = "dbt_ci_option_sources"
 
 # Labels for the config file layers
 TOP_LEVEL = "config file"
+# The config file key holding per-event settings. YAML 1.1 (PyYAML) reads a bare `on`
+# key as the boolean true, as GitHub Actions users know, so that spelling is accepted too.
+EVENTS_KEY = "on"
 
 
 def _resolve_env_refs(val: str) -> str:
@@ -125,6 +132,13 @@ def profile_callback(ctx, param, value):
     return value or None
 
 
+def event_callback(ctx, param, value):
+    """Eager callback that records an explicit --event, applied once the config is read."""
+    ctx.meta[_CTX_EVENT_ARG_KEY] = value or None
+    _apply_config_when_ready(ctx)
+    return value or None
+
+
 def _profile_recorded_by_init() -> str | None:
     """Return the profile init recorded in its cache, or None when there isn't one."""
     cache_file = get_cache_dir() / "cache.json"
@@ -167,6 +181,7 @@ def _read_config_file(value: str | None) -> tuple[str, dict] | None:
 
         with open(value, "r", encoding="utf-8") as f:
             raw = yaml.safe_load(f) or {}
+        raw = normalize_event_keys(raw)
 
         errors = validate_config(raw)
         if errors:
@@ -204,6 +219,9 @@ def _apply_config_when_ready(ctx) -> None:
     has_profile_option = any(p.name == "profile" for p in ctx.command.params)
     if has_profile_option and _CTX_PROFILE_KEY not in ctx.meta:
         return
+    has_event_option = any(p.name == "event" for p in ctx.command.params)
+    if has_event_option and _CTX_EVENT_ARG_KEY not in ctx.meta:
+        return
 
     profile, inherited = ctx.meta.get(_CTX_PROFILE_KEY, (None, False))
     loaded = ctx.meta[_CTX_RAW_KEY]
@@ -218,7 +236,7 @@ def _apply_config_when_ready(ctx) -> None:
 
     path, raw = loaded
     ctx.meta[_CTX_PATH_KEY] = path
-    flat = _flatten_config({k: v for k, v in raw.items() if k != "profiles"})
+    flat = _flatten_config(_settings(raw))
     origin = {env_key: TOP_LEVEL for env_key in flat}
     if profile:
         profiles = raw.get("profiles") or {}
@@ -226,7 +244,7 @@ def _apply_config_when_ready(ctx) -> None:
             logger.info(f"Applying config profile '{profile}' from {path}")
             # Flattening each side first makes a profile's value replace the top-level
             # one whichever spelling (project-dir, project_dir, DBT_PROJECT_DIR) each uses
-            profile_flat = _flatten_config(profiles[profile] or {})
+            profile_flat = _flatten_config(_settings(profiles[profile] or {}))
             flat.update(profile_flat)
             origin.update({env_key: f"profile '{profile}'" for env_key in profile_flat})
         elif inherited:
@@ -240,6 +258,31 @@ def _apply_config_when_ready(ctx) -> None:
                 f"{available}.",
                 param_hint="'--profile'",
             )
+
+    # Settings for the event this run is for go over the profile: first the top-level
+    # `on:` block, then the selected profile's own
+    profile_raw = ((raw.get("profiles") or {}).get(profile) or {}) if profile else {}
+    blocks = [(raw.get(EVENTS_KEY) or {}, None), (profile_raw.get(EVENTS_KEY) or {}, profile)]
+    override = ctx.meta.get(_CTX_EVENT_ARG_KEY)
+    if override or any(blocks_for for blocks_for, _ in blocks):
+        try:
+            event = resolve_event(
+                override,
+                base_branch=_text(flat.get("DBT_INIT_BASE_REF"))
+                or os.environ.get("DBT_CI_BASE_REF"),
+            )
+        except ValueError as e:
+            raise click.BadParameter(str(e), param_hint="'--event'")
+        ctx.meta[_CTX_EVENT_KEY] = (event.name, event.reason)
+        logger.info(f"Event: {event.name or 'none'} ({event.reason})")
+        for block, block_profile in blocks:
+            if event.name and block.get(event.name):
+                event_flat = _flatten_config(block[event.name])
+                flat.update(event_flat)
+                label = f"event '{event.name}'"
+                if block_profile:
+                    label = f"profile '{block_profile}', {label}"
+                origin.update({env_key: label for env_key in event_flat})
 
     # Resolve ${VAR} references and store in ctx.meta. An empty value, whether written
     # as "" or left by a ${VAR} that is set but empty, counts as not set, like null.
@@ -271,6 +314,27 @@ def _apply_config_when_ready(ctx) -> None:
     ctx.meta[_CTX_INJECTED_KEY] = injected
 
     logger.debug("Load Config: %s", resolved)
+
+
+def normalize_event_keys(raw: Any) -> Any:
+    """Rename a boolean `true` key (how PyYAML reads `on:`) to "on", here and in profiles."""
+    if not isinstance(raw, dict):
+        return raw
+    fixed = {(EVENTS_KEY if key is True else key): value for key, value in raw.items()}
+    profiles = fixed.get("profiles")
+    if isinstance(profiles, dict):
+        fixed["profiles"] = {name: normalize_event_keys(body) for name, body in profiles.items()}
+    return fixed
+
+
+def _settings(raw: dict) -> dict:
+    """Return a config mapping without its profiles and per-event blocks."""
+    return {k: v for k, v in raw.items() if k not in ("profiles", EVENTS_KEY)}
+
+
+def _text(value: Any) -> str | None:
+    """Return a config value as a non-empty string, or None."""
+    return str(value) if value not in (None, "") else None
 
 
 def make_config_callback(config_key: str | tuple[str, ...], *, then=None):
@@ -340,4 +404,5 @@ def config_provenance(ctx) -> dict[str, Any]:
         "origin": ctx.meta.get(_CTX_ORIGIN_KEY, {}),
         "injected": ctx.meta.get(_CTX_INJECTED_KEY, set()),
         "sources": ctx.meta.get(_CTX_SOURCES_KEY, {}),
+        "event": ctx.meta.get(_CTX_EVENT_KEY),
     }

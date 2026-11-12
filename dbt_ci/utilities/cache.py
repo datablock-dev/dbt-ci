@@ -69,6 +69,8 @@ class CacheManager:
                     "vars": getattr(self.args, "reference_vars", None),
                     "state": get_absolute_path(reference_state) if reference_state else None,
                     "base_ref": getattr(self.args, "base_ref", None),
+                    # Where the production state is published, for finalize's PR guard
+                    "state_uri": getattr(self.args, "state_uri", None),
                 },
                 "target": {
                     "target": getattr(self.args, "target", None),
