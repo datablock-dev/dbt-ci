@@ -120,6 +120,12 @@ class TestFlags:
         ]
         assert flags_for(("init",), inputs) == []
 
+    def test_retries_go_to_run(self):
+        """retries is a run flag."""
+        inputs = {"retries": "2"}
+        assert flags_for(("run",), inputs) == ["--retries", "2"]
+        assert flags_for(("init",), inputs) == []
+
     def test_pr_comment_false_overrides_the_config_file(self):
         """An explicit false is passed on, so it wins over notifications.pr-comment."""
         assert flags_for(("report",), {"pr-comment": "false"}) == ["--no-pr-comment"]

@@ -46,6 +46,7 @@ COMMAND_VALUE_FLAGS: Dict[str, Dict[str, str]] = {
         "downstream-depth": "--downstream-depth",
         "select": "--select",
         "exclude": "--exclude",
+        "retries": "--retries",
     },
     "finalize": {
         "artifacts-uri": "--artifacts-uri",

@@ -7,7 +7,9 @@ from itertools import chain
 from typing import cast
 from dbt_ci.graph.dependency_graph import DbtGraph
 from dbt_ci.commands.run.explain import explain_selection
+from dbt_ci.commands.run.retry import get_retries, resolve_retry_command, run_results_marker
 from dbt_ci.commands.run.selection import UserSelection
+from dbt_ci.errors import DbtCommandError
 from dbt_ci.runners import run_dbt_command, resolve_dbt_commands
 from dbt_ci.utilities.cache import CacheManager
 from dbt_ci.utilities.run_times import read_node_times
@@ -102,19 +104,42 @@ def run_nodes(
             logger.info(f"No resolvable selectors for {command}, skipping...")
             continue
 
+        run_step(
+            args, resolve_dbt_commands([cast(str, command), "--select", " ".join(selectors)], args)
+        )
+        logger.info(f"\n✅ Successfully ran {len(nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
+
+
+def run_step(args: Namespace, command_args: list[str]) -> None:
+    """
+    Run one step's dbt command, retrying it up to --retries times if it fails.
+
+    A retry runs `dbt retry`, which reruns only the nodes that errored, failed or were
+    skipped. If the failed command wrote no run_results.json of its own, there is
+    nothing for dbt retry to resume, so the command itself runs again instead.
+    """
+    retries = get_retries(args)
+    step_marker = run_results_marker(args)
+    for attempt in range(retries + 1):
         # The runner raises DbtCommandError if dbt fails, which fails the run command.
         # The nodes that did run still cost time, so their times are kept either way.
         started = datetime.now(timezone.utc)
         try:
             run_dbt_command(
-                command_args=resolve_dbt_commands(
-                    [cast(str, command), "--select", " ".join(selectors)], args
-                ),
-                runner_config=cast(RunnerConfig, args.__dict__),
+                command_args=command_args, runner_config=cast(RunnerConfig, args.__dict__)
             )
+            return
+        except DbtCommandError as e:
+            if attempt == retries:
+                raise
+            if run_results_marker(args) != step_marker:
+                command_args = resolve_retry_command(args)
+                what = "its failed and skipped nodes with dbt retry"
+            else:
+                what = "it, as dbt wrote no results to retry from"
+            logger.warning(f"{e}. Retrying {what} (retry {attempt + 1} of {retries})...")
         finally:
             record_run_times(args, started)
-        logger.info(f"\n✅ Successfully ran {len(nodes_to_run)} {REVERSE_MODE_MAPPING[command]}(s)")
 
 
 def record_run_times(args: Namespace, started: datetime) -> None:

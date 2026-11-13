@@ -119,6 +119,7 @@ on that and handles the parts you would otherwise script yourself:
 | Drop tables of models deleted in the PR | ❌ | ✅ `delete` |
 | Move tables onto a changed partitioning, clustering or sort key, keeping their rows | ❌ | ✅ `migration` (BigQuery, Snowflake, Redshift, Databricks) |
 | Run a changed test without rebuilding its model | ❌ | ✅ `run --skip-test-only-changes` (opt-in) |
+| Retry a failed step from the point of failure within the CI run | `dbt retry`, run by hand | ✅ `run --retries` (opt-in) |
 
 On dbt Cloud, its CI jobs already run `state:modified+` with deferral. dbt-ci is for
 teams that run dbt Core in their own CI. It decides *what* to build; data-diff tools such
@@ -149,7 +150,7 @@ flowchart LR
 | Command | What it does |
 |---------|--------------|
 | [`init`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#init---initialize-state) | Compare the PR against the production state and cache the change set |
-| [`run`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#run---run-modified-models) | Build and test the changed nodes, optionally capped with `--downstream-depth`, narrowed with dbt selectors (`--select`, `--exclude`) or with test-only changes skipped (`--skip-test-only-changes`) |
+| [`run`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#run---run-modified-models) | Build and test the changed nodes, optionally capped with `--downstream-depth`, narrowed with dbt selectors (`--select`, `--exclude`) or with test-only changes skipped (`--skip-test-only-changes`). Failed steps can be retried with `dbt retry` (`--retries`) |
 | [`ephemeral`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#ephemeral---ephemeral-environment) | Clone what the PR needs into an isolated schema, and tear it down afterwards |
 | [`delete`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#delete---delete-removed-models) | Drop the tables of models the PR removed |
 | [`migration`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#migration---migrate-table-layout-changes) | Move incremental tables onto a changed partitioning, clustering, sort or distribution key, keeping their rows |

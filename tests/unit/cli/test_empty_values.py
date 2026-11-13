@@ -115,6 +115,7 @@ class TestEmptyCliValues:
     def test_empty_integer_is_not_a_type_error(self, project):
         """--downstream-depth '' used to fail as 'not a valid integer'."""
         assert resolved(RUN, ["--downstream-depth", ""]).downstream_depth is None
+        assert resolved(RUN, ["--retries", ""]).retries is None
 
     def test_subcommand_of_a_group(self, project):
         """Subcommands such as `ephemeral destroy` get the same treatment."""
