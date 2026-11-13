@@ -111,6 +111,10 @@ inputs:
     description: Don't rebuild a model, seed or snapshot when only its tests changed; run just the changed tests (`--skip-test-only-changes`). Pair with `defer`.
     required: false
     default: "false"
+  retries:
+    description: Retry a failed `run` step up to this many times with `dbt retry`, which reruns only the nodes that errored, failed or were skipped (`run --retries`). Empty never retries.
+    required: false
+    default: ""
 
   # finalize
   artifacts-uri:

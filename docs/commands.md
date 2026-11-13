@@ -139,6 +139,7 @@ dbt-ci run --dbt-project-dir dbt --mode models
 | `--select` | `-s` | `DBT_RUN_SELECT` | `None` | Only build changed nodes (and what they affect) that also match these dbt selectors (repeatable). See [Narrowing a run](#narrowing-a-run) |
 | `--exclude` | | `DBT_RUN_EXCLUDE` | `None` | Leave nodes matching these dbt selectors out of the run (repeatable) |
 | `--skip-test-only-changes` | | `DBT_SKIP_TEST_ONLY_CHANGES` | `false` | Don't rebuild a model, seed or snapshot when only its tests changed; run just the changed tests. See [Skipping test-only changes](#skipping-test-only-changes) |
+| `--retries` | | `DBT_RUN_RETRIES` | `0` | Retry a failed step up to this many times with `dbt retry`, which reruns only the nodes that errored, failed or were skipped. See [Retrying failed steps](#retrying-failed-steps) |
 
 With `--mode all`, the steps run in dependency order: **seeds → snapshots → models → tests**, so models built on a changed snapshot read its new state and tests run once everything they check exists. The test step runs both data tests and dbt unit tests (dbt ≥ 1.8).
 
@@ -237,6 +238,36 @@ In the [report](#report---summarise-the-run), a skipped node is still listed as 
 with *not rebuilt: only its tests changed* after the reasons `init` recorded, and its
 recorded build time counts towards the [run time](#run-time) the pull request skipped.
 
+### Retrying failed steps
+
+A warehouse timeout, a rate limit or a lock held by another job can fail a CI run that
+would pass a minute later. `--retries` retries a failed step with
+[`dbt retry`](https://docs.getdbt.com/reference/commands/retry), which reruns only the
+nodes that errored, failed or were skipped, not the ones that already succeeded:
+
+```bash
+dbt-ci run --retries 2
+```
+
+```yaml
+run:
+  retries: 2
+```
+
+- Retries apply to each step (seeds, snapshots, models, tests) on its own. Once a retry
+  succeeds, the run carries on with the next step; if every retry fails, the run fails
+  with the last retry's error.
+- `dbt retry` runs with the selection, target, vars, state and defer setting of the
+  failed command.
+- When the failed command wrote no `run_results.json` of its own, for example because
+  it couldn't connect to the warehouse, there is nothing for `dbt retry` to resume, so
+  dbt-ci reruns the command itself.
+- Every attempt's node times count towards the [run time](#run-time).
+
+Retries are off by default. A SQL error or a failing data test fails the same way every
+time, so each retry costs time without changing the outcome; failing tests are retried
+too, because `dbt retry` reruns them.
+
 > All [common options](configuration.md#common-options) also apply.
 
 **Examples:**
@@ -252,6 +283,9 @@ dbt-ci run --mode all
 
 # With Docker
 dbt-ci run --runner docker --mode models
+
+# Retry a failed step up to twice with dbt retry
+dbt-ci run --retries 2
 ```
 
 ---

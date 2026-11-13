@@ -46,6 +46,7 @@ run:
   nodes: models
   downstream-depth: 2
   skip-test-only-changes: true
+  retries: 2         # retry a failed step with dbt retry
 
 finalize:
   artifacts-uri: s3://my-bucket/dbt-artifacts/
@@ -109,7 +110,7 @@ The config file is validated on load. dbt-ci will exit with a clear error messag
 |---|---|
 | Top level | The [common options](#core): `project-dir`, `profiles-dir`, `state`, `target`, `vars`, `defer`, `dry-run`, `runner`, `entrypoint`, `dbt-version`, `adapter`, `log-level`, `quiet`, `shell-path` |
 | `init` | `reference-target`, `reference-vars`, `state-uri`, `reference-path`, `target-compile`, `skip-reference-compile`, `comparison-strategy`, `base-ref`, `compare-to` |
-| `run` | `nodes`, `downstream-depth`, `filters`, `select`, `exclude`, `skip-test-only-changes` |
+| `run` | `nodes`, `downstream-depth`, `filters`, `select`, `exclude`, `skip-test-only-changes`, `retries` |
 | `ephemeral` | `dry-run` (for `ephemeral create` and `ephemeral destroy`), `keep-env` (deprecated) |
 | `delete` | `dry-run` |
 | `migration` | `dry-run` |

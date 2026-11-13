@@ -98,6 +98,7 @@ class TestSchemaCoverage:
             {"DBT_VERSION": "1.10.13"},
             {"report": {"format": "json", "output": "report.md"}},
             {"run": {"downstream-depth": 2}},
+            {"run": {"retries": 2}},
             {"DBT_DOCKER_IMAGE": "img", "DBT_DOCKER_PLATFORM": "linux/amd64"},
         ],
     )

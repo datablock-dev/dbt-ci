@@ -21,6 +21,7 @@ run:
   filters:
     - snapshots
   skip-test-only-changes: true
+  retries: 2
 finalize:
   artifacts-uri: s3://from-config/
   clean-ephemeral: true
@@ -115,6 +116,10 @@ class TestCommandSectionsReachTheirOptions:
         """run.skip-test-only-changes turns the flag on."""
         value = resolve("run", "skip_test_only_changes", "dbt_ci.commands.run.cli.run")
         assert value is True
+
+    def test_run_retries(self, project):
+        """run.retries sets how many times a failed step is retried."""
+        assert resolve("run", "retries", "dbt_ci.commands.run.cli.run") == 2
 
     def test_finalize_artifacts_uri(self, project):
         """finalize.artifacts-uri selects the upload destination."""

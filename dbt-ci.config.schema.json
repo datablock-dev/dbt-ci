@@ -151,7 +151,13 @@
         "select": { "$ref": "#/definitions/dbtSelectors" },
         "exclude": { "$ref": "#/definitions/dbtSelectors" },
         "skip-test-only-changes": { "$ref": "#/definitions/skipTestOnlyChanges" },
-        "skip_test_only_changes": { "$ref": "#/definitions/skipTestOnlyChanges" }
+        "skip_test_only_changes": { "$ref": "#/definitions/skipTestOnlyChanges" },
+        "retries": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Retry a failed step up to this many times with 'dbt retry', which reruns only the nodes that errored, failed or were skipped (default: 0)."
+        }
       }
     },
 

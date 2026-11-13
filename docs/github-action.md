@@ -116,6 +116,7 @@ empty pass nothing, so the config file (found in the working directory or the
 | `select` | | `run --select`, dbt selectors, space-separated |
 | `exclude` | | `run --exclude`, dbt selectors, space-separated |
 | `skip-test-only-changes` | `false` | `run --skip-test-only-changes` |
+| `retries` | | `run --retries`: retry a failed step up to this many times with `dbt retry` |
 | `artifacts-uri` | | `finalize --artifacts-uri` |
 | `pr-comment` | `true` | `report --pr-comment`; `false` passes `--no-pr-comment` |
 | `github-token` | `${{ github.token }}` | Token used for the PR comment |

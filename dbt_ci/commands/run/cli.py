@@ -89,6 +89,17 @@ from dbt_ci.commands.run.index import run
         "changed tests. Pair with --defer so they can read the production tables."
     ),
 )
+@click.option(
+    "--retries",
+    envvar=["DBT_RUN_RETRIES"],
+    type=int,
+    default=None,
+    callback=make_config_callback("DBT_RUN_RETRIES"),
+    help=(
+        "Retry a failed step up to this many times with `dbt retry`, which reruns only "
+        "the nodes that errored, failed or were skipped. Off by default."
+    ),
+)
 def run_cmd(**kwargs):
     """Run modified dbt models
 
