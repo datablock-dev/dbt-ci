@@ -25,15 +25,16 @@ pytestmark = [
 
 DBT_PROJECT = 'name: demo\nversion: 1.0.0\nprofile: demo\nmodel-paths: ["models"]\n'
 
-# Counts its builds in a table written outside the model's transaction, so a failed
-# build still counts, and fails until it is built a second time.
+# Writes a file per build before its query runs, and fails until it is built a second
+# time. DuckDB writes the file outside the model's transaction, so a failed build still
+# counts. A file rather than a table keeps it to hooks that dbt v1 and v2 both support.
 FLAKY_MODEL = """\
-{{ config(materialized="table", pre_hook=before_begin(
-    "create table if not exists main.flaky_attempts (n integer);"
-    ~ " insert into main.flaky_attempts values (1)"
-)) }}
+{{ config(
+    materialized="table",
+    pre_hook="copy (select 1 as built) to 'ATTEMPTS/{{ invocation_id }}.csv'",
+) }}
 select case
-    when (select count(*) from main.flaky_attempts) < 2 then error('transient failure')
+    when (select count(*) from glob('ATTEMPTS/*.csv')) < 2 then error('transient failure')
     else 2
 end as id
 """
@@ -85,7 +86,9 @@ def project(tmp_path: Path) -> Path:
     shutil.rmtree(dbt_dir / "target")
 
     git(repo, "checkout", "-qb", "feature")
-    (dbt_dir / "models" / "a.sql").write_text(FLAKY_MODEL)
+    attempts = tmp_path / "attempts"
+    attempts.mkdir()
+    (dbt_dir / "models" / "a.sql").write_text(FLAKY_MODEL.replace("ATTEMPTS", str(attempts)))
     git(repo, "commit", "-qam", "make a flaky")
     return repo
 
