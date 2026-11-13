@@ -466,6 +466,111 @@ on:
 
 ---
 
+## `review` - AI Review of Changed Models
+
+Asks Claude to review the models and snapshots `init` found changed, the way an analytics
+engineer would before approving the pull request: join fan-out, incremental logic that
+misses rows, full rebuilds that could be incremental, missing partition pruning, keys
+without tests. Findings are recorded for [`report`](#report---summarise-the-run), so they
+show up in the job summary and the pull request comment.
+
+```bash
+pip install 'dbt-ci[ai]'
+export ANTHROPIC_API_KEY=...        # or ANTHROPIC_AUTH_TOKEN, or an `ant auth login` profile
+
+dbt-ci init ...
+dbt-ci review                       # → stdout, and recorded for report
+dbt-ci report --pr-comment          # → the review is a section of the comment
+```
+
+It is opt-in: nothing is sent unless you run `review`.
+
+**What is sent.** For each changed model:
+
+- its compiled SQL (the raw SQL if it was not compiled);
+- for a modified model, the diff of its source against production;
+- the config that shapes the build (materialization, incremental strategy, unique key,
+  partitioning, clustering, an enforced contract);
+- the names of its tests, its documented columns, and whether it has a description;
+- how many models and which exposures depend on it directly;
+- its recorded run time, and [why it is in the change set](#why-is-a-node-in-the-change-set).
+
+The warehouse type is sent too, so the advice fits it. **No data from the warehouse is
+sent**: no rows, no query results. Leave models out with `--exclude` (patterns matched
+against the model's path).
+
+**What comes back.** A short summary and a list of findings, each with a model, a
+severity (`high`, `medium`, `low`), a category (`performance`, `correctness`, `testing`,
+`materialization`, `maintainability`), what is wrong and a concrete suggestion:
+
+```
+### AI review
+
+orders now joins customers on a condition that is always true.
+
+- 🔴 **high** · `orders` · correctness: **Join fans out every order to every customer**
+  `on true` is a cross join: each order is repeated once per customer, so `amount` sums
+  will be inflated and `order_id` is no longer unique.
+  *Suggestion:* Join on the customer key: ...
+```
+
+The answer is constrained to a JSON schema, so the findings are always well-formed. They
+are advisory, and the report says so.
+
+**Where it goes.** The findings are kept in the cache (`review.json`) for `report`, which
+shows them after the change set in the markdown report and under `review` in
+`report --format json`. `review` itself writes markdown or JSON to `--output`, or stdout.
+Run `review` after `init` and before `report`; `finalize` clears it with the rest of the
+cache.
+
+**Failing the job.** By default `review` never fails the job: without the `ai` extra,
+without credentials, or when the API is unreachable, it logs why, records the review as
+`skipped` and exits `0`. `--fail-on high` (or `medium`, `low`) exits `1` when a finding is at
+least that severe.
+
+**Cost.** Models are sent in batches of eight. The instructions are identical for every
+batch and every run, and are marked for prompt caching. `--max-models` caps how many models
+are reviewed (20 by default); when a pull request changes more, the ones with the longest
+recorded run time are kept. A pull request that changes ten models typically costs a few
+tens of cents with `claude-opus-5-5`, and less with `claude-sonnet-5-5` or
+`claude-haiku-5-5`. The tokens used are logged after each review.
+
+**Flags:**
+
+| Flag | Env Var | Default | Description |
+|------|---------|---------|-------------|
+| `--model` | `DBT_REVIEW_MODEL` | `claude-opus-5-5` | Claude model that reviews the changes |
+| `--effort` | `DBT_REVIEW_EFFORT` | `medium` | `low`, `medium`, `high`, `xhigh` or `max`: how hard the model thinks about each batch |
+| `--max-models` | `DBT_REVIEW_MAX_MODELS` | `20` | Review at most this many changed models, keeping the slowest |
+| `--exclude` | `DBT_REVIEW_EXCLUDE` | | Leave out models whose path matches this pattern, e.g. `models/legacy/*`. Repeatable |
+| `--instructions` | `DBT_REVIEW_INSTRUCTIONS` | | Extra guidance for the reviewer, such as your team's conventions |
+| `--fail-on` | `DBT_REVIEW_FAIL_ON` | `never` | Exit `1` on a finding at least this severe: `high`, `medium`, `low` or `never` |
+| `--output`, `-o` | `DBT_REVIEW_OUTPUT` | stdout | Where to write the review |
+| `--format`, `-F` | `DBT_REVIEW_FORMAT` | `markdown` | `markdown` or `json` |
+| `--dry-run` | `DBT_DRY_RUN` | `false` | List the models that would be sent, without calling Claude (`review.dry-run` in the config file) |
+
+In `dbt-ci.config.yaml` they live under `review:`, and like every section they can be set
+per CI event, for example to fail only pull requests on high-severity findings:
+
+```yaml
+review:
+  model: claude-opus-5-5
+  max-models: 15
+  exclude: [models/legacy/*]
+  instructions: |
+    We run on BigQuery. Facts are incremental with insert_overwrite on a `day` partition.
+    Every model's primary key must have unique and not_null tests.
+
+on:
+  pull-request:
+    review:
+      fail-on: high
+```
+
+> All [common options](configuration.md#common-options) also apply.
+
+---
+
 ## `report` - Summarise the Run
 
 Renders the change set detected by `init` and the status of every command that has run
@@ -491,6 +596,8 @@ The report covers:
   into a collapsible block.
 - **Exposure impact** — the exposures downstream of the change set, including those
   downstream of *deleted* nodes, which is usually the case worth catching.
+- **AI review** — the findings of [`review`](#review---ai-review-of-changed-models), when
+  it ran in this job.
 - **Run time** — how many nodes `run` built and the dbt run time they took, compared
   with the recorded run time of the nodes it left out (see [Run time](#run-time)).
 - **Command status and duration** for each of `init`, `run`, `delete`, `ephemeral` and

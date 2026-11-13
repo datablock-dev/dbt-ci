@@ -113,6 +113,7 @@ on that and handles the parts you would otherwise script yourself:
 | Ignore changes that only come from environment-specific config | ❌ | ✅ `hybrid` keeps only nodes the git diff also touches |
 | Ignore changes merged into `main` after the branch was created | ❌ | ✅ compares against the branch's merge base by default (`init --compare-to`) |
 | Comment the change set and affected exposures on the PR | ❌ | ✅ `report --pr-comment` |
+| Review the changed models with AI before merging (opt-in) | ❌ | ✅ `review` |
 | Show how much build time a PR skipped | ❌ | ✅ the report's run time section |
 | Post a summary to Slack | ❌ | ✅ |
 | Zero-copy PR environment that is torn down afterwards | `dbt clone`, teardown by hand | ✅ `ephemeral create` / `destroy` |
@@ -154,6 +155,7 @@ flowchart LR
 | [`ephemeral`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#ephemeral---ephemeral-environment) | Clone what the PR needs into an isolated schema, and tear it down afterwards |
 | [`delete`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#delete---delete-removed-models) | Drop the tables of models the PR removed |
 | [`migration`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#migration---migrate-table-layout-changes) | Move incremental tables onto a changed partitioning, clustering, sort or distribution key, keeping their rows |
+| [`review`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#review---ai-review-of-changed-models) | Have Claude review the changed models for correctness, cost and testing gaps; the findings join the report (opt-in, `pip install 'dbt-ci[ai]'`) |
 | [`report`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#report---summarise-the-run) | Write the run report to the job summary, a file or a PR comment |
 | [`finalize`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#finalize---finalize-state) | Upload artifacts to GCS or S3 and clear the cache, without letting an older deploy overwrite a newer one's manifest. `{pr}` and `{branch}` in `--artifacts-uri` give every pull request its own folder |
 | [`config`](https://github.com/datablock-dev/dbt-ci/blob/main/docs/commands.md#config---generate-a-config-file) | Generate a commented `dbt-ci.config.yaml`, or `config show` the settings a command would run with and where each came from |

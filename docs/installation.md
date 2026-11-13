@@ -19,6 +19,7 @@ installed on demand:
 | `gcp` | `google-cloud-bigquery`, `google-cloud-storage` | `gs://` state/artifact URIs, the BigQuery connector used by `delete`, `ephemeral destroy` and `migration` |
 | `aws` | `boto3` | `s3://` state/artifact URIs |
 | `docker` | `docker` | `--runner docker` |
+| `ai` | `anthropic` | [`review`](commands.md#review---ai-review-of-changed-models), the AI review of changed models |
 | `all` | all of the above | |
 
 ```bash

@@ -134,6 +134,24 @@ SCHEMA: dict[str, dict] = {
     # Named sets of settings applied over the top-level ones with --profile
     "profiles": {"type": "profiles"},
     "on": {"type": "events"},
+    "review": {
+        "type": "section",
+        "fields": {
+            "model": {"type": "str"},
+            "effort": {"type": "enum", "choices": ["low", "medium", "high", "xhigh", "max"]},
+            "max-models": {"aliases": ["max_models"], "type": "int"},
+            "exclude": {"type": "list_or_str"},
+            "instructions": {"type": "str"},
+            "fail-on": {
+                "aliases": ["fail_on"],
+                "type": "enum",
+                "choices": ["high", "medium", "low", "never"],
+            },
+            "format": {"type": "enum", "choices": ["markdown", "json"]},
+            "output": {"type": "str"},
+            "dry-run": {"aliases": ["dry_run"], "type": "bool"},
+        },
+    },
     "report": {
         "type": "section",
         "fields": {
