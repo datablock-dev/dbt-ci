@@ -99,6 +99,8 @@ dbt-ci run       # build and test the changed nodes and their dependents
 dbt-ci report    # summarise the change set (and post it with --pr-comment)
 ```
 
+Prefer a container? Each release is also published as `ghcr.io/datablock-dev/dbt-ci`, tagged per dbt-core version ([Docker image](https://github.com/datablock-dev/dbt-ci/blob/main/docs/installation.md#docker-image)).
+
 There are ready-made [CI/CD examples](https://github.com/datablock-dev/dbt-ci/blob/main/docs/ci-examples.md), including GitLab CI.
 
 ## Why dbt-ci?

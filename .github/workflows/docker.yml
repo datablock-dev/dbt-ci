@@ -8,6 +8,15 @@ on:
         required: false
         type: boolean
         default: true
+  # Pull requests that change the image build it without pushing, so a broken
+  # Dockerfile fails the pull request instead of the release
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'pyproject.toml'
+      - '.github/workflows/docker.yml'
 
 env:
   REGISTRY: ghcr.io
@@ -34,12 +43,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          # A release builds the latest main, like the PyPI job, so the image holds the
+          # version-bump commit it published. Pull requests build their own commit.
+          ref: ${{ inputs.push_images == true && 'main' || '' }}
+
+      - name: Read the dbt-ci version
+        id: version
+        run: echo "version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')" >> "$GITHUB_OUTPUT"
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
       
       - name: Log in to Container Registry
-        if: inputs.push_images
+        if: inputs.push_images == true
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -53,23 +70,34 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=dbt-${{ matrix.dbt_version }}
+            type=raw,value=${{ steps.version.outputs.version }}-dbt-${{ matrix.dbt_version }}
             type=raw,value=latest,enable=${{ matrix.dbt_version == '1.12.6' }}
       
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: ${{ inputs.push_images }}
+          push: ${{ inputs.push_images == true }}
+          # Pull requests keep the image locally so the test step can run it
+          load: ${{ inputs.push_images != true }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             DBT_CORE_VERSION=${{ matrix.dbt_version }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Pull requests read the cache but leave it to releases to write
+          cache-to: ${{ inputs.push_images == true && 'type=gha,mode=max' || '' }}
       
       - name: Test Docker image
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dbt-${{ matrix.dbt_version }}
+          EXPECTED: ${{ steps.version.outputs.version }}
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dbt-${{ matrix.dbt_version }} --help
+          docker run --rm "$IMAGE" --help
+          docker run --rm "$IMAGE" --version | tee version.txt
+          grep -F "$EXPECTED" version.txt
+          docker run --rm --entrypoint dbt "$IMAGE" --version > dbt-version.txt 2>&1
+          grep -F "${{ matrix.dbt_version }}" dbt-version.txt
   
   summary:
     runs-on: ubuntu-24.04
