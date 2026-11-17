@@ -37,6 +37,8 @@ dbt-ci init \
 
 **Git comparison and clone depth:** the `git` and `hybrid` strategies diff `origin/<base-ref>...HEAD` — the merge base — so only the commits on your branch count as changes. Shallow clones often don't contain the merge base, so dbt-ci fetches more history in steps (50, then 200, then 1,000 more commits) until it finds it. If it still can't, it falls back to a direct diff against the latest base branch and logs a **warning**: changes merged into the base branch since this branch was created may then be counted as this branch's own. Fetching full history up front (`actions/checkout` with `fetch-depth: 0`, or `GIT_DEPTH: 0` in GitLab CI) avoids the extra fetches entirely.
 
+**State built by another dbt version:** `init` compares the dbt version recorded in the manifest it compares against (the stored state, or a manifest archived for the merge base) with the one it runs. A merge base it compiles itself uses the same dbt, so it never differs. When they differ, it logs a **warning** with the `dbt` and `hybrid` strategies and the report says so: dbt's `state:modified` can flag unchanged nodes as modified across dbt versions (e.g. [dbt-core#16133](https://github.com/dbt-labs/dbt-core/issues/16133)), so the change set may be larger than the branch's changes. Rebuild the state with the dbt version CI uses (for example right after upgrading dbt), or use `--comparison-strategy git`, which only reads the git diff.
+
 ### Comparing against the merge base
 
 While a pull request is open, others keep merging and deploying. Compared with the latest

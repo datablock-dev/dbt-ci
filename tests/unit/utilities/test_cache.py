@@ -235,3 +235,24 @@ class TestWriteCacheConfig:
         config = self._write(tmp_path)
 
         assert config["reference"]["state"] is None
+
+
+class TestAddReportFields:
+    """Test adding keys to a report entry."""
+
+    def test_adds_keys_without_touching_status_or_timestamps(self, tmp_path):
+        """The entry keeps its status and start time."""
+        cache = CacheManager(Namespace(), cache_dir=tmp_path)
+        cache.start_report("init", Namespace())
+        before = cache.get_cache("report.json")["init"]
+        cache.add_report_fields("init", {"dbt_versions": {"state": "1.11", "current": "1.12"}})
+        after = cache.get_cache("report.json")["init"]
+        assert after["dbt_versions"] == {"state": "1.11", "current": "1.12"}
+        assert after["status"] == before["status"] == "started"
+        assert after["started_at"] == before["started_at"]
+
+    def test_missing_entry_is_ignored(self, tmp_path):
+        """Without an entry for the command there is nothing to add to."""
+        cache = CacheManager(Namespace(), cache_dir=tmp_path)
+        cache.add_report_fields("run", {"x": 1})
+        assert cache.get_cache("report.json") is None
