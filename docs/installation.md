@@ -47,6 +47,24 @@ older minor version, pin it alongside dbt-ci, e.g. `pip install dbt-ci 'dbt-core
 The published Docker images are tagged per dbt-core version (`dbt-1.10.23`, `dbt-1.11.17`,
 `dbt-1.12.6`); `latest` tracks the newest supported minor version.
 
+## Docker image
+
+Each release is also published to `ghcr.io/datablock-dev/dbt-ci`, with dbt-ci as the
+entrypoint and every extra installed:
+
+```bash
+docker run --rm ghcr.io/datablock-dev/dbt-ci:dbt-1.12.7 --help
+```
+
+Use `<dbt-ci version>-dbt-<dbt-core version>` (e.g. `1.26.0-dbt-1.12.7`) to pin a release;
+the `dbt-<dbt-core version>` tags and `latest` move with each release. The image doesn't
+include a dbt adapter, so add yours on top:
+
+```dockerfile
+FROM ghcr.io/datablock-dev/dbt-ci:dbt-1.12.7
+RUN pip install --no-cache-dir "dbt-bigquery~=1.12.0"
+```
+
 ## From GitHub
 
 ```bash

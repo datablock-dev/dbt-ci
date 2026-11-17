@@ -1,0 +1,17 @@
+# Only what `pip install .` needs goes into the image build context
+.git
+.github
+.venv
+venv
+tests
+docs
+action
+build
+dist
+*.egg-info
+**/__pycache__
+**/*.pyc
+.coverage
+coverage.xml
+.pytest_cache
+.mypy_cache
