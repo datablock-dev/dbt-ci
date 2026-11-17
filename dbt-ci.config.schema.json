@@ -299,7 +299,7 @@
     "runner":               { "type": "string", "enum": ["dbt", "local", "docker", "bash"], "default": "dbt", "description": "Runner to use for executing dbt commands." },
     "entrypoint":           { "type": "string", "default": "dbt", "description": "Command entrypoint for dbt." },
     "adapter":              { "type": "string", "description": "The dbt adapter to use (e.g. bigquery, postgres, snowflake)." },
-    "dbtVersion":           { "type": "string", "description": "Pin a specific dbt version (e.g. 1.10.13, or 2.0.9 for dbt v2). Requires runner 'local'." },
+    "dbtVersion":           { "type": "string", "description": "Pin a specific dbt version (e.g. 1.10.13, or 2.0.12 for dbt v2). Requires runner 'local'." },
     "dbtSelectors":         { "description": "dbt selectors (e.g. tag:ci_skip), as a list or a space-separated string.", "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] },
     "downstreamDepth":      { "type": "integer", "minimum": 0, "description": "How many levels of downstream dependencies to include (default: full graph)." },
     "skipTestOnlyChanges":  { "type": "boolean", "default": false, "description": "Don't rebuild a model, seed or snapshot when only its tests changed; run just the changed tests." },

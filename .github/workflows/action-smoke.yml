@@ -23,7 +23,7 @@ jobs:
     - name: Build a demo dbt project with production state
       run: |
         python -m pip install --upgrade pip
-        pip install "dbt-core==1.12.6" dbt-duckdb
+        pip install "dbt-core==1.12.7" dbt-duckdb
         python tests/action/make_demo_project.py "$RUNNER_TEMP/demo"
 
     - name: Run the action

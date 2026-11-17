@@ -400,7 +400,7 @@ on:
 | `--defer` | | `DBT_DEFER`, `DEFER_FLAG` | `false` | Pass dbt's `--defer` flag (defers unmodified nodes to the production state). `DEFER_FLAG` is a fallback read only when `DBT_DEFER` is unset, and accepts `--defer`, `--no-defer`, an empty value or a boolean |
 | `--runner` | `-r` | `DBT_RUNNER` | `dbt` | Runner to use: `dbt`, `local`, `docker`, `bash` |
 | `--entrypoint` | | `DBT_ENTRYPOINT` | `dbt` | Command entrypoint for dbt |
-| `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`, or `2.0.9` for dbt v2). **Requires `--runner local`** |
+| `--dbt-version` | | `DBT_VERSION` | Current | Pin a specific dbt version (e.g. `1.10.13`, or `2.0.12` for dbt v2). **Requires `--runner local`** |
 | `--adapter` | `-a` | `DBT_ADAPTER` | `None` | dbt adapter to install (e.g. `dbt-bigquery`, `dbt-duckdb=1.10.0`). **Requires `--runner local`** |
 | `--config` | `-c` | `DBT_CONFIG` | `dbt-ci.config.yaml` | Path to a dbt-ci YAML configuration file |
 | `--profile` | | `DBT_CI_PROFILE` | Inherited from `init` | [Profile](#profiles) from the config file's `profiles` section to apply over its top-level settings |
@@ -456,14 +456,14 @@ drives it through the CLI, so use the **`local`** or **`docker`** runner:
 
 ```bash
 # dbt-ci installs dbt v2 into a cached virtual environment
-dbt-ci init --runner local --dbt-version 2.0.9 ...
-dbt-ci run  --runner local --dbt-version 2.0.9 ...
+dbt-ci init --runner local --dbt-version 2.0.12 ...
+dbt-ci run  --runner local --dbt-version 2.0.12 ...
 
 # ...or point dbt-ci at a dbt v2 binary you installed yourself
 dbt-ci run --runner local --entrypoint /path/to/dbt ...
 
 # ...or run dbt v2 from a Docker image
-dbt-ci run --runner docker --docker-image my-registry/dbt-v2:2.0.9 ...
+dbt-ci run --runner docker --docker-image my-registry/dbt-v2:2.0.12 ...
 ```
 
 With the Docker runner, dbt-ci passes the dbt command (`ls ...`, `run ...`) as the
@@ -473,7 +473,7 @@ explicitly. A minimal one:
 
 ```dockerfile
 FROM python:3.12-slim
-RUN pip install --no-cache-dir "dbt==2.0.9"
+RUN pip install --no-cache-dir "dbt==2.0.12"
 ENTRYPOINT ["dbt"]
 ```
 
