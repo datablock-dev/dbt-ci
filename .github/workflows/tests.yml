@@ -40,11 +40,11 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13"]
-        dbt-version: ["1.10.23", "1.11.17", "1.12.6"]
+        dbt-version: ["1.10.23", "1.11.17", "1.12.7"]
         # dbt-core declares Python 3.14 support from 1.12 onwards.
         include:
           - python-version: "3.14"
-            dbt-version: "1.12.6"
+            dbt-version: "1.12.7"
     
     steps:
     - uses: actions/checkout@v7
@@ -97,13 +97,13 @@ jobs:
     - name: Install dbt v2 in its own environment
       run: |
         python -m venv "$RUNNER_TEMP/dbt-v2"
-        "$RUNNER_TEMP/dbt-v2/bin/pip" install "dbt==2.0.9"
+        "$RUNNER_TEMP/dbt-v2/bin/pip" install "dbt==2.0.12"
         "$RUNNER_TEMP/dbt-v2/bin/dbt" --version
 
     - name: Install dbt-core 1.x in its own environment
       run: |
         python -m venv "$RUNNER_TEMP/dbt-v1"
-        "$RUNNER_TEMP/dbt-v1/bin/pip" install "dbt-core==1.12.6" dbt-duckdb
+        "$RUNNER_TEMP/dbt-v1/bin/pip" install "dbt-core==1.12.7" dbt-duckdb
 
     - name: Run end-to-end tests with dbt v2
       run: |
@@ -138,15 +138,15 @@ jobs:
 
     - name: Build dbt images
       run: |
-        docker build -t dbt-ci-e2e:v2 --build-arg DBT_PACKAGES="dbt==2.0.9" tests/e2e/docker
-        docker build -t dbt-ci-e2e:v1 --build-arg DBT_PACKAGES="dbt-core==1.12.6 dbt-duckdb" tests/e2e/docker
+        docker build -t dbt-ci-e2e:v2 --build-arg DBT_PACKAGES="dbt==2.0.12" tests/e2e/docker
+        docker build -t dbt-ci-e2e:v1 --build-arg DBT_PACKAGES="dbt-core==1.12.7 dbt-duckdb" tests/e2e/docker
         docker run --rm dbt-ci-e2e:v2 --version
         docker run --rm dbt-ci-e2e:v1 --version
 
     - name: Install dbt-core 1.x for the mid-upgrade state
       run: |
         python -m venv "$RUNNER_TEMP/dbt-v1"
-        "$RUNNER_TEMP/dbt-v1/bin/pip" install "dbt-core==1.12.6" dbt-duckdb
+        "$RUNNER_TEMP/dbt-v1/bin/pip" install "dbt-core==1.12.7" dbt-duckdb
 
     - name: Run end-to-end tests through the Docker runner with dbt v2
       env:
