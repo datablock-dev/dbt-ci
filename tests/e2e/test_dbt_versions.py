@@ -12,6 +12,7 @@ With DBT_CI_E2E_REFERENCE_DBT_BINARY set, the production state is built with tha
 mid-upgrade case, where the stored state manifest predates the new dbt version.
 """
 
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -145,3 +146,49 @@ def test_init_and_run_detect_and_build_the_modified_model(project: Path, tmp_pat
     run_output = run.stdout + run.stderr
     assert run.returncode == 0, run_output
     assert "Successfully ran 2 models(s)" in run_output, run_output
+
+
+def test_init_flags_a_state_built_by_another_dbt_version(project: Path, tmp_path: Path):
+    """
+    Compared with the stored state, init records both dbt versions when they differ.
+
+    --compare-to latest compares with the state as stored, rather than a manifest init
+    compiles at the merge base with the dbt under test. The report then warns.
+    """
+    cache_dir = tmp_path / "cache"
+    init = dbt_ci(
+        project,
+        cache_dir,
+        tmp_path,
+        "init",
+        "--state",
+        "state",
+        "--reference-target",
+        "prod",
+        "--base-ref",
+        "main",
+        "--compare-to",
+        "latest",
+    )
+    init_output = init.stdout + init.stderr
+    assert init.returncode == 0, init_output
+
+    def dbt_version(path: Path) -> str:
+        """Return the dbt version recorded in a manifest."""
+        return json.loads(path.read_text())["metadata"]["dbt_version"]
+
+    state_version = dbt_version(project / "state" / "manifest.json")
+    current_version = dbt_version(cache_dir / "target_manifest.json")
+    recorded = json.loads((cache_dir / "report.json").read_text())["init"].get("dbt_versions")
+
+    report = dbt_ci(project, cache_dir, tmp_path, "report", "--output", str(tmp_path / "r.md"))
+    assert report.returncode == 0, report.stdout + report.stderr
+    rendered = (tmp_path / "r.md").read_text()
+
+    if state_version == current_version:
+        assert recorded is None, recorded
+        assert "[!WARNING]" not in rendered, rendered
+    else:
+        assert recorded == {"state": state_version, "current": current_version}, recorded
+        assert f"built with dbt {state_version}" in init_output, init_output
+        assert f"The state was built with dbt {state_version}" in rendered, rendered

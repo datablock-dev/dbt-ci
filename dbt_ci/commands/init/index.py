@@ -17,6 +17,7 @@ from dbt_ci.schema import DependencyGraphNode, StateChangeSummary
 from dbt_ci.utilities.paths import get_manifest_file, get_reference_manifest_file
 from dbt_ci.commands.init.resolve_manifest import resolve_manifest_file_from_storage
 from dbt_ci.commands.init.baseline import resolve_baseline
+from dbt_ci.commands.init.version_check import check_state_dbt_version
 from dbt_ci.utilities.uri_placeholders import reject_uri_placeholders
 from dbt_ci.utilities.run_times import (
     RUN_TIMES_FILE,
@@ -104,6 +105,14 @@ def init(args: Namespace):
         baseline = resolve_baseline(args)
         if baseline is not None:
             state_modified.comparison_state = baseline.state_dir
+        # A state built by another dbt version can flag unchanged nodes as modified
+        version_mismatch = check_state_dbt_version(
+            baseline.state_dir if baseline else getattr(args, "reference_state", None),
+            target_manifest_file,
+            getattr(args, "comparison_strategy", "hybrid"),
+        )
+        if version_mismatch:
+            cache.add_report_fields("init", {"dbt_versions": version_mismatch})
         state_change_summary = state_modified.get_state_modified()
         reasons = state_modified.reasons.for_summary(
             state_change_summary, state_modified.reference_graph, state_modified.target_graph

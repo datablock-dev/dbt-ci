@@ -114,6 +114,7 @@ def render_markdown(
     lines: list[str] = ["## dbt-ci run report", ""]
     lines.extend(render_git_context(run_report))
     lines.extend(render_baseline(cache_dict))
+    lines.extend(render_dbt_version_warning(run_report))
     lines.extend(render_change_summary(cache_dict))
     lines.extend(render_exposure_impact(cache_dict, args))
     lines.extend(render_run_time(args))
@@ -162,6 +163,19 @@ def render_baseline(cache_dict: StateChangeSummary | None) -> list[str]:
     baseline = (cache.get("config") or {}).get("baseline") or {}
     description = baseline.get("description")
     return [f"Compared against {description}.", ""] if description else []
+
+
+def render_dbt_version_warning(run_report: dict[str, Any] | None) -> list[str]:
+    """Warn when init compared against a state built by a different dbt version."""
+    versions = ((run_report or {}).get("init") or {}).get("dbt_versions")
+    if not isinstance(versions, dict) or not versions.get("state") or not versions.get("current"):
+        return []
+    return [
+        f"> [!WARNING]\n> The state was built with dbt {versions['state']}, but this run used "
+        f"dbt {versions['current']}. dbt can flag unchanged nodes as modified across "
+        "versions, so the change set may be larger than this branch's changes.",
+        "",
+    ]
 
 
 def render_change_summary(cache_dict: StateChangeSummary | None) -> list[str]:
