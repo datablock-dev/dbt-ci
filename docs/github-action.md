@@ -69,6 +69,24 @@ environment is always torn down:
             ephemeral destroy
 ```
 
+To add the [AI review](commands.md#review---ai-review-of-changed-models), install the `ai`
+extra, pass an Anthropic API key, and run `review` between `init` and `report`. Its
+findings appear in the job summary and the pull request comment:
+
+```yaml
+      - uses: datablock-dev/dbt-ci@v1
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        with:
+          extras: gcp,ai
+          pr-comment: true
+          commands: |
+            init
+            review
+            run
+            report
+```
+
 ## Using the outputs
 
 ```yaml
@@ -123,7 +141,7 @@ empty pass nothing, so the config file (found in the working directory or the
 | `slack-webhook` | | Slack webhook; `init` posts a summary of the change set |
 | `install` | `true` | Install dbt-ci into a virtual environment; `false` uses the `dbt-ci` on `PATH` |
 | `version` | the action's version | dbt-ci version to install from PyPI, or `latest` |
-| `extras` | | dbt-ci [extras](installation.md#extras), comma-separated (`gcp`, `aws`, `docker`) |
+| `extras` | | dbt-ci [extras](installation.md#extras), comma-separated (`gcp`, `aws`, `docker`, `ai`) |
 | `adapter` | | pip requirements for your dbt adapter, space-separated, e.g. `dbt-snowflake~=1.11.0`. Needed with the default `dbt` runner |
 | `python-version` | `3.12` | Python for dbt-ci's virtual environment. The job's own Python is left untouched |
 

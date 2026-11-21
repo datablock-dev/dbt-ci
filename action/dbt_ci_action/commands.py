@@ -6,7 +6,16 @@ import shlex
 from dataclasses import dataclass
 from typing import List, Tuple
 
-SUPPORTED_COMMANDS = ("init", "run", "delete", "ephemeral", "migration", "report", "finalize")
+SUPPORTED_COMMANDS = (
+    "init",
+    "run",
+    "delete",
+    "ephemeral",
+    "migration",
+    "review",
+    "report",
+    "finalize",
+)
 EPHEMERAL_SUBCOMMANDS = ("create", "destroy")
 
 # Steps that still run after an earlier one failed: the report explains the failure, and

@@ -298,3 +298,15 @@ def test_launcher_runs_from_any_directory(tmp_path):
     )
     assert result.returncode == 2
     assert "commands' input is empty" in result.stdout
+
+
+def test_review_is_a_supported_command():
+    """The AI review runs from the action like the other commands."""
+    from dbt_ci_action.commands import Step, parse_line
+
+    assert parse_line("review --fail-on high") == [Step(("review",), ("--fail-on", "high"))]
+    assert [s.command for s in parse_line("init review report")] == [
+        ("init",),
+        ("review",),
+        ("report",),
+    ]
