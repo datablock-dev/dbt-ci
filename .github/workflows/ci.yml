@@ -8,6 +8,15 @@ on:
       - '**.md'
   workflow_dispatch:
 
+# One run at a time per branch, so merges to main queue instead of testing and releasing
+# in parallel. A running release is never cancelled. GitHub keeps only one run waiting:
+# a newer merge replaces it, and the release still covers that merge because it checks
+# out the latest main. The group is a literal name, not github.workflow, because the
+# called workflows see this workflow's name and a group built from it there would deadlock.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   tests:
     uses: ./.github/workflows/tests.yml
