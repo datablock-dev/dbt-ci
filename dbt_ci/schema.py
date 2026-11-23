@@ -4,7 +4,7 @@ from argparse import Namespace
 from typing import Callable, Any, Optional, TypedDict, NotRequired, Literal, Set
 
 type LoggingLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-type Commands = Literal["init", "delete", "migrate", "ephemeral", "run", "finalize"]
+type Commands = Literal["init", "delete", "migrate", "ephemeral", "run", "finalize", "review"]
 
 
 class DBTProfile(TypedDict):
