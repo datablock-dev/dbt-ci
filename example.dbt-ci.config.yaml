@@ -7,6 +7,10 @@ runner: "docker"
 init:
   comparison-strategy: "git"
 
+run:
+  # Retry a failed step with `dbt retry`, which reruns only the nodes that failed
+  retries: 1
+
 finalize:
   files:
     - "manifest"
@@ -21,3 +25,12 @@ docker:
     - "DBT_PROFILES_DIR=/dbt"
     - "USER=${USER}"
     - "DBT_STATE=${DBT_STATE}"
+
+# Settings for one CI event, applied over the top-level settings above
+on:
+  # Scheduled runs (e.g. a nightly build) only use this block, never `push`'s
+  schedule:
+    run:
+      retries: 2
+    notifications:
+      format: "compact"
