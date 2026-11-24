@@ -122,6 +122,7 @@ on that and handles the parts you would otherwise script yourself:
 | Move tables onto a changed partitioning, clustering or sort key, keeping their rows | ❌ | ✅ `migration` (BigQuery, Snowflake, Redshift, Databricks) |
 | Run a changed test without rebuilding its model | ❌ | ✅ `run --skip-test-only-changes` (opt-in) |
 | Retry a failed step from the point of failure within the CI run | `dbt retry`, run by hand | ✅ `run --retries` (opt-in) |
+| Warn when the production state was built by another dbt version | ❌ | ✅ `init` and the report flag it, since it can mark unchanged nodes as modified |
 
 On dbt Cloud, its CI jobs already run `state:modified+` with deferral. dbt-ci is for
 teams that run dbt Core in their own CI. It decides *what* to build; data-diff tools such

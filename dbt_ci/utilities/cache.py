@@ -187,6 +187,15 @@ class CacheManager:
                 report_cache[command]["comment"] = comment
         self._write_report(report_cache)
 
+    def add_report_fields(self, command: Commands, fields: dict[str, Any]) -> None:
+        """Add keys to a command's report entry without changing its status or timestamps."""
+        report_cache = self.get_cache("report.json")
+        if not isinstance(report_cache, dict) or command not in report_cache:
+            logger.debug(f"No report entry for '{command}' to add {sorted(fields)} to.")
+            return
+        report_cache[command].update(fields)
+        self._write_report(report_cache)
+
     @contextmanager
     def track_report(self, command: Commands) -> Iterator[None]:
         """
