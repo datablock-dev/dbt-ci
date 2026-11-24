@@ -59,7 +59,7 @@ dev = [
     "black==26.10.1",
     "mypy==2.4.1",
     "flake8==7.5.0",
-    "duckdb==2.0.0",
+    "duckdb==2.0.1",
     "pytest-cov==7.1.0",
     "pytest-mock==3.17.0",
 ]
