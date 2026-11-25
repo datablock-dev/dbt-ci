@@ -42,6 +42,29 @@ def result(node_id: str, seconds, status: str = "success") -> dict:
 class TestReadNodeTimes:
     """Test reading node times from dbt's run_results.json."""
 
+    def test_ignores_state_decision_id(self, tmp_path):
+        """
+        dbt-core 1.12.7 added state_decision_id to run results; it doesn't change the times.
+
+        Fields dbt-ci doesn't know about are ignored, whether the id is set or null.
+        """
+        plain = [result("model.p.a", 1.5), result("model.p.b", 0.25)]
+        write_run_results(tmp_path, NOW, plain)
+        expected = read_node_times(str(tmp_path), NOW)
+        with_ids = [
+            {**plain[0], "state_decision_id": "sd-1"},
+            {**plain[1], "state_decision_id": None},
+        ]
+        write_run_results(tmp_path, NOW, with_ids)
+        assert (
+            read_node_times(str(tmp_path), NOW)
+            == expected
+            == {
+                "model.p.a": 1.5,
+                "model.p.b": 0.25,
+            }
+        )
+
     def test_reads_executed_nodes(self, tmp_path):
         """Executed nodes are kept; skipped, zero-time and malformed entries are not."""
         write_run_results(
