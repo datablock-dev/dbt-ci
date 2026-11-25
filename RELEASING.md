@@ -96,5 +96,20 @@ That has to be done once by hand from the release page; later releases stay list
 
 ## Docker Images
 
-`.github/workflows/docker.yml` can build images to `ghcr.io/datablock-dev/dbt-ci`, but no
-workflow currently calls it, so releases do not publish Docker images.
+Once the release is on PyPI, the pipeline's `docker` job (`.github/workflows/docker.yml`)
+builds the latest `main` (the version-bump commit) for each dbt-core version in its matrix
+and pushes it to `ghcr.io/datablock-dev/dbt-ci` with the job's `GITHUB_TOKEN`:
+
+| Tag | Points at |
+|-----|-----------|
+| `dbt-<dbt-core version>`, e.g. `dbt-1.12.7` | The latest dbt-ci release on that dbt-core version, overwritten by each release |
+| `<dbt-ci version>-dbt-<dbt-core version>`, e.g. `1.26.0-dbt-1.12.7` | That release, never overwritten |
+| `latest` | The newest supported dbt-core minor version |
+
+Each image is checked with `dbt-ci --version` (it must report the release) and
+`dbt --version` before the job ends. Pull requests that change the `Dockerfile`,
+`.dockerignore`, `pyproject.toml` or `docker.yml` build the images without pushing them.
+
+When the matrix gets a new dbt-core patch, update the `latest` condition in `docker.yml`
+with it. The package's visibility is set on GitHub (organisation → Packages →
+`dbt-ci` → Package settings); new packages start private.

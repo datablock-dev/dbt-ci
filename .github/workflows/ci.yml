@@ -30,3 +30,14 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     uses: ./.github/workflows/publish-pypi.yml
     secrets: inherit
+
+  docker:
+    # Images go out once the release is on PyPI, built from the release commit
+    needs: pypi
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker.yml
+    with:
+      push_images: true
