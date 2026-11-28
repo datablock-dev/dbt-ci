@@ -49,19 +49,20 @@
         },
         "boto3": {
             "hashes": [
-                "sha256:2ec7370e9f387bf5ba3ae93024d18b3a9fd07eb697062d81165e3672f16a9335",
-                "sha256:4d5761c368ea199c2488401b86cfd966c132cbdb3c43b0390b25db69041f7989"
+                "sha256:a39a4d09ee47ab9a12e1dccf14b184d6002c5ae699d9205fda119aac69910119",
+                "sha256:afb34bb96846a60ee4fb054777272e442838a0997050205b67c3d7dc7255abdd"
             ],
+            "index": "pypi",
             "markers": "python_version >= '3.10'",
-            "version": "==1.44.10"
+            "version": "==1.44.11"
         },
         "botocore": {
             "hashes": [
-                "sha256:6fc109eefd1b02899196499d798141be6df70ca257b399741adc9975569d41b6",
-                "sha256:d9c8602d24df40e366bbe80157c6f94155c91c367eaaabeceb26d47532f6baba"
+                "sha256:9d7944b8c7f66c775756ae2ec26a4b903fa5c6f0aad1b58bf0d89e0a85913425",
+                "sha256:9e5684e0cccc012ac2eb6db0bbf89617af3f369251aa89b02193789007c043d3"
             ],
             "markers": "python_version >= '3.10'",
-            "version": "==1.44.10"
+            "version": "==1.44.13"
         },
         "certifi": {
             "hashes": [
@@ -1307,7 +1308,7 @@
                 "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3",
                 "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427"
             ],
-            "markers": "python_version >= '2.7' and python_version != '3.0' and python_version != '3.1' and python_version != '3.2'",
+            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2'",
             "version": "==2.9.0.post0"
         },
         "python-dotenv": {
@@ -1694,7 +1695,7 @@
                 "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
                 "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81"
             ],
-            "markers": "python_version >= '2.7' and python_version != '3.0' and python_version != '3.1' and python_version != '3.2'",
+            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2'",
             "version": "==1.17.0"
         },
         "slack-sdk": {
